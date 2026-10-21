@@ -444,6 +444,7 @@ describe("journal - the filters are applied by the route", () => {
       nature: "action" as const,
       result: "refused" as const,
       period: "today" as const,
+      connection: null,
     };
 
     // WHEN the query of the first page is written

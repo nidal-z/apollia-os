@@ -18,19 +18,6 @@ use crate::session::{McpSession, McpSessionError};
 use crate::tool_search::ToolIndexSnapshot;
 
 impl McpClientManager {
-    /// Collect an enriched status snapshot for every live session.
-    pub(super) fn collect_statuses(&self) -> Vec<McpServerStatus> {
-        self.sessions
-            .iter()
-            .map(|(name, session)| {
-                build_status(
-                    name,
-                    session,
-                    self.last_call_at.get(name).map(String::as_str),
-                )
-            })
-            .collect()
-    }
     /// Aggregate the lightweight tool index across every session.
     ///
     /// Each [`ToolIndexEntry`] is enriched with its owning server name and the

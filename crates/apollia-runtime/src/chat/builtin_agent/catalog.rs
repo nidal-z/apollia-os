@@ -27,7 +27,8 @@ impl BuiltInChatAgent {
     /// - `tool_search`, in deferred MCP mode: searches the granted MCP tools
     ///   and reads nothing else;
     /// - `todo_write`, when the conversation keeps a task list;
-    /// - `propose_agent`, in the conversation that creates an agent;
+    /// - `connection_lookup`, for Apollia in a conversation: searches the
+    ///   connections the user can add, on this machine;
     /// - the `plan_*` tools, while the conversation is in plan mode.
     ///
     /// An agent or a workflow is offered only when granted (`agent:<id>`,
@@ -56,6 +57,14 @@ impl BuiltInChatAgent {
         }
         if self.todo.is_some() {
             specs.push(todo_write_spec());
+        }
+        if self.session.connection_lookup {
+            specs.push(ToolSpec {
+                name: crate::chat::connection_lookup::CONNECTION_LOOKUP_NAME.to_owned(),
+                description: crate::chat::connection_lookup::CONNECTION_LOOKUP_DESCRIPTION
+                    .to_owned(),
+                parameters: crate::chat::connection_lookup::connection_lookup_input_schema(),
+            });
         }
         // Phase-aware: once a plan is approved the proposal tools are withheld
         // so the agent executes the approved plan instead of re-proposing it.

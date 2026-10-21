@@ -22,6 +22,12 @@ pub mod catalog;
 pub mod discovery;
 pub mod oauth;
 
+/// Longest wait for the addition or the test of a server: the runtime starts
+/// it and waits for its handshake, which a first `npx` or `uvx` launch can
+/// stretch well past the usual deadline of a request. The embedded arm sets
+/// no deadline on these; the attached arm waits this long.
+const MCP_HANDSHAKE_DEADLINE: std::time::Duration = std::time::Duration::from_secs(120);
+
 /// List all connected MCP servers with their status.
 ///
 /// Delegates to `GET /api/v1/mcp/servers` on the embedded runtime.
@@ -87,7 +93,9 @@ pub async fn add_mcp_server(
     let config = install_local_server(&state, config).await?;
     let body =
         serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
-    let json = state.post_json("/api/v1/mcp/servers", &body).await?;
+    let json = state
+        .post_json_within("/api/v1/mcp/servers", &body, MCP_HANDSHAKE_DEADLINE)
+        .await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 
@@ -211,7 +219,9 @@ pub async fn test_mcp_connection(
     let config = install_local_server(&state, config).await?;
     let body =
         serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
-    let json = state.post_json("/api/v1/mcp/servers/test", &body).await?;
+    let json = state
+        .post_json_within("/api/v1/mcp/servers/test", &body, MCP_HANDSHAKE_DEADLINE)
+        .await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse test result: {e}"))
 }
 

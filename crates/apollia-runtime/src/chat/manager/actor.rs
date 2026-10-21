@@ -331,6 +331,10 @@ impl ChatSessionManager {
                     info!("chat.config.followed");
                     self.config_feed = Some(feed);
                 }
+                ChatCommand::SetConnectionSelection { selection } => {
+                    info!(entries = selection.len(), "chat.connection_selection.set");
+                    self.connection_selection = Some(selection);
+                }
                 ChatCommand::SetComposer { composer } => {
                     info!("chat.composer.set");
                     self.composer = Some(composer);

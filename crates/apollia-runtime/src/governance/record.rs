@@ -365,6 +365,10 @@ pub struct ExportFilters {
     /// Results kept.
     #[serde(default)]
     pub results: Vec<String>,
+    /// Prefixes of the tools kept. Left out of the record when it narrowed
+    /// nothing, so an export made without it is recorded as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_prefixes: Vec<String>,
     /// Start of the period, included, RFC 3339 UTC.
     #[serde(default)]
     pub since: Option<String>,

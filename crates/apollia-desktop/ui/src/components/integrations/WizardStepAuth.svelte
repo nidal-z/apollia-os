@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
+  import { argumentDescription, enrichmentLabel, pickLocale } from "$lib/connections/catalogueText";
   import { Eye, EyeOff, ExternalLink, Lock, LogIn, Monitor, ShieldCheck } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -113,17 +114,17 @@
   const isOAuthMode = $derived(probeMode === "oauth");
   // Resolved help text shown on the Auth step. Prefer the i18n key (so
   // connector-specific guidance is properly localised via svelte-i18n) and
-  // fall back to the legacy bilingual `auth_help_text` baked into the
-  // enrichments JSON, then to the generic default.
+  // fall back to the `auth_help_text` of the selection in the interface
+  // language, then to the generic default.
   const authHelpKey = $derived(enrichment?.auth_help_i18n_key ?? null);
-  const authHelpInline = $derived(enrichment?.auth_help_text ?? null);
+  const authHelpInline = $derived(pickLocale(enrichment?.auth_help_text, $locale));
   // The legacy fields (catalog headers / package env) should only render when
   // the probe outcome calls for them - never alongside the OAuth flow, where
   // they'd compete with the "Sign in" button and confuse the operator.
   const showLegacyFields = $derived(
     hasFields && (probeMode === "static" || probeMode === "idle" || probeMode === "probe_error"),
   );
-  const operatorLabel = $derived(enrichment?.operator_label ?? "");
+  const operatorLabel = $derived(enrichmentLabel(enrichment, $locale) ?? "");
   const oauthIdentityLabel = $derived(
     oauthAccount?.email ?? oauthAccount?.sub ?? null,
   );
@@ -373,7 +374,7 @@
             required={arg.isRequired}
             optional={!arg.isRequired}
             optionalLabel={`(${$t("integrations.wizard.optional")})`}
-            hint={arg.description ?? undefined}
+            hint={argumentDescription(enrichment, entry.index, $locale) ?? arg.description ?? undefined}
           >
             {#if arg.isRepeatable}
               <Textarea

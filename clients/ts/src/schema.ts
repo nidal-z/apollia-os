@@ -560,6 +560,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/audit/activity`: the last use of the tools of a connection
+         *     and the number of actions each agent took with them over a period.
+         * @description An action is a tool call of the connection that ended, successfully or
+         *     not. The journal is read whole for the period, without an index. 400 when
+         *     the prefix is missing or a bound cannot be read, 503 when the journal is
+         *     not configured.
+         */
+        get: operations["get_connection_activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit/anchor": {
         parameters: {
             query?: never;
@@ -6441,6 +6465,18 @@ export interface components {
             /** @description The phase to move to, in its snake_case name (`ai_setup`...). */
             phase: string;
         };
+        /** @description What one agent did with the tools of a connection over the period. */
+        AgentActivity: {
+            /**
+             * Format: int64
+             * @description Tool calls of the connection that ended over the period.
+             */
+            actions: number;
+            /** @description The agent, `None` for calls whose entry names none. */
+            agent?: string | null;
+            /** @description When the last of them ended, RFC 3339 UTC. */
+            lastUsedAt: string;
+        };
         /** @description The draft of an agent, as the form opens it. Nothing of it is stored. */
         AgentDraft: {
             /**
@@ -7356,6 +7392,24 @@ export interface components {
              *     them. Empty for every other kind.
              */
             sharedWith: string[];
+        };
+        /** @description Response body of `GET /api/v1/audit/activity`. */
+        ConnectionActivityResponse: {
+            /**
+             * Format: int64
+             * @description Tool calls of the connection that ended over the period.
+             */
+            actions: number;
+            /** @description One line per agent, the most active first. */
+            agents: components["schemas"]["AgentActivity"][];
+            /** @description When the last of them ended, RFC 3339 UTC; `None` when none did. */
+            lastUsedAt?: string | null;
+            /** @description Start of the period read, RFC 3339 UTC. */
+            since: string;
+            /** @description The prefix the activity was read for. */
+            toolPrefix: string;
+            /** @description End of the period read, RFC 3339 UTC; `None` when it has no end. */
+            until?: string | null;
         };
         /**
          * @description The kind of thing a connection plugs in.
@@ -13658,6 +13712,57 @@ export interface operations {
             };
         };
     };
+    get_connection_activity: {
+        parameters: {
+            query?: {
+                /** @description The prefix the tools of the connection share, such as `mcp:notion/`. */
+                tool_prefix?: string;
+                /**
+                 * @description Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339
+                 *     instant. Defaults to seven days before the request.
+                 */
+                since?: string;
+                /**
+                 * @description End of the period, excluded: a day or an RFC 3339 instant. Defaults to
+                 *     no end.
+                 */
+                until?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The last use and the actions per agent of the connection over the period */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionActivityResponse"];
+                };
+            };
+            /** @description No tool prefix, or a bound of the period that cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_audit_anchor: {
         parameters: {
             query?: never;
@@ -13727,6 +13832,11 @@ export interface operations {
                 /** @description Comma-separated results: `success`, `failure`, `refused`. */
                 result?: string;
                 /**
+                 * @description Comma-separated prefixes of tool names, such as `mcp:notion/`. When
+                 *     set, the export holds the entries whose tool starts with one of them.
+                 */
+                tool_prefix?: string;
+                /**
                  * @description Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339
                  *     instant.
                  */
@@ -13794,6 +13904,8 @@ export interface operations {
                 nature?: string;
                 /** @description Comma-separated results: `success`, `failure`, `refused`. */
                 result?: string;
+                /** @description Comma-separated prefixes of tool names, such as `mcp:notion/` for the tools of one connection. When set, only the entries whose tool starts with one of them are paged. */
+                tool_prefix?: string;
                 /** @description Start of the period, included: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant. */
                 since?: string;
                 /** @description End of the period, excluded: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant. */

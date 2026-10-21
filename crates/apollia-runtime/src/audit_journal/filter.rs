@@ -1,5 +1,5 @@
 //! The filters a reader narrows the journal with: agent, family, nature,
-//! result, period.
+//! result, period, and the connection a tool belongs to.
 //!
 //! A filter is applied where the journal is read, on the summary of each
 //! entry, so a page holds matching entries only and its size means what it
@@ -25,6 +25,10 @@ pub struct JournalFilter {
     pub natures: Vec<JournalNature>,
     /// Results to keep.
     pub outcomes: Vec<JournalOutcome>,
+    /// Prefixes of the tools to keep, such as `mcp:notion/` for the tools of
+    /// one connection. An entry is kept when the tool its summary names starts
+    /// with one of them; an entry that names no tool is not.
+    pub tool_prefixes: Vec<String>,
     /// Keep entries written at or after this instant.
     pub since: Option<DateTime<Utc>>,
     /// Keep entries written before this instant.
@@ -81,6 +85,8 @@ pub struct JournalCriteria<'a> {
     pub natures: Option<&'a str>,
     /// Results, under their wire names.
     pub outcomes: Option<&'a str>,
+    /// Prefixes of tool names, such as `mcp:notion/`.
+    pub tool_prefixes: Option<&'a str>,
     /// Start of the period, included.
     pub since: Option<&'a str>,
     /// End of the period, excluded.
@@ -105,6 +111,7 @@ impl JournalFilter {
             families: split_values(criteria.families),
             natures,
             outcomes,
+            tool_prefixes: split_values(criteria.tool_prefixes),
             since: criteria.since.map(parse_instant).transpose()?,
             until: criteria.until.map(parse_instant).transpose()?,
         })
@@ -154,6 +161,15 @@ impl JournalFilter {
             && !summary
                 .outcome
                 .is_some_and(|outcome| self.outcomes.contains(&outcome))
+        {
+            return false;
+        }
+        if !self.tool_prefixes.is_empty()
+            && !summary.tool.as_ref().is_some_and(|tool| {
+                self.tool_prefixes
+                    .iter()
+                    .any(|prefix| tool.starts_with(prefix.as_str()))
+            })
         {
             return false;
         }

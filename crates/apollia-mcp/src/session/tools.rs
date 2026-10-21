@@ -114,6 +114,16 @@ impl McpSession {
     pub fn cached_tool_schema(&self, tool_name: &str) -> Option<&serde_json::Value> {
         self.schema_cache.get(tool_name)
     }
+    /// Whether a call to `tool_name` would first fetch its schema: a deferred
+    /// session whose cache does not hold it.
+    #[must_use]
+    pub(crate) fn needs_schema_fetch(&self, tool_name: &str) -> bool {
+        self.loading_mode == LoadingMode::Deferred && !self.schema_cache.contains_key(tool_name)
+    }
+    /// Cache the schemas a `tools/list` answered, name to schema.
+    pub(crate) fn cache_tool_schemas(&mut self, schemas: Vec<(String, serde_json::Value)>) {
+        self.schema_cache.extend(schemas);
+    }
     /// Fetch and cache the full JSON schema for a named tool.
     ///
     /// In [`LoadingMode::Eager`] the schema is read from the already-loaded
@@ -127,6 +137,9 @@ impl McpSession {
     /// Returns [`McpSessionError::SchemaFetchFailed`] when the tool name is not
     /// known to the server, or when the on-demand `tools/list` round-trip fails
     /// at the transport level.
+    // TEST-ONLY: the manager fetches a missing schema in the detached call,
+    // through `SessionCaller::list_tool_schemas`, and caches the answer with
+    // `cache_tool_schemas` once the outcome is back in the actor.
     pub async fn fetch_tool_schema(
         &mut self,
         tool_name: &str,
@@ -147,27 +160,8 @@ impl McpSession {
                     return Ok(schema.clone());
                 }
 
-                let timeout_secs = self.config.init_timeout_secs;
-                let response = self
-                    .send_request("tools/list", None, timeout_secs)
-                    .await
-                    .map_err(|e| McpSessionError::SchemaFetchFailed {
-                        server: self.config.name.clone(),
-                        tool: tool_name.to_string(),
-                        cause: e.to_string(),
-                    })?;
-
-                let result: ToolsListResult = serde_json::from_value(response).map_err(|e| {
-                    McpSessionError::SchemaFetchFailed {
-                        server: self.config.name.clone(),
-                        tool: tool_name.to_string(),
-                        cause: e.to_string(),
-                    }
-                })?;
-
-                for tool in result.tools {
-                    self.schema_cache.insert(tool.name, tool.input_schema);
-                }
+                let schemas = self.caller().list_tool_schemas(tool_name).await?;
+                self.cache_tool_schemas(schemas);
 
                 self.schema_cache.get(tool_name).cloned().ok_or_else(|| {
                     McpSessionError::SchemaFetchFailed {

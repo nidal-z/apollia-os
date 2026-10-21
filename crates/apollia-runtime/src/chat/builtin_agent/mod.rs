@@ -131,6 +131,10 @@ pub struct SessionOverrides {
     /// Accesses the agent does not hold, proposed for the conversation: each
     /// of their calls asks, unless a standing consent covers it.
     pub proposed_accesses: Vec<String>,
+    /// Offers the search over the connections the user can add
+    /// ([`crate::chat::connection_lookup`]), whose executor the invoker of the
+    /// conversation holds. Set for Apollia in a conversation only.
+    pub connection_lookup: bool,
 }
 
 /// The request settings of one turn, read once and applied to each call.

@@ -14,7 +14,8 @@
  * Kept free of Svelte and of IPC so each decision is tested on its own; the
  * sources are handed in, `connectionStepLive.ts` hands the real ones.
  */
-import { deriveServerName } from "$lib/integrations/connectorConfig";
+import { entryLabel } from "$lib/connections/catalogueText";
+import { deriveServerName, legacyServerName } from "$lib/integrations/connectorConfig";
 import { connectionsPackage, proposesConnections, type FirstAgent } from "$lib/onboarding/firstAgent";
 import { findSelectionEntry } from "$lib/stores/connectionAdd";
 import type { Connection, RegistryServerView } from "$lib/types";
@@ -72,7 +73,7 @@ export function connectionType(connection: Pick<Connection, "id" | "kind">): str
 /** One line of the step: a required connection and whether it is there. */
 export interface ConnectionLine {
   type: string;
-  /** Name shown: the one the selection gives the entry, else the type. */
+  /** Name shown when the line has no entry, and the English one otherwise: `lineLabel` gives the one of a locale. */
   label: string;
   reason: string;
   state: "missing" | "present";
@@ -87,8 +88,12 @@ function present(
 ): boolean {
   const types = new Set(connections.map(connectionType));
   if (types.has(type.toLowerCase())) return true;
-  // A connection added from the selection is named after its entry.
-  return entry !== null && types.has(deriveServerName(entry).toLowerCase());
+  // A connection added from the selection is named after its entry, or, when
+  // it was added before the name came from the identifier, after its label.
+  return (
+    entry !== null &&
+    (types.has(deriveServerName(entry).toLowerCase()) || types.has(legacyServerName(entry).toLowerCase()))
+  );
 }
 
 /**
@@ -104,10 +109,16 @@ export function missingLines(
   for (const { type, reason } of required) {
     const entry = findSelectionEntry(entries, type);
     if (present(type, entry, connections)) continue;
-    const label = entry?.enrichment?.operator_label ?? entry?.title ?? type;
+    const label = entry ? entryLabel(entry, "en") : type;
     lines.push({ type, label: label.trim() || type, reason, state: "missing", entry });
   }
   return lines;
+}
+
+/** The name a line is shown under in `locale`: the selection's label of its entry, else its type. */
+export function lineLabel(line: Pick<ConnectionLine, "label" | "entry" | "type">, locale: string | null | undefined): string {
+  if (line.entry === null) return line.label;
+  return entryLabel(line.entry, locale).trim() || line.type;
 }
 
 /**

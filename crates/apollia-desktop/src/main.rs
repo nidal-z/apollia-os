@@ -69,9 +69,11 @@ fn main() {
     };
     // A factory reset asked on Windows is carried out here, before the log
     // file or any database under the directory is opened by this process.
-    let pending_reset = apollia_runtime::app_lifecycle::apply_pending_factory_reset(
-        &apollia_data_dir,
-        apollia_runtime::app_lifecycle::PENDING_RESET_WAIT,
+    let pending_reset = tauri::async_runtime::block_on(
+        apollia_runtime::app_lifecycle::apply_pending_factory_reset(
+            &apollia_data_dir,
+            apollia_runtime::app_lifecycle::PENDING_RESET_WAIT,
+        ),
     );
     // The same traces go to the terminal and to `~/.apollia/logs/desktop.log`,
     // rotated by size; a folder that cannot be opened leaves the terminal
@@ -256,7 +258,16 @@ fn main() {
         let workflows = runtime_handle.workflows.clone();
         let governance = runtime_handle.governance.clone();
         let runtime = runtime_handle.clone();
+        // Apollia searches the curated selection, in a conversation, for a
+        // connection a request needs; an entry the policy forbids is left out.
+        let selection = std::sync::Arc::new(mcp::chat_selection::connection_selection(
+            &mcp::load_builtin_enrichments(),
+            runtime_handle.connection_governance.clone(),
+        ));
         worker.spawn(async move {
+            if let Some(chat) = chat.as_ref() {
+                chat.set_connection_selection(selection).await;
+            }
             bundled_packages::install_bundled_packages(&data_dir, governance).await;
             runtime.register_stored_agents(&data_dir).await;
             apollia_aip::package_tools::attach(

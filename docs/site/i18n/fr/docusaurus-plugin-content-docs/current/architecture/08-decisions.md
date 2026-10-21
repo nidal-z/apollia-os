@@ -533,6 +533,27 @@ une erreur typée « Node.js requis ». Un poste sans réseau importe Node.js de
 un disque, par la même vérification. Les paquets npm des serveurs s'installent
 depuis un verrou qui porte une empreinte d'intégrité par paquet.
 
+### Un seul écrivain, un état publié, des appels détachés {#mcp-manager-snapshot}
+
+Le gestionnaire MCP est un acteur, et il reste le seul écrivain de ses
+sessions, comme le veut le principe 5 : aucun verrou n'est partagé avec un
+autre acteur. Ce qu'il ne fait plus, c'est retenir sa boucle pendant qu'un
+serveur travaille. Un appel d'outil et un test de connexion tournent dans une
+tâche à eux, sur une poignée du lien JSON-RPC de la session ; l'issue d'un
+appel revient à l'acteur par message, et l'acteur l'inscrit dans la santé de
+la session dans l'ordre où les issues arrivent. Deux appels sur une même
+session avancent côte à côte, ce que le protocole permet, puisque chaque
+requête porte son propre identifiant.
+
+Après chaque changement (un serveur ajouté, retiré, redémarré ou rechargé,
+l'issue d'un appel inscrite), l'acteur publie l'état de chaque serveur, sa
+santé et l'index des outils sur un canal `watch`, avant de répondre. Lire la
+liste des connexions, ou l'index des outils qu'une conversation lit à chaque
+tour, prend cet état publié et n'envoie rien à l'acteur : un serveur lent ne
+retarde ni l'une ni l'autre. Le principe 5 se lit ainsi : un acteur possède
+et modifie l'état, les autres lisent une copie qu'il publie, jamais l'état
+lui-même.
+
 ## Connecteurs {#connectors}
 
 Les connecteurs Google et Microsoft s'authentifient en OAuth2 avec PKCE. Aucun

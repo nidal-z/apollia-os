@@ -358,6 +358,12 @@ pub enum ChatCommand {
         /// conversation and the next exchange.
         feed: crate::config_reload::ConfigFeed,
     },
+    /// Hand the curated selection of connections to the actor.
+    SetConnectionSelection {
+        /// Searched by Apollia in every conversation exchange that starts
+        /// afterwards.
+        selection: Arc<crate::chat::connection_lookup::ConnectionSelection>,
+    },
     /// Hand the composer of the granted agent and workflow calls to the actor.
     SetComposer {
         /// Used by every run that starts afterwards.

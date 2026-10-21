@@ -10,6 +10,7 @@ pub mod a2a_tools;
 pub mod agent_chat;
 pub mod agent_executor;
 pub mod builtin_agent;
+pub mod connection_lookup;
 pub mod documents;
 pub mod extractor;
 pub mod generation;
@@ -41,6 +42,7 @@ pub use builtin_agent::{
     BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, NativeChatToolInvoker,
     DEFAULT_CONTEXT_WINDOW_SIZE, DEFAULT_SYSTEM_PROMPT,
 };
+pub use connection_lookup::{ConnectionSelection, SelectionEntry};
 pub use extractor::{
     extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult, UserMemoryExtractor,
 };

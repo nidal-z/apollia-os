@@ -18,6 +18,7 @@ def _get_kwargs(
     family: str | Unset = UNSET,
     nature: str | Unset = UNSET,
     result: str | Unset = UNSET,
+    tool_prefix: str | Unset = UNSET,
     since: str | Unset = UNSET,
     until: str | Unset = UNSET,
 ) -> dict[str, Any]:
@@ -35,6 +36,8 @@ def _get_kwargs(
     params["nature"] = nature
 
     params["result"] = result
+
+    params["tool_prefix"] = tool_prefix
 
     params["since"] = since
 
@@ -95,6 +98,7 @@ def sync_detailed(
     family: str | Unset = UNSET,
     nature: str | Unset = UNSET,
     result: str | Unset = UNSET,
+    tool_prefix: str | Unset = UNSET,
     since: str | Unset = UNSET,
     until: str | Unset = UNSET,
 ) -> Response[ApiErrorBody | AuditJournalPageResponse]:
@@ -114,6 +118,7 @@ def sync_detailed(
         family (str | Unset):
         nature (str | Unset):
         result (str | Unset):
+        tool_prefix (str | Unset):
         since (str | Unset):
         until (str | Unset):
 
@@ -132,6 +137,7 @@ def sync_detailed(
         family=family,
         nature=nature,
         result=result,
+        tool_prefix=tool_prefix,
         since=since,
         until=until,
     )
@@ -152,6 +158,7 @@ def sync(
     family: str | Unset = UNSET,
     nature: str | Unset = UNSET,
     result: str | Unset = UNSET,
+    tool_prefix: str | Unset = UNSET,
     since: str | Unset = UNSET,
     until: str | Unset = UNSET,
 ) -> ApiErrorBody | AuditJournalPageResponse | None:
@@ -171,6 +178,7 @@ def sync(
         family (str | Unset):
         nature (str | Unset):
         result (str | Unset):
+        tool_prefix (str | Unset):
         since (str | Unset):
         until (str | Unset):
 
@@ -190,6 +198,7 @@ def sync(
         family=family,
         nature=nature,
         result=result,
+        tool_prefix=tool_prefix,
         since=since,
         until=until,
     ).parsed
@@ -204,6 +213,7 @@ async def asyncio_detailed(
     family: str | Unset = UNSET,
     nature: str | Unset = UNSET,
     result: str | Unset = UNSET,
+    tool_prefix: str | Unset = UNSET,
     since: str | Unset = UNSET,
     until: str | Unset = UNSET,
 ) -> Response[ApiErrorBody | AuditJournalPageResponse]:
@@ -223,6 +233,7 @@ async def asyncio_detailed(
         family (str | Unset):
         nature (str | Unset):
         result (str | Unset):
+        tool_prefix (str | Unset):
         since (str | Unset):
         until (str | Unset):
 
@@ -241,6 +252,7 @@ async def asyncio_detailed(
         family=family,
         nature=nature,
         result=result,
+        tool_prefix=tool_prefix,
         since=since,
         until=until,
     )
@@ -259,6 +271,7 @@ async def asyncio(
     family: str | Unset = UNSET,
     nature: str | Unset = UNSET,
     result: str | Unset = UNSET,
+    tool_prefix: str | Unset = UNSET,
     since: str | Unset = UNSET,
     until: str | Unset = UNSET,
 ) -> ApiErrorBody | AuditJournalPageResponse | None:
@@ -278,6 +291,7 @@ async def asyncio(
         family (str | Unset):
         nature (str | Unset):
         result (str | Unset):
+        tool_prefix (str | Unset):
         since (str | Unset):
         until (str | Unset):
 
@@ -298,6 +312,7 @@ async def asyncio(
             family=family,
             nature=nature,
             result=result,
+            tool_prefix=tool_prefix,
             since=since,
             until=until,
         )

@@ -12,13 +12,14 @@
    * decisions live in `connectionStep.ts`; this component renders them.
    */
   import { untrack } from "svelte";
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
   import { CircleCheck, Plug } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import ConnectorWizard from "../integrations/ConnectorWizard.svelte";
   import {
     allPresent,
     entryToAdd,
+    lineLabel,
     refreshedLines,
     subtitleKey,
     type ConnectionLine,
@@ -84,7 +85,7 @@
           <Plug size={14} strokeWidth={2} />
         </span>
         <span class="flex min-w-0 flex-1 flex-col gap-1">
-          <span class="text-body-sm font-medium text-foreground">{line.label}</span>
+          <span class="text-body-sm font-medium text-foreground">{lineLabel(line, $locale)}</span>
           {#if line.reason}
             <span class="text-caption text-muted-foreground" data-testid="connection-line-reason">
               {line.reason}

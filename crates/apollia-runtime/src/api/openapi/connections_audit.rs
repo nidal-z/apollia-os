@@ -20,6 +20,7 @@ use utoipa::{Modify, OpenApi};
         crate::api::routes_audit::list_audit_journal,
         crate::api::routes_audit::post_replay_run,
         crate::api::routes_audit_export::export_audit_journal,
+        crate::api::routes_audit_activity::get_connection_activity,
         crate::api::routes_connections::list_connections,
         crate::api::routes_connections::folders::add_folder_connection,
         crate::api::routes_connections::folders::remove_folder_connection,
@@ -29,6 +30,8 @@ use utoipa::{Modify, OpenApi};
     components(schemas(
         crate::api::routes_audit::AuditJournalResponse,
         crate::api::routes_audit::AuditJournalPageResponse,
+        crate::api::routes_audit_activity::ConnectionActivityResponse,
+        crate::audit_journal::AgentActivity,
         crate::api::routes_audit::AuditJournalEntryDetailResponse,
         crate::audit_journal::JournalExportFormat,
         crate::audit_journal::JournalSummary,

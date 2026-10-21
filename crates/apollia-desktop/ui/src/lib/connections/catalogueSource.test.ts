@@ -134,7 +134,7 @@ describe("the search narrows what is loaded", () => {
     description: null,
     category: null,
     enrichment: {
-      operator_label: "Memory",
+      operator_label: { en: "Memory", fr: "M\u00e9moire" },
       category: "knowledge",
       icon_name: "brain",
       trust_level: "community_verified",
@@ -165,6 +165,17 @@ describe("the search narrows what is loaded", () => {
     expect(byDescription).toEqual([weather]);
     expect(byCategory).toEqual([notion]);
     expect(nothing).toEqual([]);
+  });
+
+  test("a selection entry is found by its label in either language", () => {
+    // GIVEN a selection entry labelled "Memory" and "M\u00e9moire"
+    const loaded = [notion, weather, fromSelection];
+
+    // WHEN searched by the French label, typed without its accent
+    const found = loaded.filter((e) => matchesCatalogueQuery(e, "memoire"));
+
+    // THEN the entry is found
+    expect(found).toEqual([fromSelection]);
   });
 });
 

@@ -9,6 +9,7 @@
 //! tamper-evidence over the lifecycle of a run, and the timelines read their
 //! tool calls from it through [`tool_calls`].
 
+pub mod activity;
 pub mod actor;
 pub mod anchor;
 pub mod daily;
@@ -28,6 +29,7 @@ pub mod summary;
 pub mod tool_calls;
 pub mod verify;
 
+pub use activity::{tally, ActivityTally, AgentActivity};
 pub use actor::PurgeOutcome;
 pub use daily::{export_missing_days, DailyExportError};
 pub use detail::{entry_detail, JournalEntryDetail, ToolCallDetail};

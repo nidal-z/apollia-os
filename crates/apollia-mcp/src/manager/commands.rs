@@ -14,7 +14,7 @@ use crate::manager::views::{
 };
 use crate::manager::{
     McpClientManager, McpConnectionTestResult, McpResourcePayload, McpResourceSummary,
-    McpServerStatus, McpToolSummary, ProbeSpec,
+    McpServerStatus, McpToolSummary,
 };
 use crate::protocol::{extract_text_parts, ToolCallResult};
 use crate::session::{LoadingMode, McpSession, McpSessionError};
@@ -245,107 +245,6 @@ impl McpClientManager {
         };
         session.shutdown().await;
         Ok(result)
-    }
-    /// Test an already-installed server: re-handshake for reachability, then run
-    /// an optional read-only probe against the live session to exercise real
-    /// operational access. The probe bypasses HITL (it is a system health check,
-    /// not an agent action) and updates the live session's health, so the badge
-    /// reflects the verdict and a [`RuntimeEvent::McpServerHealthChanged`] fires.
-    pub(super) async fn handle_test_live_server(
-        &mut self,
-        server_name: String,
-        probe: Option<ProbeSpec>,
-    ) -> Result<McpConnectionTestResult, McpSessionError> {
-        let config = match self.sessions.get(&server_name) {
-            Some(session) => session.config().clone(),
-            None => {
-                return Err(McpSessionError::ServerExited {
-                    server: server_name,
-                });
-            }
-        };
-
-        let mut result = Self::handle_test_connection(config).await?;
-
-        if let Some(probe) = probe {
-            // Only run a probe whose tool the server actually exposes. A
-            // misconfigured or absent probe tool then degrades gracefully to a
-            // reachability-only verdict instead of a false "not found" failure.
-            let probe_available = self
-                .sessions
-                .get(&server_name)
-                .map(|s| session_tool_names(s).contains(&probe.tool))
-                .unwrap_or(false);
-            if probe_available {
-                let call = {
-                    let Some(session) = self.sessions.get(&server_name) else {
-                        return Err(McpSessionError::ServerExited {
-                            server: server_name,
-                        });
-                    };
-                    session.call_tool(&probe.tool, probe.args).await
-                };
-                self.record_call_outcome(&server_name, &call);
-            } else {
-                tracing::debug!(
-                    server = %server_name,
-                    probe = %probe.tool,
-                    "mcp.health_probe_skipped_unknown_tool"
-                );
-            }
-        }
-
-        result.live_health = self.sessions.get(&server_name).map(|s| s.health().clone());
-        Ok(result)
-    }
-    /// Resolve a [`McpCommand::CallTool`] command.
-    pub(super) async fn handle_call_tool(
-        &mut self,
-        server_name: String,
-        tool_name: String,
-        arguments: Option<serde_json::Value>,
-    ) -> Result<ToolCallResult, McpSessionError> {
-        if self.reloading.contains(&server_name) {
-            return Err(McpSessionError::ServerReloading {
-                server: server_name,
-            });
-        }
-
-        // In deferred mode, warm the schema cache on first use. This mutable
-        // borrow is opened and dropped in its own scope before the immutable
-        // borrow taken by the call below. The fetch is best-effort: a failure
-        // here is logged and ignored, since `call_tool` does not require the
-        // schema to execute.
-        if self.loading_mode == LoadingMode::Deferred {
-            if let Some(session) = self.sessions.get_mut(&server_name) {
-                if let Err(e) = session.fetch_tool_schema(&tool_name).await {
-                    tracing::warn!(
-                        server = %server_name,
-                        tool = %tool_name,
-                        error = %e,
-                        detail = "the tool call continues on the deferred index",
-                        "mcp.schema.fetch.failed"
-                    );
-                }
-            }
-        }
-
-        // Build and await the call inside a scope so the immutable borrow of
-        // `self.sessions` ends before `record_call_outcome` takes `&mut self`.
-        let result = {
-            let session = match self.sessions.get(&server_name) {
-                Some(session) => session,
-                None => {
-                    return Err(McpSessionError::ServerExited {
-                        server: server_name,
-                    });
-                }
-            };
-            session.call_tool(&tool_name, arguments).await
-        };
-
-        self.record_call_outcome(&server_name, &result);
-        result
     }
     /// Classify a tool-call outcome and update the session's health, emitting
     /// [`RuntimeEvent::McpServerHealthChanged`] only when the state changes.
