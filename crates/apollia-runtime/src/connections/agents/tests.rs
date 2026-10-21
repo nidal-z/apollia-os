@@ -20,6 +20,7 @@ fn agent(id: &str, access: &[&str]) -> AgentAccessView {
         enabled: true,
         by_default: false,
         access: access.iter().map(|a| (*a).to_owned()).collect(),
+        added: Vec::new(),
     }
 }
 
@@ -151,4 +152,57 @@ fn test_foreign_tools_names_what_the_connection_does_not_bring() {
         foreign,
         ["conn:google:pro@example.com/gmail.send", "imap.search"]
     );
+}
+
+// GIVEN an access holding one of three tools, a tool named twice among them
+// WHEN the tools it lacks are read
+// THEN the two others come out, in order, each once
+#[test]
+fn test_missing_from_names_each_tool_not_held_once() {
+    // GIVEN
+    let access = vec!["imap.search".to_owned()];
+    let tools = vec![
+        "imap.read".to_owned(),
+        "imap.search".to_owned(),
+        "imap.list_folders".to_owned(),
+        "imap.read".to_owned(),
+    ];
+
+    // WHEN
+    let missing = missing_from(&access, &tools);
+
+    // THEN
+    assert_eq!(missing, ["imap.read", "imap.list_folders"]);
+}
+
+// GIVEN an agent on the default access given gmail.send of an account on top
+//      of it, and holding a mailbox tool by default
+// WHEN the holders of the account and of a mailbox are read
+// THEN it holds the account by the tool given, not by default, and the
+//      mailbox by default
+#[test]
+fn test_a_tool_given_on_top_is_not_held_by_default() {
+    // GIVEN
+    let all = connections();
+    let send = "conn:google:ada@example.com/gmail.send";
+    let mut writer = agent("writer", &["imap.search", send]);
+    writer.by_default = true;
+    writer.added = vec![send.to_owned()];
+
+    // WHEN
+    let account = holders(
+        find(&all, "native:google:ada@example.com"),
+        &all,
+        std::slice::from_ref(&writer),
+    );
+    let mailbox = holders(
+        find(&all, "imap:ada@example.org"),
+        &all,
+        std::slice::from_ref(&writer),
+    );
+
+    // THEN
+    assert_eq!(account.agents[0].tools, [send]);
+    assert!(!account.agents[0].by_default);
+    assert!(mailbox.agents[0].by_default);
 }

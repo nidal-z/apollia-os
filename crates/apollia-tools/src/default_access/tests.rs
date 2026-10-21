@@ -196,7 +196,7 @@ async fn test_the_card_shows_the_default_access() {
         &[],
     );
 
-    let shown = with_default_access(agent, &registry, &DefaultAccess::default()).await;
+    let shown = with_default_access(agent, &registry, &DefaultAccess::default(), &[]).await;
 
     assert_eq!(shown.access, vec!["notebook_read"]);
     assert!(shown.overridden.is_empty());
@@ -279,5 +279,108 @@ async fn test_an_agent_on_the_default_follows_the_widened_default() {
     let tools = AgentAccess::Default.tools(&registry, &default).await;
 
     assert_eq!(tools, vec!["file_read", "file_write"]);
+    registry.shutdown().await;
+}
+
+fn added(tools: &[&str]) -> AgentOverride {
+    AgentOverride {
+        field: OverrideField::AccessAdded,
+        value: json!(tools),
+    }
+}
+
+// GIVEN an agent on the default access given one MCP tool on top of it
+// WHEN its access is read
+// THEN it still follows the default, with the tool given
+#[test]
+fn test_a_tool_given_on_top_keeps_the_agent_on_the_default() {
+    let agent = resolved(
+        &stored(AgentOrigin::Interface, json!({"name": "helper"})),
+        &[added(&["mcp:notion/create_page"])],
+    );
+
+    let access = AgentAccess::of(&agent);
+
+    assert!(reads_by_default(&agent));
+    assert_eq!(
+        access,
+        AgentAccess::DefaultWith(vec!["mcp:notion/create_page".into()])
+    );
+}
+
+// GIVEN an agent on the default given a writing tool, and a reading tool that
+//   reaches the machine after the gift
+// WHEN its tools are read at the next run
+// THEN the reading tool that arrived is granted, beside the tool given
+#[tokio::test]
+async fn test_a_reading_tool_arriving_after_a_gift_is_still_granted() {
+    let registry = registry_with(vec![file_read::FileRead::descriptor()]).await;
+    let agent = resolved(
+        &stored(AgentOrigin::Interface, json!({"name": "helper"})),
+        &[added(&["mcp:notion/create_page"])],
+    );
+    let access = AgentAccess::of(&agent);
+    registry
+        .register(mcp_tool("mcp:notion/search", ActionFamily::Read))
+        .await
+        .unwrap();
+
+    let tools = access.tools(&registry, &DefaultAccess::default()).await;
+
+    assert_eq!(
+        tools,
+        vec!["file_read", "mcp:notion/search", "mcp:notion/create_page"]
+    );
+    registry.shutdown().await;
+}
+
+// GIVEN an agent whose access was chosen whole, and tools given on top of a
+//   default it no longer holds
+// WHEN its access is read
+// THEN the list chosen holds alone
+#[test]
+fn test_a_list_chosen_whole_leaves_the_tools_given_on_top_out() {
+    let agent = resolved(
+        &stored(AgentOrigin::Interface, json!({"name": "helper"})),
+        &[
+            AgentOverride {
+                field: OverrideField::Access,
+                value: json!(["file_write"]),
+            },
+            added(&["mcp:notion/create_page"]),
+        ],
+    );
+
+    let access = AgentAccess::of(&agent);
+
+    assert_eq!(access, AgentAccess::Listed(vec!["file_write".into()]));
+}
+
+// GIVEN an agent on the default given an MCP tool, on a machine where a
+//   reading tool and the tool given are switched off
+// WHEN its access is written in for its card
+// THEN neither tool switched off is shown
+#[tokio::test]
+async fn test_the_card_leaves_the_disabled_tools_out() {
+    let registry = registry_with(vec![
+        file_read::FileRead::descriptor(),
+        notebook_read::NotebookRead::descriptor(),
+    ])
+    .await;
+    let agent = resolved(
+        &stored(AgentOrigin::Interface, json!({"name": "helper"})),
+        &[added(&["mcp:notion/create_page", "mcp:notion/update_page"])],
+    );
+    let disabled = vec![
+        "file_read".to_string(),
+        "mcp:notion/update_page".to_string(),
+    ];
+
+    let shown = with_default_access(agent, &registry, &DefaultAccess::default(), &disabled).await;
+
+    assert_eq!(
+        shown.access,
+        vec!["notebook_read", "mcp:notion/create_page"]
+    );
     registry.shutdown().await;
 }

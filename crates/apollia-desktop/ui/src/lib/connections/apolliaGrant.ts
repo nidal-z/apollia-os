@@ -6,10 +6,12 @@
  * of Apollia. The add dialogs offer, checked, to give Apollia every tool of
  * the connection at once. What a tool may do is still decided at each call:
  * a sensitive one, and one nobody classified, asks for approval first.
+ *
+ * The runtime writes the grant: an Apollia on the default access keeps it,
+ * read again at each run, and holds the tools of the connection on top of it.
  */
-import { setAgentOverride } from "$lib/ipc/agentAdjust";
 import { getAgentDefinition } from "$lib/ipc/agentSheet";
-import { listConnections } from "$lib/ipc/connections";
+import { grantConnection, listConnections } from "$lib/ipc/connections";
 import { APOLLIA_AGENT_ID } from "$lib/chat/chatTargets";
 import type { Connection } from "$lib/types";
 
@@ -66,6 +68,6 @@ export async function grantConnectionToApollia(
   const current = agent?.access ?? [];
   const next = accessWithTools(current, tools);
   if (next.length === current.length) return 0;
-  await setAgentOverride(APOLLIA_AGENT_ID, "access", next);
+  await grantConnection(id, [APOLLIA_AGENT_ID], next.slice(current.length));
   return next.length - current.length;
 }
