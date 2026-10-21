@@ -49,29 +49,19 @@ fn is_covered_by_curated(
 ///   `is_installed`.
 ///
 /// The runtime falls back to cached registry data when the network is
-/// unreachable.
+/// unreachable. With neither the network nor a cache, the failure is returned
+/// as is: the selection is read on its own path (`fetch_mcp_curated`), and an
+/// empty answer here would read as a public catalogue with nothing in it.
 #[tauri::command]
 pub async fn fetch_mcp_registry(
     state: State<'_, RuntimeLink>,
     search: Option<String>,
 ) -> Result<Vec<RegistryServerView>, String> {
-    // The remote MCP registry can be unreachable (offline, DNS down, registry
-    // outage, or simply not configured in this build) with no cache to fall
-    // back on. When that happens we still want the operator to see the
-    // curated entries from enrichments.json - they are baked into the binary
-    // and require no network. Treat any registry error as an empty result and
-    // log it.
-    let raw_servers = match fetch_registry_servers(&state, search.as_deref()).await {
-        Ok(servers) => servers,
-        Err(e) => {
-            tracing::warn!(
-                error = %e,
-                detail = "falling back to the curated catalogue only",
-                "mcp.registry.fetch.failed"
-            );
-            Vec::new()
-        }
-    };
+    let raw_servers = fetch_registry_servers(&state, search.as_deref())
+        .await
+        .inspect_err(|e| {
+            tracing::warn!(error = %e, "mcp.registry.fetch.failed");
+        })?;
 
     // Build enrichment lookups: by package identifier AND by registry server name.
     let enrichments = load_builtin_enrichments();

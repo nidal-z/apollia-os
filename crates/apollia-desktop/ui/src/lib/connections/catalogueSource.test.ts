@@ -52,17 +52,17 @@ describe("opening the catalogue never asks the public catalogue", () => {
     const second = await source.selection();
 
     // THEN the selection is shown and the registry command was called zero times
-    expect(first).toEqual({ tier: "curated", entries: CURATED });
-    expect(second.entries).toEqual(CURATED);
+    expect(first).toEqual({ tier: "curated", selection: CURATED, publicEntries: [], failures: [] });
+    expect(second.selection).toEqual(CURATED);
     expect(callsTo("fetch_mcp_registry")).toBe(0);
     expect(callsTo("fetch_mcp_curated")).toBe(1);
   });
 
   test("the Connections screen reaches the registry through Explore all only", () => {
-    // GIVEN the source of the Connections screen and of its catalogue sheet
+    // GIVEN the source of the Connections screen and of its add window
     const route = readFileSync(new URL("../../routes/Connections.svelte", import.meta.url), "utf8");
-    const sheet = readFileSync(
-      new URL("../../components/connections/catalogue/CatalogueSheet.svelte", import.meta.url),
+    const windowSource = readFileSync(
+      new URL("../../components/connections/catalogue/AddConnectionWindow.svelte", import.meta.url),
       "utf8",
     );
 
@@ -79,7 +79,7 @@ describe("opening the catalogue never asks the public catalogue", () => {
     expect(exploreCalls).toHaveLength(1);
     expect(route).toMatch(/onexploreall=\{handleExploreAll\}/);
     expect(openHandler).not.toMatch(/exploreAll|handleExploreAll/);
-    expect(sheet.match(/onclick=\{onexploreall\}/g) ?? []).toHaveLength(1);
+    expect(windowSource.match(/onclick=\{onexploreall\}/g) ?? []).toHaveLength(1);
   });
 });
 
@@ -93,9 +93,9 @@ describe("Explore all is the one gesture that asks the public catalogue", () => 
     const first = await source.exploreAll();
     const second = await source.exploreAll();
 
-    // THEN the registry was asked exactly once and both show everything
+    // THEN the registry was asked exactly once and both show the public entries apart
     expect(callsTo("fetch_mcp_registry")).toBe(1);
-    expect(first).toEqual({ tier: "full", entries: FULL });
+    expect(first).toEqual({ tier: "full", selection: CURATED, publicEntries: [FULL[1]], failures: [] });
     expect(second.tier).toBe("full");
   });
 
@@ -113,9 +113,45 @@ describe("Explore all is the one gesture that asks the public catalogue", () => 
     const failed = await source.exploreAll();
     const retried = await source.exploreAll();
 
-    // THEN the first shows the selection, the second the full list
-    expect(failed).toEqual({ tier: "curated", entries: CURATED });
-    expect(retried).toEqual({ tier: "full", entries: FULL });
+    // THEN the first shows the selection and names the failure, the second the full list
+    expect(failed).toEqual({ tier: "curated", selection: CURATED, publicEntries: [], failures: ["public"] });
+    expect(retried).toEqual({ tier: "full", selection: CURATED, publicEntries: [FULL[1]], failures: [] });
+  });
+});
+
+describe("a source that does not answer is named, never shown as an empty catalogue", () => {
+  test("a selection that cannot be read is a failure, not an empty selection", async () => {
+    // GIVEN a selection command that fails, then answers
+    const curated = vi.fn<() => Promise<RegistryServerView[]>>()
+      .mockRejectedValueOnce(new Error("runtime unreachable"))
+      .mockResolvedValue(CURATED);
+    const source = createCatalogueSource({ curated, registry: async () => FULL });
+
+    // WHEN the window opens, then opens again
+    const failed = await source.selection();
+    const retried = await source.selection();
+
+    // THEN the first names the selection as failed, the second reads it
+    expect(failed.failures).toEqual(["selection"]);
+    expect(failed.selection).toEqual([]);
+    expect(retried).toEqual({ tier: "curated", selection: CURATED, publicEntries: [], failures: [] });
+  });
+
+  test("a public catalogue that cannot be read is named beside the selection", async () => {
+    // GIVEN a registry command that fails
+    const source = createCatalogueSource({
+      curated: async () => CURATED,
+      registry: async () => {
+        throw new Error("the registry did not answer");
+      },
+    });
+
+    // WHEN Explore all is pressed
+    const view = await source.exploreAll();
+
+    // THEN the selection stays, the public catalogue is named as failed
+    expect(view.selection).toEqual(CURATED);
+    expect(view.failures).toEqual(["public"]);
   });
 });
 

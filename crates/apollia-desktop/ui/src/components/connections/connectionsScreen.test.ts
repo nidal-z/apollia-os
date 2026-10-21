@@ -33,7 +33,7 @@ import McpOverviewTab from "./detail/McpOverviewTab.svelte";
 import McpSettingsTab from "./detail/McpSettingsTab.svelte";
 import ConnectionSummaryDetail from "./detail/ConnectionSummaryDetail.svelte";
 import BuiltinToolsDetail from "./detail/BuiltinToolsDetail.svelte";
-import CatalogueSheet from "./catalogue/CatalogueSheet.svelte";
+import AddConnectionWindow from "./catalogue/AddConnectionWindow.svelte";
 import CustomMcpForm from "./catalogue/CustomMcpForm.svelte";
 import { settingsGroups } from "../integrations/McpServerSettingsEditor.svelte";
 import type { Connection } from "$lib/types";
@@ -134,8 +134,12 @@ function screens(): Record<string, Rendered> {
     builtinTools: { component: BuiltinToolsDetail },
     otherConnection: { component: ConnectionSummaryDetail, props: { connection: CONNECTIONS[3], label: "Invoices" } },
     addSheet: {
-      component: CatalogueSheet,
-      props: { open: true, registry: [], agents: [], installedNames: new Set(), installedByPackage: new Map(), registryLoading: true, catalogueTier: "none", onclose: noop, onconnect: noop, onmanage: noop, oninstalled: noop, onaddnative: noop, onaddfolder: noop },
+      component: AddConnectionWindow,
+      props: { open: true, query: "", chosen: null, selection: [], publicEntries: [], failures: [], catalogueTier: "none", loading: true, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, oninstalled: noop },
+    },
+    addAddressCard: {
+      component: AddConnectionWindow,
+      props: { open: true, query: "", chosen: "address", selection: [], publicEntries: [], failures: [], catalogueTier: "curated", loading: false, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, oninstalled: noop },
     },
     customConnection: { component: CustomMcpForm, props: { oninstalled: noop } },
   };
@@ -211,13 +215,13 @@ describe("Connections, developer mode on", () => {
     expect(visibleText(html)).toMatch(/\bMCP\b/);
   });
 
-  test("the add sheet names the catalogue by its technical name", async () => {
+  test("the add window names the catalogue by its technical name", async () => {
     // GIVEN the developer mode on
-    // WHEN the add sheet is rendered
+    // WHEN the add window is rendered
     const text = visibleText(await render("addSheet", true));
 
     // THEN the catalogue and the custom form keep their technical names
-    expect(text).toContain("MCP catalogue");
+    expect(text).toContain("public MCP catalogue");
     expect(text).toContain("Custom MCP");
   });
 
@@ -275,15 +279,15 @@ describe("Connections, one list and one word", () => {
     expect(route).toContain("loadConnections");
   });
 
-  test("the add sheet offers the custom connection under its plain name", async () => {
+  test("the add window offers a service by its address under its plain name", async () => {
     // GIVEN the developer mode off
-    // WHEN the add sheet is rendered
+    // WHEN the add window is rendered
     const html = await render("addSheet", false);
     const text = visibleText(html);
 
-    // THEN it is titled with the official word, offers the native accounts and a custom connection
+    // THEN it is titled with the official word, offers the native accounts and a service by its address
     expect(text).toContain("Add a connection");
-    expect(text).toContain("Custom connection");
+    expect(text).toContain("Connect a service by its address");
     expect(html).toContain('data-testid="catalogue-native-google"');
     expect(html).toContain('data-testid="catalogue-native-microsoft"');
   });
@@ -294,13 +298,13 @@ describe("Connections, one list and one word", () => {
     await waitLocale("fr");
     developerMode.set(false);
 
-    // WHEN the add sheet is rendered
+    // WHEN the add window is rendered
     const { component, props } = screens().addSheet;
     const text = visibleText(renderToString(component as never, { props: (props ?? {}) as never }).body);
 
     // THEN it uses the French words of the catalogue, and still never says MCP
     expect(text).toContain(fr.connections.add_connection);
-    expect(text).toContain(fr.connections.catalogue_tab_custom);
+    expect(text).toContain(fr.connections.add_window.groups.address);
     expect(text).not.toMatch(/\bMCP\b/);
   });
 });

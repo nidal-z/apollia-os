@@ -10477,8 +10477,9 @@ export interface components {
             origin: components["schemas"]["AgentOriginDto"];
             /**
              * @description Fields whose value is the user's rather than the package's:
-             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
-             *     `planning`, `profile`.
+             *     `name`, `mission`, `examples`, `access`, `access_added`, `sources`,
+             *     `autonomy`, `planning`, `profile`. `access_added` names the tools
+             *     given on top of the default access, which `access` lists after it.
              */
             overridden: string[];
             /** @description Package the agent came with. */

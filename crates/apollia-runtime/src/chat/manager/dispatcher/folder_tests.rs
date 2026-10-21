@@ -47,6 +47,9 @@ async fn apollia_invoker(data_dir: &std::path::Path) -> NativeChatToolInvoker {
     let tools = match access {
         apollia_tools::AgentAccess::Listed(tools) => tools,
         apollia_tools::AgentAccess::Default => vec!["file_read".to_owned()],
+        apollia_tools::AgentAccess::DefaultWith(added) => std::iter::once("file_read".to_owned())
+            .chain(added)
+            .collect(),
     };
     let (_, folders) = granted_folders(tools, Some(&cfg));
     resolve_workspace_for_session(WorkspaceResolutionParams {

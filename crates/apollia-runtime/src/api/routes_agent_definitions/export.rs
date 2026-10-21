@@ -215,6 +215,7 @@ pub async fn export_agent_definition<B: ExecutionBackend + Clone>(
                 agent,
                 registry,
                 &super::default_access_setting(&state),
+                &super::disabled_tools(&state),
             )
             .await
         }

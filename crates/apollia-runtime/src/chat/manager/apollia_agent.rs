@@ -117,7 +117,10 @@ pub(in crate::chat::manager) fn granted_folder_anchor(
             crate::agents::global_default_autonomy(),
         )
         .ok()??;
-    let AgentAccess::Listed(tools) = AgentAccess::of(&resolved) else {
+    // The default access grants no folder: a folder is one of the tools
+    // listed, or given on top of the default.
+    let (AgentAccess::Listed(tools) | AgentAccess::DefaultWith(tools)) = AgentAccess::of(&resolved)
+    else {
         return None;
     };
     let (_, folders) = apollia_tools::granted_folders(tools, data_dir);
