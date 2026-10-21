@@ -185,6 +185,11 @@ impl ChatSessionManager {
             let pending_user_inputs_for_session = self.pending_user_inputs.clone();
             let mcp_handle_for_session = self.mcp_handle.clone();
             let package_tools = package_executors(&self.package_tools, &agent_id, &cancel);
+            // Apollia alone searches the selection for a missing connection.
+            let connection_selection = crate::chat::connection_lookup::offered_to(
+                self.connection_selection.clone(),
+                &agent_id,
+            );
             let chat_tools_config_for_session = self.chat_tools_config.clone();
             let mcp_loading = self.mcp_loading;
             let tool_search_limit = self.tool_search_limit;
@@ -211,6 +216,7 @@ impl ChatSessionManager {
                 pending_user_inputs_for_session,
                 mcp_handle_for_session,
                 package_tools,
+                connection_selection,
                 composer: self.composer.clone(),
                 governance: self.governance.clone(),
                 chat_tools_config_for_session,

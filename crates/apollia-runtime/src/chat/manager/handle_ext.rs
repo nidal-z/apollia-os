@@ -219,6 +219,22 @@ impl ChatSessionManagerHandle {
         let _ = self.tx.send(ChatCommand::FollowConfig { feed }).await;
     }
 
+    /// Hand over the curated selection of connections.
+    ///
+    /// From then on, Apollia is offered, in every conversation exchange that
+    /// starts, a tool that searches it for a connection a request needs and
+    /// says whether it is connected and granted. No other agent, and no run
+    /// outside a conversation, is offered it.
+    pub async fn set_connection_selection(
+        &self,
+        selection: Arc<crate::chat::connection_lookup::ConnectionSelection>,
+    ) {
+        let _ = self
+            .tx
+            .send(ChatCommand::SetConnectionSelection { selection })
+            .await;
+    }
+
     /// Hand over the composer of the granted agent and workflow calls.
     ///
     /// Every run that starts afterwards, in the chat or outside it, is offered

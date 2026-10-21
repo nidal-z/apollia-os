@@ -4,6 +4,7 @@
 //! registry, builtin connector enrichments, and Tauri IPC commands. MCP
 //! secrets go through the shared `apollia_auth::SecretStore`.
 
+pub mod chat_selection;
 pub mod enrichments;
 pub mod npm_server;
 pub mod official;

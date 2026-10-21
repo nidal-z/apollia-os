@@ -256,7 +256,16 @@ fn main() {
         let workflows = runtime_handle.workflows.clone();
         let governance = runtime_handle.governance.clone();
         let runtime = runtime_handle.clone();
+        // Apollia searches the curated selection, in a conversation, for a
+        // connection a request needs; an entry the policy forbids is left out.
+        let selection = std::sync::Arc::new(mcp::chat_selection::connection_selection(
+            &mcp::load_builtin_enrichments(),
+            runtime_handle.connection_governance.clone(),
+        ));
         worker.spawn(async move {
+            if let Some(chat) = chat.as_ref() {
+                chat.set_connection_selection(selection).await;
+            }
             bundled_packages::install_bundled_packages(&data_dir, governance).await;
             runtime.register_stored_agents(&data_dir).await;
             apollia_aip::package_tools::attach(
