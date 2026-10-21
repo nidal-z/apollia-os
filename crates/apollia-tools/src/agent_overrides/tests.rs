@@ -245,3 +245,55 @@ fn test_an_agent_named_like_a_workflow_is_refused() {
     ));
     assert!(repo.stored("office/triage").unwrap().is_none());
 }
+
+// GIVEN a stored agent, and a batch of access values naming it and an agent
+//       that is not stored
+// WHEN the batch is written, then the same batch without the unknown agent
+// THEN the first write is refused and stores nothing, the second stores the
+//      value of the agent
+#[test]
+fn test_set_overrides_writes_every_value_or_none() {
+    // GIVEN
+    let repo = repo_with_agent();
+    let value = json!(["file_read", "mcp:notion/search"]);
+    let with_unknown = vec![
+        ("invoices".to_owned(), value.clone()),
+        ("ghost".to_owned(), value.clone()),
+    ];
+
+    // WHEN
+    let refused = repo.set_overrides(OverrideField::Access, &with_unknown);
+    let after_refusal = repo.overrides("invoices").unwrap();
+    let stored = repo.set_overrides(OverrideField::Access, &with_unknown[..1]);
+
+    // THEN
+    assert!(matches!(refused, Err(AgentRepositoryError::NotFound(name)) if name == "ghost"));
+    assert!(after_refusal.is_empty());
+    assert!(stored.is_ok());
+    let overrides = repo.overrides("invoices").unwrap();
+    assert_eq!(overrides.len(), 1);
+    assert_eq!(overrides[0].value, value);
+}
+
+// GIVEN a stored agent, and a batch whose second value has the wrong shape
+// WHEN the batch is written
+// THEN it is refused and nothing is stored
+#[test]
+fn test_set_overrides_checks_every_value_first() {
+    // GIVEN
+    let repo = repo_with_agent();
+    let values = vec![
+        ("invoices".to_owned(), json!(["file_read"])),
+        ("invoices".to_owned(), json!("not a list")),
+    ];
+
+    // WHEN
+    let refused = repo.set_overrides(OverrideField::Access, &values);
+
+    // THEN
+    assert!(matches!(
+        refused,
+        Err(AgentRepositoryError::InvalidOverride(_))
+    ));
+    assert!(repo.overrides("invoices").unwrap().is_empty());
+}

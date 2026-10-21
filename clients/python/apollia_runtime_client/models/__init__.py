@@ -104,6 +104,8 @@ from .config_view import ConfigView
 from .connected_account_response import ConnectedAccountResponse
 from .connection import Connection
 from .connection_activity_response import ConnectionActivityResponse
+from .connection_agent import ConnectionAgent
+from .connection_agents import ConnectionAgents
 from .connection_kind import ConnectionKind
 from .connection_state import ConnectionState
 from .connection_tool import ConnectionTool
@@ -224,6 +226,7 @@ from .gguf_model_info import GgufModelInfo
 from .global_timeline_event import GlobalTimelineEvent
 from .global_timeline_event_detail import GlobalTimelineEventDetail
 from .governance_state_body import GovernanceStateBody
+from .grant_connection_body import GrantConnectionBody
 from .guardrail_check_dto import GuardrailCheckDto
 from .guardrail_level import GuardrailLevel
 from .guardrail_refused_body import GuardrailRefusedBody
@@ -724,6 +727,8 @@ __all__ = (
     "ConnectedAccountResponse",
     "Connection",
     "ConnectionActivityResponse",
+    "ConnectionAgent",
+    "ConnectionAgents",
     "ConnectionKind",
     "ConnectionState",
     "ConnectionTool",
@@ -844,6 +849,7 @@ __all__ = (
     "GlobalTimelineEvent",
     "GlobalTimelineEventDetail",
     "GovernanceStateBody",
+    "GrantConnectionBody",
     "GuardrailCheckDto",
     "GuardrailLevel",
     "GuardrailRefusedBody",

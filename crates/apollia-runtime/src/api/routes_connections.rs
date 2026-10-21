@@ -4,7 +4,9 @@
 //! each kind keeps: `mcp.db` and the live MCP sessions, the tool registry, the
 //! native account index, the mailbox list, the folders of `system.db`, and
 //! `package_items` in `agents.db` when it exists. A folder is added and
-//! removed under `/api/v1/connections/folders` (see [`folders`]).
+//! removed under `/api/v1/connections/folders` (see [`folders`]). The agents
+//! of a connection are read, and the connection granted to several agents,
+//! under `/api/v1/connections/{id}` (see [`agents`]).
 
 use axum::{
     extract::State,
@@ -44,6 +46,14 @@ pub fn connections_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> 
         .route(
             "/api/v1/connections/folders/:id",
             delete(folders::remove_folder_connection::<B>),
+        )
+        .route(
+            "/api/v1/connections/:id/agents",
+            get(agents::get_connection_agents::<B>),
+        )
+        .route(
+            "/api/v1/connections/:id/grants",
+            post(agents::grant_connection::<B>),
         )
 }
 
@@ -133,6 +143,7 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
     }))
 }
 
+pub(crate) mod agents;
 pub(crate) mod folders;
 
 #[cfg(test)]
