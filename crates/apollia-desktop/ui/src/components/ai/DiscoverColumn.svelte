@@ -7,7 +7,7 @@
    */
   import type { Snippet } from "svelte";
   import { locale, t } from "svelte-i18n";
-  import { ChevronDown, ChevronRight, FileSearch, MessageSquare, Mic, RefreshCw, Search, WifiOff, X } from "lucide-svelte";
+  import { ChevronDown, ChevronRight, FileSearch, MessageSquare, Mic, RefreshCw, Search, X } from "lucide-svelte";
   import type { ModelFormat, SearchSort } from "$lib/ipc/modelHub";
   import type { FormatChoice } from "./discover";
   import { cn, formatRelativeTime } from "$lib/utils";
@@ -15,6 +15,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
   import { Tooltip } from "$lib/components/ui/tooltip";
+  import BrowseLayout from "$lib/components/operator/BrowseLayout.svelte";
   import CapabilityIcon from "./CapabilityIcon.svelte";
   import PublisherMark from "./PublisherMark.svelte";
   import ExplainedBadge from "./ExplainedBadge.svelte";
@@ -134,8 +135,15 @@
   );
 </script>
 
-<div class="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="ai-discover-column">
-  <header class="flex flex-col gap-4 border-b border-border px-6 pb-4 pt-5">
+<BrowseLayout
+  detailOpen={compact}
+  offlineMessage={offline ? $t(searching ? "ai.discover.offline_search" : "ai.discover.offline_selection") : null}
+  detail={card}
+  data-testid="ai-discover-column"
+  listTestid="ai-discover-results"
+  offlineTestid="ai-discover-offline"
+>
+  {#snippet header()}
     <div class="flex items-start gap-3">
       <div class="min-w-0 flex-1">
         <h2 class="text-lg font-semibold text-foreground">{$t("ai.discover.title")}</h2>
@@ -277,26 +285,8 @@
         </div>
       {/if}
     </div>
+  {/snippet}
 
-    {#if offline}
-      <p
-        class="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/5 p-2 text-xs text-foreground"
-        data-testid="ai-discover-offline"
-      >
-        <WifiOff size={13} class="mt-0.5 shrink-0 text-warning-a11y" aria-hidden="true" />
-        <span>{$t(searching ? "ai.discover.offline_search" : "ai.discover.offline_selection")}</span>
-      </p>
-    {/if}
-  </header>
-
-  <div class="flex min-h-0 flex-1">
-  <div
-    class={cn(
-      "min-h-0 overflow-auto py-4",
-      compact ? "w-[360px] shrink-0 border-r border-border px-3" : "flex-1 px-6",
-    )}
-    data-testid="ai-discover-results"
-  >
     {#if loading && entries.length === 0}
       <p class="text-sm text-muted-foreground" data-testid="ai-discover-loading">{$t("common.loading")}</p>
     {:else if searching && searchError}
@@ -474,7 +464,4 @@
         {/if}
       {/each}
     {/if}
-  </div>
-  {@render card?.()}
-  </div>
-</div>
+</BrowseLayout>

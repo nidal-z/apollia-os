@@ -11,6 +11,7 @@ export { default as Card } from "./Card.svelte";
 export { default as EntityCard } from "./EntityCard.svelte";
 export { default as EmptyState } from "./EmptyState.svelte";
 export { default as SplitLayout } from "./SplitLayout.svelte";
+export { default as BrowseLayout } from "./BrowseLayout.svelte";
 export { default as FilterChipBar } from "./FilterChipBar.svelte";
 export { default as ListPanel } from "./ListPanel.svelte";
 export { default as ListRow } from "./ListRow.svelte";
