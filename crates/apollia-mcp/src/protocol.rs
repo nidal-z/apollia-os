@@ -210,6 +210,24 @@ impl McpToolAnnotations {
             open_world_hint: hint("openWorldHint"),
         })
     }
+
+    /// The hints as the `annotations` object of `tools/list`, the absent ones
+    /// left out, so that [`McpToolAnnotations::from_value`] reads them back.
+    #[must_use]
+    pub fn to_value(&self) -> serde_json::Value {
+        let mut object = serde_json::Map::new();
+        for (key, hint) in [
+            ("readOnlyHint", self.read_only_hint),
+            ("destructiveHint", self.destructive_hint),
+            ("idempotentHint", self.idempotent_hint),
+            ("openWorldHint", self.open_world_hint),
+        ] {
+            if let Some(value) = hint {
+                object.insert(key.to_string(), serde_json::Value::Bool(value));
+            }
+        }
+        serde_json::Value::Object(object)
+    }
 }
 
 /// Deserialize `annotations` without ever failing the enclosing tool.

@@ -96,7 +96,7 @@ impl Supervisor {
             server_configs,
             tool_registry_handle,
             event_sender,
-            &self.config.data_dir.join("mcp.toml"),
+            &self.config.data_dir,
             self.config.mcp_loading,
         )
         .await;

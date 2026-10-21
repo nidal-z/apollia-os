@@ -28,6 +28,7 @@ pub mod server_repository;
 pub mod server_types;
 pub mod session;
 pub mod tool_search;
+pub mod tool_store;
 pub mod transport;
 
 pub use discovery::{DiscoveredServer, DiscoveryError};

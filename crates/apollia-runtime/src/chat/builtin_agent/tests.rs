@@ -2251,6 +2251,7 @@ fn snapshot(server: &str, tool: &str) -> ToolIndexSnapshot {
             "properties": { "query": { "type": "string" } },
             "required": ["query"]
         })),
+        ..Default::default()
     }
 }
 

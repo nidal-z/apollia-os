@@ -4,6 +4,7 @@
 //! parent, the `tools/list` reads and the deferred schema fetch live here.
 
 use crate::protocol::{McpToolDefinition, ToolsListResult};
+use crate::server_repository::StoredTool;
 use crate::session::{LoadingMode, McpSession, McpSessionError, ToolIndexEntry};
 
 impl McpSession {
@@ -38,12 +39,12 @@ impl McpSession {
         );
         Ok(())
     }
-    /// Discover only the lightweight tool index (names and descriptions) via
-    /// `tools/list`.
+    /// Discover only the lightweight tool index (names, titles, descriptions
+    /// and hints) via `tools/list`.
     ///
     /// Called at the end of `start_with_mode` in [`LoadingMode::Deferred`]. The
-    /// full `tools/list` response is parsed, but only `{name, description}` is
-    /// retained in `tool_index`; the `tools` field stays empty and schemas are
+    /// full `tools/list` response is parsed, and `{name, title, description,
+    /// annotations}` is retained in `tool_index`; the `tools` field stays empty and schemas are
     /// fetched on demand by [`McpSession::fetch_tool_schema`].
     pub(super) async fn discover_tools_index(&mut self) -> Result<(), McpSessionError> {
         let timeout_secs = self.config.init_timeout_secs;
@@ -74,7 +75,9 @@ impl McpSession {
                     .insert(tool.name.clone(), tool.input_schema);
                 ToolIndexEntry {
                     name: tool.name,
+                    title: tool.title,
                     description: tool.description,
+                    annotations: tool.annotations,
                 }
             })
             .collect();
@@ -119,6 +122,42 @@ impl McpSession {
     #[must_use]
     pub(crate) fn needs_schema_fetch(&self, tool_name: &str) -> bool {
         self.loading_mode == LoadingMode::Deferred && !self.schema_cache.contains_key(tool_name)
+    }
+    /// The tools this session published, as they are kept between launches:
+    /// from `tools` in eager mode, from the index and its schemas in deferred
+    /// mode. `fetched_at` dates the `tools/list` that described them.
+    #[must_use]
+    pub fn stored_tools(&self, fetched_at: &str) -> Vec<StoredTool> {
+        match self.loading_mode {
+            LoadingMode::Eager => self
+                .tools
+                .iter()
+                .map(|tool| StoredTool {
+                    name: tool.name.clone(),
+                    title: tool.title.clone(),
+                    description: tool.description.clone(),
+                    input_schema: tool.input_schema.clone(),
+                    annotations: tool.annotations,
+                    fetched_at: fetched_at.to_string(),
+                })
+                .collect(),
+            LoadingMode::Deferred => self
+                .tool_index
+                .iter()
+                .map(|entry| StoredTool {
+                    name: entry.name.clone(),
+                    title: entry.title.clone(),
+                    description: entry.description.clone(),
+                    input_schema: self
+                        .schema_cache
+                        .get(&entry.name)
+                        .cloned()
+                        .unwrap_or_else(|| serde_json::json!({"type": "object"})),
+                    annotations: entry.annotations,
+                    fetched_at: fetched_at.to_string(),
+                })
+                .collect(),
+        }
     }
     /// Cache the schemas a `tools/list` answered, name to schema.
     pub(crate) fn cache_tool_schemas(&mut self, schemas: Vec<(String, serde_json::Value)>) {

@@ -262,20 +262,23 @@ pub(in crate::supervisor) async fn start_mcp_manager(
     server_configs: Vec<apollia_mcp::config::McpServerConfig>,
     tool_registry_handle: &ToolRegistryHandle,
     event_sender: &EventBusSender,
-    mcp_config_path: &std::path::Path,
+    data_dir: &std::path::Path,
     loading_mode: LoadingMode,
 ) -> Option<McpClientManagerHandle> {
+    let mcp_config_path = data_dir.join("mcp.toml");
+    let mcp_db_path = data_dir.join(apollia_core::paths::DataFile::Mcp.file_name());
     // Always start the McpClientManager actor, even when the server list is
     // empty. Without this, the desktop "Add MCP server" flow cannot register a
     // first server: every write route checks require_mcp_handle and returns
     // 503 "MCP is not configured" until at least one server exists in mcp.db at
     // boot, a chicken-and-egg trap for first-time users.
     let server_count = server_configs.len();
-    match McpClientManagerHandle::start(
+    match McpClientManagerHandle::start_keeping_tools(
         server_configs,
         tool_registry_handle,
         Some(event_sender.clone()),
         loading_mode,
+        apollia_mcp::tool_store::ToolIndexStore::new(mcp_db_path),
     )
     .await
     {
@@ -293,7 +296,7 @@ pub(in crate::supervisor) async fn start_mcp_manager(
             // deprecated migration path kept for back-compat.
             if mcp_config_path.exists() {
                 apollia_triggers::handlers::config_watch::McpConfigWatcher::spawn(
-                    mcp_config_path.to_path_buf(),
+                    mcp_config_path,
                     handle.clone(),
                 );
             }

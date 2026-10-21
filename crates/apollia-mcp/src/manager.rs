@@ -8,6 +8,7 @@
 mod commands;
 mod detached;
 mod handle;
+mod kept;
 mod lifecycle;
 mod snapshot;
 mod views;
@@ -306,6 +307,12 @@ struct McpClientManager {
     /// individual schema is registered, and the runtime exposes `tool_search`
     /// instead.
     loading_mode: LoadingMode,
+    /// Where the tools each server publishes are kept between launches, when
+    /// the manager was started with one.
+    tool_store: Option<crate::tool_store::ToolIndexStore>,
+    /// The tools kept for the servers that have no session, by server, as
+    /// the tool index serves them in deferred loading.
+    kept_index: HashMap<String, Vec<crate::tool_search::ToolIndexSnapshot>>,
 }
 
 // ─── handle impl ─────────────────────────────────────────────────────────────
@@ -343,7 +350,9 @@ impl McpClientManager {
 
                 McpCommand::AddServer { config, reply } => {
                     let name = config.name.clone();
+                    let before = self.index_of(&name);
                     let result = self.handle_add_server(config).await;
+                    self.settle_kept(&name, before).await;
                     self.announce_start(&name, &result);
                     self.publish();
                     let _ = reply.send(result);
@@ -361,13 +370,18 @@ impl McpClientManager {
 
                 McpCommand::RemoveServer { server_name, reply } => {
                     let result = self.handle_remove_server(&server_name).await;
+                    if result.is_ok() || self.kept_index.contains_key(&server_name) {
+                        self.forget_kept(&server_name).await;
+                    }
                     self.publish();
                     let _ = reply.send(result);
                 }
 
                 McpCommand::RestartServer { server_name, reply } => {
                     let name = server_name.clone();
+                    let before = self.index_of(&name);
                     let result = self.handle_restart_server(server_name).await;
+                    self.settle_kept(&name, before).await;
                     self.announce_start(&name, &result);
                     self.publish();
                     let _ = reply.send(result);
@@ -391,7 +405,9 @@ impl McpClientManager {
                 } => self.finish_test_live_server(&server_name, test, probe_result, reply),
 
                 McpCommand::ReloadServer { server_name, reply } => {
+                    let before = self.index_of(&server_name);
                     let result = self.handle_reload_server(&server_name).await;
+                    self.settle_kept(&server_name, before).await;
                     self.announce_start(&server_name, &result);
                     self.publish();
                     let _ = reply.send(result);

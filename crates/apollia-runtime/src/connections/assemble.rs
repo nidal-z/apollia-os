@@ -197,8 +197,9 @@ fn state_of(health: &McpHealth) -> ConnectionState {
 }
 
 /// The tools a server published, as registered; otherwise the tools its
-/// selection entry classified, then every other tool its live session
-/// indexed, unclassified. In deferred loading nothing is registered, so a
+/// selection entry classified, then every other tool its index holds (a live
+/// session's, or the one kept from its last `tools/list`), classified by the
+/// hints the server declared. In deferred loading nothing is registered, so a
 /// server with no selection entry would otherwise offer no tool to grant.
 fn mcp_tools(
     config: &McpServerConfig,
@@ -236,7 +237,8 @@ fn mcp_tools(
     indexed.sort_by(|a, b| a.tool_name.cmp(&b.tool_name));
     indexed.dedup_by(|a, b| a.tool_name == b.tool_name);
     tools.extend(indexed.into_iter().map(|entry| {
-        let (family, family_source) = classify_mcp_tool(None, None, config.has_account());
+        let (family, family_source) =
+            classify_mcp_tool(None, entry.annotations.as_ref(), config.has_account());
         ConnectionTool {
             id: format!("{prefix}{}", entry.tool_name),
             family,

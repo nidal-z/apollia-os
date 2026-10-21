@@ -12,7 +12,10 @@
 //! [`LoadingMode::Deferred`]: crate::session::LoadingMode::Deferred
 
 use apollia_tools::executor::{ToolExecutionError, ToolExecutor};
+use apollia_tools::{ActionFamily, FamilySource};
 use serde_json::Value;
+
+use crate::protocol::McpToolAnnotations;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -32,7 +35,7 @@ const DEFAULT_SEARCH_LIMIT: usize = 5;
 /// Produced from all connected MCP sessions running in deferred mode. `tags`
 /// carries the owning server's configured tags so a query can match by tag as
 /// well as by tool name or description.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ToolIndexSnapshot {
     /// MCP server name (e.g. `"notion"`).
     pub server_name: String,
@@ -48,6 +51,23 @@ pub struct ToolIndexSnapshot {
     /// takes. Without it the model learns a callable name and still has to
     /// guess its parameters, which is a call that fails on the server side.
     pub input_schema: Option<Value>,
+    /// The behaviour hints the server declared for the tool, if any.
+    pub annotations: Option<McpToolAnnotations>,
+    /// The tool's family, decided by the manager as the registry would decide
+    /// it: the selection entry first, then the server's hints, else
+    /// unclassified. A deferred tool has no descriptor, so this is what the
+    /// list of connections and governance read.
+    pub family: ActionFamily,
+    /// Where [`ToolIndexSnapshot::family`] came from.
+    pub family_source: FamilySource,
+}
+
+impl ToolIndexSnapshot {
+    /// The fully qualified name this tool answers to, `mcp:{server}/{tool}`.
+    #[must_use]
+    pub fn full_name(&self) -> String {
+        format!("mcp:{}/{}", self.server_name, self.tool_name)
+    }
 }
 
 /// A single match returned by [`search_index`].
@@ -287,6 +307,7 @@ mod tests {
             description: desc.map(str::to_string),
             tags: tags.iter().map(|t| t.to_string()).collect(),
             input_schema: None,
+            ..Default::default()
         }
     }
 
