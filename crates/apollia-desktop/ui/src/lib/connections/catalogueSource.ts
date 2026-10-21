@@ -2,13 +2,14 @@
  * Where the add-a-connection catalogue reads its entries from, and how a
  * search narrows them.
  *
- * Opening the catalogue reads the selection Apollia ships, which needs no
- * network. The public catalogue is asked only through `exploreAll`, the
- * handler of the "Explore all" button: nothing leaves the machine before the
- * user asks for it.
+ * Opening the catalogue reads the selection Apollia offers: the one compiled
+ * into the application, refreshed from the signed online index when it
+ * answers in time, else the copy already kept. The public registry is asked
+ * only through `exploreAll`, the handler of the "Explore all" button.
  */
 import { fetchMcpCurated, fetchMcpRegistry } from "$lib/ipc/connections";
 import { vendorLabel } from "$lib/connections/vendor";
+import { allLocales } from "$lib/connections/catalogueText";
 import type { RegistryServerView } from "$lib/types";
 
 /** What the catalogue shows: nothing yet, the selection, or everything. */
@@ -71,15 +72,16 @@ function fold(text: string): string {
 
 /**
  * Whether `entry` answers a search: every word of `query` appears in its
- * label, title, name, publisher, description or category. An empty query
- * matches everything.
+ * label, title, name, publisher, description or category, in any locale the
+ * selection gives them. An empty query matches everything.
  */
 export function matchesCatalogueQuery(entry: RegistryServerView, query: string): boolean {
   const words = fold(query).split(/\s+/).filter(Boolean);
   if (words.length === 0) return true;
   const haystack = fold(
     [
-      entry.enrichment?.operator_label,
+      ...allLocales(entry.enrichment?.operator_label),
+      ...allLocales(entry.enrichment?.description),
       entry.title,
       entry.name,
       vendorLabel(entry),

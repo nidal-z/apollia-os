@@ -60,6 +60,7 @@
   import { triggerAutoName } from "$lib/chat/autoName";
   import { reportError } from "$lib/errors/reportError";
   import { deriveServerName } from "$lib/integrations/connectorConfig";
+  import { enrichmentLabel } from "$lib/connections/catalogueText";
   import {
     tryConnectorPrompt,
     tryQuestions,
@@ -180,7 +181,7 @@
     connectionRows(connections.filter((c) => c.state !== "forbidden_by_policy"), (c) => {
       if (c.kind !== "mcp") return c.label;
       const server = servers.find((s) => `mcp:${s.name}` === c.id);
-      return (server && resolveEnrichment(server)?.operator_label) ?? c.label;
+      return (server && enrichmentLabel(resolveEnrichment(server), $locale)) ?? c.label;
     }),
   );
   const selectedRow = $derived(

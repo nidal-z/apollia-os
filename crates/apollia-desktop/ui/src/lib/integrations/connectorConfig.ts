@@ -32,20 +32,28 @@ export function sanitizeServerName(raw: string): string {
 }
 
 /**
- * The one identifier a catalogue connector is installed under.
+ * The one identifier a catalogue connector is installed under, drawn from the
+ * entry's identifier (e.g. `com.notion/mcp` becomes `com-notion-mcp`).
  *
- * Prefer the operator label (e.g. "Local Files") over the registry
- * identifier (e.g. "@modelcontextprotocol/server-filesystem"). The operator
- * label is the human-facing card name; using it as the server name keeps the
- * installed-card label, the runtime logs, and the `mcp:<server>/<tool>`
- * invocation prefix consistent and readable.
+ * Never from its label: the label is translated and may be reworded, and the
+ * server name is what every `mcp:<server>/<tool>` access granted to an agent
+ * names. A server already installed keeps the name it was installed under;
+ * nothing renames it.
  */
-export function deriveServerName(
+export function deriveServerName(server: Pick<RegistryServerView, "name">): string {
+  return sanitizeServerName(server.name);
+}
+
+/**
+ * The name an entry was installed under before the name was drawn from its
+ * identifier: its English label, else its title. Read only to recognise a
+ * connection added that way.
+ */
+export function legacyServerName(
   server: Pick<RegistryServerView, "name" | "title" | "enrichment">,
 ): string {
-  const label = server.enrichment?.operator_label ?? server.title ?? server.name;
-  const source = label && label.trim().length > 0 ? label : server.name;
-  return sanitizeServerName(source);
+  const label = server.enrichment?.operator_label?.en ?? server.title ?? server.name;
+  return sanitizeServerName(label && label.trim().length > 0 ? label : server.name);
 }
 
 /**

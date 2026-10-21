@@ -2,6 +2,7 @@ import { describe, test, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   deriveServerName,
+  legacyServerName,
   sanitizeServerName,
 } from "$lib/integrations/connectorConfig";
 import { installConnector } from "$lib/ipc/connections";
@@ -11,9 +12,9 @@ import type { McpServerConfigInput } from "$lib/types";
 //
 // `crates/apollia-desktop/src/mcp/enrichments.json` is pulled in by
 // `load_builtin_enrichments()` and surfaced to the wizard as
-// `RegistryServerView.enrichment`, whose `operator_label` is always the `en`
-// value (`crates/apollia-desktop/src/commands/mcp.rs:344`). A catalogue entry
-// reaches the wizard with `name` = its registry identifier.
+// `RegistryServerView.enrichment`, whose `operator_label` carries every
+// locale of the entry. A catalogue entry reaches the wizard with `name` = its
+// registry identifier.
 
 interface CatalogueEntry {
   package_identifier: string;
@@ -42,8 +43,8 @@ function catalogueServer(registryName: string, operatorLabel: string) {
   return {
     name: registryName,
     title: null,
-    enrichment: { operator_label: operatorLabel },
-  } as unknown as Parameters<typeof deriveServerName>[0];
+    enrichment: { operator_label: { en: operatorLabel, fr: `${operatorLabel} (fr)` } },
+  } as unknown as Parameters<typeof legacyServerName>[0];
 }
 
 interface RecordedCall {
@@ -172,14 +173,40 @@ describe("connector install - one identifier for the secret and the config", () 
 });
 
 describe("deriveServerName - the identifier the wizard settles on", () => {
-  test("prefers the operator label over the registry identifier", () => {
+  test("draws the name from the registry identifier, not from the label", () => {
+    // GIVEN the Atlassian entry of the selection, labelled in two languages
     const server = catalogueServer("com.atlassian/rovo-mcp", "Atlassian (Jira + Confluence)");
-    expect(deriveServerName(server)).toBe("atlassian-jira-confluence");
+
+    // WHEN the wizard names the server it installs
+    const name = deriveServerName(server);
+
+    // THEN the name comes from the identifier
+    expect(name).toBe("com-atlassian-rovo-mcp");
   });
 
-  test("falls back to the registry identifier when the label is blank", () => {
-    const server = catalogueServer("com.notion/mcp", "   ");
-    expect(deriveServerName(server)).toBe("com-notion-mcp");
+  test("a reworded or translated label does not change the mcp:<server>/<tool> access", () => {
+    // GIVEN the same entry under its label, then under another wording
+    const before = catalogueServer("com.notion/mcp", "Notion");
+    const after = catalogueServer("com.notion/mcp", "Notion (pages et bases)");
+
+    // WHEN the access to one of its tools is written for each
+    const access = (server: Parameters<typeof deriveServerName>[0]) =>
+      `mcp:${deriveServerName(server)}/notion-search`;
+
+    // THEN the access is the same
+    expect(access(after)).toBe(access(before));
+    expect(access(before)).toBe("mcp:com-notion-mcp/notion-search");
+  });
+
+  test("the name a server was installed under before is still recognised", () => {
+    // GIVEN an entry once installed under its English label
+    const server = catalogueServer("com.atlassian/rovo-mcp", "Atlassian (Jira + Confluence)");
+
+    // WHEN the former name is asked for
+    const legacy = legacyServerName(server);
+
+    // THEN it is the label, sanitised, in English whatever the interface language
+    expect(legacy).toBe("atlassian-jira-confluence");
   });
 
   test("sanitises to what the backend validate_name accepts", () => {

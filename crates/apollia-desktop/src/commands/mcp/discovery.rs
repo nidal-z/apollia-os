@@ -168,102 +168,8 @@ pub async fn fetch_mcp_registry(
                 .cloned()
                 .unwrap_or_else(|| enrichment.package_identifier.clone());
 
-            result.push(RegistryServerView {
-                name,
-                title: Some(
-                    enrichment
-                        .operator_label
-                        .get("en")
-                        .cloned()
-                        .unwrap_or_default(),
-                ),
-                description: enrichment
-                    .description
-                    .as_ref()
-                    .and_then(|m| m.get("en").cloned()),
-                version: String::new(),
-                website_url: enrichment.auth_help_url.clone(),
-                packages: enrichment.package_registry_type.as_ref().map(|reg_type| {
-                    vec![RegistryPackage {
-                        registry_type: reg_type.clone(),
-                        identifier: enrichment.package_identifier.clone(),
-                        version: enrichment.package_version.clone(),
-                        runtime_hint: enrichment.package_runtime_hint.clone(),
-                        transport: RegistryTransport {
-                            transport_type: "stdio".to_string(),
-                        },
-                        environment_variables: enrichment
-                            .package_env_vars
-                            .iter()
-                            .map(|ev| RegistryEnvVar {
-                                name: ev.name.clone(),
-                                description: ev.description.clone(),
-                                is_required: ev.is_required,
-                                is_secret: ev.is_secret,
-                            })
-                            .collect(),
-                        package_arguments: enrichment
-                            .package_arguments
-                            .iter()
-                            .map(|a| RegistryPackageArg {
-                                arg_type: a.arg_type.clone(),
-                                value: None,
-                                value_hint: a.value_hint.clone(),
-                                description: a
-                                    .description
-                                    .as_ref()
-                                    .and_then(|m| m.get("en").cloned()),
-                                is_required: a.is_required,
-                                is_repeatable: a.is_repeatable,
-                            })
-                            .collect(),
-                    }]
-                }),
-                icons: None,
-                repository: None,
-                trust_level: trust_level_str(&enrichment.trust_level),
-                category: Some(enrichment.category.clone()),
-                enrichment: Some(ConnectorEnrichmentView {
-                    operator_label: enrichment
-                        .operator_label
-                        .get("en")
-                        .cloned()
-                        .unwrap_or_default(),
-                    category: enrichment.category.clone(),
-                    icon_name: enrichment.icon_name.clone(),
-                    trust_level: enrichment.trust_level.clone(),
-                    auth_help_url: enrichment.auth_help_url.clone(),
-                    auth_help_text: enrichment
-                        .auth_help_text
-                        .as_ref()
-                        .and_then(|m| m.get("en").cloned()),
-                    auth_help_i18n_key: enrichment.auth_help_i18n_key.clone(),
-                    oauth_pre_registered_client_id_env: enrichment
-                        .oauth_pre_registered_client_id_env
-                        .clone(),
-                    examples: enrichment.examples.clone(),
-                }),
-                is_installed: installed_names.contains(&enrichment.package_identifier),
-                remotes: match (&enrichment.remote_url, &enrichment.remote_transport) {
-                    (Some(url), Some(transport)) => vec![RegistryRemote {
-                        transport_type: transport.clone(),
-                        url: url.clone(),
-                        // Synthetic entries have no registry data - use enrichment
-                        // fallback headers directly as the sole source.
-                        headers: enrichment
-                            .remote_headers
-                            .iter()
-                            .map(|h| RegistryRemoteHeader {
-                                name: h.name.clone(),
-                                description: h.description.clone(),
-                                is_required: h.is_required,
-                                is_secret: h.is_secret,
-                            })
-                            .collect(),
-                    }],
-                    _ => vec![],
-                },
-            });
+            let installed = installed_names.contains(&enrichment.package_identifier);
+            result.push(curated_view(enrichment, name, installed));
         }
     }
 
@@ -284,13 +190,15 @@ pub(crate) async fn fetch_registry_servers(
     serde_json::from_value(json).map_err(|e| format!("failed to parse the registry: {e}"))
 }
 
-/// Return only the 18 curated MCP entries baked into the binary -
-/// instant, network-free path.
+/// Return the selection Apollia offers, without the public registry.
 ///
-/// Used by the Catalogue Sheet to show a useful subset immediately on
-/// open, before (optionally) triggering the heavy full-registry fetch.
-/// Mirrors the synthetic-injection codepath inside `fetch_mcp_registry`
-/// but skips the network call entirely.
+/// The selection is the one compiled into the application with the signed
+/// online index this machine last accepted laid over it. Opening refreshes
+/// that index first, waiting a few seconds at most, then falls back to the
+/// copy already kept: the public registry is never asked on this path.
+///
+/// Used by the catalogue to show the selection as soon as it opens, before
+/// the user asks for the full registry.
 #[tauri::command]
 pub async fn fetch_mcp_curated(
     state: State<'_, RuntimeLink>,
@@ -313,98 +221,123 @@ pub async fn fetch_mcp_curated(
             .first()
             .cloned()
             .unwrap_or_else(|| enrichment.package_identifier.clone());
-        result.push(RegistryServerView {
-            name: name.clone(),
-            title: Some(
-                enrichment
-                    .operator_label
-                    .get("en")
-                    .cloned()
-                    .unwrap_or_default(),
-            ),
-            description: enrichment
-                .description
-                .as_ref()
-                .and_then(|m| m.get("en").cloned()),
-            version: String::new(),
-            website_url: enrichment.auth_help_url.clone(),
-            packages: enrichment.package_registry_type.as_ref().map(|reg_type| {
-                vec![RegistryPackage {
-                    registry_type: reg_type.clone(),
-                    identifier: enrichment.package_identifier.clone(),
-                    version: enrichment.package_version.clone(),
-                    runtime_hint: enrichment.package_runtime_hint.clone(),
-                    transport: RegistryTransport {
-                        transport_type: "stdio".to_string(),
-                    },
-                    environment_variables: enrichment
-                        .package_env_vars
-                        .iter()
-                        .map(|ev| RegistryEnvVar {
-                            name: ev.name.clone(),
-                            description: ev.description.clone(),
-                            is_required: ev.is_required,
-                            is_secret: ev.is_secret,
-                        })
-                        .collect(),
-                    package_arguments: enrichment
-                        .package_arguments
-                        .iter()
-                        .map(|a| RegistryPackageArg {
-                            arg_type: a.arg_type.clone(),
-                            value: None,
-                            value_hint: a.value_hint.clone(),
-                            description: a.description.as_ref().and_then(|m| m.get("en").cloned()),
-                            is_required: a.is_required,
-                            is_repeatable: a.is_repeatable,
-                        })
-                        .collect(),
-                }]
-            }),
-            icons: None,
-            repository: None,
-            trust_level: trust_level_str(&enrichment.trust_level),
-            category: Some(enrichment.category.clone()),
-            enrichment: Some(ConnectorEnrichmentView {
-                operator_label: enrichment
-                    .operator_label
-                    .get("en")
-                    .cloned()
-                    .unwrap_or_default(),
-                category: enrichment.category.clone(),
-                icon_name: enrichment.icon_name.clone(),
-                trust_level: enrichment.trust_level.clone(),
-                auth_help_url: enrichment.auth_help_url.clone(),
-                auth_help_text: enrichment
-                    .auth_help_text
-                    .as_ref()
-                    .and_then(|m| m.get("en").cloned()),
-                auth_help_i18n_key: enrichment.auth_help_i18n_key.clone(),
-                oauth_pre_registered_client_id_env: enrichment
-                    .oauth_pre_registered_client_id_env
-                    .clone(),
-                examples: enrichment.examples.clone(),
-            }),
-            is_installed: installed_names.contains(&enrichment.package_identifier)
-                || installed_names.contains(&name),
-            remotes: match (&enrichment.remote_url, &enrichment.remote_transport) {
-                (Some(url), Some(transport)) => vec![RegistryRemote {
-                    transport_type: transport.clone(),
-                    url: url.clone(),
-                    headers: enrichment
-                        .remote_headers
-                        .iter()
-                        .map(|h| RegistryRemoteHeader {
-                            name: h.name.clone(),
-                            description: h.description.clone(),
-                            is_required: h.is_required,
-                            is_secret: h.is_secret,
-                        })
-                        .collect(),
-                }],
-                _ => vec![],
-            },
-        });
+        let installed = installed_names.contains(&enrichment.package_identifier)
+            || installed_names.contains(&name);
+        result.push(curated_view(enrichment, name, installed));
     }
     Ok(result)
+}
+
+/// The catalogue view of a selection entry, under `name`. Its texts travel in
+/// every locale through the enrichment, so the view itself carries no title
+/// nor description: the interface reads them from the enrichment.
+fn curated_view(
+    enrichment: &ConnectorEnrichment,
+    name: String,
+    is_installed: bool,
+) -> RegistryServerView {
+    RegistryServerView {
+        name,
+        title: None,
+        description: None,
+        version: String::new(),
+        website_url: enrichment.auth_help_url.clone(),
+        packages: enrichment.package_registry_type.as_ref().map(|reg_type| {
+            vec![RegistryPackage {
+                registry_type: reg_type.clone(),
+                identifier: enrichment.package_identifier.clone(),
+                version: enrichment.package_version.clone(),
+                runtime_hint: enrichment.package_runtime_hint.clone(),
+                transport: RegistryTransport {
+                    transport_type: "stdio".to_string(),
+                },
+                environment_variables: enrichment
+                    .package_env_vars
+                    .iter()
+                    .map(|ev| RegistryEnvVar {
+                        name: ev.name.clone(),
+                        description: ev.description.clone(),
+                        is_required: ev.is_required,
+                        is_secret: ev.is_secret,
+                    })
+                    .collect(),
+                package_arguments: enrichment
+                    .package_arguments
+                    .iter()
+                    .map(|a| RegistryPackageArg {
+                        arg_type: a.arg_type.clone(),
+                        value: None,
+                        value_hint: a.value_hint.clone(),
+                        description: None,
+                        is_required: a.is_required,
+                        is_repeatable: a.is_repeatable,
+                    })
+                    .collect(),
+            }]
+        }),
+        icons: None,
+        repository: None,
+        trust_level: trust_level_str(&enrichment.trust_level),
+        category: Some(enrichment.category.clone()),
+        enrichment: Some(ConnectorEnrichmentView::from(enrichment)),
+        is_installed,
+        remotes: match (&enrichment.remote_url, &enrichment.remote_transport) {
+            (Some(url), Some(transport)) => vec![RegistryRemote {
+                transport_type: transport.clone(),
+                url: url.clone(),
+                // A selection entry has no registry data: its own headers are
+                // the sole source.
+                headers: enrichment
+                    .remote_headers
+                    .iter()
+                    .map(|h| RegistryRemoteHeader {
+                        name: h.name.clone(),
+                        description: h.description.clone(),
+                        is_required: h.is_required,
+                        is_secret: h.is_secret,
+                    })
+                    .collect(),
+            }],
+            _ => vec![],
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn selection_entry(package_identifier: &str) -> ConnectorEnrichment {
+        load_builtin_enrichments()
+            .into_iter()
+            .find(|e| e.package_identifier == package_identifier)
+            .unwrap()
+    }
+
+    #[test]
+    fn test_curated_view_sends_every_text_in_both_locales() {
+        // GIVEN the selection entry for local files, whose label, description,
+        // authentication help and argument are written in English and French
+        let entry = selection_entry("@modelcontextprotocol/server-filesystem");
+
+        // WHEN it is turned into the view the catalogue receives
+        let view = serde_json::to_value(curated_view(&entry, "files".to_owned(), false)).unwrap();
+
+        // THEN each text reaches the interface in both locales, and no text is
+        // fixed in one language on the view itself
+        let enrichment = &view["enrichment"];
+        assert_eq!(enrichment["operator_label"]["fr"], "Fichiers locaux");
+        assert_eq!(enrichment["operator_label"]["en"], "Local Files");
+        for text in [
+            &enrichment["description"],
+            &enrichment["auth_help_text"],
+            &enrichment["argument_descriptions"][0],
+        ] {
+            assert!(text["fr"].is_string() && text["en"].is_string());
+            assert_ne!(text["fr"], text["en"]);
+        }
+        assert!(view["title"].is_null());
+        assert!(view["description"].is_null());
+        assert!(view["packages"][0]["packageArguments"][0]["description"].is_null());
+    }
 }

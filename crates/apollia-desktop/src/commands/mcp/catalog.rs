@@ -3,9 +3,13 @@
 //! category and a trust level, and the keyword inference that guesses a
 //! category when nothing else names one.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
-use crate::mcp::enrichments::{load_builtin_enrichments, TrustLevel, TryExample};
+use crate::mcp::enrichments::{
+    load_builtin_enrichments, ConnectorEnrichment, TrustLevel, TryExample,
+};
 use crate::mcp::official::is_official_registry_entry;
 use crate::mcp::registry_client::{
     RegistryIcon, RegistryPackage, RegistryRemote, RegistryRepository, RegistryServer,
@@ -278,15 +282,21 @@ impl From<RegistryServer> for RegistryServerView {
     }
 }
 
+/// Texts keyed by locale (`"en"`, `"fr"`), as the selection declares them.
+pub type LocalizedText = HashMap<String, String>;
+
 /// UI-friendly enrichment view for a connector, keyed by package identifier.
 ///
-/// Mirrors the TypeScript `ConnectorEnrichmentView` type. The `operator_label`
-/// and `auth_help_text` are resolved to English; full locale support is handled
-/// by the i18n layer on the frontend.
+/// Mirrors the TypeScript `ConnectorEnrichmentView` type. Every text is sent
+/// in each locale the selection declares; the interface picks the one of its
+/// current language.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectorEnrichmentView {
-    /// Human-readable label shown in the operator UI (English).
-    pub operator_label: String,
+    /// Human-readable label shown in the operator UI, by locale.
+    pub operator_label: LocalizedText,
+    /// Short description shown in the catalogue, by locale.
+    #[serde(default)]
+    pub description: Option<LocalizedText>,
     /// Category used for grouping in the catalogue (e.g. `"productivity"`).
     pub category: String,
     /// Lucide icon name (e.g. `"database"`, `"globe"`).
@@ -295,8 +305,8 @@ pub struct ConnectorEnrichmentView {
     pub trust_level: TrustLevel,
     /// URL where the user can obtain an API key, if applicable.
     pub auth_help_url: Option<String>,
-    /// Guidance shown on the authentication step (English).
-    pub auth_help_text: Option<String>,
+    /// Guidance shown on the authentication step, by locale.
+    pub auth_help_text: Option<LocalizedText>,
     /// Optional i18n key resolved by the wizard via `$t(key)`. When set, it
     /// takes precedence over `auth_help_text` and lets us ship long localised
     /// explanations in the bundled FR/EN catalogs instead of duplicating them
@@ -310,6 +320,32 @@ pub struct ConnectorEnrichmentView {
     /// interface picks the one it shows.
     #[serde(default)]
     pub examples: Vec<TryExample>,
+    /// The description of each package argument, by locale, in the order of
+    /// the entry's `packageArguments`.
+    #[serde(default)]
+    pub argument_descriptions: Vec<Option<LocalizedText>>,
+}
+
+impl From<&ConnectorEnrichment> for ConnectorEnrichmentView {
+    fn from(e: &ConnectorEnrichment) -> Self {
+        Self {
+            operator_label: e.operator_label.clone(),
+            description: e.description.clone(),
+            category: e.category.clone(),
+            icon_name: e.icon_name.clone(),
+            trust_level: e.trust_level.clone(),
+            auth_help_url: e.auth_help_url.clone(),
+            auth_help_text: e.auth_help_text.clone(),
+            auth_help_i18n_key: e.auth_help_i18n_key.clone(),
+            oauth_pre_registered_client_id_env: e.oauth_pre_registered_client_id_env.clone(),
+            examples: e.examples.clone(),
+            argument_descriptions: e
+                .package_arguments
+                .iter()
+                .map(|a| a.description.clone())
+                .collect(),
+        }
+    }
 }
 
 /// Pair of a package identifier and its enrichment view.
@@ -333,20 +369,10 @@ pub struct EnrichmentEntry {
 #[tauri::command]
 pub fn list_mcp_enrichments() -> Vec<EnrichmentEntry> {
     load_builtin_enrichments()
-        .into_iter()
+        .iter()
         .map(|e| EnrichmentEntry {
-            package_identifier: e.package_identifier,
-            enrichment: ConnectorEnrichmentView {
-                operator_label: e.operator_label.get("en").cloned().unwrap_or_default(),
-                category: e.category,
-                icon_name: e.icon_name,
-                trust_level: e.trust_level,
-                auth_help_url: e.auth_help_url,
-                auth_help_text: e.auth_help_text.and_then(|m| m.get("en").cloned()),
-                auth_help_i18n_key: e.auth_help_i18n_key,
-                oauth_pre_registered_client_id_env: e.oauth_pre_registered_client_id_env,
-                examples: e.examples,
-            },
+            package_identifier: e.package_identifier.clone(),
+            enrichment: ConnectorEnrichmentView::from(e),
         })
         .collect()
 }
@@ -443,5 +469,29 @@ mod tests {
         // THEN the editor's entry is official and the other community
         assert_eq!(editor.trust_level, "verified_official");
         assert_eq!(account.trust_level, "community");
+    }
+
+    #[test]
+    fn test_list_mcp_enrichments_sends_the_label_and_help_in_both_locales() {
+        // GIVEN the selection compiled into the application, where Brave Search
+        // is named "Recherche Brave" in French
+
+        // WHEN the interface lists the enrichments
+        let entries = serde_json::to_value(list_mcp_enrichments()).unwrap();
+
+        // THEN the label and the authentication help arrive keyed by locale
+        let brave = entries
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["package_identifier"] == "@modelcontextprotocol/server-brave-search")
+            .unwrap();
+        assert_eq!(
+            brave["enrichment"]["operator_label"]["fr"],
+            "Recherche Brave"
+        );
+        assert_eq!(brave["enrichment"]["operator_label"]["en"], "Brave Search");
+        assert!(brave["enrichment"]["auth_help_text"]["fr"].is_string());
+        assert!(brave["enrichment"]["auth_help_text"]["en"].is_string());
     }
 }

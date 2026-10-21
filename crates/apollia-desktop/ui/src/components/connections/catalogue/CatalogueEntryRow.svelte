@@ -6,7 +6,7 @@
    * expressive hover lift. Trust badge, vendor, description, and an install /
    * manage CTA. Scales to long vendor names without truncation nightmares.
    */
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
   import { Plus, Link as LinkIcon } from "lucide-svelte";
   import { ListRow } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
@@ -14,6 +14,7 @@
   import ConnectorTile from "../shared/ConnectorTile.svelte";
   import { accentTokenFor } from "$lib/connections/accent";
   import { vendorLabel } from "$lib/connections/vendor";
+  import { entryDescription, entryLabel } from "$lib/connections/catalogueText";
   import type { RegistryServerView } from "$lib/types";
 
   interface Props {
@@ -25,8 +26,8 @@
 
   let { entry, installed, official, onactivate }: Props = $props();
 
-  const displayName = $derived(entry.enrichment?.operator_label ?? entry.title ?? entry.name);
-  const description = $derived(entry.description ?? entry.enrichment?.category ?? "");
+  const displayName = $derived(entryLabel(entry, $locale));
+  const description = $derived(entryDescription(entry, $locale) ?? entry.enrichment?.category ?? "");
   const vendor = $derived(vendorLabel(entry));
 </script>
 

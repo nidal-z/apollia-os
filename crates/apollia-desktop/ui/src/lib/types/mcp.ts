@@ -150,14 +150,23 @@ export interface RegistryPackageArgView {
   isRepeatable: boolean;
 }
 
-/** UI-friendly metadata enriching a registry server entry for the catalogue. */
+/** Texts keyed by locale (`"en"`, `"fr"`), as the selection declares them. */
+export type CatalogueText = Record<string, string>;
+
+/**
+ * UI-friendly metadata enriching a registry server entry for the catalogue.
+ * Its texts arrive in every locale; `$lib/connections/catalogueText` picks
+ * the one of the interface language.
+ */
 export interface ConnectorEnrichmentView {
-  operator_label: string;
+  operator_label: CatalogueText;
+  /** Short description shown in the catalogue. */
+  description?: CatalogueText | null;
   category: string;
   icon_name: string;
   trust_level: TrustLevel;
   auth_help_url: string | null;
-  auth_help_text: string | null;
+  auth_help_text: CatalogueText | null;
   /** Optional i18n key resolved by the wizard via `$t(key)`. When set, it
    *  takes precedence over `auth_help_text` and lets us ship long localised
    *  explanations in the bundled FR/EN catalogs instead of inline strings. */
@@ -169,6 +178,8 @@ export interface ConnectorEnrichmentView {
   oauth_pre_registered_client_id_env: string | null;
   /** Questions offered to try the connection, one per tool they exercise. */
   examples?: TryExample[];
+  /** The description of each package argument, in the order of `packageArguments`. */
+  argument_descriptions?: (CatalogueText | null)[];
 }
 
 /** One question offered to try a connection, its texts keyed by locale. */

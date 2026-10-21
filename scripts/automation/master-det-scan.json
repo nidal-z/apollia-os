@@ -211,7 +211,7 @@
     "settings-nav-stt",
     "sidebar-connection-folder:automation",
     "sidebar-mcp-automation-stub-mcp",
-    "sidebar-mcp-seed-stub",
+    "sidebar-mcp-io-apollia-seed-stub",
     "theme-dark",
     "theme-light",
     "theme-system",
@@ -11575,7 +11575,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mcp-seed-stub",
+      "testid": "sidebar-mcp-io-apollia-seed-stub",
       "timeoutMs": 3000
     },
     {
@@ -11584,7 +11584,7 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-mcp-seed-stub",
+      "testid": "sidebar-mcp-io-apollia-seed-stub",
       "timeoutMs": 3000
     },
     {
@@ -11634,7 +11634,7 @@
     },
     {
       "kind": "waitGone",
-      "testid": "sidebar-mcp-seed-stub",
+      "testid": "sidebar-mcp-io-apollia-seed-stub",
       "timeoutMs": 3000
     },
     {
@@ -11749,7 +11749,7 @@
     },
     {
       "kind": "waitGone",
-      "testid": "sidebar-mcp-seed-stub",
+      "testid": "sidebar-mcp-io-apollia-seed-stub",
       "timeoutMs": 3000
     },
     {
