@@ -87,6 +87,33 @@ impl AdmissionRequest {
 }
 
 impl AdmissionRequest {
+    /// The request an MCP server made from the curated selection entry `entry`
+    /// would be added with, before it is: named by its entry, and by the npm
+    /// package it runs when `npm_package` names one, as [`mcp_identifiers`]
+    /// names the server once added. `remote` is computed from `transport` and
+    /// `url` (see [`crate::connections::is_remote`]).
+    #[must_use]
+    pub fn for_selection_entry(
+        entry: &str,
+        transport: &str,
+        url: Option<&str>,
+        npm_package: Option<&str>,
+        families: impl IntoIterator<Item = ActionFamily>,
+    ) -> Self {
+        let mut identifiers = vec![format!("{SELECTION_PREFIX}{entry}")];
+        if let Some(package) = npm_package {
+            identifiers.push(format!("{NPM_PACKAGE_PREFIX}{package}"));
+        }
+        Self {
+            kind: ConnectionKind::Mcp,
+            name: entry.to_owned(),
+            remote: crate::connections::is_remote(transport, url),
+            provenance: Provenance::Selection,
+            families: distinct(families),
+            identifiers,
+        }
+    }
+
     /// The request describing an account of the native connector `provider`:
     /// remote (the provider's service is online), Apollia's own code (the
     /// selection), and the families of the connector's tools.
@@ -413,6 +440,40 @@ mod tests {
             vec![ActionFamily::Read, ActionFamily::WriteOrDelete]
         );
         assert_eq!(req.identifiers, vec!["native:folder".to_owned()]);
+    }
+
+    // A selection entry not yet added is named as the server it would become.
+    #[test]
+    fn test_request_for_a_selection_entry_matches_the_server_it_becomes() {
+        // GIVEN a selection server running an npm package, once added
+        let mut config: McpServerConfig = serde_json::from_value(serde_json::json!({
+            "name": "brave",
+            "command": "npx",
+            "args": ["-y", "@brave/brave-search-mcp-server@2.0.0"],
+            "tool_families": { "brave_web_search": "send_external" },
+        }))
+        .expect("config");
+        config.origin = Some(apollia_mcp::ConnectionOrigin {
+            provenance: Provenance::Selection,
+            official: true,
+            entry: Some("@brave/brave-search-mcp-server".into()),
+        });
+        let added = AdmissionRequest::for_mcp_server(&config);
+
+        // WHEN the request of its entry is built before it is added
+        let before = AdmissionRequest::for_selection_entry(
+            "@brave/brave-search-mcp-server",
+            "stdio",
+            None,
+            Some("@brave/brave-search-mcp-server"),
+            [ActionFamily::SendExternal],
+        );
+
+        // THEN a policy reads the same identifiers, origin, place and families
+        assert_eq!(before.identifiers, added.identifiers);
+        assert_eq!(before.provenance, added.provenance);
+        assert_eq!(before.remote, added.remote);
+        assert_eq!(before.families, added.families);
     }
 
     // The decision travels as a tagged object.

@@ -20,7 +20,8 @@ pub(super) struct AskedConsent {
 
 /// The family of the tool `name`, as its descriptor declares it. The search
 /// over the deferred tools reads an in-memory index and acts on nothing else;
-/// a tool nothing describes is unclassified.
+/// the search over the connections reads Apollia's selection and the servers
+/// configured on this machine; a tool nothing describes is unclassified.
 pub(super) fn family_of(
     name: &str,
     descriptor: Option<&apollia_tools::ToolDescriptor>,
@@ -28,6 +29,9 @@ pub(super) fn family_of(
     match descriptor {
         Some(descriptor) => descriptor.family,
         None if name == apollia_mcp::tool_search::TOOL_SEARCH_NAME => ActionFamily::Exempt,
+        None if name == crate::chat::connection_lookup::CONNECTION_LOOKUP_NAME => {
+            ActionFamily::Read
+        }
         None => ActionFamily::Unclassified,
     }
 }

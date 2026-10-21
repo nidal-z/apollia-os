@@ -102,6 +102,10 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
         Option<apollia_mcp::manager::McpClientManagerHandle>,
     /// Executors of the package tools, built for the agent of the exchange.
     pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+    /// The curated selection Apollia searches for a missing connection;
+    /// `Some` only when the exchange runs Apollia.
+    pub(in crate::chat::manager) connection_selection:
+        Option<Arc<crate::chat::connection_lookup::ConnectionSelection>>,
     /// Runs the agents and workflows the Apollia agent was granted.
     pub(in crate::chat::manager) composer: Option<Arc<dyn crate::composition::Composer>>,
     /// The governance every tool call of the exchange is decided by.

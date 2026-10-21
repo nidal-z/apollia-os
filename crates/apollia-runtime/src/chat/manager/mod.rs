@@ -174,6 +174,10 @@ struct ChatSessionManager {
     /// Source of the executors of the package tools, set once the embedded
     /// interpreter is available. `None` leaves every `pkg:` tool unrunnable.
     package_tools: Option<Arc<dyn crate::package_tools::PackageToolHost>>,
+    /// The curated selection Apollia searches, in a conversation, for a
+    /// connection a request needs, set by the host that holds it. `None`
+    /// offers no `connection_lookup` tool.
+    connection_selection: Option<Arc<crate::chat::connection_lookup::ConnectionSelection>>,
     /// Reads and runs the agents and workflows an agent was granted, set once
     /// the workflow engine is up. `None` offers no `agent:` or `workflow:`
     /// tool.

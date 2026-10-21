@@ -194,6 +194,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         pending_user_inputs_for_session,
         mcp_handle_for_session,
         mut package_tools,
+        connection_selection,
         composer,
         governance,
         chat_tools_config_for_session,
@@ -296,6 +297,25 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         super::sources::source_access(chat_tools_config_for_session.as_deref(), &agent_id).await;
     let available_tools = super::sources::offered(available_tools, &sources);
     let memory_namespace = super::sources::memory_namespace(&agent_id);
+    // Apollia searches the selection for what a request needs: the servers
+    // configured are read from `mcp.db` at each call, and what it is granted
+    // is the access list the turn ends up with.
+    let connection_lookup = match (
+        connection_selection,
+        chat_tools_config_for_session.as_deref(),
+    ) {
+        (Some(selection), Some(cfg)) => {
+            package_tools.push(Box::new(
+                crate::chat::connection_lookup::ConnectionLookupExecutor::new(
+                    selection,
+                    apollia_core::paths::DataFile::Mcp.path(&cfg.data_dir),
+                    available_tools.clone(),
+                ),
+            ));
+            true
+        }
+        _ => false,
+    };
 
     // The request settings of the conversation, above the three levels read
     // beside the data directory: the model, the package, and the preset of
@@ -316,6 +336,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         preserve_thinking: session_settings.preserve_thinking,
         overflow: session_settings.overflow(),
         proposed_accesses,
+        connection_lookup,
     };
 
     // Read the tool-turn temperature before the config is moved into the

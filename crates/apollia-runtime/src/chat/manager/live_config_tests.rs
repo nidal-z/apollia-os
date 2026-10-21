@@ -45,6 +45,7 @@ fn manager_following(dir: &tempfile::TempDir, feed: ConfigFeed) -> ChatSessionMa
         plan_handle: None,
         hook_executor: None,
         package_tools: None,
+        connection_selection: None,
         composer: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
