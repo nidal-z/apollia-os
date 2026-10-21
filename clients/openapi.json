@@ -21351,6 +21351,7 @@
           "remote",
           "official",
           "state",
+          "status",
           "tools"
         ],
         "properties": {
@@ -21360,6 +21361,13 @@
               "null"
             ],
             "description": "Account the connection acts as, when it has one."
+          },
+          "checkedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When its state was last found, RFC 3339 in UTC; absent when it never\nwas."
           },
           "id": {
             "type": "string",
@@ -21377,6 +21385,13 @@
             "type": "boolean",
             "description": "Published by the service's own publisher."
           },
+          "package": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the installed package that brought it, when one did."
+          },
           "path": {
             "type": [
               "string",
@@ -21388,13 +21403,51 @@
             "type": "string",
             "description": "Where the connection was found before it was added."
           },
+          "reason": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Why it is not working, absent when it works: a key the interface translates, and the technical detail.",
+            "required": [
+              "key"
+            ],
+            "properties": {
+              "detail": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "type": "string",
+                "enum": [
+                  "not_checked",
+                  "sign_in_again",
+                  "unreachable",
+                  "failing",
+                  "forbidden_by_policy"
+                ]
+              }
+            }
+          },
           "remote": {
             "type": "boolean",
             "description": "Sends data off this machine. Computed, see [`is_remote`]."
           },
           "state": {
             "$ref": "#/components/schemas/ConnectionState",
-            "description": "Whether it can be used right now."
+            "description": "Whether it can be used right now, in the detail its kind gives."
+          },
+          "status": {
+            "type": "string",
+            "description": "What its user reads: working, needs repair, paused, or blocked by the organisation.",
+            "enum": [
+              "working",
+              "needs_repair",
+              "paused",
+              "blocked"
+            ]
           },
           "tools": {
             "type": "array",
@@ -21464,7 +21517,7 @@
       },
       "ConnectionState": {
         "type": "string",
-        "description": "Whether a connection can be used right now.",
+        "description": "Whether a connection can be used right now, in the detail its kind gives.\n\nWhat its user reads is [`Connection::status`], one of four states.",
         "enum": [
           "connected",
           "degraded",

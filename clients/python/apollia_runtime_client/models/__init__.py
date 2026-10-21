@@ -105,7 +105,10 @@ from .connected_account_response import ConnectedAccountResponse
 from .connection import Connection
 from .connection_activity_response import ConnectionActivityResponse
 from .connection_kind import ConnectionKind
+from .connection_reason_type_0 import ConnectionReasonType0
+from .connection_reason_type_0_key import ConnectionReasonType0Key
 from .connection_state import ConnectionState
+from .connection_status import ConnectionStatus
 from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
 from .context_overflow_setting import ContextOverflowSetting
@@ -725,7 +728,10 @@ __all__ = (
     "Connection",
     "ConnectionActivityResponse",
     "ConnectionKind",
+    "ConnectionReasonType0",
+    "ConnectionReasonType0Key",
     "ConnectionState",
+    "ConnectionStatus",
     "ConnectionTool",
     "ConnectorAccountResponse",
     "ContextOverflowSetting",

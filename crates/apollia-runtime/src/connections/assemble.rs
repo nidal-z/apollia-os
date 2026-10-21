@@ -3,12 +3,11 @@
 //! Pure: every input is read by the caller, so the rules are tested without a
 //! runtime, a keychain or a server process.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use apollia_auth::ConnectorProvider;
 use apollia_connectors::imap::{providers::provider_for_email, ImapAccount};
-use apollia_core::FolderConnection;
-use apollia_core::McpHealth;
+use apollia_core::{ConnectionStateRecord, ConnectionStatus, FolderConnection, McpHealth};
 use apollia_mcp::classify::classify_mcp_tool;
 use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::manager::McpServerStatus;
@@ -16,6 +15,7 @@ use apollia_mcp::tool_search::ToolIndexSnapshot;
 use apollia_mcp::Provenance;
 use apollia_tools::{FamilySource, ToolDescriptor};
 
+use super::state::{kept_mcp_state, shown_state};
 use super::{
     folder_connections, imap_connection_id, is_prechecked, is_remote, is_remote_host, Connection,
     ConnectionKind, ConnectionState, ConnectionTool,
@@ -36,8 +36,9 @@ pub struct ConnectionSources {
     /// The tools each live MCP session indexed. In deferred loading none of
     /// them reaches the registry, so this is where a server's tools are read.
     pub mcp_index: Vec<ToolIndexSnapshot>,
-    /// Names of the MCP servers an installed package brought.
-    pub package_servers: HashSet<String>,
+    /// The MCP servers an installed package brought: the name of each, and
+    /// the name of its package.
+    pub package_servers: HashMap<String, String>,
     /// Connected accounts of each native provider.
     pub native_accounts: Vec<NativeAccounts>,
     /// Mailboxes connected over IMAP.
@@ -46,11 +47,14 @@ pub struct ConnectionSources {
     pub forbidden: HashSet<String>,
     /// Folders of this machine added as connections.
     pub folders: Vec<FolderConnection>,
+    /// The state each connection was last found in, by identifier.
+    pub states: HashMap<String, ConnectionStateRecord>,
 }
 
 /// Assemble every connection: native accounts first, then mailboxes, then MCP
 /// servers by name, then folders. A connection the policy forbade at boot is
-/// marked so, whatever else its state would be.
+/// marked so, whatever else its state would be. Each one reads in the state
+/// it was last found in, dated; one never found yet needs a check.
 #[must_use]
 pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
     let mut out = Vec::new();
@@ -70,9 +74,19 @@ pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
     );
     out.extend(folder_connections(&sources.folders));
     for connection in &mut out {
-        if sources.forbidden.contains(&connection.id) {
+        let forbidden = sources.forbidden.contains(&connection.id);
+        if forbidden {
             connection.state = ConnectionState::ForbiddenByPolicy;
         }
+        let live = connection
+            .id
+            .strip_prefix("mcp:")
+            .and_then(|name| sources.mcp_statuses.iter().find(|s| s.name == name))
+            .map(|s| &s.health);
+        let shown = shown_state(&connection.id, &sources.states, forbidden, live);
+        connection.status = shown.status;
+        connection.reason = shown.reason;
+        connection.checked_at = shown.checked_at;
     }
     out
 }
@@ -93,6 +107,10 @@ fn native_connection(provider: ConnectorProvider, account: &str) -> Connection {
         remote: true,
         official,
         state: ConnectionState::Connected,
+        status: ConnectionStatus::NeedsRepair,
+        reason: Some(super::state::not_checked()),
+        checked_at: None,
+        package: None,
         tools: descriptors
             .iter()
             .map(|d| tool_from_descriptor(d, provenance, official))
@@ -116,6 +134,10 @@ fn imap_connection(account: &ImapAccount) -> Connection {
         remote: is_remote_host(&account.host),
         official,
         state: ConnectionState::Connected,
+        status: ConnectionStatus::NeedsRepair,
+        reason: Some(super::state::not_checked()),
+        checked_at: None,
+        package: None,
         tools: crate::connectors_bridge::imap_tool_descriptors()
             .iter()
             .map(|d| tool_from_descriptor(d, provenance, official))
@@ -131,7 +153,8 @@ fn provider_label(provider: ConnectorProvider) -> &'static str {
 }
 
 fn mcp_connection(config: &McpServerConfig, sources: &ConnectionSources) -> Connection {
-    let provenance = if sources.package_servers.contains(&config.name) {
+    let package = sources.package_servers.get(&config.name).cloned();
+    let provenance = if package.is_some() {
         Provenance::Package
     } else {
         config
@@ -141,8 +164,13 @@ fn mcp_connection(config: &McpServerConfig, sources: &ConnectionSources) -> Conn
     };
     let official = config.origin.as_ref().is_some_and(|origin| origin.official);
     let status = sources.mcp_statuses.iter().find(|s| s.name == config.name);
+    let id = format!("mcp:{}", config.name);
+    let state = status.map_or_else(
+        || kept_mcp_state(sources.states.get(&id)),
+        |s| state_of(&s.health),
+    );
     Connection {
-        id: format!("mcp:{}", config.name),
+        id,
         kind: ConnectionKind::Mcp,
         label: config.name.clone(),
         account: None,
@@ -150,7 +178,11 @@ fn mcp_connection(config: &McpServerConfig, sources: &ConnectionSources) -> Conn
         provenance,
         remote: is_remote(&config.transport, config.url.as_deref()),
         official,
-        state: status.map_or(ConnectionState::Stopped, |s| state_of(&s.health)),
+        state,
+        status: ConnectionStatus::NeedsRepair,
+        reason: Some(super::state::not_checked()),
+        checked_at: None,
+        package,
         tools: mcp_tools(config, sources, provenance, official),
     }
 }

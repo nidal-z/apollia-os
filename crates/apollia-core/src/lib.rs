@@ -18,6 +18,7 @@
 pub mod batch_source;
 pub mod budget;
 pub mod config;
+pub mod connection_state;
 pub mod context;
 pub mod decision_point;
 pub mod embedding_default;
@@ -72,6 +73,10 @@ pub use config::{
     McpConfig, McpToolLoading, ModelsConfig, ORIAConfig, RegistryConfig, RuntimeConfig,
     ServerConfig, ToolsConfig, TriggersConfig, WebReadConfig, WebSearchBackend, WebSearchConfig,
     WorkflowsConfig,
+};
+pub use connection_state::{
+    ConnectionReason, ConnectionReasonKey, ConnectionStateError, ConnectionStateRecord,
+    ConnectionStateStore, ConnectionStatus,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};

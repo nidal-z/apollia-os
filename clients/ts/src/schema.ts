@@ -7300,6 +7300,11 @@ export interface components {
             /** @description Account the connection acts as, when it has one. */
             account?: string | null;
             /**
+             * @description When its state was last found, RFC 3339 in UTC; absent when it never
+             *     was.
+             */
+            checkedAt?: string | null;
+            /**
              * @description Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,
              *     `imap:<address>`, `folder:<id>`.
              */
@@ -7310,14 +7315,27 @@ export interface components {
             label: string;
             /** @description Published by the service's own publisher. */
             official: boolean;
+            /** @description Name of the installed package that brought it, when one did. */
+            package?: string | null;
             /** @description Folder of this machine the connection opens, for a folder. */
             path?: string | null;
             /** @description Where the connection was found before it was added. */
             provenance: string;
+            /** @description Why it is not working, absent when it works: a key the interface translates, and the technical detail. */
+            reason?: {
+                detail?: string | null;
+                /** @enum {string} */
+                key: "not_checked" | "sign_in_again" | "unreachable" | "failing" | "forbidden_by_policy";
+            } | null;
             /** @description Sends data off this machine. Computed, see [`is_remote`]. */
             remote: boolean;
-            /** @description Whether it can be used right now. */
+            /** @description Whether it can be used right now, in the detail its kind gives. */
             state: components["schemas"]["ConnectionState"];
+            /**
+             * @description What its user reads: working, needs repair, paused, or blocked by the organisation.
+             * @enum {string}
+             */
+            status: "working" | "needs_repair" | "paused" | "blocked";
             /** @description Tools the connection brings. */
             tools: components["schemas"]["ConnectionTool"][];
         };
@@ -7345,7 +7363,9 @@ export interface components {
          */
         ConnectionKind: "native" | "imap" | "mcp" | "folder";
         /**
-         * @description Whether a connection can be used right now.
+         * @description Whether a connection can be used right now, in the detail its kind gives.
+         *
+         *     What its user reads is [`Connection::status`], one of four states.
          * @enum {string}
          */
         ConnectionState: "connected" | "degraded" | "needs_reauth" | "unavailable" | "stopped" | "forbidden_by_policy";

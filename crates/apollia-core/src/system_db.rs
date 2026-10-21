@@ -8,8 +8,9 @@
 //! ([`crate::server_token`]), the last local model loaded by hand
 //! ([`crate::last_loaded_model`]), the registry of sources
 //! ([`crate::source_registry`]), the folders added as connections
-//! ([`crate::folder_connection`]), and the local models pinned in memory
-//! ([`crate::model_pins`]).
+//! ([`crate::folder_connection`]), the local models pinned in memory
+//! ([`crate::model_pins`]), and the last state of each connection
+//! ([`crate::connection_state`]).
 //! `PRAGMA user_version` belongs to the database file, not to a table, so the
 //! stores share one migration list: whichever opens first brings the whole
 //! file to the current version, and both refuse a file written by a newer
@@ -21,7 +22,7 @@ use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 12;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 13;
 
 /// Numbered migration steps of `system.db`.
 ///
@@ -40,6 +41,7 @@ pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[
     migrate_v10,
     migrate_v11,
     migrate_v12,
+    migrate_v13,
 ];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
@@ -573,6 +575,23 @@ pub(crate) fn migrate_v12(conn: &Connection) -> Result<(), rusqlite::Error> {
     add_column_if_missing(
         conn,
         "ALTER TABLE inference_servers ADD COLUMN extra_json TEXT",
+    )
+}
+
+/// v13: the last state each connection was found in, one row per connection.
+///
+/// `state` is one of `working`, `needs_repair`, `paused`, `blocked`;
+/// `reason` is the JSON of the reason, absent when it works; `checked_at` is
+/// when the state was found. The statement is idempotent, so a replay
+/// changes nothing.
+pub(crate) fn migrate_v13(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS connection_states (
+            id         TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+            state      TEXT NOT NULL CHECK (length(trim(state)) > 0),
+            reason     TEXT,
+            checked_at TEXT NOT NULL CHECK (length(trim(checked_at)) > 0)
+        );",
     )
 }
 

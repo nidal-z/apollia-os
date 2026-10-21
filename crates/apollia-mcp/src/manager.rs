@@ -8,6 +8,7 @@
 mod commands;
 mod detached;
 mod handle;
+mod lifecycle;
 mod snapshot;
 mod views;
 
@@ -93,6 +94,11 @@ enum McpCommand {
     ReloadServer {
         server_name: String,
         reply: oneshot::Sender<Result<(), McpSessionError>>,
+    },
+    /// The dispatch task of a session ended: its transport closed.
+    SessionEnded {
+        server_name: String,
+        started_at: std::time::Instant,
     },
     /// Aggregate `resources/list` across every connected session.
     ListResources {
@@ -336,7 +342,9 @@ impl McpClientManager {
                 }
 
                 McpCommand::AddServer { config, reply } => {
+                    let name = config.name.clone();
                     let result = self.handle_add_server(config).await;
+                    self.announce_start(&name, &result);
                     self.publish();
                     let _ = reply.send(result);
                 }
@@ -358,7 +366,9 @@ impl McpClientManager {
                 }
 
                 McpCommand::RestartServer { server_name, reply } => {
+                    let name = server_name.clone();
                     let result = self.handle_restart_server(server_name).await;
+                    self.announce_start(&name, &result);
                     self.publish();
                     let _ = reply.send(result);
                 }
@@ -382,9 +392,15 @@ impl McpClientManager {
 
                 McpCommand::ReloadServer { server_name, reply } => {
                     let result = self.handle_reload_server(&server_name).await;
+                    self.announce_start(&server_name, &result);
                     self.publish();
                     let _ = reply.send(result);
                 }
+
+                McpCommand::SessionEnded {
+                    server_name,
+                    started_at,
+                } => self.session_ended(&server_name, started_at),
 
                 McpCommand::ListResources { reply } => {
                     let _ = reply.send(self.handle_list_resources().await);

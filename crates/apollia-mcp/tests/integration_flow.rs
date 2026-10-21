@@ -380,8 +380,11 @@ async fn test_reload_event_names_tools_in_deferred_mode() {
     manager.reload_server("reload-deferred").await.unwrap();
 
     // THEN the published event names the two tools on both sides: an empty
-    // pair would report that a server exposing two tools moved nothing
-    let event = rx.try_recv().unwrap();
+    // pair would report that a server exposing two tools moved nothing; the
+    // health each start announced is passed over
+    let event = std::iter::from_fn(|| rx.try_recv().ok())
+        .find(|e| !matches!(e, apollia_core::RuntimeEvent::McpServerHealthChanged { .. }))
+        .unwrap();
     match event {
         apollia_core::RuntimeEvent::McpServerReloaded {
             name,

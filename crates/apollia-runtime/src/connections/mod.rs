@@ -22,11 +22,15 @@ mod assemble;
 pub mod folder_import;
 pub mod folders;
 mod packages;
+mod schema;
+pub mod state;
 
 pub use assemble::{assemble, ConnectionSources, NativeAccounts};
 pub use folders::{folder_connection, folder_connection_id, folder_connections, folder_id_of};
-pub use packages::package_connection_names;
+pub use packages::package_connections;
+pub use state::spawn_state_recorder;
 
+use apollia_core::{ConnectionReason, ConnectionStatus};
 use apollia_mcp::Provenance;
 use apollia_tools::{ActionFamily, FamilySource};
 use serde::{Deserialize, Serialize};
@@ -45,7 +49,9 @@ pub enum ConnectionKind {
     Folder,
 }
 
-/// Whether a connection can be used right now.
+/// Whether a connection can be used right now, in the detail its kind gives.
+///
+/// What its user reads is [`Connection::status`], one of four states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ConnectionState {
@@ -104,8 +110,20 @@ pub struct Connection {
     pub remote: bool,
     /// Published by the service's own publisher.
     pub official: bool,
-    /// Whether it can be used right now.
+    /// Whether it can be used right now, in the detail its kind gives.
     pub state: ConnectionState,
+    /// What its user reads: working, needs repair, paused, or blocked by the
+    /// organisation, as last found (see [`state`]).
+    #[schema(schema_with = schema::status_schema)]
+    pub status: ConnectionStatus,
+    /// Why it is not working, absent when it works.
+    #[schema(schema_with = schema::reason_schema)]
+    pub reason: Option<ConnectionReason>,
+    /// When its state was last found, RFC 3339 in UTC; absent when it never
+    /// was.
+    pub checked_at: Option<String>,
+    /// Name of the installed package that brought it, when one did.
+    pub package: Option<String>,
     /// Tools the connection brings.
     pub tools: Vec<ConnectionTool>,
 }

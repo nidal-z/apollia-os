@@ -514,6 +514,27 @@ takes that published state and sends the actor nothing, so a slow server
 delays neither. Principle 5 is read this way: one actor owns and mutates the
 state, the others read a copy it publishes, never the state itself.
 
+### The state of a connection, found, kept and announced {#connection-state}
+
+A connection reads in one of four states: working, needs repair (with the
+reason and the one action that repairs it), paused, or blocked by the
+organisation. The runtime finds the state; nobody enters it. An MCP server's
+state follows its health, and a session whose handshake passed but whose
+operations nothing has proven yet does not read as working: it keeps the
+working state found before, and otherwise needs a check. A token that cannot
+be obtained at start asks the user to sign in again; a session whose
+transport closes on its own is marked unreachable when it closes, not at the
+next call.
+
+The last state of each connection, its reason and the moment it was found
+are kept in `connection_states` of `system.db`. The list of connections reads
+them, so after a restart it shows what was last known, dated, before anything
+has run again. Each state kept is announced as one `RuntimeEvent` variant,
+`ConnectionStateChanged`, which the desktop relays to the window. The
+variant and its state types live in `apollia-core`, part of its public API,
+because the event carries them. An announcement sent before a reader
+subscribed is not lost to it: the reader finds the same state in the list.
+
 ## Connectors {#connectors}
 
 Google and Microsoft connectors authenticate through OAuth2 with PKCE. No
