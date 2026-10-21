@@ -1,14 +1,16 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * Adding a connection of the selection: choose it, accept its warning.
+ * Adding a connection of the selection: choose it, read its card, add it,
+ * accept its warning.
  *
  * Boots the UI bundle with the Tauri bridge stubbed (the three members the
  * boot path reaches for, as in `tests/agents/agent-sheet.spec.ts`), reaches
- * the Connections screen through its sidebar entry and opens its selection.
+ * the Connections screen through its sidebar entry and opens its add window.
  * From there the clicks are counted on the document: one on the entry, one on
- * the warning's button, and the connection is added and tried with no other
- * gesture. The stub answers a remote entry that needs no authentication, an
+ * Add in its card, one on the warning's button, and the connection is added
+ * and tried with no other gesture. Cancelling the addition gives the search
+ * back, as it was typed. The stub answers a remote entry that needs no authentication, an
  * addition that succeeds and a live trial of two tools; a second case answers
  * the organisation's refusal of online connections.
  */
@@ -97,7 +99,7 @@ async function installTauriStub(page: Page, refuse: boolean): Promise<void> {
   }, refuse);
 }
 
-/** Open the selection of Connections, then count every click from there on. */
+/** Open the add window of Connections, then count every click from there on. */
 async function openSelection(page: Page): Promise<void> {
   await page.goto("/");
   await page.getByTestId("nav-integrations").first().click();
@@ -136,20 +138,22 @@ test.describe("the public catalogue is asked on request only", () => {
 });
 
 test.describe("adding a connection", () => {
-  test("two clicks from the selection add the connection and try it", async ({ page }) => {
-    // GIVEN the selection open on an entry that needs no authentication
+  test("three clicks from the window add the connection and try it", async ({ page }) => {
+    // GIVEN the add window open on an entry that needs no authentication
     await installTauriStub(page, false);
     await openSelection(page);
 
-    // WHEN the entry is chosen, then its warning accepted
+    // WHEN the entry is chosen, Add is pressed on its card, then its warning accepted
     await page.getByTestId("catalogue-entry-com.notion/mcp").click();
+    await expect(page.getByTestId("catalogue-card-needs")).toBeVisible();
+    await page.getByTestId("catalogue-card-add").click();
     await expect(page.getByTestId("wizard-step-disclaimer")).toBeVisible();
     await expect(page.locator('[data-testid="connector-wizard"] input[type="checkbox"]')).toHaveCount(0);
     await page.getByTestId("wizard-warning-accept").click();
 
     // THEN the connection is added and its trial succeeds, with no other gesture
     await expect(page.getByTestId("test-result-success")).toBeVisible();
-    expect(await clicks(page)).toBe(2);
+    expect(await clicks(page)).toBe(3);
     const calls = await page.evaluate(
       () => (globalThis as unknown as { __invokeCalls: string[] }).__invokeCalls,
     );
@@ -161,8 +165,9 @@ test.describe("adding a connection", () => {
     await installTauriStub(page, true);
     await openSelection(page);
 
-    // WHEN the entry is chosen, then its warning accepted
+    // WHEN the entry is chosen, added from its card, then its warning accepted
     await page.getByTestId("catalogue-entry-com.notion/mcp").click();
+    await page.getByTestId("catalogue-card-add").click();
     await page.getByTestId("wizard-warning-accept").click();
 
     // THEN the one refusal box shows, with its action
@@ -170,6 +175,47 @@ test.describe("adding a connection", () => {
     await expect(refusal).toBeVisible();
     await expect(refusal).toHaveAttribute("data-refusal", "remote_denied");
     await expect(page.getByTestId("connection-refusal-open")).toBeVisible();
-    expect(await clicks(page)).toBe(2);
+    expect(await clicks(page)).toBe(3);
+  });
+
+  test("cancelling the addition gives the search back, not the list", async ({ page }) => {
+    // GIVEN a search typed in the add window, and the addition of its entry opened
+    await installTauriStub(page, false);
+    await openSelection(page);
+    await page.getByTestId("catalogue-search").fill("notion");
+    await page.getByTestId("catalogue-entry-com.notion/mcp").click();
+    await page.getByTestId("catalogue-card-add").click();
+    await expect(page.getByTestId("wizard-step-disclaimer")).toBeVisible();
+
+    // WHEN the addition is cancelled
+    await page.getByTestId("wizard-cancel-btn").click();
+
+    // THEN the window is back on the same words, with no card open
+    await expect(page.getByTestId("catalogue-search")).toHaveValue("notion");
+    await expect(page.getByTestId("catalogue-entry-com.notion/mcp")).toBeVisible();
+    await expect(page.getByTestId("catalogue-card")).toHaveCount(0);
+    await expect(page.getByTestId("connector-wizard")).toHaveCount(0);
+  });
+});
+
+test.describe("a source that does not answer", () => {
+  test("a public catalogue that fails is a banner, the selection stays", async ({ page }) => {
+    // GIVEN a public catalogue that cannot be reached
+    await installTauriStub(page, false);
+    await page.addInitScript(() => {
+      const g = globalThis as unknown as { __TAURI_INTERNALS__: { invoke: (c: string, a: unknown) => unknown } };
+      const base = g.__TAURI_INTERNALS__.invoke;
+      g.__TAURI_INTERNALS__.invoke = (cmd: string, args: unknown) =>
+        cmd === "fetch_mcp_registry" ? Promise.reject("the registry did not answer") : base(cmd, args);
+    });
+    await openSelection(page);
+
+    // WHEN Explore all is pressed
+    await page.getByTestId("catalogue-explore-all").click();
+
+    // THEN a banner says so, the selection is still listed, nothing reads as the end of a catalogue
+    await expect(page.getByTestId("catalogue-failure")).toBeVisible();
+    await expect(page.getByTestId("catalogue-entry-com.notion/mcp")).toBeVisible();
+    await expect(page.getByTestId("catalogue-explore-all")).toBeVisible();
   });
 });
