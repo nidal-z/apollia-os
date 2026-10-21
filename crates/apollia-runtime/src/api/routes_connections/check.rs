@@ -123,8 +123,10 @@ async fn check_one<B: ExecutionBackend + Clone, P: ConnectionProbe>(
                 .and_then(ConnectorProvider::from_id)
                 .ok_or_else(|| internal(format!("connection '{id}' names no provider")))?;
             let auth = auth.ok_or_else(|| internal("no authentication manager"))?;
-            let config = check::provider_config(provider);
-            Ok(check::check_native(id, auth, provider, account, &config).await)
+            Ok(
+                check::check_native(id, auth, provider, account, &apollia_auth::HttpTokenRefresh)
+                    .await,
+            )
         }
         ConnectionKind::Imap => {
             let store = ImapAccountStore::open(&state.data_dir).map_err(internal)?;

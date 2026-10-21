@@ -19,7 +19,9 @@
 
 use std::path::Path;
 
-use apollia_auth::{AccountId, AuthError, AuthManager, ConnectorProvider, ProviderConfig};
+use apollia_auth::{
+    AccountId, AuthError, AuthManager, ConnectorProvider, ProviderConfig, TokenRefresh,
+};
 use apollia_connectors::imap::{ConnectionProbe, ImapAccount, ImapError};
 use apollia_core::{
     ConnectionReason, ConnectionReasonKey, ConnectionStateError, ConnectionStateRecord,
@@ -73,16 +75,22 @@ pub fn provider_config(provider: ConnectorProvider) -> ProviderConfig {
     }
 }
 
-/// Check the native account `account` of `provider`: obtain a valid token.
-pub async fn check_native(
+/// Check the native account `account` of `provider`: obtain a valid token,
+/// refreshed through `refresh` at the provider's token endpoint
+/// ([`provider_config`]) when it expired.
+pub async fn check_native<R: TokenRefresh>(
     id: &str,
     auth: &AuthManager,
     provider: ConnectorProvider,
     account: &str,
-    config: &ProviderConfig,
+    refresh: &R,
 ) -> ConnectionStateRecord {
     let account = AccountId::new(account);
-    match auth.get_valid_token(provider, &account, config).await {
+    let config = provider_config(provider);
+    match auth
+        .get_valid_token_with(provider, &account, &config, refresh)
+        .await
+    {
         Ok(_) => found(id, None),
         Err(e) => found(id, Some((native_reason(&e), e.to_string()))),
     }

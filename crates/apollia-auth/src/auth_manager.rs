@@ -40,6 +40,35 @@ struct CacheKey {
     account_id: String,
 }
 
+// ─── Refresh ─────────────────────────────────────────────────────────────────
+
+/// How an expired token is exchanged for a new one.
+pub trait TokenRefresh: Send + Sync {
+    /// A new token for `stored`, from the token endpoint of `provider`.
+    ///
+    /// # Errors
+    /// The [`AuthError`] of the exchange.
+    fn refresh(
+        &self,
+        provider: &ProviderConfig,
+        stored: &StoredToken,
+    ) -> impl std::future::Future<Output = Result<StoredToken, AuthError>> + Send;
+}
+
+/// The exchange at the provider's token endpoint, over HTTP.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HttpTokenRefresh;
+
+impl TokenRefresh for HttpTokenRefresh {
+    async fn refresh(
+        &self,
+        provider: &ProviderConfig,
+        stored: &StoredToken,
+    ) -> Result<StoredToken, AuthError> {
+        refresh_token(provider, stored).await
+    }
+}
+
 // ─── Manager ─────────────────────────────────────────────────────────────────
 
 /// High-level connector auth manager.
@@ -105,6 +134,19 @@ impl AuthManager {
         account_id: &AccountId,
         provider_config: &ProviderConfig,
     ) -> Result<StoredToken, AuthError> {
+        self.get_valid_token_with(provider, account_id, provider_config, &HttpTokenRefresh)
+            .await
+    }
+
+    /// [`Self::get_valid_token`], refreshing through `refresh` instead of the
+    /// provider's token endpoint over HTTP.
+    pub async fn get_valid_token_with<R: TokenRefresh>(
+        &self,
+        provider: ConnectorProvider,
+        account_id: &AccountId,
+        provider_config: &ProviderConfig,
+        refresh: &R,
+    ) -> Result<StoredToken, AuthError> {
         let key = CacheKey {
             provider,
             account_id: account_id.as_str().to_owned(),
@@ -149,7 +191,7 @@ impl AuthManager {
         };
 
         // Refresh.
-        let refreshed = refresh_token(provider_config, &stored).await?;
+        let refreshed = refresh.refresh(provider_config, &stored).await?;
         self.storage.store(provider, account_id, &refreshed).await?;
         self.cache.insert(key, refreshed.clone());
         Ok(refreshed)

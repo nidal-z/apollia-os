@@ -20,7 +20,10 @@ use super::{check_connection_with, CheckConnectionBody, Reach};
 use crate::api::server::AppState;
 use crate::coordinator::{DynBackend, ExecutionBackend};
 use crate::eventbus::EventBus;
-use crate::governance::ConnectionGovernance;
+use crate::governance::{
+    AdmissionDecision, AdmissionRequest, ConnectionAdmission, ConnectionGovernance,
+    ForbiddenConnections, PolicyReadError,
+};
 use crate::registry::AgentRegistry;
 use crate::router::TaskRouterHandle;
 use crate::EventBusReceiver;
@@ -58,6 +61,34 @@ struct NoMailbox;
 impl ConnectionProbe for NoMailbox {
     async fn verify(&self, _account: &ImapAccount, _password: &str) -> Result<(), ImapError> {
         Err(ImapError::CredentialsRejected)
+    }
+}
+
+/// A mailbox server that accepts every login, and the server of each check
+/// sent to it.
+#[derive(Default)]
+struct RecordingMailServer {
+    reached: std::sync::Mutex<Vec<String>>,
+}
+
+impl ConnectionProbe for RecordingMailServer {
+    async fn verify(&self, account: &ImapAccount, _password: &str) -> Result<(), ImapError> {
+        self.reached.lock().unwrap().push(account.host.clone());
+        Ok(())
+    }
+}
+
+/// An organisation policy that refuses every connection.
+struct RefuseAll;
+
+impl ConnectionAdmission for RefuseAll {
+    fn read_decision(
+        &self,
+        _request: &AdmissionRequest,
+    ) -> Result<AdmissionDecision, PolicyReadError> {
+        Ok(AdmissionDecision::Refused {
+            reason: "no connection on this machine".into(),
+        })
     }
 }
 
@@ -293,5 +324,57 @@ async fn test_an_unknown_connection_is_not_found_and_nothing_is_kept() {
         ConnectionStateStore::open(&apollia_core::paths::DataFile::System.path(h.dir.path()))
             .unwrap();
     assert!(store.list().unwrap().is_empty());
+    h.manager.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_a_forbidden_connection_reads_blocked_and_is_not_reached() {
+    // GIVEN a mailbox in the list, which the organisation policy forbade at
+    // boot, and a mail server that records every check sent to it
+    let mut h = harness(&[]).await;
+    let mailbox = ImapAccount::from_input(&apollia_connectors::imap::ImapAccountInput {
+        email: "ada@example.org".into(),
+        host: Some("imap.example.org".into()),
+        port: Some(993),
+        username: None,
+    })
+    .unwrap();
+    std::fs::write(
+        h.dir.path().join(apollia_connectors::imap::IMAP_INDEX_FILE),
+        serde_json::json!({ "accounts": [mailbox] }).to_string(),
+    )
+    .unwrap();
+    let forbidden = ForbiddenConnections::compute(&RefuseAll, &[], &[], &[mailbox]);
+    h.state.connection_governance =
+        ConnectionGovernance::without_policy(None).with_forbidden(Arc::new(forbidden));
+    let server = RecordingMailServer::default();
+
+    // WHEN it is checked
+    let connection = check_connection_with(
+        &h.state,
+        Vec::new(),
+        &Reach {
+            auth: None,
+            imap: Some(&server),
+        },
+        "imap:ada@example.org",
+        CheckConnectionBody::default(),
+    )
+    .await
+    .map_err(|(status, _)| status)
+    .unwrap();
+
+    // THEN it reads blocked by the organisation, its server was never
+    // reached, and the blocked state is kept and announced
+    assert_eq!(connection.status, ConnectionStatus::Blocked);
+    assert_eq!(
+        connection.reason.map(|r| r.key),
+        Some(ConnectionReasonKey::ForbiddenByPolicy)
+    );
+    assert!(server.reached.lock().unwrap().is_empty());
+    assert_eq!(
+        announced(&mut h.events, "imap:ada@example.org").await,
+        ConnectionStatus::Blocked
+    );
     h.manager.shutdown().await;
 }

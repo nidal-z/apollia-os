@@ -1,47 +1,36 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
-use apollia_auth::{AccountId, ConnectorProvider, ProviderConfig, StoredToken};
+use apollia_auth::{AccountId, ConnectorProvider, StoredToken, TokenRefresh};
 use apollia_connectors::imap::{ConnectionProbe, ImapAccount, ImapAccountInput, ImapError};
 use apollia_core::{
     ConnectionReasonKey, ConnectionStateStore, ConnectionStatus, McpHealth, RuntimeEvent,
 };
 use apollia_mcp::manager::McpConnectionTestResult;
 use apollia_mcp::session::McpSessionError;
-use axum::routing::post;
-use axum::Router;
 
 use super::*;
 use crate::connectors_bridge::test_support::auth_with_tokens;
 
-/// A token endpoint on this machine that refuses every refresh, and the path
-/// of every request it received.
-async fn refusing_token_endpoint() -> (String, Arc<Mutex<Vec<String>>>) {
-    let seen: Arc<Mutex<Vec<String>>> = Arc::default();
-    let record = seen.clone();
-    let app = Router::new().fallback(post(move |uri: axum::http::Uri| {
-        let record = record.clone();
-        async move {
-            record.lock().unwrap().push(uri.path().to_owned());
-            (
-                axum::http::StatusCode::BAD_REQUEST,
-                r#"{"error":"invalid_grant","error_description":"Token has been expired or revoked."}"#,
-            )
-        }
-    }));
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    (format!("http://{addr}/token"), seen)
+/// A token endpoint that refuses every refresh with `invalid_grant`, and the
+/// address of every exchange it was asked for.
+#[derive(Default)]
+struct RefusingTokenEndpoint {
+    asked: Mutex<Vec<String>>,
 }
 
-fn fake_provider(token_url: String) -> ProviderConfig {
-    ProviderConfig {
-        name: "fake",
-        auth_url: "http://127.0.0.1:9/auth",
-        token_url: Box::leak(token_url.into_boxed_str()),
-        client_id: "client".to_owned(),
-        client_secret: None,
-        scopes: Vec::new(),
+impl TokenRefresh for RefusingTokenEndpoint {
+    async fn refresh(
+        &self,
+        provider: &ProviderConfig,
+        _stored: &StoredToken,
+    ) -> Result<StoredToken, AuthError> {
+        self.asked
+            .lock()
+            .unwrap()
+            .push(provider.token_url.to_owned());
+        Err(AuthError::ProviderError(
+            "invalid_grant: Token has been expired or revoked.".to_owned(),
+        ))
     }
 }
 
@@ -56,8 +45,8 @@ fn expired_token() -> StoredToken {
 
 #[tokio::test]
 async fn test_a_refused_refresh_asks_to_sign_in_again_and_calls_the_token_endpoint_only() {
-    // GIVEN a Google account whose token expired, and a provider whose token
-    // endpoint refuses the refresh
+    // GIVEN a Google account whose token expired, and a token endpoint that
+    // refuses the refresh
     let dir = tempfile::tempdir().unwrap();
     let auth = auth_with_tokens(dir.path(), ConnectorProvider::Google, &[]).await;
     auth.put_token(
@@ -67,7 +56,8 @@ async fn test_a_refused_refresh_asks_to_sign_in_again_and_calls_the_token_endpoi
     )
     .await
     .unwrap();
-    let (token_url, seen) = refusing_token_endpoint().await;
+    let endpoint = RefusingTokenEndpoint::default();
+    let config = provider_config(ConnectorProvider::Google);
 
     // WHEN the account is checked
     let found = check_native(
@@ -75,18 +65,20 @@ async fn test_a_refused_refresh_asks_to_sign_in_again_and_calls_the_token_endpoi
         &auth,
         ConnectorProvider::Google,
         "ada@example.com",
-        &fake_provider(token_url),
+        &endpoint,
     )
     .await;
 
-    // THEN it needs repair, to sign in again, and the one address called is
-    // the provider's token endpoint
+    // THEN it needs repair, to sign in again, and the one exchange asked for
+    // is at Google's token endpoint
     assert_eq!(found.state, ConnectionStatus::NeedsRepair);
     assert_eq!(
         found.reason.map(|r| r.key),
         Some(ConnectionReasonKey::SignInAgain)
     );
-    assert_eq!(*seen.lock().unwrap(), vec!["/token".to_owned()]);
+    let asked = endpoint.asked.lock().unwrap().clone();
+    assert_eq!(asked, vec![config.token_url.to_owned()]);
+    assert_eq!(asked[0], "https://oauth2.googleapis.com/token");
 }
 
 #[tokio::test]
@@ -99,7 +91,7 @@ async fn test_a_valid_token_proves_the_account_without_the_network() {
         &[("ada@example.com", "valid")],
     )
     .await;
-    let (token_url, seen) = refusing_token_endpoint().await;
+    let endpoint = RefusingTokenEndpoint::default();
 
     // WHEN the account is checked
     let found = check_native(
@@ -107,15 +99,15 @@ async fn test_a_valid_token_proves_the_account_without_the_network() {
         &auth,
         ConnectorProvider::Microsoft,
         "ada@example.com",
-        &fake_provider(token_url),
+        &endpoint,
     )
     .await;
 
-    // THEN it works, dated, and nothing was called
+    // THEN it works, dated, and no exchange was asked for
     assert_eq!(found.state, ConnectionStatus::Working);
     assert!(found.reason.is_none());
     assert!(!found.checked_at.is_empty());
-    assert!(seen.lock().unwrap().is_empty());
+    assert!(endpoint.asked.lock().unwrap().is_empty());
 }
 
 #[test]
