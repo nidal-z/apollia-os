@@ -16,6 +16,7 @@ Usage:
     python3 scripts/sign_with_distribution_key.py FILE [FILE ...]
 """
 
+import argparse
 import os
 import pathlib
 import subprocess
@@ -66,10 +67,9 @@ def sign(path: pathlib.Path) -> pathlib.Path:
 
 
 def main() -> int:
-    files = [pathlib.Path(arg) for arg in sys.argv[1:]]
-    if not files:
-        sys.stderr.write("usage: sign_with_distribution_key.py FILE [FILE ...]\n")
-        return 2
+    parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    parser.add_argument("files", nargs="+", type=pathlib.Path, metavar="FILE")
+    files = parser.parse_args().files
     try:
         for path in files:
             signature = sign(path)

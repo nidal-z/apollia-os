@@ -8,6 +8,16 @@ unmaintained = "all"
 # revisited every release; remove once the upstream fix is released or the
 # dependency tree no longer pulls the affected version.
 ignore = [
+    # webpki-roots 0.26.11 is a semver shim that re-exports webpki-roots 1,
+    # which the lock resolves to 1.0.10, the patched version: the roots it
+    # serves are those of 1.0.10. It is pulled by ureq 2 through
+    # apollia-notifications. Lift condition: ureq 3, or no ureq 2 in the tree.
+    "RUSTSEC-2026-0381",
+    # basic-toml: unmaintained. Read at build time only, by the i18n-config
+    # proc-macro that age (the AgeFile secret backend) uses to embed its
+    # messages; nothing of it runs in the shipped binaries. Lift condition:
+    # age moves off i18n-embed-fl, or i18n-config off basic-toml.
+    "RUSTSEC-2026-0374",
     # Transitive from the tauri GTK backend (tao, wry, webkit2gtk), Linux
     # desktop only, no patch yet: the gtk-rs GTK3 bindings are unmaintained
     # upstream. Not encountered on macOS/Windows builds (kept for
