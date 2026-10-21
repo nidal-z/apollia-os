@@ -130,7 +130,13 @@ fn write_overrides(
     }
     if legacy.allowed_tools.iter().any(|t| !t.trim().is_empty()) {
         let mut access = if apollia_tools::reads_by_default(&apollia) {
-            reading.to_vec()
+            let mut access = reading.to_vec();
+            for tool in &apollia.access_added {
+                if !access.contains(tool) {
+                    access.push(tool.clone());
+                }
+            }
+            access
         } else {
             apollia.access.clone()
         };

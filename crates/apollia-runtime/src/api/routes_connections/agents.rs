@@ -10,11 +10,14 @@
 //! package declares (`gmail.send`) resolved against the connected accounts.
 //! The matching itself is [`crate::connections::agents`].
 //!
-//! A grant writes every agent's access list in one transaction, then records
-//! for each agent its override and one `AccessChanged` per tool granted.
-//! Every agent and every tool is checked first, so a refusal writes nothing.
-//! An agent holding the default access is given a fixed list: its default
-//! access, plus the tools granted.
+//! A grant gives each agent the tools it does not hold yet, compared with the
+//! access in force: an agent that holds a tool, through its default access or
+//! through the bare operation of a package, is given nothing for it. An agent
+//! on the default access keeps it, read again at each run, and the tools
+//! given are stored on top of it; any other agent has them appended to its
+//! list. Every write goes in one transaction, then each agent's override and
+//! one `AccessChanged` per tool given are recorded. Every agent and every tool
+//! is checked first, so a refusal writes nothing.
 
 use axum::{
     extract::{Path, State},
@@ -27,11 +30,12 @@ use crate::api::openapi::ApiErrorBody;
 use crate::api::routes_agent_definitions as definitions;
 use crate::api::server::AppState;
 use crate::connections::agents::{
-    foreign_tools, holders, with_granted, AgentAccessView, ConnectionAgents,
+    foreign_tools, holders, missing_from, with_granted, AgentAccessView, ConnectionAgents,
 };
 use crate::connections::{Connection, NativeAccounts};
 use crate::connectors_bridge::connection_tools::resolve_bare_connector_access;
 use crate::coordinator::ExecutionBackend;
+use apollia_tools::OverrideField;
 
 use super::{api_err, collect_connections, native_accounts, ApiError};
 
@@ -64,8 +68,9 @@ fn find<'a>(connections: &'a [Connection], id: &str) -> Result<&'a Connection, A
         })
 }
 
-/// Every stored agent with the access the runtime grants it, and the access
-/// list its card shows, before the bare operations are resolved.
+/// Every stored agent with the access the runtime grants it, and the list
+/// the store holds for it: its access, or for an agent on the default access
+/// the tools given on top of it.
 async fn agent_views<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     accounts: &[NativeAccounts],
@@ -83,8 +88,17 @@ async fn agent_views<B: ExecutionBackend + Clone>(
     let mut views = Vec::with_capacity(agents.len());
     for agent in agents {
         let by_default = apollia_tools::reads_by_default(&agent);
+        let stored = if by_default {
+            agent.access_added.clone()
+        } else {
+            agent.access.clone()
+        };
+        let added = if by_default {
+            agent.access_added.clone()
+        } else {
+            Vec::new()
+        };
         let agent = definitions::in_force(state, agent).await;
-        let listed = agent.access.clone();
         let access = resolve_bare_connector_access(&agent.id, agent.access, accounts);
         views.push((
             AgentAccessView {
@@ -93,8 +107,9 @@ async fn agent_views<B: ExecutionBackend + Clone>(
                 enabled: agent.enabled,
                 by_default,
                 access,
+                added,
             },
-            listed,
+            stored,
         ));
     }
     Ok(views)
@@ -143,17 +158,25 @@ pub(crate) async fn grant<B: ExecutionBackend + Clone>(
     }
     let governance = definitions::governance(state).map_err(agents_error)?;
     let views = agent_views(state, &accounts).await?;
-    let mut writes: Vec<(String, Vec<String>)> = Vec::new();
+    let mut writes: Vec<(String, OverrideField, Vec<String>)> = Vec::new();
+    let mut seen: Vec<&String> = Vec::new();
     for name in &body.agents {
-        if writes.iter().any(|(written, _)| written == name) {
+        if seen.contains(&name) {
             continue;
         }
-        let (_, listed) = views
+        seen.push(name);
+        let (view, stored) = views
             .iter()
             .find(|(view, _)| &view.id == name)
             .ok_or_else(|| api_err(StatusCode::NOT_FOUND, format!("agent '{name}' not found")))?;
-        if let Some(access) = with_granted(listed, &body.tools) {
-            writes.push((name.clone(), access));
+        let missing = missing_from(&view.access, &body.tools);
+        let field = if view.by_default {
+            OverrideField::AccessAdded
+        } else {
+            OverrideField::Access
+        };
+        if let Some(access) = with_granted(stored, &missing) {
+            writes.push((name.clone(), field, access));
         }
     }
     let repo = definitions::open_agents(state).map_err(agents_error)?;

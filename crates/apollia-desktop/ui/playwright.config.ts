@@ -1,5 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// The port of the preview server. Two worktrees running their suites at once
+// each name their own, since neither may answer for the other's bundle.
+const port = Number(process.env.APOLLIA_PLAYWRIGHT_PORT ?? 4173);
+
 /**
  * Playwright config for the desktop UI browser suites.
  *
@@ -29,7 +33,7 @@ export default defineConfig({
   fullyParallel: false,
   reporter: [["list"]],
   use: {
-    baseURL: "http://localhost:4173",
+    baseURL: `http://localhost:${port}`,
     trace: "on-first-retry",
     viewport: { width: 1280, height: 800 },
   },
@@ -69,12 +73,16 @@ export default defineConfig({
   // there is no `dist/`: the server exits at once and the run answers
   // "Timed out waiting 120000ms from config.webServer" two minutes later,
   // naming neither the missing bundle nor the command that produces it. The
-  // build is therefore part of starting the server. `reuseExistingServer`
-  // skips both when a preview is already up.
+  // build is therefore part of starting the server, and a server already
+  // listening on the port is never reused: it serves whatever `dist/` it was
+  // started on, a bundle older than the sources or another worktree's, and
+  // the run would measure that instead. An occupied port fails the run at
+  // once, naming the port; `--strictPort` keeps the preview from moving to
+  // the next free one while the tests still ask the first.
   webServer: {
-    command: "npm run build && npm run preview -- --port 4173",
-    url: "http://localhost:4173",
-    reuseExistingServer: true,
+    command: `npm run build && npm run preview -- --port ${port} --strictPort`,
+    url: `http://localhost:${port}`,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

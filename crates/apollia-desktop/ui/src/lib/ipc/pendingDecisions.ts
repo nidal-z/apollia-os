@@ -83,10 +83,18 @@ export interface DecideResponse {
   message: string;
 }
 
-/** Lists every decision waiting for the user. */
+/**
+ * Lists every decision waiting for the user. An answer without its `items`
+ * list rejects: published as is, the sidebar count read `.length` on
+ * `undefined` inside a store subscriber, which leaves the module-wide queue of
+ * `svelte/store` non-empty and silences every store of the window after it.
+ */
 export async function listPendingDecisions(): Promise<PendingDecision[]> {
-  const listed = await invoke<{ items: PendingDecision[] }>("list_pending_decisions");
-  return listed.items;
+  const listed = await invoke<{ items?: unknown } | null>("list_pending_decisions");
+  if (!Array.isArray(listed?.items)) {
+    throw new Error("list_pending_decisions answered without an items list");
+  }
+  return listed.items as PendingDecision[];
 }
 
 /** Answers one waiting decision, through the call that answers it where it was born. */
