@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use apollia_core::McpHealth;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{oneshot, watch, Mutex};
 use tracing::{debug, warn};
 
 use crate::config::{McpServerConfig, SecretResolver};
@@ -261,6 +261,9 @@ pub struct McpSession {
     health: McpHealth,
     /// Background dispatch task: reads from the transport and routes responses.
     _dispatch_task: tokio::task::JoinHandle<()>,
+    /// Turns `true` when the dispatch task ended: the transport closed, so
+    /// the server can no longer answer.
+    dispatch_ended: watch::Receiver<bool>,
 }
 
 impl McpSession {
@@ -304,14 +307,10 @@ impl McpSession {
         secret_store: Option<&dyn SecretResolver>,
         mode: LoadingMode,
     ) -> Result<Self, McpSessionError> {
-        let resolved_env =
-            config
-                .resolve_env(secret_store)
-                .await
-                .map_err(|e| McpSessionError::SpawnFailed {
-                    server: config.name.clone(),
-                    cause: e.to_string(),
-                })?;
+        let resolved_env = config
+            .resolve_env(secret_store)
+            .await
+            .map_err(|e| env_error(&config.name, e))?;
 
         let transport = create_transport(&config, resolved_env).map_err(|e| match e {
             TransportError::NodeRequired { command } => McpSessionError::NodeRequired {
@@ -343,7 +342,8 @@ impl McpSession {
         mode: LoadingMode,
     ) -> Result<Self, McpSessionError> {
         let rpc = Arc::new(rpc::RpcLink::new(config.name.clone(), Arc::from(transport)));
-        let dispatch_task = spawn_dispatch_task(Arc::clone(&rpc));
+        let (ended_tx, dispatch_ended) = watch::channel(false);
+        let dispatch_task = spawn_dispatch_task(Arc::clone(&rpc), ended_tx);
         let mut session = McpSession {
             config,
             rpc,
@@ -361,6 +361,7 @@ impl McpSession {
             started_at: std::time::Instant::now(),
             health: McpHealth::Healthy { verified: false },
             _dispatch_task: dispatch_task,
+            dispatch_ended,
         };
 
         session.initialize().await?;
@@ -471,6 +472,12 @@ impl McpSession {
         &self.config
     }
 
+    /// A receiver that turns `true` once the dispatch task ended, that is once
+    /// the transport closed and the server can no longer answer.
+    pub(crate) fn dispatch_ended(&self) -> watch::Receiver<bool> {
+        self.dispatch_ended.clone()
+    }
+
     /// Returns the current operational health of this session.
     pub fn health(&self) -> &McpHealth {
         &self.health
@@ -543,7 +550,13 @@ fn build_initialize_params() -> InitializeParams {
 /// only signal a caller gets that the server died: without it a request in
 /// flight waits out its whole timeout, and a child that exits during the
 /// handshake is reported as a slow server rather than a dead one.
-fn spawn_dispatch_task(rpc: Arc<rpc::RpcLink>) -> tokio::task::JoinHandle<()> {
+///
+/// Last, it turns `ended` to `true`, which is how the manager learns that the
+/// session can no longer answer.
+fn spawn_dispatch_task(
+    rpc: Arc<rpc::RpcLink>,
+    ended: watch::Sender<bool>,
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         dispatch_loop(rpc.transport.as_ref(), &rpc.pending).await;
         let dropped = rpc.pending.lock().await.drain().count();
@@ -553,7 +566,28 @@ fn spawn_dispatch_task(rpc: Arc<rpc::RpcLink>) -> tokio::task::JoinHandle<()> {
                 "mcp.dispatch.closed_with_pending_requests"
             );
         }
+        ended.send_replace(true);
     })
+}
+
+/// The session error for an environment that could not be resolved.
+///
+/// An OAuth bearer that cannot be obtained (no token stored, or an expired
+/// one that does not refresh) asks the user to sign in again, as a 401 from
+/// the server would; anything else is a start that failed.
+fn env_error(server: &str, err: crate::config::McpConfigError) -> McpSessionError {
+    match err {
+        crate::config::McpConfigError::UnresolvedEnvVar { var, .. } if var == "APOLLIA_OAUTH" => {
+            McpSessionError::Unauthorized {
+                server: server.to_string(),
+                www_authenticate: String::new(),
+            }
+        }
+        other => McpSessionError::SpawnFailed {
+            server: server.to_string(),
+            cause: other.to_string(),
+        },
+    }
 }
 
 /// Route responses until the transport closes.
@@ -749,6 +783,44 @@ mod tests {
         let result = McpSession::start(config, None).await;
         // THEN
         assert!(matches!(result, Err(McpSessionError::SpawnFailed { .. })));
+    }
+
+    /// A resolver whose OAuth bearer cannot be obtained, as when the stored
+    /// token expired and does not refresh.
+    struct ExpiredToken;
+
+    #[async_trait::async_trait]
+    impl SecretResolver for ExpiredToken {
+        fn get_secret(&self, key: &str) -> Result<String, String> {
+            Err(format!("secret not found: {key}"))
+        }
+
+        async fn resolve_oauth_bearer(&self, _server_name: &str) -> Result<String, String> {
+            Err("refresh token rejected".to_string())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_an_expired_oauth_token_at_start_asks_to_sign_in_again() {
+        // GIVEN a server whose authorization header is the OAuth bearer, and
+        // a token that does not refresh
+        let mut config = make_config("remote", "nonexistent-binary-12345", vec![], 5, 10);
+        config.env = HashMap::from([("Authorization".to_string(), "${APOLLIA_OAUTH}".to_string())]);
+
+        // WHEN the session starts
+        let result = McpSession::start(config, Some(&ExpiredToken)).await;
+
+        // THEN it fails as unauthorized, and its health asks to sign in
+        // again rather than reading the server as unreachable
+        let err = result.err().expect("the start must fail");
+        assert!(
+            matches!(err, McpSessionError::Unauthorized { .. }),
+            "got {err:?}"
+        );
+        assert!(matches!(
+            crate::health::from_start_error(&err),
+            McpHealth::NeedsReauth { .. }
+        ));
     }
 
     #[tokio::test]

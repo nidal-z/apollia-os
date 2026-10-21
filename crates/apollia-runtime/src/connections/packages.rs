@@ -1,4 +1,5 @@
-//! The MCP servers an installed package brought.
+//! The MCP servers an installed package brought, and the package each came
+//! with.
 //!
 //! The table that says what a package installed, `package_items` in
 //! `agents.db`, is read when it exists: one row per installed item, its
@@ -6,21 +7,22 @@
 //! identifier the server name. Without the file or the table, no server comes
 //! from a package.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags};
 use tracing::{event, Level};
 
-/// Names of the MCP servers `package_items` attaches to a package.
+/// The MCP servers `package_items` attaches to a package: the name of each
+/// server, and the name of the package it came with.
 ///
 /// Read-only, and never an error: a file or a table that is absent answers
-/// an empty set, and one that cannot be read is logged and answers the same,
+/// an empty map, and one that cannot be read is logged and answers the same,
 /// so the connection list still loads.
 #[must_use]
-pub fn package_connection_names(agents_db: &Path) -> HashSet<String> {
+pub fn package_connections(agents_db: &Path) -> HashMap<String, String> {
     if !agents_db.exists() {
-        return HashSet::new();
+        return HashMap::new();
     }
     match read_names(agents_db) {
         Ok(names) => names,
@@ -31,12 +33,12 @@ pub fn package_connection_names(agents_db: &Path) -> HashSet<String> {
                 detail = "no connection is reported as brought by a package",
                 "connections.package_items.read.failed"
             );
-            HashSet::new()
+            HashMap::new()
         }
     }
 }
 
-fn read_names(agents_db: &Path) -> Result<HashSet<String>, rusqlite::Error> {
+fn read_names(agents_db: &Path) -> Result<HashMap<String, String>, rusqlite::Error> {
     let conn = Connection::open_with_flags(agents_db, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     let has_table: bool = conn.query_row(
         "SELECT EXISTS (SELECT 1 FROM sqlite_master
@@ -45,10 +47,15 @@ fn read_names(agents_db: &Path) -> Result<HashSet<String>, rusqlite::Error> {
         |row| row.get(0),
     )?;
     if !has_table {
-        return Ok(HashSet::new());
+        return Ok(HashMap::new());
     }
-    let mut stmt = conn.prepare("SELECT item_id FROM package_items WHERE kind = 'connection'")?;
-    let names = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    let mut stmt = conn.prepare(
+        "SELECT item_id, package_name FROM package_items WHERE kind = 'connection'
+         ORDER BY package_name",
+    )?;
+    let names = stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
     names.collect()
 }
 
@@ -63,7 +70,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
 
         // WHEN the package servers are read
-        let names = package_connection_names(&dir.path().join("agents.db"));
+        let names = package_connections(&dir.path().join("agents.db"));
 
         // THEN none is found, and the file is not created
         assert!(names.is_empty());
@@ -81,7 +88,7 @@ mod tests {
             .unwrap();
 
         // WHEN the package servers are read
-        let names = package_connection_names(&path);
+        let names = package_connections(&path);
 
         // THEN none is found
         assert!(names.is_empty());
@@ -102,9 +109,12 @@ mod tests {
             .unwrap();
 
         // WHEN the package servers are read
-        let names = package_connection_names(&path);
+        let names = package_connections(&path);
 
-        // THEN only the connection is reported
-        assert_eq!(names, HashSet::from(["crm".to_owned()]));
+        // THEN only the connection is reported, with the package it came with
+        assert_eq!(
+            names,
+            HashMap::from([("crm".to_owned(), "crm-pack".to_owned())])
+        );
     }
 }

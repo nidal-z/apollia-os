@@ -2,11 +2,12 @@
 //!
 //! The list is assembled by [`crate::connections::assemble`] from the stores
 //! each kind keeps: `mcp.db` and the live MCP sessions, the tool registry, the
-//! native account index, the mailbox list, the folders of `system.db`, and
-//! `package_items` in `agents.db` when it exists. A folder is added and
-//! removed under `/api/v1/connections/folders` (see [`folders`]). The agents
-//! of a connection are read, and the connection granted to several agents,
-//! under `/api/v1/connections/{id}` (see [`agents`]).
+//! native account index, the mailbox list, the folders and the last state of
+//! each connection in `system.db`, and `package_items` in `agents.db` when it
+//! exists. A folder is added and removed under `/api/v1/connections/folders`
+//! (see [`folders`]). The agents of a connection are read, and the connection
+//! granted to several agents, under `/api/v1/connections/{id}` (see
+//! [`agents`]).
 
 use axum::{
     extract::State,
@@ -20,7 +21,7 @@ use apollia_auth::ConnectorProvider;
 use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
 use crate::connections::{
-    assemble, package_connection_names, Connection, ConnectionSources, NativeAccounts,
+    assemble, package_connections, Connection, ConnectionSources, NativeAccounts,
 };
 use crate::coordinator::ExecutionBackend;
 
@@ -120,7 +121,7 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
             .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?,
         None => Vec::new(),
     };
-    let package_servers = package_connection_names(
+    let package_servers = package_connections(
         &state
             .data_dir
             .join(apollia_core::paths::DataFile::Agents.file_name()),
@@ -140,6 +141,7 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
         imap_accounts,
         forbidden: state.connection_governance.forbidden().ids().clone(),
         folders,
+        states: crate::connections::state::kept_states(&state.data_dir),
     }))
 }
 

@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::connection_state::{ConnectionReason, ConnectionStatus};
 use crate::mcp_health::McpHealth;
 
 use super::{AgentId, ModelUnloadReason, RunId, TaskId, ToolCallRationale};
@@ -153,15 +154,33 @@ pub enum RuntimeEvent {
 
     /// An MCP server's operational health changed.
     ///
-    /// Emitted by the `McpClientManager` actor on session start (success or
-    /// failure), on a transport 401 turning into [`McpHealth::NeedsReauth`], and
-    /// on tool-call outcome classification. Lets the desktop badge reflect
+    /// Emitted by the `McpClientManager` actor on session start, restart and
+    /// reload (success or failure), on a transport 401 turning into
+    /// [`McpHealth::NeedsReauth`], on tool-call outcome classification, and
+    /// when a session's transport closes on its own. Lets the desktop badge reflect
     /// reality without a manual refresh.
     McpServerHealthChanged {
         /// Name of the MCP server.
         name: String,
         /// New operational health.
         health: McpHealth,
+    },
+
+    /// A connection was found in a new state, and the state was recorded.
+    ///
+    /// Emitted by the runtime each time it records the state of a
+    /// connection in `system.db`, whatever its kind. The record outlives the
+    /// event: a reader that subscribed late reads the same state from the
+    /// connection list.
+    ConnectionStateChanged {
+        /// Identifier of the connection (`mcp:<server>`, `imap:<address>`, ...).
+        id: String,
+        /// The state found.
+        state: ConnectionStatus,
+        /// Why, when it is not working.
+        reason: Option<ConnectionReason>,
+        /// When it was found, RFC 3339 in UTC.
+        checked_at: String,
     },
 
     /// An LLM backend is loading (before `load()` or HTTP initialization).

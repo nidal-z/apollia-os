@@ -92,6 +92,13 @@ impl Supervisor {
         )
         .await;
 
+        // Phase 3a': the recorder of the connection states, subscribed before
+        // the MCP manager announces the health its boot found.
+        crate::connections::spawn_state_recorder(
+            event_sender.clone(),
+            self.config.data_dir.clone(),
+        );
+
         // Phase 3b: MCP Client Manager, reads server list from mcp.db (SQLite).
         //
         // On first boot, if `mcp.db` is empty and `mcp.toml` exists, performs a

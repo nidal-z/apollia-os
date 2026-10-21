@@ -35,8 +35,11 @@ impl McpClientManagerHandle {
     /// sessions are established.
     ///
     /// `event_bus` is optional: when `Some`, [`RuntimeEvent::McpServerReloaded`] is
-    /// published on every successful hot reload. When `None`, reloads still work but
-    /// no event is emitted.
+    /// published on every successful hot reload, and
+    /// [`RuntimeEvent::McpServerHealthChanged`] on every start, restart and
+    /// reload (with the health it left, failed or not), on every change a
+    /// call outcome brings, and when a session's transport closes on its own.
+    /// When `None`, everything still works but no event is emitted.
     ///
     /// `loading_mode` selects the schema loading strategy for every session: in
     /// [`LoadingMode::Eager`] all tool schemas are fetched at boot and registered;
@@ -79,6 +82,12 @@ impl McpClientManagerHandle {
                         .await;
                     }
 
+                    if let Some(ref tx) = event_bus {
+                        let _ = tx.send(RuntimeEvent::McpServerHealthChanged {
+                            name: server_name.clone(),
+                            health: session.health().clone(),
+                        });
+                    }
                     sessions.insert(server_name, session);
                 }
                 Err(e) => {
@@ -109,6 +118,9 @@ impl McpClientManagerHandle {
             last_call_at: HashMap::new(),
             loading_mode,
         };
+        for (name, session) in &actor.sessions {
+            actor.watch_session_end(name, session);
+        }
         actor.publish();
         tokio::spawn(actor.run());
 

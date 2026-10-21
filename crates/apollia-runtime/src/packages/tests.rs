@@ -112,6 +112,10 @@ pub(super) fn connection(id: &str, kind: ConnectionKind) -> Connection {
         remote: false,
         official: false,
         state: ConnectionState::Connected,
+        status: apollia_core::ConnectionStatus::Working,
+        reason: None,
+        checked_at: None,
+        package: None,
         tools: Vec::new(),
     }
 }

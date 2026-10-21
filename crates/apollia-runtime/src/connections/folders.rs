@@ -9,7 +9,7 @@
 //! `conn:folder:<id>/<tool>`: the folders an agent's file tools reach are the
 //! ones granted to it ([`apollia_tools::folder_access`]).
 
-use apollia_core::FolderConnection;
+use apollia_core::{ConnectionStatus, FolderConnection};
 use apollia_mcp::Provenance;
 use apollia_tools::{ActionFamily, ToolDescriptor};
 
@@ -74,6 +74,10 @@ pub fn folder_connection(folder: &FolderConnection) -> Connection {
         remote: false,
         official,
         state: ConnectionState::Connected,
+        status: ConnectionStatus::NeedsRepair,
+        reason: Some(super::state::not_checked()),
+        checked_at: None,
+        package: None,
         tools: folder_tool_descriptors()
             .iter()
             .map(|d| ConnectionTool {

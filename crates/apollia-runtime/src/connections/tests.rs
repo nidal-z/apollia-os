@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use apollia_auth::ConnectorProvider;
 use apollia_mcp::config::McpServerConfig;
@@ -86,7 +86,7 @@ fn test_two_mcp_servers_and_one_google_account_are_three_connections_with_tools(
             ActionFamily::Read,
             FamilySource::Server,
         )],
-        package_servers: HashSet::new(),
+        package_servers: HashMap::new(),
         native_accounts: vec![(
             ConnectorProvider::Google,
             vec!["ada@example.com".to_owned()],
@@ -95,6 +95,7 @@ fn test_two_mcp_servers_and_one_google_account_are_three_connections_with_tools(
         forbidden: HashSet::new(),
         folders: Vec::new(),
         mcp_index: Vec::new(),
+        states: HashMap::new(),
     };
 
     // WHEN the connections are listed
@@ -220,7 +221,7 @@ fn test_provenance_comes_from_the_package_then_the_stored_origin_then_custom() {
             ),
             with_origin(server("crm", "stdio", None), Provenance::Custom, false),
         ],
-        package_servers: HashSet::from(["crm".to_owned()]),
+        package_servers: HashMap::from([("crm".to_owned(), "crm-pack".to_owned())]),
         ..ConnectionSources::default()
     };
 
@@ -232,6 +233,9 @@ fn test_provenance_comes_from_the_package_then_the_stored_origin_then_custom() {
     assert_eq!(by_id(&list, "mcp:time").provenance, Provenance::Selection);
     assert_eq!(by_id(&list, "mcp:weather").provenance, Provenance::Registry);
     assert_eq!(by_id(&list, "mcp:crm").provenance, Provenance::Package);
+    // AND the package that brought one is named, and only there
+    assert_eq!(by_id(&list, "mcp:crm").package.as_deref(), Some("crm-pack"));
+    assert_eq!(by_id(&list, "mcp:time").package, None);
 }
 
 #[test]
@@ -370,6 +374,10 @@ fn test_the_wire_shape_is_camel_case() {
     assert_eq!(c["provenance"], "custom");
     assert_eq!(c["remote"], false);
     assert_eq!(c["state"], "connected");
+    assert_eq!(c["status"], "working");
+    assert_eq!(c["reason"], serde_json::Value::Null);
+    assert_eq!(c["checkedAt"], serde_json::Value::Null);
+    assert_eq!(c["package"], serde_json::Value::Null);
     assert_eq!(c["tools"][0]["familySource"], "server");
     assert_eq!(c["tools"][0]["family"], "read");
     assert_eq!(c["tools"][0]["prechecked"], false);
@@ -412,6 +420,15 @@ fn test_a_forbidden_connection_is_marked_forbidden_by_policy() {
         ConnectionState::ForbiddenByPolicy
     );
     assert_eq!(by_id(&list, "mcp:files").state, ConnectionState::Connected);
+    // AND they read as blocked by the organisation
+    assert_eq!(
+        by_id(&list, "mcp:fetch").status,
+        apollia_core::ConnectionStatus::Blocked
+    );
+    assert_eq!(
+        by_id(&list, "native:google:ada@example.com").status,
+        apollia_core::ConnectionStatus::Blocked
+    );
 }
 
 #[test]

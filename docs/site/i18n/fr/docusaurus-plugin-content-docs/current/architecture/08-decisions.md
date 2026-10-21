@@ -554,6 +554,29 @@ retarde ni l'une ni l'autre. Le principe 5 se lit ainsi : un acteur possède
 et modifie l'état, les autres lisent une copie qu'il publie, jamais l'état
 lui-même.
 
+### L'état d'une connexion, constaté, gardé et annoncé {#connection-state}
+
+Une connexion se lit dans l'un de quatre états : elle marche, elle est à
+réparer (avec la raison et la seule action qui la répare), elle est en pause,
+ou elle est bloquée par l'organisation. Le runtime constate l'état ; personne
+ne le saisit. L'état d'un serveur MCP suit sa santé, et une session dont la
+poignée de main a réussi mais dont aucune opération n'a encore fait ses
+preuves ne se lit pas comme marchant : elle garde l'état « marche » constaté
+avant, et sinon demande une vérification. Un jeton impossible à obtenir au
+démarrage demande de se reconnecter ; une session dont le transport se ferme
+de lui-même est marquée injoignable au moment où il se ferme, pas au prochain
+appel.
+
+Le dernier état de chaque connexion, sa raison et le moment où il a été
+constaté sont gardés dans `connection_states` de `system.db`. La liste des
+connexions les relit : après un redémarrage, elle montre le dernier état
+connu, daté, avant que rien n'ait tourné. Chaque état gardé est annoncé par
+une variante de `RuntimeEvent`, `ConnectionStateChanged`, que le bureau relaie
+à la fenêtre. La variante et ses types d'état vivent dans `apollia-core`, dans
+son API publique, parce que l'événement les porte. Une annonce envoyée avant
+qu'un lecteur s'abonne n'est pas perdue pour lui : il retrouve le même état
+dans la liste.
+
 ## Connecteurs {#connectors}
 
 Les connecteurs Google et Microsoft s'authentifient en OAuth2 avec PKCE. Aucun

@@ -140,6 +140,14 @@ async fn test_two_concurrent_calls_record_their_outcomes_in_the_order_they_end()
     )
     .await
     .unwrap();
+    // The start announced its health; only the calls' outcomes are counted.
+    assert!(matches!(
+        events.try_recv(),
+        Ok(RuntimeEvent::McpServerHealthChanged {
+            health: McpHealth::Healthy { verified: false },
+            ..
+        })
+    ));
 
     // WHEN a slow call that succeeds starts, then a fast call that fails
     let slow_handle = manager.clone();

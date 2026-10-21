@@ -65,6 +65,7 @@ impl McpClientManager {
         self.request_servers.insert(name.clone());
         self.register_session_tools(&name, &session).await;
         let status = build_status(&name, &session, None);
+        self.watch_session_end(&name, &session);
         self.sessions.insert(name, session);
         Ok(status)
     }
@@ -99,6 +100,7 @@ impl McpClientManager {
             &session,
             self.last_call_at.get(&name).map(String::as_str),
         );
+        self.watch_session_end(&name, &session);
         self.sessions.insert(name, session);
         Ok(status)
     }
@@ -191,6 +193,7 @@ impl McpClientManager {
         );
 
         self.register_session_tools(name, &new_session).await;
+        self.watch_session_end(name, &new_session);
         self.sessions.insert(name.to_string(), new_session);
         self.reloading.remove(name);
 
@@ -315,6 +318,7 @@ impl McpClientManager {
         // misleading, so clear it and report no prior call.
         self.last_call_at.remove(&server_name);
         let status = build_status(&server_name, &new_session, None);
+        self.watch_session_end(&server_name, &new_session);
         self.sessions.insert(server_name, new_session);
         Ok(status)
     }

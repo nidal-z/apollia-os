@@ -415,6 +415,8 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::McpServerReloaded { .. } | RuntimeEvent::McpServerHealthChanged { .. } => {
             "system"
         }
+        // The connections page reads it, as it reads the MCP health.
+        RuntimeEvent::ConnectionStateChanged { .. } => "system",
 
         // ── Workspace / file read ─────────────────────────────────────────
         RuntimeEvent::FileModifiedSinceRead { .. } => "system",
@@ -669,6 +671,31 @@ mod tests {
             let mapped = map_runtime_event(event);
             assert_eq!(mapped.category, "task-changed", "failed for {:?}", event);
         }
+    }
+
+    #[test]
+    fn test_a_connection_state_change_reaches_the_webview_with_its_fields() {
+        // GIVEN a connection found needing its account to sign in again
+        let event = RuntimeEvent::ConnectionStateChanged {
+            id: "mcp:notion".into(),
+            state: apollia_core::ConnectionStatus::NeedsRepair,
+            reason: Some(apollia_core::ConnectionReason::new(
+                apollia_core::ConnectionReasonKey::SignInAgain,
+                Some("unauthorized".into()),
+            )),
+            checked_at: "2026-10-21T09:00:00Z".into(),
+        };
+        // WHEN the bridge maps it
+        let tauri_event = map_runtime_event(&event);
+        // THEN it is relayed in the category the connections page reads,
+        // under its own name, with every field
+        assert_eq!(tauri_event.category, "system");
+        assert_eq!(tauri_event.event_type, "ConnectionStateChanged");
+        let inner = &tauri_event.payload["ConnectionStateChanged"];
+        assert_eq!(inner["id"], "mcp:notion");
+        assert_eq!(inner["state"], "needs_repair");
+        assert_eq!(inner["reason"]["key"], "sign_in_again");
+        assert_eq!(inner["checked_at"], "2026-10-21T09:00:00Z");
     }
 
     #[test]
