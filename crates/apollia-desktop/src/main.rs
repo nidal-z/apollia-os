@@ -69,9 +69,11 @@ fn main() {
     };
     // A factory reset asked on Windows is carried out here, before the log
     // file or any database under the directory is opened by this process.
-    let pending_reset = apollia_runtime::app_lifecycle::apply_pending_factory_reset(
-        &apollia_data_dir,
-        apollia_runtime::app_lifecycle::PENDING_RESET_WAIT,
+    let pending_reset = tauri::async_runtime::block_on(
+        apollia_runtime::app_lifecycle::apply_pending_factory_reset(
+            &apollia_data_dir,
+            apollia_runtime::app_lifecycle::PENDING_RESET_WAIT,
+        ),
     );
     // The same traces go to the terminal and to `~/.apollia/logs/desktop.log`,
     // rotated by size; a folder that cannot be opened leaves the terminal

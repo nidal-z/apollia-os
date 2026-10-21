@@ -313,37 +313,47 @@ pub enum PendingReset {
 /// nothing, and a held directory is never left half-erased. A copy a previous
 /// start could not finish removing is removed here too.
 ///
-/// Blocking: called at startup, before the async runtime, or through
-/// `spawn_blocking`.
-pub fn apply_pending_factory_reset(data_dir: &Path, wait: Duration) -> PendingReset {
-    apply_pending_with(data_dir, wait, &|from, to| std::fs::rename(from, to))
+/// Each file system step runs on the blocking pool, and the wait between two
+/// attempts is asynchronous, so the caller's runtime is never held.
+pub async fn apply_pending_factory_reset(data_dir: &Path, wait: Duration) -> PendingReset {
+    apply_pending_with(data_dir, wait, |from, to| std::fs::rename(from, to)).await
 }
 
-fn apply_pending_with(
-    data_dir: &Path,
-    wait: Duration,
-    rename: &dyn Fn(&Path, &Path) -> std::io::Result<()>,
-) -> PendingReset {
+/// One renaming of `from` to `to`, the step a held directory refuses.
+type Rename = fn(&Path, &Path) -> std::io::Result<()>;
+
+async fn apply_pending_with(data_dir: &Path, wait: Duration, rename: Rename) -> PendingReset {
     let Some(erasing) = erasing_path(data_dir) else {
         return PendingReset::None;
     };
     // A copy that still resists is tried again at the next start; the rename
     // below then fails and the request is deferred rather than lost.
-    let _ = remove_erasing(&erasing);
+    let _ = remove_erasing_off_thread(erasing.clone()).await;
     if !data_dir.join(FACTORY_RESET_REQUEST).is_file() {
         return PendingReset::None;
     }
     let deadline = Instant::now() + wait;
     loop {
-        match rename(data_dir, &erasing) {
+        let (from, to) = (data_dir.to_path_buf(), erasing.clone());
+        let attempt = tokio::task::spawn_blocking(move || rename(&from, &to))
+            .await
+            .unwrap_or_else(|e| Err(std::io::Error::other(e)));
+        match attempt {
             Ok(()) => break,
             Err(e) if Instant::now() >= deadline => return PendingReset::Deferred(e),
-            Err(_) => std::thread::sleep(PENDING_RESET_RETRY),
+            Err(_) => tokio::time::sleep(PENDING_RESET_RETRY).await,
         }
     }
     PendingReset::Applied {
-        left_behind: remove_erasing(&erasing),
+        left_behind: remove_erasing_off_thread(erasing).await,
     }
+}
+
+/// [`remove_erasing`] on the blocking pool.
+async fn remove_erasing_off_thread(erasing: PathBuf) -> Option<std::io::Error> {
+    tokio::task::spawn_blocking(move || remove_erasing(&erasing))
+        .await
+        .unwrap_or_else(|e| Some(std::io::Error::other(e)))
 }
 
 /// The sibling the data directory is renamed to while it is erased.
@@ -450,14 +460,14 @@ mod tests {
         data_dir
     }
 
-    #[test]
-    fn test_apply_pending_factory_reset_without_a_request_touches_nothing() {
+    #[tokio::test]
+    async fn test_apply_pending_factory_reset_without_a_request_touches_nothing() {
         // GIVEN a data directory with no recorded reset
         let root = tempfile::TempDir::new().unwrap();
         let data_dir = populated_data_dir(root.path());
 
         // WHEN a start looks for a pending reset
-        let outcome = apply_pending_factory_reset(&data_dir, Duration::ZERO);
+        let outcome = apply_pending_factory_reset(&data_dir, Duration::ZERO).await;
 
         // THEN nothing is done and the files stay
         assert!(matches!(outcome, PendingReset::None));
@@ -472,7 +482,7 @@ mod tests {
         schedule_factory_reset(&data_dir).await.unwrap();
 
         // WHEN the next start carries it out
-        let outcome = apply_pending_factory_reset(&data_dir, Duration::ZERO);
+        let outcome = apply_pending_factory_reset(&data_dir, Duration::ZERO).await;
 
         // THEN the directory and its renamed copy are both gone
         assert!(matches!(
@@ -495,7 +505,7 @@ mod tests {
         };
 
         // WHEN the start tries to carry it out
-        let outcome = apply_pending_with(&data_dir, Duration::ZERO, &held);
+        let outcome = apply_pending_with(&data_dir, Duration::ZERO, held).await;
 
         // THEN it is deferred, every file stays, and the request is kept
         assert!(matches!(outcome, PendingReset::Deferred(_)));
@@ -504,8 +514,8 @@ mod tests {
         assert!(data_dir.join(FACTORY_RESET_REQUEST).is_file());
     }
 
-    #[test]
-    fn test_apply_pending_factory_reset_removes_a_copy_left_by_a_previous_start() {
+    #[tokio::test]
+    async fn test_apply_pending_factory_reset_removes_a_copy_left_by_a_previous_start() {
         // GIVEN no recorded reset, and the renamed copy a previous start
         // could not finish removing
         let root = tempfile::TempDir::new().unwrap();
@@ -514,7 +524,7 @@ mod tests {
         std::fs::create_dir_all(leftover.join("models")).unwrap();
 
         // WHEN a start looks for a pending reset
-        let outcome = apply_pending_factory_reset(&data_dir, Duration::ZERO);
+        let outcome = apply_pending_factory_reset(&data_dir, Duration::ZERO).await;
 
         // THEN the copy is removed and the live directory is left alone
         assert!(matches!(outcome, PendingReset::None));
