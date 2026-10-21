@@ -25,7 +25,8 @@
 #      https://registry.apollia.fr): the archives, then the manifest, then its
 #      signature, then a cache purge of the last two;
 #   6. publishes the same files to the GitHub release `engines-<channel>`,
-#      the fallback mirror.
+#      the fallback mirror, even when the purge of step 5 failed; the run is
+#      then marked failed at the end.
 #
 # Two keys, never mixed. APOLLIA_DIST_SIGNING_KEY signs what the application
 # downloads after install (this manifest, the model registry index).
@@ -224,7 +225,7 @@ jobs:
           done
           put "$OUT/engines.json" manifest.json application/json
           put "$OUT/engines.json.minisig" manifest.json.minisig text/plain
-          python3 - <<'PY'
+          if ! python3 - <<'PY'
           import json, os, sys, urllib.request
           base = f"{os.environ['REGISTRY_URL']}/engines/{os.environ['CHANNEL']}"
           body = json.dumps({
@@ -248,6 +249,9 @@ jobs:
                     "files are published and stay stale until the cache expires")
               sys.exit(1)
           PY
+          then
+            echo "PURGE_FAILED=1" >> "$GITHUB_ENV"
+          fi
 
       # The mirror the application reads when it is given the GitHub address
       # as its base: `<base>/engines-<channel>/engines.json`, the archives
@@ -269,3 +273,12 @@ jobs:
           gh release upload "$release" --repo "$REPO" --clobber "$OUT/engines.json"
           gh release upload "$release" --repo "$REPO" --clobber "$OUT/engines.json.minisig"
           echo "the ${CHANNEL} engine channel now offers llama.cpp ${LLAMA_TAG}"
+
+      # A purge that fails does not hold back the mirror, which is what the
+      # application reads by default: the files are published either way, and
+      # the run is marked failed so the stale registry cache is seen.
+      - name: Fail the run when the cache was not purged
+        if: env.PURGE_FAILED == '1'
+        run: |
+          echo "::error::published, but the registry cache still serves the previous manifest until it expires"
+          exit 1
