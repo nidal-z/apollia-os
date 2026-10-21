@@ -45,6 +45,9 @@ pub struct JournalExportQuery {
     pub nature: Option<String>,
     /// Comma-separated results: `success`, `failure`, `refused`.
     pub result: Option<String>,
+    /// Comma-separated prefixes of tool names, such as `mcp:notion/`. When
+    /// set, the export holds the entries whose tool starts with one of them.
+    pub tool_prefix: Option<String>,
     /// Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339
     /// instant.
     pub since: Option<String>,
@@ -100,6 +103,7 @@ fn recorded_filters(filter: &JournalFilter) -> ExportFilters {
             .iter()
             .map(|outcome| outcome.as_str().to_owned())
             .collect(),
+        tool_prefixes: filter.tool_prefixes.clone(),
         since: filter.since.as_ref().map(instant),
         until: filter.until.as_ref().map(instant),
     }
@@ -159,6 +163,7 @@ pub async fn export_audit_journal<B: ExecutionBackend + Clone>(
             families: query.family.as_deref(),
             natures: query.nature.as_deref(),
             outcomes: query.result.as_deref(),
+            tool_prefixes: query.tool_prefix.as_deref(),
             since: query.since.as_deref(),
             until: query.until.as_deref(),
         },

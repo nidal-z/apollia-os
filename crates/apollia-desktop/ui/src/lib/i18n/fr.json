@@ -6376,7 +6376,9 @@
       "all_families": "Toutes les familles",
       "all_natures": "Toutes les natures",
       "all_results": "Tous les résultats",
-      "clear": "Effacer les filtres"
+      "clear": "Effacer les filtres",
+      "connection": "Connexion : {name}",
+      "connection_remove": "Retirer le filtre sur {name}"
     },
     "nature": {
       "action": "Actions",

@@ -81,6 +81,8 @@ export interface JournalQuery {
   families?: string[];
   natures?: JournalNature[];
   results?: JournalOutcome[];
+  /** Prefixes of tool names, such as `mcp:notion/` for one connection. */
+  tool_prefixes?: string[];
   /** Start of the period, included: a day or an RFC 3339 instant. */
   since?: string;
   /** End of the period, excluded: a day or an RFC 3339 instant. */

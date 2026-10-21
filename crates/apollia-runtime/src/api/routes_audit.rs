@@ -1,7 +1,8 @@
 //! REST routes of the audit journal.
 //!
 //! - `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal,
-//!   each entry with its summary, narrowed by agent, family, nature, result and period
+//!   each entry with its summary, narrowed by agent, family, nature, result,
+//!   tool prefix and period
 //! - `GET /api/v1/audit/journal/:run_id`, the full journal of a run
 //! - `GET /api/v1/audit/journal/:run_id/entries/:seq`, one entry with its detail
 //! - `GET /api/v1/audit/verify` and `/verify/:run_id`, the verification of the
@@ -56,6 +57,9 @@ pub struct JournalPageQuery {
     pub nature: Option<String>,
     /// Comma-separated results: `success`, `failure`, `refused`.
     pub result: Option<String>,
+    /// Comma-separated prefixes of tool names, such as `mcp:notion/`. When
+    /// set, the page holds the entries whose tool starts with one of them.
+    pub tool_prefix: Option<String>,
     /// Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339
     /// instant.
     pub since: Option<String>,
@@ -268,6 +272,7 @@ pub struct AuditJournalPageResponse {
         ("family" = Option<String>, Query, description = "Comma-separated action families: `read`, `read_personal`, `write_or_delete`, `send_external`, `execute_code`, `unclassified`, `exempt`."),
         ("nature" = Option<String>, Query, description = "Comma-separated natures: `action`, `access_change`, `policy`, `system`."),
         ("result" = Option<String>, Query, description = "Comma-separated results: `success`, `failure`, `refused`."),
+        ("tool_prefix" = Option<String>, Query, description = "Comma-separated prefixes of tool names, such as `mcp:notion/` for the tools of one connection. When set, only the entries whose tool starts with one of them are paged."),
         ("since" = Option<String>, Query, description = "Start of the period, included: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant."),
         ("until" = Option<String>, Query, description = "End of the period, excluded: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant."),
     ),
@@ -301,6 +306,7 @@ pub async fn list_audit_journal<B: ExecutionBackend + Clone>(
             families: params.family.as_deref(),
             natures: params.nature.as_deref(),
             outcomes: params.result.as_deref(),
+            tool_prefixes: params.tool_prefix.as_deref(),
             since: params.since.as_deref(),
             until: params.until.as_deref(),
         },

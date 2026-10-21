@@ -2,7 +2,9 @@
   /**
    * JournalScreen - what the agents did and every access change, one line per
    * entry, in plain language and without content, newest first and grouped by
-   * day. Five filters narrow the list; the route applies them. "See more"
+   * day. Five filters narrow the list, and a sixth, the connection another
+   * screen opened it on, shows beside them until it is removed; the route
+   * applies them all. "See more"
    * opens the full detail of an entry in the detail sidebar, for every user.
    * In developer mode every entry arrives unfolded in the list, with its
    * technical details, and the header folds them all at once. The header
@@ -21,7 +23,9 @@
   import { agents } from "$lib/stores/agents";
   import { detailSidebar } from "$lib/stores/detailSidebar";
   import { developerMode } from "$lib/stores/developerMode";
+  import { takeRequestedJournalConnection } from "$lib/stores/journalFocus";
   import { journalSelection } from "$lib/stores/journalSelection";
+  import JournalConnectionFilter from "./JournalConnectionFilter.svelte";
   import JournalExportDialog from "./JournalExportDialog.svelte";
   import JournalFilterBar from "./JournalFilterBar.svelte";
   import JournalPrintSheet from "./JournalPrintSheet.svelte";
@@ -37,7 +41,9 @@
     groupByDay,
     isUnfolded,
     lineKey,
+    openingFilters,
     visibleLines,
+    withoutConnection,
     type DayGroup,
     type Expansion,
     type JournalFilters,
@@ -49,7 +55,7 @@
   const journal = createJournal();
   const actions = createJournalActions();
 
-  let filters = $state<JournalFilters>({ ...NO_FILTER });
+  let filters = $state<JournalFilters>(openingFilters(takeRequestedJournalConnection()));
   let expansion = $state<Expansion>(expansionFor(false));
   let selectedKey = $state<string | null>(null);
   let readAt = $state(new Date());
@@ -237,6 +243,12 @@
   />
 
   <div class="flex flex-wrap items-center gap-3 text-caption text-muted-foreground">
+    {#if filters.connection !== null}
+      <JournalConnectionFilter
+        connection={filters.connection}
+        onRemove={() => (filters = withoutConnection(filters))}
+      />
+    {/if}
     <span data-testid="journal-count">
       {#if filterCount > 0}
         {$t("journal.count_filtered", { values: { filters: filterCount, count: shown.length } })}
