@@ -239,6 +239,7 @@ pub(crate) async fn get_server_raw_config<B: ExecutionBackend + Clone>(
         (status = 200, description = "Server restarted or (re)connected"),
         (status = 400, description = "Fallback connect failed", body = crate::api::openapi::ApiErrorBody),
         (status = 403, description = "Forbidden by the organisation policy since the last start", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "The connection is paused", body = crate::api::openapi::ApiErrorBody),
         (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
         (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
@@ -582,6 +583,7 @@ pub(crate) async fn test_live_server<B: ExecutionBackend + Clone>(
         (status = 200, description = "Configuration replaced and session restarted"),
         (status = 400, description = "New session failed to start", body = crate::api::openapi::ApiErrorBody),
         (status = 403, description = "Refused by the connection admission, or forbidden since the last start", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "The connection is paused", body = crate::api::openapi::ApiErrorBody),
         (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
         (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
@@ -658,12 +660,24 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
     Ok(Json(status))
 }
 
+/// What a request to start a server in pause answers.
+pub const PAUSED_SERVER_REASON: &str = "this connection is paused: resume it to start it";
+
 /// Refuses to start the server `name` again when the policy forbade it at
-/// boot: it stays stopped until a start finds it admitted.
+/// boot, or when the user put it in pause (its `enabled` flag off): it stays
+/// stopped until a start finds it admitted, or until it is resumed.
 fn refuse_forbidden<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     name: &str,
 ) -> Result<(), JsonError> {
+    let paused = state
+        .mcp_server_repo
+        .as_ref()
+        .and_then(|repo| repo.lock().ok()?.is_enabled(name).ok().flatten())
+        == Some(false);
+    if paused {
+        return Err(json_err(StatusCode::CONFLICT, PAUSED_SERVER_REASON));
+    }
     if state
         .connection_governance
         .forbidden()

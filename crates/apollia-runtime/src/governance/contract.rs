@@ -63,6 +63,13 @@ pub enum DecisionReason {
         /// Identifier of the rule in `governance.db`.
         rule_id: i64,
     },
+    /// The connection that brings the tool is in pause: none of its tools
+    /// runs until it is resumed.
+    Paused {
+        /// The connection in pause, as the connection list names it
+        /// (`mcp:<server>`, `native:<provider>:<account>`, `folder:<id>`).
+        connection_id: String,
+    },
     /// Governance cannot read what it decides from and refuses what is
     /// sensitive.
     FailClosed,

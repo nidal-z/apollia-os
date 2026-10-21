@@ -366,8 +366,9 @@ removal it makes as an `AccessChanged` entry with the actor `upgrade` and a
 `reason`; a change that concerns every agent goes to the run
 `governance:*`.
 Decisions are journaled in the run of their agent: `ConsentAnswered` (once,
-always, refuse), `PolicyRefused` and `RuleRefused` from the decision on a
-tool call, `AlwaysWithdrawn` and `BatchAccessGranted` from the consent store,
+always, refuse), `PolicyRefused`, `RuleRefused` and `PausedRefused` (the
+connection of the tool is in pause) from the decision on a tool call,
+`AlwaysWithdrawn` and `BatchAccessGranted` from the consent store,
 `RuleAdded` and `RuleRemoved` from the rule store (a rule binding every agent
 goes to `governance:rules:global`). None of them carries the argument of the
 call, its result, or a reason typed with a refusal. The stores of

@@ -577,6 +577,26 @@ son API publique, parce que l'événement les porte. Une annonce envoyée avant
 qu'un lecteur s'abonne n'est pas perdue pour lui : il retrouve le même état
 dans la liste.
 
+### Une connexion en pause {#connection-pause}
+
+L'utilisateur peut mettre une connexion en pause et la reprendre telle
+quelle. La pause est tenue par la gouvernance, à côté des refus de la
+politique : les connexions en pause sont gardées dans `paused_connections` de
+`governance.db` (schéma v6), et la décision sur un appel d'outil refuse chaque
+outil de l'une d'elles, outils de lecture compris, avec la raison qu'elle est
+en pause. Le modèle en est informé, et le refus est journalisé sous
+`paused_refused`. La politique est lue d'abord : une connexion à la fois
+interdite et en pause se lit bloquée par l'organisation, ce qu'aucune reprise
+ne lève. Une pause est lue par la décision suivante, sans redémarrage.
+
+Une pause ne retire rien : les accès des agents, la configuration et les
+secrets de la connexion restent tels quels. Un serveur MCP en pause est aussi
+arrêté et son drapeau `enabled` de `mcp.db` éteint, pour qu'il ne soit pas
+redémarré, ni au démarrage suivant ni à la demande. Les outils de boîte mail
+sont partagés par toutes les boîtes : leur exécuteur refuse à chaque appel une
+boîte en pause, comme il refuse une boîte interdite. Une connexion en pause se
+lit en pause dans la liste, quel que soit l'état gardé pour elle avant.
+
 ## Connecteurs {#connectors}
 
 Les connecteurs Google et Microsoft s'authentifient en OAuth2 avec PKCE. Aucun

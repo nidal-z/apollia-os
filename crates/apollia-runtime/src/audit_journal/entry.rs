@@ -114,6 +114,10 @@ pub enum JournalEntryKind {
     /// A fine rule refused a call. The payload is a
     /// [`crate::governance::GovernanceRecord`]; it never carries the call's argument.
     RuleRefused,
+    /// A call was refused because its connection is in pause. The payload is
+    /// a [`crate::governance::GovernanceRecord`]; it never carries the call's
+    /// argument.
+    PausedRefused,
     /// A fine rule was added. The payload is a
     /// [`crate::governance::GovernanceRecord`].
     RuleAdded,
@@ -213,6 +217,7 @@ impl JournalEntryKind {
             JournalEntryKind::AlwaysWithdrawn => "always_withdrawn",
             JournalEntryKind::PolicyRefused => "policy_refused",
             JournalEntryKind::RuleRefused => "rule_refused",
+            JournalEntryKind::PausedRefused => "paused_refused",
             JournalEntryKind::RuleAdded => "rule_added",
             JournalEntryKind::RuleRemoved => "rule_removed",
             JournalEntryKind::BatchAccessGranted => "batch_access_granted",
@@ -271,6 +276,7 @@ impl JournalEntryKind {
             "always_withdrawn" => JournalEntryKind::AlwaysWithdrawn,
             "policy_refused" => JournalEntryKind::PolicyRefused,
             "rule_refused" => JournalEntryKind::RuleRefused,
+            "paused_refused" => JournalEntryKind::PausedRefused,
             "rule_added" => JournalEntryKind::RuleAdded,
             "rule_removed" => JournalEntryKind::RuleRemoved,
             "batch_access_granted" => JournalEntryKind::BatchAccessGranted,
@@ -515,6 +521,7 @@ mod tests {
             (JournalEntryKind::AlwaysWithdrawn, "always_withdrawn"),
             (JournalEntryKind::PolicyRefused, "policy_refused"),
             (JournalEntryKind::RuleRefused, "rule_refused"),
+            (JournalEntryKind::PausedRefused, "paused_refused"),
             (JournalEntryKind::RuleAdded, "rule_added"),
             (JournalEntryKind::RuleRemoved, "rule_removed"),
             (JournalEntryKind::BatchAccessGranted, "batch_access_granted"),

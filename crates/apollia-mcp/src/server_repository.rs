@@ -330,6 +330,30 @@ impl McpServerRepository {
         Ok(())
     }
 
+    /// Names of the servers whose `enabled` flag is off: the servers the user
+    /// put in pause, which are kept but never started.
+    pub fn disabled_names(&self) -> Result<std::collections::HashSet<String>, McpRepoError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT name FROM mcp_servers WHERE enabled = 0")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        rows.map(|r| r.map_err(McpRepoError::Db))
+            .collect::<Result<_, _>>()
+    }
+
+    /// Whether the server with `name` is enabled; `None` when no server has
+    /// that name.
+    pub fn is_enabled(&self, name: &str) -> Result<Option<bool>, McpRepoError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT enabled FROM mcp_servers WHERE name = ?1")?;
+        let mut rows = stmt.query_map(params![name], |row| row.get::<_, i64>(0))?;
+        match rows.next() {
+            Some(row) => Ok(Some(row? != 0)),
+            None => Ok(None),
+        }
+    }
+
     /// Imports a list of [`McpServerConfig`] in a single pass.
     ///
     /// This operation is a no-op if the `mcp_servers` table already contains
@@ -542,6 +566,33 @@ mod tests {
         // THEN both are inserted
         assert_eq!(count, 2);
         assert_eq!(repo.list().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_disabled_servers_are_read_and_kept_by_a_save() {
+        // GIVEN two servers, one switched off
+        let dir = TempDir::new().unwrap();
+        let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
+        repo.save(&stdio_config("notion")).unwrap();
+        repo.save(&stdio_config("sqlite")).unwrap();
+        repo.set_enabled("notion", false).unwrap();
+
+        // WHEN the flag is read, then the switched-off one is saved again
+        let disabled = repo.disabled_names().unwrap();
+        repo.save(&stdio_config("notion")).unwrap();
+
+        // THEN only that one reads disabled, and a save does not switch it on
+        assert_eq!(
+            disabled,
+            std::collections::HashSet::from(["notion".to_owned()])
+        );
+        assert_eq!(repo.is_enabled("notion").unwrap(), Some(false));
+        assert_eq!(repo.is_enabled("sqlite").unwrap(), Some(true));
+        assert_eq!(repo.is_enabled("ghost").unwrap(), None);
+        assert_eq!(
+            repo.disabled_names().unwrap(),
+            std::collections::HashSet::from(["notion".to_owned()])
+        );
     }
 
     #[test]
