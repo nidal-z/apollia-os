@@ -136,7 +136,7 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
     "crates/apollia-llm/src/repository.rs": 1,
     "crates/apollia-llm/src/router.rs": 1,
-    "crates/apollia-mcp/src/session.rs": 3,
+    "crates/apollia-mcp/src/session/rpc.rs": 1,
     "crates/apollia-mcp/src/transport/stdio.rs": 1,
     "crates/apollia-oria/src/actor.rs": 2,
     "crates/apollia-oria/src/engine.rs": 2,
@@ -288,6 +288,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # stopped must get an error back, not wait. The test binds port 0 and
     # releases it to obtain a port nothing listens on.
     "crates/apollia-desktop/src/attached/tests.rs": 1,
+    # The deadline of an embedded read is the subject: the runtime is a
+    # port-0 listener that holds its answer until the test releases it, so
+    # a read gives up at its deadline while the write variant waits past it.
+    # No sleep: the order is set by the release, not by the clock.
+    "crates/apollia-desktop/src/commands/mod.rs": 1,
     # One helper, the transport is the subject: these tests prove that a
     # virtualenv gets built, that pip refuses an altered digest, and that the
     # rewritten command starts. The helper builds the local wheel the

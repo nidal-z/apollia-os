@@ -6,12 +6,14 @@
 //! logged and skipped; it is never fatal to the rest.
 
 mod commands;
+mod detached;
 mod handle;
+mod snapshot;
 mod views;
 
 use std::collections::{HashMap, HashSet};
 
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 
 use apollia_core::{EventBusSender, McpHealth};
 use apollia_tools::registry::ToolRegistryHandle;
@@ -19,22 +21,26 @@ use apollia_tools::registry::ToolRegistryHandle;
 use crate::config::McpServerConfig;
 use crate::protocol::ToolCallResult;
 use crate::session::{LoadingMode, McpSession, McpSessionError};
-use crate::tool_search::ToolIndexSnapshot;
+use snapshot::McpSnapshot;
 
 // ─── commands ────────────────────────────────────────────────────────────────
 
 /// Messages processed by the [`McpClientManager`] actor.
 enum McpCommand {
-    /// Execute a tool on a named MCP server.
+    /// Execute a tool on a named MCP server, in a task of its own.
     CallTool {
         server_name: String,
         tool_name: String,
         arguments: Option<serde_json::Value>,
         reply: oneshot::Sender<Result<ToolCallResult, McpSessionError>>,
     },
-    /// Return the status of every managed session.
-    GetStatus {
-        reply: oneshot::Sender<Vec<McpServerStatus>>,
+    /// A detached tool call ended: record its outcome, then answer.
+    CallFinished {
+        server_name: String,
+        /// Schemas a deferred session fetched before the call, to cache.
+        schemas: Option<Vec<(String, serde_json::Value)>>,
+        result: Result<ToolCallResult, McpSessionError>,
+        reply: oneshot::Sender<Result<ToolCallResult, McpSessionError>>,
     },
     /// Return detailed info (status + tools + redacted config) for a single server.
     GetDetail {
@@ -63,15 +69,24 @@ enum McpCommand {
         reply: oneshot::Sender<Result<McpServerStatus, McpSessionError>>,
     },
     /// Test a config without persisting a session: spawn, handshake, tools/list, then kill.
+    /// Runs in a task of its own.
     TestConnection {
         config: McpServerConfig,
         reply: oneshot::Sender<Result<McpConnectionTestResult, McpSessionError>>,
     },
     /// Test an already-installed server: re-handshake plus an optional read-only
-    /// probe against the live session. Reports `live_health`.
+    /// probe against the live session. Reports `live_health`. Runs in a task
+    /// of its own.
     TestLiveServer {
         server_name: String,
         probe: Option<ProbeSpec>,
+        reply: oneshot::Sender<Result<McpConnectionTestResult, McpSessionError>>,
+    },
+    /// A detached live test ended: record the probe's outcome, then answer.
+    LiveTestFinished {
+        server_name: String,
+        test: Result<McpConnectionTestResult, McpSessionError>,
+        probe_result: Option<Result<ToolCallResult, McpSessionError>>,
         reply: oneshot::Sender<Result<McpConnectionTestResult, McpSessionError>>,
     },
     /// Hot-reload a server: disconnect, re-read config, reconnect, emit McpServerReloaded.
@@ -91,13 +106,6 @@ enum McpCommand {
         server_name: Option<String>,
         uri: String,
         reply: oneshot::Sender<Result<McpResourcePayload, McpSessionError>>,
-    },
-    /// Aggregate the lightweight tool index of every deferred-mode session.
-    ///
-    /// Yields an empty vector when no session runs in deferred mode (the index
-    /// is only populated when `LoadingMode::Deferred` is active).
-    GetToolIndex {
-        reply: oneshot::Sender<Vec<ToolIndexSnapshot>>,
     },
     /// Gracefully shut down all sessions and stop the actor loop.
     Shutdown,
@@ -246,11 +254,13 @@ pub struct McpResourcePayload {
 
 /// Clonable handle to the [`McpClientManager`] actor.
 ///
-/// Obtain one via [`McpClientManagerHandle::start`]. All methods are async and
-/// communicate with the actor through an `mpsc` channel.
+/// Obtain one via [`McpClientManagerHandle::start`]. Commands reach the actor
+/// through an `mpsc` channel; the statuses and the tool index are read from
+/// the state the actor publishes on a `watch` channel, without a round trip.
 #[derive(Clone)]
 pub struct McpClientManagerHandle {
     tx: mpsc::Sender<McpCommand>,
+    snapshot: watch::Receiver<McpSnapshot>,
 }
 
 // ─── actor ───────────────────────────────────────────────────────────────────
@@ -261,6 +271,11 @@ pub struct McpClientManagerHandle {
 struct McpClientManager {
     sessions: HashMap<String, McpSession>,
     rx: mpsc::Receiver<McpCommand>,
+    /// The actor's own command channel, held weakly so the actor still stops
+    /// when every handle is dropped. A detached call reports on it.
+    commands: mpsc::WeakSender<McpCommand>,
+    /// Where the actor publishes the state the handle reads.
+    published: watch::Sender<McpSnapshot>,
     tool_registry: ToolRegistryHandle,
     /// Server names currently being hot-reloaded.
     ///
@@ -296,6 +311,9 @@ impl McpClientManagerHandle {}
 impl McpClientManager {
     /// Main actor loop: process commands until a [`McpCommand::Shutdown`] is received
     /// or all senders are dropped.
+    ///
+    /// A command that changes a session publishes the new state before it
+    /// answers, so a caller that reads the handle after its answer sees it.
     async fn run(mut self) {
         while let Some(cmd) = self.rx.recv().await {
             match cmd {
@@ -304,16 +322,14 @@ impl McpClientManager {
                     tool_name,
                     arguments,
                     reply,
-                } => {
-                    let result = self
-                        .handle_call_tool(server_name, tool_name, arguments)
-                        .await;
-                    let _ = reply.send(result);
-                }
+                } => self.spawn_call_tool(server_name, tool_name, arguments, reply),
 
-                McpCommand::GetStatus { reply } => {
-                    let _ = reply.send(self.collect_statuses());
-                }
+                McpCommand::CallFinished {
+                    server_name,
+                    schemas,
+                    result,
+                    reply,
+                } => self.finish_call_tool(&server_name, schemas, result, reply),
 
                 McpCommand::GetDetail { server_name, reply } => {
                     let _ = reply.send(self.server_detail(&server_name));
@@ -321,6 +337,7 @@ impl McpClientManager {
 
                 McpCommand::AddServer { config, reply } => {
                     let result = self.handle_add_server(config).await;
+                    self.publish();
                     let _ = reply.send(result);
                 }
 
@@ -330,35 +347,42 @@ impl McpClientManager {
                     reply,
                 } => {
                     let result = self.handle_add_request_server(config, transport).await;
+                    self.publish();
                     let _ = reply.send(result);
                 }
 
                 McpCommand::RemoveServer { server_name, reply } => {
                     let result = self.handle_remove_server(&server_name).await;
+                    self.publish();
                     let _ = reply.send(result);
                 }
 
                 McpCommand::RestartServer { server_name, reply } => {
                     let result = self.handle_restart_server(server_name).await;
+                    self.publish();
                     let _ = reply.send(result);
                 }
 
                 McpCommand::TestConnection { config, reply } => {
-                    let result = Self::handle_test_connection(config).await;
-                    let _ = reply.send(result);
+                    Self::spawn_test_connection(config, reply);
                 }
 
                 McpCommand::TestLiveServer {
                     server_name,
                     probe,
                     reply,
-                } => {
-                    let result = self.handle_test_live_server(server_name, probe).await;
-                    let _ = reply.send(result);
-                }
+                } => self.spawn_test_live_server(server_name, probe, reply),
+
+                McpCommand::LiveTestFinished {
+                    server_name,
+                    test,
+                    probe_result,
+                    reply,
+                } => self.finish_test_live_server(&server_name, test, probe_result, reply),
 
                 McpCommand::ReloadServer { server_name, reply } => {
                     let result = self.handle_reload_server(&server_name).await;
+                    self.publish();
                     let _ = reply.send(result);
                 }
 
@@ -374,16 +398,13 @@ impl McpClientManager {
                     let _ = reply.send(self.handle_read_resource(server_name, &uri).await);
                 }
 
-                McpCommand::GetToolIndex { reply } => {
-                    let _ = reply.send(self.collect_tool_index());
-                }
-
                 McpCommand::Shutdown => {
                     self.shutdown_all().await;
                     break;
                 }
             }
         }
+        self.publish_empty();
     }
 
     /// Shut down every live session and clear the session map.
@@ -695,7 +716,8 @@ mod tests {
     async fn test_shutdown_on_empty_manager() {
         // GIVEN a manager handle with no sessions started
         let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-        let handle = McpClientManagerHandle { tx };
+        let (_published, snapshot) = watch::channel(McpSnapshot::default());
+        let handle = McpClientManagerHandle { tx, snapshot };
         // WHEN shutdown is called
         handle.shutdown().await;
         // THEN the command reached the actor loop instead of being dropped
