@@ -150,11 +150,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_agent_package_detail",
     "list_agent_packages",
     "uninstall_agent_package",
-    // Connections, the folders added as connections, and the mailbox
-    // connection: the providers known from the address, and the addition,
-    // which logs in before it stores.
+    // Connections, their grant to agents, the folders added as connections,
+    // and the mailbox connection: the providers known from the address, and
+    // the addition, which logs in before it stores.
     "add_folder_connection",
     "add_imap_mailbox",
+    "grant_connection",
     "list_connections",
     "list_imap_providers",
     "remove_folder_connection",

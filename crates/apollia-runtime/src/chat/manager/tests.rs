@@ -1632,6 +1632,7 @@ async fn test_validate_create_request_accepts_a_declarative_agent_outside_the_re
         mission: "Explain the product.".into(),
         examples: Vec::new(),
         access: Vec::new(),
+        access_added: Vec::new(),
         sources: Vec::new(),
         model: None,
         autonomy: apollia_core::AutonomyLevel::Assisted,

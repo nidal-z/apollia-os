@@ -146,8 +146,12 @@ pub enum OverrideField {
     Mission,
     /// Example requests.
     Examples,
-    /// Tools granted to the agent.
+    /// Tools granted to the agent, in place of the default access.
     Access,
+    /// Tools granted to an agent on the default access, on top of it: the
+    /// default is still read at each run. An [`OverrideField::Access`]
+    /// override, a list chosen whole, leaves it out.
+    AccessAdded,
     /// Sources checked for the agent.
     Sources,
     /// Autonomy tier: budget, verification, critic.
@@ -159,11 +163,12 @@ pub enum OverrideField {
 }
 
 /// Every overridable field, in display order.
-pub const OVERRIDE_FIELDS: [OverrideField; 8] = [
+pub const OVERRIDE_FIELDS: [OverrideField; 9] = [
     OverrideField::Name,
     OverrideField::Mission,
     OverrideField::Examples,
     OverrideField::Access,
+    OverrideField::AccessAdded,
     OverrideField::Sources,
     OverrideField::Autonomy,
     OverrideField::Planning,
@@ -176,7 +181,7 @@ pub const OVERRIDE_FIELDS: [OverrideField; 8] = [
 pub enum OverrideValueError {
     /// The field name is not one of [`OVERRIDE_FIELDS`].
     #[error(
-        "unknown field '{0}', expected one of name, mission, examples, access, sources, autonomy, planning, profile"
+        "unknown field '{0}', expected one of name, mission, examples, access, access_added, sources, autonomy, planning, profile"
     )]
     UnknownField(String),
     /// The field takes a string.
@@ -203,6 +208,7 @@ impl OverrideField {
             OverrideField::Mission => "mission",
             OverrideField::Examples => "examples",
             OverrideField::Access => "access",
+            OverrideField::AccessAdded => "access_added",
             OverrideField::Sources => "sources",
             OverrideField::Autonomy => "autonomy",
             OverrideField::Planning => "planning",
@@ -226,7 +232,10 @@ impl OverrideField {
     pub fn is_list(self) -> bool {
         matches!(
             self,
-            OverrideField::Examples | OverrideField::Access | OverrideField::Sources
+            OverrideField::Examples
+                | OverrideField::Access
+                | OverrideField::AccessAdded
+                | OverrideField::Sources
         )
     }
 
@@ -237,6 +246,7 @@ impl OverrideField {
             OverrideField::Mission => "/mission",
             OverrideField::Examples => "/examples",
             OverrideField::Access => "/defaults/access",
+            OverrideField::AccessAdded => "/defaults/access_added",
             OverrideField::Sources => "/defaults/sources",
             OverrideField::Autonomy => "/defaults/autonomy",
             OverrideField::Planning => "/defaults/planning",
@@ -336,6 +346,10 @@ pub struct ResolvedAgent {
     pub examples: Vec<String>,
     /// Tools granted.
     pub access: Vec<String>,
+    /// Tools granted on top of the default access, for an agent that holds
+    /// it ([`OverrideField::AccessAdded`]); empty otherwise.
+    #[serde(default)]
+    pub access_added: Vec<String>,
     /// Sources checked.
     pub sources: Vec<String>,
     /// The model assigned to the agent in `system.db`, if any.
@@ -410,6 +424,7 @@ pub fn resolve(
         mission: text(OverrideField::Mission),
         examples: list(OverrideField::Examples),
         access: list(OverrideField::Access),
+        access_added: list(OverrideField::AccessAdded),
         sources: list(OverrideField::Sources),
         model,
         autonomy: value_of(OverrideField::Autonomy)

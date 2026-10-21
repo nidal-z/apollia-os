@@ -6,9 +6,12 @@
  * follows the picker offers to give the reading tools to Apollia at once, so
  * that "I added my folder" and "Apollia reads it" are one gesture the person
  * sees and can decline.
+ *
+ * The runtime writes the grant: an Apollia on the default access keeps it,
+ * read again at each run, and holds the folder on top of it.
  */
-import { setAgentOverride } from "$lib/ipc/agentAdjust";
 import { getAgentDefinition } from "$lib/ipc/agentSheet";
+import { grantConnection } from "$lib/ipc/connections";
 import { APOLLIA_AGENT_ID } from "$lib/chat/chatTargets";
 import type { Connection } from "$lib/types";
 
@@ -38,6 +41,6 @@ export async function grantFolderToApollia(connection: Connection): Promise<bool
   const current = agent?.access ?? [];
   const next = accessWithFolder(current, connection);
   if (next.length === current.length) return false;
-  await setAgentOverride(APOLLIA_AGENT_ID, "access", next);
+  await grantConnection(connection.id, [APOLLIA_AGENT_ID], next.slice(current.length));
   return true;
 }
