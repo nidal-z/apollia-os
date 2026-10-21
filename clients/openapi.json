@@ -3683,6 +3683,130 @@
         }
       }
     },
+    "/api/v1/connections/{id}/agents": {
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`GET /api/v1/connections/{id}/agents`: the agents that hold at least one\ntool of the connection.",
+        "operationId": "get_connection_agents",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Connection identifier, as `GET /api/v1/connections` lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The agents holding tools of the connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionAgents"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connections/{id}/grants": {
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`POST /api/v1/connections/{id}/grants`: grant tools of the connection to\nseveral agents at once. Every agent's list is written, or none is.",
+        "operationId": "grant_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Connection identifier, as `GET /api/v1/connections` lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantConnectionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Granted; the agents holding tools of the connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionAgents"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection or agent not found; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No agent or no tool named, or a tool the connection does not bring; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal not available; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/accounts": {
       "get": {
         "tags": [
@@ -21458,6 +21582,71 @@
           }
         }
       },
+      "ConnectionAgent": {
+        "type": "object",
+        "description": "One agent that holds at least one tool of a connection.",
+        "required": [
+          "id",
+          "name",
+          "enabled",
+          "byDefault",
+          "tools"
+        ],
+        "properties": {
+          "byDefault": {
+            "type": "boolean",
+            "description": "Whether the agent holds these tools through the default access, nobody\nhaving chosen its access."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the agent is active."
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier of the agent."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the agent."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The tools of the connection the agent holds, in the order of its\naccess."
+          }
+        }
+      },
+      "ConnectionAgents": {
+        "type": "object",
+        "description": "The agents that hold the tools of one connection.",
+        "required": [
+          "connection",
+          "agents",
+          "sharedWith"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectionAgent"
+            },
+            "description": "Every agent holding at least one of its tools, by identifier."
+          },
+          "connection": {
+            "type": "string",
+            "description": "Identifier of the connection."
+          },
+          "sharedWith": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Other connections its tools reach as well, by identifier: the other\nmailboxes, for a mailbox, since the mailbox tools are common to all of\nthem. Empty for every other kind."
+          }
+        }
+      },
       "ConnectionActivityResponse": {
         "type": "object",
         "description": "Response body of `GET /api/v1/audit/activity`.",
@@ -23701,6 +23890,30 @@
               "$ref": "#/components/schemas/JournalNotice"
             },
             "description": "What degrades the journal without anything being refused: it opened\nwithout its signing key, or the daily export the organisation policy\nasks for cannot be written. Empty for a journal in order."
+          }
+        }
+      },
+      "GrantConnectionBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/connections/{id}/grants`.",
+        "required": [
+          "agents",
+          "tools"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the agents to grant the tools to."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tools of the connection to grant, as `GET /api/v1/connections` lists\nthem."
           }
         }
       },

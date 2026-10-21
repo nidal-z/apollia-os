@@ -33,7 +33,7 @@ use crate::coordinator::ExecutionBackend;
 use crate::governance::{GovernanceHandle, OverrideChange};
 
 /// Who the journal names for a change made through the API.
-const API_ACTOR: &str = "api";
+pub(crate) const API_ACTOR: &str = "api";
 
 /// Where an agent comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
@@ -136,7 +136,7 @@ pub struct SetOverrideRequest {
     pub value: serde_json::Value,
 }
 
-fn open_agents<B: ExecutionBackend + Clone>(
+pub(crate) fn open_agents<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
 ) -> Result<AgentRepository, ApiError> {
     let path = apollia_core::paths::DataFile::Agents.path(&state.data_dir);
@@ -148,7 +148,7 @@ fn open_agents<B: ExecutionBackend + Clone>(
     })
 }
 
-fn store_error(err: AgentRepositoryError) -> ApiError {
+pub(crate) fn store_error(err: AgentRepositoryError) -> ApiError {
     match err {
         AgentRepositoryError::NotFound(name) => {
             api_err(StatusCode::NOT_FOUND, format!("agent '{name}' not found"))
@@ -158,7 +158,7 @@ fn store_error(err: AgentRepositoryError) -> ApiError {
     }
 }
 
-fn override_error(err: AgentOverrideError) -> ApiError {
+pub(crate) fn override_error(err: AgentOverrideError) -> ApiError {
     match err {
         AgentOverrideError::Store(e) => store_error(e),
         other => api_err(StatusCode::INTERNAL_SERVER_ERROR, other),
@@ -169,7 +169,7 @@ fn parse_field(raw: &str) -> Result<OverrideField, ApiError> {
     OverrideField::parse(raw).map_err(|e| api_err(StatusCode::UNPROCESSABLE_ENTITY, e))
 }
 
-fn governance<B: ExecutionBackend + Clone>(
+pub(crate) fn governance<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
 ) -> Result<GovernanceHandle, ApiError> {
     state
@@ -185,7 +185,10 @@ fn governance<B: ExecutionBackend + Clone>(
 }
 
 /// The override writer of an API call.
-fn writer<'a>(repo: &'a AgentRepository, governance: &'a GovernanceHandle) -> OverrideWriter<'a> {
+pub(crate) fn writer<'a>(
+    repo: &'a AgentRepository,
+    governance: &'a GovernanceHandle,
+) -> OverrideWriter<'a> {
     OverrideWriter {
         repo,
         governance,
@@ -194,7 +197,7 @@ fn writer<'a>(repo: &'a AgentRepository, governance: &'a GovernanceHandle) -> Ov
 }
 
 /// The agent `name` resolved, with the model `system.db` assigns it.
-fn resolved<B: ExecutionBackend + Clone>(
+pub(crate) fn resolved<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     repo: &AgentRepository,
     name: &str,
@@ -258,13 +261,21 @@ async fn shown<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     agent: ResolvedAgent,
 ) -> ResolvedAgentResponse {
+    in_force(state, agent).await.into()
+}
+
+/// `agent` with its default access written in when nobody chose one, read
+/// against the tools of the machine.
+pub(crate) async fn in_force<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    agent: ResolvedAgent,
+) -> ResolvedAgent {
     match state.tool_registry_handle.as_ref() {
         Some(registry) => {
             apollia_tools::with_default_access(agent, registry, &default_access_setting(state))
                 .await
-                .into()
         }
-        None => agent.into(),
+        None => agent,
     }
 }
 

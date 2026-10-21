@@ -18,6 +18,7 @@
 //!   the curated selection or from an official publisher. The hints a server
 //!   declares classify its tools, they never pre-authorise one.
 
+pub mod agents;
 mod assemble;
 pub mod folder_import;
 pub mod folders;

@@ -17,6 +17,7 @@
 //! The path prefix, not this field, carries the compatibility promise.
 
 mod bodies;
+mod connections_audit;
 mod security;
 
 use axum::Json;
@@ -24,6 +25,7 @@ use utoipa::OpenApi;
 
 use super::openapi_local_models::LocalModels;
 pub use bodies::{ApiErrorBody, RawWebhookBody, TranscribeForm};
+use connections_audit::ConnectionsAndAudit;
 use security::BearerToken;
 
 /// The generated OpenAPI document for the `/api/v1` driving contract.
@@ -37,7 +39,7 @@ use security::BearerToken;
         title = "Apollia OS Runtime API",
         description = "Host driving contract for the Apollia OS sovereign agent runtime. Stable under /api/v1; breaking changes ship under /api/v2."
     ),
-    modifiers(&BearerToken, &LocalModels),
+    modifiers(&ConnectionsAndAudit, &BearerToken, &LocalModels),
     security(("bearerAuth" = [])),
     tags(
         (name = "health", description = "Liveness and lifecycle"),
@@ -170,15 +172,6 @@ use security::BearerToken;
         crate::api::routes_chat::user_inputs::answer_user_input,
         crate::api::routes_chat::user_inputs::reject_user_input,
         crate::api::routes_sse::stream_task,
-        crate::api::routes_audit::verify_audit_run,
-        crate::api::routes_audit::verify_audit_journal,
-        crate::api::routes_audit::get_audit_anchor,
-        crate::api::routes_audit::show_audit_run,
-        crate::api::routes_audit::show_audit_entry,
-        crate::api::routes_audit::list_audit_journal,
-        crate::api::routes_audit::post_replay_run,
-        crate::api::routes_audit_export::export_audit_journal,
-        crate::api::routes_audit_activity::get_connection_activity,
         crate::api::routes_trace::get_task_trace,
         crate::api::routes_timeline::get_task_timeline,
         crate::api::routes_hooks::list_hooks,
@@ -301,9 +294,6 @@ use security::BearerToken;
         crate::api::routes_mcp_registry::get_registry_server,
         crate::api::routes_mcp_secrets::put_mcp_secret,
         crate::api::routes_mcp_secrets::delete_mcp_secret,
-        crate::api::routes_connections::list_connections,
-        crate::api::routes_connections::folders::add_folder_connection,
-        crate::api::routes_connections::folders::remove_folder_connection,
         crate::api::routes_profile::get_profile,
         crate::api::routes_profile::set_profile_entry,
         crate::api::routes_profile::delete_profile_entry,
@@ -564,30 +554,12 @@ use security::BearerToken;
         crate::api::routes_chat::user_inputs::RejectUserInputRequest,
         crate::chat::manager::PendingUserInputView,
         crate::api::routes_sse::SseTaskEvent,
-        crate::api::routes_audit::AuditJournalResponse,
-        crate::api::routes_audit::AuditJournalPageResponse,
-        crate::api::routes_audit_activity::ConnectionActivityResponse,
-        crate::audit_journal::AgentActivity,
-        crate::api::routes_audit::AuditJournalEntryDetailResponse,
-        crate::audit_journal::JournalExportFormat,
-        crate::audit_journal::JournalSummary,
-        crate::audit_journal::JournalNature,
-        crate::audit_journal::JournalOutcome,
-        crate::audit_journal::ToolCallDetail,
         crate::api::routes_trace::TraceResponse,
         crate::api::routes_timeline::TimelineEvent,
         crate::api::routes_timeline::TimelineResponse,
         crate::api::routes_plan_cache::PlanCacheStatsResponse,
         crate::api::routes_plan_cache::ClearCacheResponse,
         crate::api::routes_approvals::PendingApprovalResponse,
-        crate::audit_journal::verify::VerifyChainReport,
-        crate::audit_journal::verify::BrokenLink,
-        crate::audit_journal::verify::BrokenLinkReason,
-        crate::audit_journal::verify::VerifyJournalReport,
-        crate::audit_journal::verify::JournalBreak,
-        crate::audit_journal::verify::JournalBreakReason,
-        crate::audit_journal::verify::JournalStart,
-        crate::audit_journal::verify::JournalAnchor,
         crate::api::routes_tools::ToolListResponse,
         crate::api::routes_triggers::CreateTriggerRequest,
         crate::api::routes_triggers::TriggerSourceInput,
@@ -740,7 +712,6 @@ use security::BearerToken;
         crate::api::routes_tool_governance::ToolConfigBody,
         crate::api::routes_tool_governance::GovernanceStateBody,
         crate::governance::FailClosed,
-        crate::audit_journal::JournalNotice,
         crate::api::routes_tool_governance::RevokedRule,
         crate::api::routes_tool_governance::RevokeAllBody,
         crate::api::routes_tool_governance::RevokedRules,
@@ -757,10 +728,6 @@ use security::BearerToken;
         crate::chat_assists::ParseAutomationRequest,
         crate::chat_assists::CoachingRequest,
         crate::chat_assists::CoachingExample,
-        crate::connections::Connection,
-        crate::connections::ConnectionTool,
-        crate::connections::ConnectionKind,
-        crate::connections::ConnectionState,
         crate::api::routes_connectors::StartConsentBody,
         crate::api::routes_connectors::StartConsentResponse,
         crate::api::routes_connectors::CompleteConsentBody,
@@ -773,9 +740,6 @@ use security::BearerToken;
         crate::api::routes_imap::ImapErrorBody,
         crate::api::routes_imap::ImapProviderResponse,
         crate::api::routes_imap::ImapProvidersResponse,
-        crate::api::routes_connections::folders::AddFolderBody,
-        crate::api::routes_connections::folders::FolderErrorBody,
-        crate::api::routes_connections::folders::DependentSource,
         crate::project_migration::MigrationReport,
         crate::project_migration::MigrationStatus,
         crate::project_migration::ProjectOutcome,
