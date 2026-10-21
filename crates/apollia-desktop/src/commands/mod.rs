@@ -153,12 +153,37 @@ pub(crate) async fn http_open_stream(port: u16, path: &str) -> Result<reqwest::R
     Err(message)
 }
 
+/// How long a read of the internal REST API may take, answer included: the
+/// deadline the attached arm sets on its requests. A runtime that stops
+/// answering a read then turns into an error the interface shows, instead of
+/// a screen that waits forever. The long writes (an addition, an
+/// installation) go through [`crate::attached::RuntimeLink::post_json_within`],
+/// which sets no such deadline here.
+pub(crate) const EMBEDDED_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
 /// Sends a GET request to the internal REST API on `localhost:{port}` and
-/// returns the parsed JSON body.
+/// returns the parsed JSON body, within [`EMBEDDED_READ_TIMEOUT`].
 ///
 /// Used for `get_task_timeline` and `list_pending_approvals` (enrichment via
 /// the timeline API).
 pub(crate) async fn http_get_json(port: u16, path: &str) -> Result<serde_json::Value, String> {
+    http_get_json_within(port, path, EMBEDDED_READ_TIMEOUT).await
+}
+
+/// [`http_get_json`] under `deadline`: past it, the read is abandoned and the
+/// error says the runtime did not answer.
+async fn http_get_json_within(
+    port: u16,
+    path: &str,
+    deadline: std::time::Duration,
+) -> Result<serde_json::Value, String> {
+    tokio::time::timeout(deadline, http_get_json_unbounded(port, path))
+        .await
+        .map_err(|_| format!("the runtime did not answer within {deadline:?}"))?
+}
+
+/// The GET itself, with no deadline of its own.
+async fn http_get_json_unbounded(port: u16, path: &str) -> Result<serde_json::Value, String> {
     let stream = TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
         .map_err(|e| format!("failed to connect to runtime API: {e}"))?;
@@ -451,4 +476,100 @@ async fn http_request_refusable(
     }
     serde_json::from_str(&body_str)
         .map_err(|e| HttpFailure::unanswered(format!("invalid JSON response: {e}")))
+}
+
+#[cfg(test)]
+mod embedded_deadline_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+    use tokio::sync::watch;
+
+    /// A runtime that reads each request and answers `{}` only once `release`
+    /// turns true; dropped unreleased, it never answers.
+    async fn answering_on(release: watch::Receiver<bool>) -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut socket, _)) = listener.accept().await {
+                let mut release = release.clone();
+                tokio::spawn(async move {
+                    let mut buf = [0u8; 4096];
+                    let _ = socket.read(&mut buf).await;
+                    if release.wait_for(|go| *go).await.is_err() {
+                        return;
+                    }
+                    let _ = socket
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 2\r\n\r\n{}",
+                        )
+                        .await;
+                });
+            }
+        });
+        port
+    }
+
+    #[test]
+    fn test_the_embedded_read_deadline_is_fifteen_seconds() {
+        // GIVEN the deadline of an embedded read
+        // WHEN it is compared with the attached arm's
+        // THEN it is the same fifteen seconds
+        assert_eq!(EMBEDDED_READ_TIMEOUT, Duration::from_secs(15));
+    }
+
+    #[tokio::test]
+    async fn test_a_read_past_its_deadline_says_the_runtime_did_not_answer() {
+        // GIVEN a runtime that never answers
+        let (_held, release) = watch::channel(false);
+        let port = answering_on(release).await;
+
+        // WHEN a read with a deadline of 200 ms is sent
+        let started = Instant::now();
+        let read =
+            http_get_json_within(port, "/api/v1/mcp/servers", Duration::from_millis(200)).await;
+
+        // THEN it fails at the deadline, saying the runtime did not answer
+        let error = read.unwrap_err();
+        assert!(error.contains("did not answer"), "got {error}");
+        assert!(started.elapsed() >= Duration::from_millis(200));
+    }
+
+    #[tokio::test]
+    async fn test_a_read_within_its_deadline_returns_the_answer() {
+        // GIVEN a runtime that answers at once
+        let (_released, release) = watch::channel(true);
+        let port = answering_on(release).await;
+
+        // WHEN a read is sent under the embedded deadline
+        let read = http_get_json(port, "/api/v1/mcp/servers").await;
+
+        // THEN the answer comes back
+        assert_eq!(read.unwrap(), serde_json::json!({}));
+    }
+
+    #[tokio::test]
+    async fn test_the_write_variant_waits_past_the_read_deadline() {
+        // GIVEN a runtime that holds its answers, and an addition sent to it
+        // through the write variant, which sets no deadline
+        let (go, release) = watch::channel(false);
+        let port = answering_on(release).await;
+        let started = Instant::now();
+        let addition = tokio::spawn(async move {
+            http_post_json(port, "/api/v1/mcp/servers", &serde_json::json!({})).await
+        });
+
+        // WHEN a read with a deadline of 200 ms gives up on the same runtime,
+        // and only then the runtime answers
+        let read =
+            http_get_json_within(port, "/api/v1/mcp/servers", Duration::from_millis(200)).await;
+        assert!(read.is_err());
+        go.send_replace(true);
+
+        // THEN the addition, in flight longer than the read deadline, still
+        // returns the answer
+        assert_eq!(addition.await.unwrap().unwrap(), serde_json::json!({}));
+        assert!(started.elapsed() >= Duration::from_millis(200));
+    }
 }

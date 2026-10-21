@@ -5,12 +5,13 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 
 use apollia_core::{EventBusSender, RuntimeEvent};
 use apollia_tools::registry::ToolRegistryHandle;
 
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
+use crate::manager::snapshot::McpSnapshot;
 use crate::manager::views::{
     log_session_start_error, register_session_tools_in_registry, ServerHints,
 };
@@ -95,9 +96,12 @@ impl McpClientManagerHandle {
             }
         }
 
+        let (published, snapshot) = watch::channel(McpSnapshot::default());
         let actor = McpClientManager {
             sessions,
             rx,
+            commands: tx.downgrade(),
+            published,
             tool_registry: tool_registry.clone(),
             reloading: HashSet::new(),
             request_servers: HashSet::new(),
@@ -105,9 +109,10 @@ impl McpClientManagerHandle {
             last_call_at: HashMap::new(),
             loading_mode,
         };
+        actor.publish();
         tokio::spawn(actor.run());
 
-        Ok(Self { tx })
+        Ok(Self { tx, snapshot })
     }
     /// Execute a tool on the named MCP server.
     ///
@@ -138,37 +143,22 @@ impl McpClientManagerHandle {
     }
     /// Return the status of every connected MCP server.
     ///
-    /// Returns an empty `Vec` when the actor has already shut down.
+    /// Read from the state the actor last published, without waiting for the
+    /// actor: a tool call in progress does not delay it. Returns an empty
+    /// `Vec` once the actor has shut down.
     pub async fn status(&self) -> Vec<McpServerStatus> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .send(McpCommand::GetStatus { reply: reply_tx })
-            .await
-            .is_err()
-        {
-            return Vec::new();
-        }
-        reply_rx.await.unwrap_or_default()
+        self.snapshot.borrow().statuses()
     }
     /// Collect the lightweight tool index across all deferred-mode sessions.
     ///
     /// Each entry carries the fully qualified `mcp:<server>/<tool>` identity
     /// material plus the owning server's tags, ready to feed the synthetic
-    /// `tool_search` tool. Returns an empty `Vec` when no session runs in
-    /// deferred mode, when no server is connected, or when the actor has already
-    /// shut down.
+    /// `tool_search` tool. Read from the state the actor last published,
+    /// without waiting for the actor. Returns an empty `Vec` when no session
+    /// runs in deferred mode, when no server is connected, or when the actor
+    /// has already shut down.
     pub async fn get_tool_index(&self) -> Vec<ToolIndexSnapshot> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .send(McpCommand::GetToolIndex { reply: reply_tx })
-            .await
-            .is_err()
-        {
-            return Vec::new();
-        }
-        reply_rx.await.unwrap_or_default()
+        self.snapshot.borrow().tool_index()
     }
     /// Aggregate `resources/list` across every connected MCP server.
     ///

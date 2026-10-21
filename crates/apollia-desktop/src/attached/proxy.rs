@@ -23,7 +23,9 @@ impl RuntimeLink {
         }
     }
 
-    /// `GET path` on the runtime this application drives.
+    /// `GET path` on the runtime this application drives, within fifteen
+    /// seconds in both arms ([`crate::commands::EMBEDDED_READ_TIMEOUT`] here,
+    /// the request deadline of the attached client there).
     pub(crate) async fn get_json(&self, path: &str) -> Result<Value, String> {
         match self {
             Self::Embedded(runtime) => http_get_json(runtime.api_port, path).await,

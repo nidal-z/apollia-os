@@ -12,8 +12,9 @@ mod retry;
 mod rpc;
 mod tools;
 
+pub use rpc::SessionCaller;
+
 use std::collections::HashMap;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use apollia_core::McpHealth;
@@ -216,12 +217,9 @@ impl ToolIndexEntry {
 pub struct McpSession {
     /// Server configuration (name, timeouts, command, etc.).
     config: McpServerConfig,
-    /// Transport that handles all byte-level send/recv with the server.
-    transport: Arc<dyn McpTransport>,
-    /// Pending in-flight requests: request ID → reply oneshot.
-    pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
-    /// Monotonically increasing request ID counter.
-    next_id: AtomicU64,
+    /// JSON-RPC link (transport, pending requests, request counter), shared
+    /// with every [`SessionCaller`] this session hands out.
+    rpc: Arc<rpc::RpcLink>,
     /// Server capabilities received during the initialize handshake.
     capabilities: ServerCapabilities,
     /// Protocol revision the server answered with in `initialize`.
@@ -344,18 +342,11 @@ impl McpSession {
         transport: Box<dyn McpTransport>,
         mode: LoadingMode,
     ) -> Result<Self, McpSessionError> {
-        let transport: Arc<dyn McpTransport> = Arc::from(transport);
-
-        let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>> =
-            Arc::new(Mutex::new(HashMap::new()));
-
-        let dispatch_task = spawn_dispatch_task(Arc::clone(&transport), Arc::clone(&pending));
-
+        let rpc = Arc::new(rpc::RpcLink::new(config.name.clone(), Arc::from(transport)));
+        let dispatch_task = spawn_dispatch_task(Arc::clone(&rpc));
         let mut session = McpSession {
             config,
-            transport,
-            pending,
-            next_id: AtomicU64::new(1),
+            rpc,
             capabilities: ServerCapabilities::default(),
             protocol_version: String::new(),
             server_info: ServerInfo {
@@ -462,7 +453,12 @@ impl McpSession {
     /// Delegates to the transport; subprocess-based transports return the child PID.
     /// Network-based transports return `None`.
     pub fn pid(&self) -> Option<u32> {
-        self.transport.pid()
+        self.rpc.transport.pid()
+    }
+
+    /// The instant this session was started.
+    pub(crate) fn started_at(&self) -> std::time::Instant {
+        self.started_at
     }
 
     /// Returns the number of seconds elapsed since this session was started.
@@ -495,7 +491,7 @@ impl McpSession {
         let _ = self
             .send_notification("notifications/cancelled", None)
             .await;
-        let _ = self.transport.shutdown().await;
+        let _ = self.rpc.transport.shutdown().await;
         tracing::info!(server = %self.config.name, "mcp.session.shutdown.completed");
     }
 }
@@ -547,13 +543,10 @@ fn build_initialize_params() -> InitializeParams {
 /// only signal a caller gets that the server died: without it a request in
 /// flight waits out its whole timeout, and a child that exits during the
 /// handshake is reported as a slow server rather than a dead one.
-fn spawn_dispatch_task(
-    transport: Arc<dyn McpTransport>,
-    pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
-) -> tokio::task::JoinHandle<()> {
+fn spawn_dispatch_task(rpc: Arc<rpc::RpcLink>) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        dispatch_loop(transport.as_ref(), &pending).await;
-        let dropped = pending.lock().await.drain().count();
+        dispatch_loop(rpc.transport.as_ref(), &rpc.pending).await;
+        let dropped = rpc.pending.lock().await.drain().count();
         if dropped > 0 {
             warn!(
                 pending = dropped,

@@ -495,6 +495,25 @@ required" error. A machine without network imports Node.js from a disk,
 through the same verification. The npm packages of the servers install from a
 lockfile carrying an integrity digest for each package.
 
+### One writer, a published state, detached calls {#mcp-manager-snapshot}
+
+The MCP manager is one actor, and it stays the only writer of its sessions,
+as principle 5 asks: no lock is shared with another actor. What it no longer
+does is hold its loop while a server works. A tool call and a connection test
+run in tasks of their own, over a handle on the session's JSON-RPC link; the
+outcome of a call comes back to the actor as a message, and the actor records
+it in the session's health in the order the outcomes arrive. Two calls on one
+session run side by side, which the protocol allows, since each request
+carries its own identifier.
+
+After each change (a server added, removed, restarted or reloaded, a call
+outcome recorded), the actor publishes the status of every server, its
+health, and the tool index on a `watch` channel, before it answers. Reading
+the list of connections, or the tool index a conversation reads at each turn,
+takes that published state and sends the actor nothing, so a slow server
+delays neither. Principle 5 is read this way: one actor owns and mutates the
+state, the others read a copy it publishes, never the state itself.
+
 ## Connectors {#connectors}
 
 Google and Microsoft connectors authenticate through OAuth2 with PKCE. No
