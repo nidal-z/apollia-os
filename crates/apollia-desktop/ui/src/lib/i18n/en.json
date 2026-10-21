@@ -585,15 +585,6 @@
       },
       "expert_mode_hint": "Expert Mode (to extend permissions): 1) On console.cloud.google.com, create a project and an OAuth app of type \"Desktop app\". 2) On the consent screen, add the advanced permissions you want (Gmail read, full Drive, etc.). 3) Keep the app in \"Testing\" mode and add yourself as a test user. 4) Paste the Client ID + secret into the Google client section of its page in Connections. Apollia switches to your app and your agents receive the extended permissions."
     },
-    "filters": {
-      "clear_all": "Clear all"
-    },
-    "empty": {
-      "no_results_title": "No results for \"{query}\"",
-      "no_results_description": "Try different keywords or clear the active filters.",
-      "no_suggestions_title": "No suggestions yet",
-      "no_suggestions_description": "Install agents to receive tailored recommendations."
-    },
     "native_section_tag": "curated · managed OAuth",
     "custom_mcp": {
       "code_placeholder": "Authorization code (4/0A…)"
@@ -696,28 +687,15 @@
     "saving": "Saving…",
     "save": "Save",
     "configure_credentials": "Set up credentials",
-    "catalogue_subtitle": "Pick a connection from Apollia's selection or the public catalogue, or add a custom connection.",
-    "catalogue_tab_discover": "Catalogue",
-    "catalogue_tab_custom": "Custom connection",
-    "mcp_chip_all": "All",
-    "mcp_chip_installed": "Installed",
-    "mcp_chip_official": "Official",
-    "mcp_chip_community": "Community",
-    "mcp_filter_label": "Type filter",
     "catalogue_loading": "Loading the catalogue…",
     "badge_official": "Official",
     "badge_community": "Community",
     "badge_rule": "Official: published by the editor of the service, under a domain the public catalogue has verified, or marked so in Apollia's selection. Everything else is community.",
     "catalogue_search_placeholder": "Search for a connection…",
-    "catalogue_explore_note": "The public catalogue is only asked when you ask for it.",
     "catalogue_explore_all": "Explore all",
     "catalogue_back_to_selection": "Back to the selection",
     "badge_installed": "Installed",
     "catalogue_by": "by",
-    "catalogue_manage": "Manage →",
-    "catalogue_loading_public": "Loading the public catalogue… ({count} entries)",
-    "catalogue_more_hint": "{count} entries remaining - keep scrolling",
-    "catalogue_end": "End of catalogue · {count} entries",
     "custom_intro": "To connect a service of your own, reached at its address: an internal tool, a community service, one in development. For a service of the catalogue, use its card instead.",
     "custom_name_label": "Name (internal, unique)",
     "custom_name_placeholder": "e.g. acme-internal",
@@ -897,6 +875,39 @@
       "label": "Let Apollia use it in the Chat",
       "hint": "Apollia gets every tool of this connection. Those that write, send or run code, and those nobody classified, ask for your approval before they run. Other agents get it on their sheet.",
       "failed": "The connection is added, but Apollia could not be given it: {error}. Grant it from the sheet of Apollia."
+    },
+    "add_window": {
+      "subtitle": "Search for what you want to connect, then open its card to add it.",
+      "groups": {
+        "apollia": "Offered by Apollia",
+        "computer": "On this computer",
+        "public": "Public catalogue",
+        "address": "Connect a service by its address"
+      },
+      "public_unverified": "Not verified",
+      "public_note": "Anyone can publish in the public catalogue. Apollia has not checked these entries.",
+      "public_ask": "The public catalogue is asked only when you ask for it.",
+      "address_name": "A service by its address",
+      "address_description": "The address a service gives you to connect it to Apollia",
+      "no_results": "Nothing answers \"{query}\" here. Search the public catalogue, or connect a service by its address.",
+      "show_more": "Show {count} more",
+      "failed_selection": "Apollia's selection could not be read. What is on this computer stays available.",
+      "failed_public": "The public catalogue did not answer. Check the connection to the internet, then try again.",
+      "needs_title": "What it asks",
+      "needs": {
+        "sign_in": "A sign-in to your account, in your browser",
+        "folder": "A folder you choose on this computer",
+        "mailbox": "Your address and an app password from your mail provider",
+        "key": "A key or a password the service gives you",
+        "values": "A few settings to fill in",
+        "download": "A download to this computer, done by Apollia",
+        "online": "The service is reached over the internet: what agents ask of it goes there",
+        "address": "The address the service gave you",
+        "nothing": "Nothing more: it works once added"
+      },
+      "add": "Add",
+      "open": "Open its page",
+      "back": "Back to the search"
     }
   },
   "integrations": {
@@ -4946,7 +4957,6 @@
     },
     "connections": {
       "catalogue_subtitle": "Browse the public MCP catalogue or register a custom server.",
-      "catalogue_tab_discover": "MCP catalogue",
       "catalogue_tab_custom": "Custom MCP",
       "catalogue_loading": "Loading the MCP catalogue…",
       "custom_intro": "To wire up an internal, community, or in-development MCP server. For a curated service (Notion, Linear, Brave Search…), use a catalogue card instead.",

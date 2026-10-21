@@ -15,9 +15,17 @@ import type { RegistryServerView } from "$lib/types";
 /** What the catalogue shows: nothing yet, the selection, or everything. */
 export type CatalogueTier = "none" | "curated" | "full";
 
+/** A source that did not answer: the selection Apollia offers, or the public catalogue. */
+export type CatalogueFailure = "selection" | "public";
+
 export interface CatalogueView {
   tier: CatalogueTier;
-  entries: RegistryServerView[];
+  /** The selection Apollia offers. */
+  selection: RegistryServerView[];
+  /** The public catalogue beyond the selection; empty until "Explore all" answers. */
+  publicEntries: RegistryServerView[];
+  /** The sources that failed at the last gesture, each told apart from an empty answer. */
+  failures: CatalogueFailure[];
 }
 
 export interface CatalogueFetchers {
@@ -41,33 +49,56 @@ const IPC_FETCHERS: CatalogueFetchers = {
 
 /**
  * A catalogue source that reads each list once per screen. A failed read is
- * not kept, so the next gesture tries again; a failed "Explore all" falls back
- * to the selection.
+ * not kept, so the next gesture tries again, and it is named in `failures`
+ * rather than shown as a catalogue with nothing in it; a failed "Explore all"
+ * falls back to the selection.
  */
 export function createCatalogueSource(fetchers: CatalogueFetchers = IPC_FETCHERS): CatalogueSource {
   let curated: RegistryServerView[] | null = null;
   let full: RegistryServerView[] | null = null;
 
+  async function readSelection(): Promise<CatalogueFailure[]> {
+    if (curated === null) curated = await fetchers.curated().catch(() => null);
+    return curated === null ? ["selection"] : [];
+  }
+
   async function selection(): Promise<CatalogueView> {
-    if (curated === null) {
-      curated = await fetchers.curated().catch(() => null);
-    }
-    return { tier: "curated", entries: curated ?? [] };
+    const failures = await readSelection();
+    return { tier: "curated", selection: curated ?? [], publicEntries: [], failures };
   }
 
   async function exploreAll(): Promise<CatalogueView> {
+    const failures = await readSelection();
+    if (full === null) full = await fetchers.registry().catch(() => null);
+    const shown = curated ?? [];
     if (full === null) {
-      full = await fetchers.registry().catch(() => null);
+      return { tier: "curated", selection: shown, publicEntries: [], failures: [...failures, "public"] };
     }
-    return full === null ? selection() : { tier: "full", entries: full };
+    const offered = new Set(shown.map((e) => e.name));
+    return {
+      tier: "full",
+      selection: shown,
+      publicEntries: full.filter((e) => !offered.has(e.name)),
+      failures,
+    };
   }
 
   return { selection, exploreAll };
 }
 
 /** Lower case, without diacritics, so a search typed without accents finds an accented word. */
-function fold(text: string): string {
+export function fold(text: string): string {
   return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+/** Whether every word of `query` appears in one of `texts`; an empty query matches everything. */
+export function matchesWords(texts: readonly (string | null | undefined)[], query: string): boolean {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = fold(
+    texts.filter((part): part is string => typeof part === "string" && part.length > 0).join(" "),
+  );
+  return words.every((word) => haystack.includes(word));
 }
 
 /**
@@ -76,9 +107,7 @@ function fold(text: string): string {
  * selection gives them. An empty query matches everything.
  */
 export function matchesCatalogueQuery(entry: RegistryServerView, query: string): boolean {
-  const words = fold(query).split(/\s+/).filter(Boolean);
-  if (words.length === 0) return true;
-  const haystack = fold(
+  return matchesWords(
     [
       ...allLocales(entry.enrichment?.operator_label),
       ...allLocales(entry.enrichment?.description),
@@ -88,9 +117,7 @@ export function matchesCatalogueQuery(entry: RegistryServerView, query: string):
       entry.description,
       entry.category,
       entry.enrichment?.category,
-    ]
-      .filter((part): part is string => typeof part === "string" && part.length > 0)
-      .join(" "),
+    ],
+    query,
   );
-  return words.every((word) => haystack.includes(word));
 }
