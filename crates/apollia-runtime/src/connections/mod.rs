@@ -23,6 +23,7 @@ mod assemble;
 pub mod folder_import;
 pub mod folders;
 mod packages;
+pub mod removal;
 mod schema;
 pub mod state;
 
@@ -152,6 +153,10 @@ pub fn is_remote(transport: &str, url: Option<&str>) -> bool {
 pub fn is_prechecked(family: ActionFamily, provenance: Provenance, official: bool) -> bool {
     family == ActionFamily::Read && (provenance == Provenance::Selection || official)
 }
+
+/// Directory of the data directory holding the files installed for each
+/// connection, one directory per connection (a server's packages).
+pub const INSTALLED_FILES_DIR: &str = "connections";
 
 /// Identifier of the connection of the mailbox at `email`.
 #[must_use]

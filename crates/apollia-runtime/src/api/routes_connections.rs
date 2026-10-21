@@ -7,7 +7,8 @@
 //! exists. A folder is added and removed under `/api/v1/connections/folders`
 //! (see [`folders`]). The agents of a connection are read, and the connection
 //! granted to several agents, under `/api/v1/connections/{id}` (see
-//! [`agents`]).
+//! [`agents`]). A connection of any kind is removed, with what it leaves
+//! behind, by `DELETE /api/v1/connections/{id}` (see [`remove`]).
 
 use axum::{
     extract::State,
@@ -47,6 +48,10 @@ pub fn connections_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> 
         .route(
             "/api/v1/connections/folders/:id",
             delete(folders::remove_folder_connection::<B>),
+        )
+        .route(
+            "/api/v1/connections/:id",
+            delete(remove::remove_connection::<B>),
         )
         .route(
             "/api/v1/connections/:id/agents",
@@ -147,6 +152,7 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
 
 pub(crate) mod agents;
 pub(crate) mod folders;
+pub(crate) mod remove;
 
 #[cfg(test)]
 mod tests;

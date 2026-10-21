@@ -174,6 +174,42 @@ impl ImapAccountStore {
         Ok(account)
     }
 
+    /// Remove the stored connection for `email`: out of the list first, then
+    /// its password out of the secret store. Answers the connection removed.
+    ///
+    /// A password that cannot be deleted is logged, never an error: the
+    /// mailbox is gone from the list, and nothing reads the password of a
+    /// mailbox the list no longer holds.
+    ///
+    /// # Errors
+    /// [`ImapError::NotFound`] when there is none, [`ImapError::Index`] when
+    /// the list cannot be read or written.
+    pub fn remove(&self, email: &str) -> Result<ImapAccount, ImapError> {
+        let mut index = self.read_index()?;
+        let position = index
+            .accounts
+            .iter()
+            .position(|a| a.email.eq_ignore_ascii_case(email))
+            .ok_or_else(|| ImapError::NotFound {
+                email: email.to_owned(),
+            })?;
+        let account = index.accounts.remove(position);
+        self.write_index(&index)?;
+        if let Err(e) = self.secrets.delete(IMAP_SECRET_SERVICE, &account.email) {
+            tracing::event!(
+                tracing::Level::WARN,
+                error = %e,
+                "imap.account.secret_delete_failed"
+            );
+        }
+        tracing::event!(
+            tracing::Level::INFO,
+            host = %account.host,
+            "imap.account.removed"
+        );
+        Ok(account)
+    }
+
     fn read_index(&self) -> Result<Index, ImapError> {
         read_index_at(&self.index_path)
     }

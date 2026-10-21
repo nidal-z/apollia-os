@@ -47,12 +47,15 @@ pub struct GrantConnectionBody {
 }
 
 /// An error of the agent store, in the body this module answers.
-fn agents_error(error: crate::api::routes_llm::servers::ApiError) -> ApiError {
+pub(super) fn agents_error(error: crate::api::routes_llm::servers::ApiError) -> ApiError {
     let (status, Json(body)) = error;
     api_err(status, body.error)
 }
 
-fn find<'a>(connections: &'a [Connection], id: &str) -> Result<&'a Connection, ApiError> {
+pub(super) fn find<'a>(
+    connections: &'a [Connection],
+    id: &str,
+) -> Result<&'a Connection, ApiError> {
     connections
         .iter()
         .find(|connection| connection.id == id)

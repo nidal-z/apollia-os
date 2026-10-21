@@ -240,3 +240,28 @@ fn test_unknown_address_is_not_found() {
         "not_found"
     );
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_a_removed_mailbox_leaves_the_list_and_its_password_the_store() {
+    let _events = EVENTS.lock().await;
+    // GIVEN a store holding a Gmail connection and its password
+    let dir = tempfile::tempdir().unwrap();
+    let secrets = MemorySecrets::default();
+    let store =
+        ImapAccountStore::with_store(dir.path().join(IMAP_INDEX_FILE), Box::new(secrets.clone()));
+    store
+        .add_verified(gmail(), PASSWORD, &Probe(None))
+        .await
+        .unwrap();
+
+    // WHEN it is removed, by an address written in another case, then again
+    let removed = store.remove("Ana@Gmail.com").unwrap();
+    let again = store.remove("ana@gmail.com");
+
+    // THEN the list is empty, the password is gone, and the second removal
+    //      finds nothing
+    assert_eq!(removed, gmail());
+    assert!(store.list().unwrap().is_empty());
+    assert!(secrets.is_empty());
+    assert_eq!(again.unwrap_err().code(), "not_found");
+}

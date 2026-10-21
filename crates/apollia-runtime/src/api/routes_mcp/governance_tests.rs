@@ -30,7 +30,7 @@ use crate::registry::AgentRegistry;
 use crate::router::TaskRouterHandle;
 
 #[derive(Clone)]
-struct MockBackend;
+pub(crate) struct MockBackend;
 
 impl From<DynBackend> for MockBackend {
     fn from(_: DynBackend) -> Self {
@@ -83,7 +83,7 @@ impl ConnectionAdmission for Unreadable {
 }
 
 /// A server the mock MCP script answers for over stdio.
-fn mock_server(name: &str) -> McpServerConfig {
+pub(crate) fn mock_server(name: &str) -> McpServerConfig {
     McpServerConfig {
         format_version: 1,
         name: name.to_string(),
@@ -106,16 +106,16 @@ fn mock_server(name: &str) -> McpServerConfig {
     }
 }
 
-struct Harness {
-    dir: TempDir,
-    state: AppState<MockBackend>,
-    manager: McpClientManagerHandle,
-    journal: AuditJournalHandle,
+pub(crate) struct Harness {
+    pub(crate) dir: TempDir,
+    pub(crate) state: AppState<MockBackend>,
+    pub(crate) manager: McpClientManagerHandle,
+    pub(crate) journal: AuditJournalHandle,
 }
 
 /// An app state with a live MCP manager, `mcp.db` in a temporary directory,
 /// and connection governance over `admission` and a journal.
-async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
+pub(crate) async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
     let dir = TempDir::new().unwrap();
     let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
     let journal = AuditJournalHandle::open(&dir.path().join("audit_journal.db"))
@@ -183,7 +183,7 @@ async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
     }
 }
 
-fn persisted(h: &Harness) -> Vec<McpServerConfig> {
+pub(crate) fn persisted(h: &Harness) -> Vec<McpServerConfig> {
     h.state
         .mcp_server_repo
         .as_ref()

@@ -92,6 +92,51 @@ impl OverrideWriter<'_> {
         Ok(())
     }
 
+    /// Sets lists of tools of several agents at once, each `(agent, field,
+    /// tools)` of `writes`, and records each agent's change: its override,
+    /// then one [`GovernanceEvent::AccessChanged`] per tool granted or taken
+    /// away.
+    ///
+    /// The lists of one field are stored in one transaction, so a refusal
+    /// stores none of them and records nothing.
+    ///
+    /// # Errors
+    ///
+    /// As [`OverrideWriter::set`].
+    pub fn set_tool_lists_of_many(
+        &self,
+        writes: &[(String, OverrideField, Vec<String>)],
+    ) -> Result<(), AgentOverrideError> {
+        let mut agents: Vec<&str> = Vec::new();
+        for (agent, _, _) in writes {
+            if !agents.contains(&agent.as_str()) {
+                agents.push(agent);
+            }
+        }
+        let before = agents
+            .iter()
+            .map(|agent| access_of(self.repo, agent))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut fields: Vec<OverrideField> = writes.iter().map(|(_, field, _)| *field).collect();
+        fields.sort();
+        fields.dedup();
+        for field in &fields {
+            let values: Vec<(String, Value)> = writes
+                .iter()
+                .filter(|(_, written, _)| written == field)
+                .map(|(agent, _, tools)| (agent.clone(), Value::from(tools.clone())))
+                .collect();
+            self.repo.set_overrides(*field, &values)?;
+        }
+        for (agent, before) in agents.iter().zip(&before) {
+            for (_, field, _) in writes.iter().filter(|(written, _, _)| written == agent) {
+                self.record_change(agent, *field, OverrideChange::Set)?;
+            }
+            self.record_access_diff(agent, before, &access_of(self.repo, agent)?)?;
+        }
+        Ok(())
+    }
+
     /// Removes the user's value of `field` for `agent`, and records it.
     /// Removing a field that was not overridden changes nothing and records
     /// nothing.

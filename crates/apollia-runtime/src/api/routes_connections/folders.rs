@@ -209,7 +209,7 @@ pub(crate) async fn remove_folder_connection<B: ExecutionBackend + Clone>(
 }
 
 /// The sources of `registry` made on the folder connection `id`.
-async fn dependent_sources(
+pub(crate) async fn dependent_sources(
     registry: &SourceRegistryHandle,
     id: &str,
 ) -> Result<Vec<DependentSource>, FolderRouteError> {

@@ -26,6 +26,7 @@ use utoipa::{Modify, OpenApi};
         crate::api::routes_connections::folders::remove_folder_connection,
         crate::api::routes_connections::agents::get_connection_agents,
         crate::api::routes_connections::agents::grant_connection,
+        crate::api::routes_connections::remove::remove_connection,
     ),
     components(schemas(
         crate::api::routes_audit::AuditJournalResponse,
@@ -57,6 +58,9 @@ use utoipa::{Modify, OpenApi};
         crate::api::routes_connections::agents::GrantConnectionBody,
         crate::connections::agents::ConnectionAgents,
         crate::connections::agents::ConnectionAgent,
+        crate::api::routes_connections::remove::ConnectionRemoval,
+        crate::connections::removal::RemovedItem,
+        crate::connections::removal::RemovedKind,
     ))
 )]
 pub(super) struct ConnectionsAndAudit;

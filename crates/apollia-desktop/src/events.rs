@@ -416,7 +416,9 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
             "system"
         }
         // The connections page reads it, as it reads the MCP health.
-        RuntimeEvent::ConnectionStateChanged { .. } => "system",
+        RuntimeEvent::ConnectionStateChanged { .. } | RuntimeEvent::ConnectionRemoved { .. } => {
+            "system"
+        }
 
         // ── Workspace / file read ─────────────────────────────────────────
         RuntimeEvent::FileModifiedSinceRead { .. } => "system",
