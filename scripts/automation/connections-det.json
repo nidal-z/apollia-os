@@ -36,7 +36,7 @@
     "settings-nav-developer",
     "sidebar-connection-folder:automation",
     "sidebar-mcp-automation-stub-mcp",
-    "sidebar-mcp-seed-stub"
+    "sidebar-mcp-io-apollia-seed-stub"
   ],
   "steps": [
     {
@@ -1904,7 +1904,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mcp-seed-stub",
+      "testid": "sidebar-mcp-io-apollia-seed-stub",
       "timeoutMs": 15000
     },
     {
@@ -1913,7 +1913,7 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-mcp-seed-stub",
+      "testid": "sidebar-mcp-io-apollia-seed-stub",
       "timeoutMs": 4000
     },
     {
@@ -1963,7 +1963,7 @@
     },
     {
       "kind": "waitGone",
-      "testid": "sidebar-mcp-seed-stub",
+      "testid": "sidebar-mcp-io-apollia-seed-stub",
       "timeoutMs": 15000
     },
     {
@@ -2078,7 +2078,7 @@
     },
     {
       "kind": "waitGone",
-      "testid": "sidebar-mcp-seed-stub",
+      "testid": "sidebar-mcp-io-apollia-seed-stub",
       "timeoutMs": 15000
     },
     {
@@ -3010,7 +3010,7 @@
   "notes": [
     "Detail tabs and the catalogue sheet keep the last selected tab across a selection change: the operator pass leaves the MCP detail on Settings and the catalogue on Custom, so the builder pass re-selects mcp-detail-tab-overview and catalogue-tab-discover before asserting their bodies (mcp-tools-count / catalogue-list).",
     "The add dialog opens on its one warning, which has nothing to tick and remembers nothing in the window: every block that opens it accepts it by wizard-warning-accept, the second of the two gestures (ConnectorWizard.svelte acceptWarning), and the desktop journals that acceptance.",
-    "Two installs happen and both are undone in their own block: the custom form on /usr/bin/python3 ${HOME}/.apollia/mcp-stub-server.py (server automation-stub-mcp) through mcp-disconnect-btn then mcp-disconnect-confirm-btn, and the add dialog on catalogue-entry-io.apollia/seed-stub (server seed-stub, deriveServerName of the title) twice: once removed from its page the same way, once by wizard-remove-btn after a failed trial. A native connector is selected before each install and before the OAuth blocks, so a failed install leaves no MCP detail for the removal clicks to reach, and the seeded rows filesystem and notes are never the target of a confirm. Later sections see the two seeded rows only.",
+    "Two installs happen and both are undone in their own block: the custom form on /usr/bin/python3 ${HOME}/.apollia/mcp-stub-server.py (server automation-stub-mcp) through mcp-disconnect-btn then mcp-disconnect-confirm-btn, and the add dialog on catalogue-entry-io.apollia/seed-stub (server io-apollia-seed-stub, deriveServerName of its registry identifier) twice: once removed from its page the same way, once by wizard-remove-btn after a failed trial. A native connector is selected before each install and before the OAuth blocks, so a failed install leaves no MCP detail for the removal clicks to reach, and the seeded rows filesystem and notes are never the target of a confirm. Later sections see the two seeded rows only.",
     "The add dialog closes from any phase without a confirmation: wizard-cancel-btn at the warning, the authentication or a failed addition, wizard-done-btn after a trial or a refusal. An addition that went through calls oncomplete on close, so the list shows it.",
     "plugin:opener|open_url is stubbed (resolve null) for the whole wizard and OAuth section: auth-help-link and oauth-open-url-link go through handleExternalLinkClick to the opener plugin, and the stub keeps the host browser closed while the click still fires. The stub is dropped by the clearStubs at the end of the section.",
     "oauth_start_flow is answered by the script twice. A reject {kind: oauth_client_not_configured} reaches the missing-client branch of NativeOauthDialog (isMissingClientError reads .kind) for oauth-open-settings-btn, with no sovereignty detour since the command never runs. A resolve imitating OauthStartResult (lib/ipc/connections.ts: auth_url, state, callback_port) reaches the auth step for oauth-open-url-link, oauth-paste-code-toggle, oauth-paste-code-input, oauth-finalize-btn and oauth-cancel-btn; oauth_complete_flow then runs for real with the unknown state and fails with FlowNotFound, the error line the finalize screenshot shows. Each OAuth block ends with clearStubs and a goto chat then goto integrations so the route is healthy again.",

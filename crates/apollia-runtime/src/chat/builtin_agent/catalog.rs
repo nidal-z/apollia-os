@@ -27,7 +27,6 @@ impl BuiltInChatAgent {
     /// - `tool_search`, in deferred MCP mode: searches the granted MCP tools
     ///   and reads nothing else;
     /// - `todo_write`, when the conversation keeps a task list;
-    /// - `propose_agent`, in the conversation that creates an agent;
     /// - the `plan_*` tools, while the conversation is in plan mode.
     ///
     /// An agent or a workflow is offered only when granted (`agent:<id>`,

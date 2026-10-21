@@ -17,6 +17,7 @@
   import McpOverviewTab from "./McpOverviewTab.svelte";
   import McpToolsTab from "./McpToolsTab.svelte";
   import McpSettingsTab from "./McpSettingsTab.svelte";
+  import { enrichmentLabel } from "$lib/connections/catalogueText";
   import { statusFromHealth, syncDescriptor, testOutcomeFromHealth } from "$lib/connections/status";
   import { messageOf } from "$lib/connections/errors";
   import {
@@ -65,7 +66,7 @@
   let disconnectError = $state<string | null>(null);
   let localHealth = $state<McpHealth | null>(null);
 
-  const label = $derived(enrichment?.operator_label ?? server.name);
+  const label = $derived(enrichmentLabel(enrichment, $locale) ?? server.name);
   const displayHealth = $derived(localHealth ?? server.health);
   const displayStatus = $derived(statusFromHealth(displayHealth));
   const sync = $derived(syncDescriptor(server.last_call_at));

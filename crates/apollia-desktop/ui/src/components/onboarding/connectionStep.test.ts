@@ -9,6 +9,7 @@ import {
   allPresent,
   connectionType,
   entryToAdd,
+  lineLabel,
   loadConnectionProposal,
   missingLines,
   nothingToPropose,
@@ -38,7 +39,7 @@ const BROWSER_ENTRY = {
   name: "@modelcontextprotocol/server-puppeteer",
   title: "Web Browser",
   packages: [{ identifier: "@modelcontextprotocol/server-puppeteer" }],
-  enrichment: { operator_label: "Web Browser" },
+  enrichment: { operator_label: { en: "Web Browser", fr: "Navigateur web" } },
 } as unknown as RegistryServerView;
 
 const NOTION_ENTRY = {
@@ -163,8 +164,31 @@ describe("connection step - the connections required and missing are listed", ()
     expect(asked).toEqual(["request-sorter"]);
   });
 
-  test("a connection already there is not listed", () => {
-    // GIVEN two required connections, one added earlier under the name of its entry
+  test("a connection added under the identifier of its entry is not listed", () => {
+    // GIVEN two required connections, one added under the name the wizard
+    // draws from the identifier of its entry
+    const required = requiredConnections(MANIFEST);
+    const connections = [connection("mcp:modelcontextprotocol-server-puppeteer", "mcp")];
+
+    // WHEN the lines are built
+    const lines = missingLines(required, connections, [BROWSER_ENTRY, NOTION_ENTRY]);
+
+    // THEN only the one still missing is listed
+    expect(lines.map((line) => line.type)).toEqual(["com.notion/mcp"]);
+  });
+
+  test("a line is named in the interface language", () => {
+    // GIVEN the line of an entry the selection labels in English and French
+    const [line] = missingLines(requiredConnections(MANIFEST), [], [BROWSER_ENTRY, NOTION_ENTRY]);
+
+    // WHEN it is named in each language
+    // THEN each language reads its own label
+    expect(line && lineLabel(line, "fr")).toBe("Navigateur web");
+    expect(line && lineLabel(line, "en")).toBe("Web Browser");
+  });
+
+  test("a connection already there under its former name is not listed", () => {
+    // GIVEN two required connections, one added earlier under the label of its entry
     const required = requiredConnections(MANIFEST);
     const connections = [connection("mcp:web-browser", "mcp")];
 

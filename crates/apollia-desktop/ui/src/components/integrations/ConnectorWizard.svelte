@@ -9,7 +9,8 @@
    * Node.js downloaded first when it needs it, and tried on its own. A failed
    * trial leaves it added, with Retry and Remove; a refusal says who refused.
    */
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
+  import { entryLabel } from "$lib/connections/catalogueText";
   import { CheckCircle2, XCircle } from "lucide-svelte";
   import { Dialog } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
@@ -248,9 +249,7 @@
     return envOk && argsComplete;
   });
 
-  const displayName = $derived(
-    server.enrichment?.operator_label ?? server.title ?? server.name,
-  );
+  const displayName = $derived(entryLabel(server, $locale));
   const serverName = $derived(deriveServerName(server));
 
   /** Whether the authentication step shows, once the probe (if any) answered. */
@@ -639,7 +638,7 @@
       </div>
       <WizardStepCoaching
         serverName={server.name}
-        serverTitle={server.title}
+        serverTitle={displayName}
         ontry={(prompt) => ontryprompt(prompt)}
       />
     {:else if phase === "trial_failed"}
