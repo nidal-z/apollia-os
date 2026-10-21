@@ -10,6 +10,7 @@ pub mod official;
 pub mod origin;
 pub mod overrides;
 pub mod python_server;
+pub mod remote_catalogue;
 
 /// The registry client lives in `apollia-mcp`, shared with the runtime's
 /// `/api/v1/mcp/registry` routes; the desktop reads it under its old path.

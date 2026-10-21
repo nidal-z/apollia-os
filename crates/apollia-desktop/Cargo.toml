@@ -35,6 +35,7 @@ apollia-tools        = { workspace = true }
 apollia-permissions  = { workspace = true }
 apollia-aip      = { workspace = true }
 apollia-auth        = { workspace = true }
+apollia-signing     = { workspace = true }
 dashmap             = { workspace = true }
 chrono           = { workspace = true }
 uuid             = { workspace = true }

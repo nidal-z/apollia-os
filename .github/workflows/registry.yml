@@ -1,0 +1,200 @@
+# Registry - publishes the signed model index and connection catalogue.
+#
+# The application reads two catalogues online, each only when it is opened,
+# and accepts each only when its minisign signature holds against the
+# distribution key compiled into it:
+#
+#   - the index of model cards, built from `registry/models/` by
+#     scripts/build_model_registry_index.py;
+#   - the connection catalogue, built from the selection of the desktop
+#     (`crates/apollia-desktop/src/mcp/enrichments.json` and its npm locks) by
+#     scripts/build_mcp_catalogue_index.py.
+#
+# Editing either catalogue is editing its source in this tree, then running
+# this workflow: every installed application reads the new entries the next
+# time its catalogue opens, without a release. It is started by hand, never by
+# a push or a pull request.
+#
+# One run, in order:
+#   1. refuses to start when a secret or a variable is missing;
+#   2. builds both indexes and signs each with the distribution key
+#      (scripts/sign_with_distribution_key.py);
+#   3. verifies both with the public key this tree compiles into the
+#      application, so a secret that drifted from that key stops here and not
+#      on every installed machine;
+#   4. publishes to the registry (Scaleway Object Storage, served as
+#      https://registry.apollia.fr), each index before its signature, then
+#      asks a cache purge of the four files;
+#   5. attaches the same files to the latest release, the mirror the
+#      application tries when the registry does not answer
+#      (`releases/latest/download/<name>`).
+#
+# A purge that fails does not hold back the mirror: the files are published
+# either way and the run is marked failed at the end, so the stale cache is
+# seen. The secrets are those of engines.yml, fenced the same way: the trigger
+# is `workflow_dispatch` alone (scripts/check_ci_workflows.py, rule
+# `dist-secrets`).
+
+name: Registry
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  REGISTRY_URL: https://registry.apollia.fr
+  S3_ENDPOINT: https://s3.fr-par.scw.cloud
+
+concurrency:
+  group: registry
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish the model index and the connection catalogue
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # attach the indexes to the latest release
+    env:
+      OUT: ${{ github.workspace }}/dist/registry
+    steps:
+      - name: Refuse a run with a missing secret or variable
+        env:
+          APOLLIA_DIST_SIGNING_KEY: ${{ secrets.APOLLIA_DIST_SIGNING_KEY }}
+          APOLLIA_DIST_SIGNING_KEY_PASSWORD: ${{ secrets.APOLLIA_DIST_SIGNING_KEY_PASSWORD }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_REGISTRY_BUCKET: ${{ vars.SCW_REGISTRY_BUCKET }}
+          SCW_REGION: ${{ vars.SCW_REGION }}
+          SCW_EDGE_PIPELINE_ID: ${{ vars.SCW_EDGE_PIPELINE_ID }}
+        run: |
+          missing=0
+          for name in APOLLIA_DIST_SIGNING_KEY APOLLIA_DIST_SIGNING_KEY_PASSWORD \
+                      SCW_ACCESS_KEY SCW_SECRET_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::the repository secret ${name} is not set; nothing can be signed or published"
+              missing=1
+            fi
+          done
+          for name in SCW_REGISTRY_BUCKET SCW_REGION SCW_EDGE_PIPELINE_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::the repository variable ${name} is not set; the registry cannot be reached or its cache purged"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
+        with:
+          toolchain: "1.95.0"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y libssl-dev cmake clang pkg-config
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: registry
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Build and sign both indexes
+        env:
+          APOLLIA_DIST_SIGNING_KEY: ${{ secrets.APOLLIA_DIST_SIGNING_KEY }}
+          APOLLIA_DIST_SIGNING_KEY_PASSWORD: ${{ secrets.APOLLIA_DIST_SIGNING_KEY_PASSWORD }}
+        run: |
+          mkdir -p "$OUT"
+          python3 scripts/build_model_registry_index.py --out "$OUT/models-stable-index.json"
+          python3 scripts/build_mcp_catalogue_index.py --out "$OUT/mcp-stable-index.json"
+          python3 scripts/sign_with_distribution_key.py \
+            "$OUT/models-stable-index.json" "$OUT/mcp-stable-index.json"
+          ls -l "$OUT"
+          (cd "$OUT" && sha256sum -- *)
+
+      - name: Both indexes are signed by the key the application trusts
+        env:
+          APOLLIA_REGISTRY_DIR: ${{ env.OUT }}
+        run: |
+          cargo test -p apollia-llm --test registry_publication -- \
+            --ignored --exact test_published_indexes_are_signed_by_the_compiled_key
+
+      - name: Publish to the registry
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.SCW_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          BUCKET: ${{ vars.SCW_REGISTRY_BUCKET }}
+          PIPELINE_ID: ${{ vars.SCW_EDGE_PIPELINE_ID }}
+        run: |
+          put() {
+            aws s3 cp "$1" "s3://${BUCKET}/$2" \
+              --endpoint-url "$S3_ENDPOINT" --acl public-read \
+              --content-type "$3" --only-show-errors
+            echo "published ${REGISTRY_URL}/$2"
+          }
+          put "$OUT/models-stable-index.json" models/stable/index.json application/json
+          put "$OUT/models-stable-index.json.minisig" models/stable/index.json.minisig text/plain
+          put "$OUT/mcp-stable-index.json" mcp/stable/index.json application/json
+          put "$OUT/mcp-stable-index.json.minisig" mcp/stable/index.json.minisig text/plain
+          if ! python3 - <<'PY'
+          import json, os, sys, urllib.request
+          base = os.environ["REGISTRY_URL"]
+          assets = [
+              f"{base}/{path}"
+              for path in (
+                  "models/stable/index.json",
+                  "models/stable/index.json.minisig",
+                  "mcp/stable/index.json",
+                  "mcp/stable/index.json.minisig",
+              )
+          ]
+          body = json.dumps({"pipeline_id": os.environ["PIPELINE_ID"], "assets": assets}).encode()
+          request = urllib.request.Request(
+              "https://api.scaleway.com/edge-services/v1beta1/purge-requests",
+              data=body,
+              method="POST",
+              headers={"X-Auth-Token": os.environ["SCW_SECRET_KEY"], "Content-Type": "application/json"},
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  print(f"cache purge requested: HTTP {response.status}")
+          except Exception as err:
+              print(f"::error::the registry cache was not purged ({err}); the files are published and stay stale until the cache expires")
+              sys.exit(1)
+          PY
+          then
+            echo "PURGE_FAILED=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Attach both indexes to the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          latest="$(gh release view --repo "$REPO" --json tagName --jq .tagName)"
+          gh release upload "$latest" --repo "$REPO" --clobber \
+            "$OUT/models-stable-index.json" "$OUT/models-stable-index.json.minisig" \
+            "$OUT/mcp-stable-index.json" "$OUT/mcp-stable-index.json.minisig"
+          echo "attached to ${latest}"
+
+      - name: Fail the run when the cache was not purged
+        if: env.PURGE_FAILED == '1'
+        run: |
+          echo "::error::published, but the registry cache still serves the previous indexes until it expires"
+          exit 1

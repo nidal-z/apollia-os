@@ -241,6 +241,9 @@ MCP client: approvals, tool loading, and the bridge that serves exposed agents a
 | `mcp.tool_loading` | one of eager, deferred | `"deferred"` | Load every MCP tool schema up front, or on first use. The organization policy can fix it. |
 | `mcp.tool_search_limit` | integer | `20` | Results returned by the tool_search tool (1 to 500). The organization policy can fix it. |
 | `mcp.server_enabled` | boolean | `false` | Let an MCP client reach the agents and workflows marked exposed, through apollia-os mcp server. The organization policy can fix it. |
+| `mcp.catalogue_url` | string | `"https://registry.apollia.fr/mcp/stable/index.json"` | Address of the signed index of the connection catalogue. The organization policy can fix it. |
+| `mcp.catalogue_mirror_url` | string | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/mcp-stable-index.json"` | Address tried when the connection catalogue does not answer; empty disables it. The organization policy can fix it. |
+| `mcp.catalogue_enabled` | boolean | `true` | Read the online index of the connection catalogue. The organization policy can fix it. |
 
 ### `[hooks]`
 

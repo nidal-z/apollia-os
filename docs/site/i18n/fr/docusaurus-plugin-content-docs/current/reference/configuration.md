@@ -247,6 +247,9 @@ Client MCP : approbations, chargement des outils, et le pont qui sert les agents
 | `mcp.tool_loading` | l'une de eager, deferred | `"deferred"` | Charger tous les schémas d'outils MCP d'emblée, ou au premier usage. La politique de l'organisation peut l'imposer. |
 | `mcp.tool_search_limit` | entier | `20` | Résultats rendus par l'outil tool_search (1 à 500). La politique de l'organisation peut l'imposer. |
 | `mcp.server_enabled` | booléen | `false` | Laisser un client MCP atteindre les agents et workflows marqués exposés, par apollia-os mcp server. La politique de l'organisation peut l'imposer. |
+| `mcp.catalogue_url` | chaîne | `"https://registry.apollia.fr/mcp/stable/index.json"` | Adresse de l'index signé du catalogue des connexions. La politique de l'organisation peut l'imposer. |
+| `mcp.catalogue_mirror_url` | chaîne | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/mcp-stable-index.json"` | Adresse essayée quand le catalogue des connexions ne répond pas ; vide, elle est désactivée. La politique de l'organisation peut l'imposer. |
+| `mcp.catalogue_enabled` | booléen | `true` | Lire l'index en ligne du catalogue des connexions. La politique de l'organisation peut l'imposer. |
 
 ### `[hooks]`
 

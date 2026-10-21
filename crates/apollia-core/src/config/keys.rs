@@ -170,6 +170,9 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("mcp.tool_loading", Enum(&["eager", "deferred"]), Some("\"deferred\""), Reloadable, "Load every MCP tool schema up front, or on first use.")),
     locked(key("mcp.tool_search_limit", Integer, Some("20"), Reloadable, "Results returned by the tool_search tool (1 to 500).")),
     locked(key("mcp.server_enabled", Boolean, Some("false"), Reloadable, "Let an MCP client reach the agents and workflows marked exposed, through apollia-os mcp server.")),
+    locked(key("mcp.catalogue_url", KeyType::String, Some("\"https://registry.apollia.fr/mcp/stable/index.json\""), Reloadable, "Address of the signed index of the connection catalogue.")),
+    locked(key("mcp.catalogue_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/mcp-stable-index.json\""), Reloadable, "Address tried when the connection catalogue does not answer; empty disables it.")),
+    locked(key("mcp.catalogue_enabled", Boolean, Some("true"), Reloadable, "Read the online index of the connection catalogue.")),
     // [hooks]
     key("hooks.handlers", TableArray, Some("[]"), Reloadable, "Lifecycle hook handlers, a command or an HTTP endpoint each."),
     // [chat]

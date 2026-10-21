@@ -127,7 +127,9 @@ pub use llm_section::{
     infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
     LlmGuardrailsConfig, LlmObservabilityConfig,
 };
-pub use mcp::{McpConfig, McpToolLoading};
+pub use mcp::{
+    McpConfig, McpToolLoading, DEFAULT_MCP_CATALOGUE_MIRROR_URL, DEFAULT_MCP_CATALOGUE_URL,
+};
 pub use models::{
     default_models_dir, models_dir, resolve_models_dir, ModelsConfig, ModelsImportConfig,
     DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL, MODELS_DIR_KEY, MODELS_DIR_NAME,

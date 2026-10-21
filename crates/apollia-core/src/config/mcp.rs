@@ -6,6 +6,17 @@ use super::{validate_bounds, ConfigError};
 // McpConfig
 // ─────────────────────────────────────────────
 
+/// Default address of the signed index of the connection catalogue.
+///
+/// A host the project serves, never the storage bucket behind it, so that an
+/// organisation can point the same key at an internal mirror.
+pub const DEFAULT_MCP_CATALOGUE_URL: &str = "https://registry.apollia.fr/mcp/stable/index.json";
+
+/// Default fallback address, tried when the main one does not answer: the same
+/// index attached to the latest release of the project.
+pub const DEFAULT_MCP_CATALOGUE_MIRROR_URL: &str =
+    "https://github.com/Apollia-OS/apollia-os/releases/latest/download/mcp-stable-index.json";
+
 /// MCP tool loading strategy.
 ///
 /// Controls whether tool schemas are loaded eagerly at session start or
@@ -62,6 +73,21 @@ pub struct McpConfig {
     /// restart.
     #[serde(default)]
     pub server_enabled: bool,
+
+    /// Address of the signed index of the connection catalogue, read when
+    /// the catalogue is opened. Its entries replace the selection compiled
+    /// into the application, entry by entry, and add to it.
+    #[serde(default = "default_catalogue_url")]
+    pub catalogue_url: String,
+
+    /// Address tried when the index does not answer; empty disables it.
+    #[serde(default = "default_catalogue_mirror_url")]
+    pub catalogue_mirror_url: String,
+
+    /// Read the online index of the connection catalogue. Off, the
+    /// selection compiled into the application is the whole catalogue.
+    #[serde(default = "default_catalogue_enabled")]
+    pub catalogue_enabled: bool,
 }
 
 impl Default for McpConfig {
@@ -70,6 +96,9 @@ impl Default for McpConfig {
             tool_loading: McpToolLoading::default(),
             tool_search_limit: default_tool_search_limit(),
             server_enabled: false,
+            catalogue_url: default_catalogue_url(),
+            catalogue_mirror_url: default_catalogue_mirror_url(),
+            catalogue_enabled: default_catalogue_enabled(),
         }
     }
 }
@@ -91,4 +120,16 @@ impl McpConfig {
 
 fn default_tool_search_limit() -> usize {
     20
+}
+
+fn default_catalogue_url() -> String {
+    DEFAULT_MCP_CATALOGUE_URL.to_owned()
+}
+
+fn default_catalogue_mirror_url() -> String {
+    DEFAULT_MCP_CATALOGUE_MIRROR_URL.to_owned()
+}
+
+fn default_catalogue_enabled() -> bool {
+    true
 }

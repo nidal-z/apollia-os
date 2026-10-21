@@ -375,11 +375,22 @@ impl ConnectorEnrichment {
     }
 }
 
-/// Load the builtin enrichments embedded at compile time.
-///
-/// Returns all entries from `enrichments.json`. If the embedded JSON is somehow
-/// malformed the function returns an empty `Vec` rather than panicking.
+/// The catalogue in force: the selection compiled into the application, with
+/// the signed online index this machine last accepted laid over it (see
+/// [`crate::mcp::remote_catalogue`]). Without an accepted index it is the
+/// compiled selection alone.
 pub fn load_builtin_enrichments() -> Vec<ConnectorEnrichment> {
+    let compiled = compiled_enrichments();
+    match crate::mcp::remote_catalogue::kept_on_this_machine() {
+        Some(remote) => crate::mcp::remote_catalogue::merge(compiled, &remote),
+        None => compiled,
+    }
+}
+
+/// The selection compiled into the application, from `enrichments.json`. If
+/// the embedded JSON is somehow malformed the function returns an empty `Vec`
+/// rather than panicking.
+pub fn compiled_enrichments() -> Vec<ConnectorEnrichment> {
     let json = include_str!("enrichments.json");
     serde_json::from_str(json).unwrap_or_default()
 }

@@ -405,6 +405,7 @@ dependencies = [
  "apollia-memory",
  "apollia-permissions",
  "apollia-runtime",
+ "apollia-signing",
  "apollia-sources",
  "apollia-stt",
  "apollia-tools",

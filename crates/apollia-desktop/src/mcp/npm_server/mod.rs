@@ -76,6 +76,16 @@ const EMBEDDED_LOCKS: &[(&str, &str)] = &[
     ),
 ];
 
+/// The npm lock a pinned curated package is installed from: the one the
+/// online catalogue this machine accepted gives for it, else the one compiled
+/// into the application.
+pub fn pinned_lock(package: &str) -> Option<std::borrow::Cow<'static, str>> {
+    crate::mcp::remote_catalogue::kept_on_this_machine()
+        .and_then(|remote| remote.npm_lock(package))
+        .map(std::borrow::Cow::Owned)
+        .or_else(|| embedded_lock(package).map(std::borrow::Cow::Borrowed))
+}
+
 /// The embedded npm lock of a curated package, if it has one.
 pub fn embedded_lock(package: &str) -> Option<&'static str> {
     EMBEDDED_LOCKS
@@ -366,7 +376,7 @@ pub fn plan(
             lock: None,
         }));
     };
-    let raw = embedded_lock(&invocation.package).ok_or_else(|| NpmServerError::InvalidLock {
+    let raw = pinned_lock(&invocation.package).ok_or_else(|| NpmServerError::InvalidLock {
         package: invocation.package.clone(),
         reason: "the entry is pinned but carries no lock".into(),
     })?;
@@ -377,7 +387,7 @@ pub fn plan(
             )));
         }
     }
-    let lock = NpmLock::check(&invocation.package, &pinned, raw)?;
+    let lock = NpmLock::check(&invocation.package, &pinned, &raw)?;
     Ok(Some(NpmServerPlan {
         invocation,
         version: Some(pinned),

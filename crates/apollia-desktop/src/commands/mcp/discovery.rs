@@ -295,6 +295,7 @@ pub(crate) async fn fetch_registry_servers(
 pub async fn fetch_mcp_curated(
     state: State<'_, RuntimeLink>,
 ) -> Result<Vec<RegistryServerView>, String> {
+    crate::mcp::remote_catalogue::refresh_on_open().await;
     let enrichments = load_builtin_enrichments();
     let installed_names: HashSet<String> = match state.get_json("/api/v1/mcp/servers").await {
         Ok(json) => serde_json::from_value::<Vec<McpServerStatus>>(json)

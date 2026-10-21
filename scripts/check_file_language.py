@@ -270,6 +270,8 @@ FRENCH_DOCUMENTS = (
 # after the page it illustrates.
 BILINGUAL_DATA = (
     "crates/apollia-desktop/src/mcp/enrichments.json",
+    # The connection catalogue as published: the same entries, one label per locale.
+    "crates/apollia-desktop/src/mcp/remote_catalogue/fixtures/",
     "crates/apollia-desktop/ui/src/lib/i18n/en.json",
     "crates/apollia-desktop/ui/src/lib/i18n/fr.json",
     "crates/apollia-desktop/ui/src/lib/i18n/glossary.json",
