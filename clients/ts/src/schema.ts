@@ -1180,6 +1180,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections/{id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/connections/{id}/check`: check one connection now, and
+         *     answer it with the state found, dated.
+         */
+        post: operations["check_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connections/{id}/grants": {
         parameters: {
             query?: never;
@@ -7134,6 +7154,14 @@ export interface components {
              */
             value?: Record<string, never> | null;
         };
+        /** @description Body of `POST /api/v1/connections/{id}/check`, which may be left out. */
+        CheckConnectionBody: {
+            /**
+             * @description Read-only tool call an MCP server is probed with after its handshake,
+             *     when its connector declares one; ignored for any other kind.
+             */
+            probe?: Record<string, never> | null;
+        };
         /** @description Body of `DELETE /api/v1/llm/agents/{agent}/model`. */
         ClearAgentModelResponse: {
             /** @description Agent name. */
@@ -7365,7 +7393,7 @@ export interface components {
             reason?: {
                 detail?: string | null;
                 /** @enum {string} */
-                key: "not_checked" | "sign_in_again" | "unreachable" | "failing" | "forbidden_by_policy";
+                key: "not_checked" | "sign_in_again" | "password_refused" | "folder_not_found" | "unreachable" | "failing" | "forbidden_by_policy";
             } | null;
             /** @description Sends data off this machine. Computed, see [`is_remote`]. */
             remote: boolean;
@@ -15306,6 +15334,61 @@ export interface operations {
             };
             /** @description A store could not be read */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    check_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Connection identifier, as `GET /api/v1/connections` lists it */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional; the read-only probe of an MCP server */
+        requestBody?: {
+            content: {
+                "application/json": null | components["schemas"]["CheckConnectionBody"];
+            };
+        };
+        responses: {
+            /** @description Checked; the connection with the state found, kept and announced */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"];
+                };
+            };
+            /** @description Connection not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A store could not be read or written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description MCP not configured, for an MCP server */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

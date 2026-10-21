@@ -15,7 +15,7 @@ use apollia_mcp::tool_search::ToolIndexSnapshot;
 use apollia_mcp::Provenance;
 use apollia_tools::{FamilySource, ToolDescriptor};
 
-use super::state::{kept_mcp_state, shown_state};
+use super::state::{kept_detail, kept_mcp_state, shown_state};
 use super::{
     folder_connections, imap_connection_id, is_prechecked, is_remote, is_remote_host, Connection,
     ConnectionKind, ConnectionState, ConnectionTool,
@@ -75,6 +75,9 @@ pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
     out.extend(folder_connections(&sources.folders));
     for connection in &mut out {
         let forbidden = sources.forbidden.contains(&connection.id);
+        if connection.kind != ConnectionKind::Mcp {
+            connection.state = kept_detail(sources.states.get(&connection.id));
+        }
         if forbidden {
             connection.state = ConnectionState::ForbiddenByPolicy;
         }

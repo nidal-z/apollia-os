@@ -7,7 +7,8 @@
 //! exists. A folder is added and removed under `/api/v1/connections/folders`
 //! (see [`folders`]). The agents of a connection are read, and the connection
 //! granted to several agents, under `/api/v1/connections/{id}` (see
-//! [`agents`]).
+//! [`agents`]). A connection is checked now under
+//! `/api/v1/connections/{id}/check` (see [`check`]).
 
 use axum::{
     extract::State,
@@ -55,6 +56,10 @@ pub fn connections_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> 
         .route(
             "/api/v1/connections/:id/grants",
             post(agents::grant_connection::<B>),
+        )
+        .route(
+            "/api/v1/connections/:id/check",
+            post(check::check_connection::<B>),
         )
 }
 
@@ -146,6 +151,7 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
 }
 
 pub(crate) mod agents;
+pub(crate) mod check;
 pub(crate) mod folders;
 
 #[cfg(test)]

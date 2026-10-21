@@ -535,6 +535,17 @@ variant and its state types live in `apollia-core`, part of its public API,
 because the event carries them. An announcement sent before a reader
 subscribed is not lost to it: the reader finds the same state in the list.
 
+A connection is checked on request, in the way its kind allows, and reaches
+its own service and nothing else. A native account obtains a valid token,
+refreshed at its provider's token endpoint when it expired; a refused refresh
+asks to sign in again. A mailbox logs in on its own server; a refused login
+reads as a refused password. A folder is looked up on this machine; one that
+is gone reads as not found. An MCP server is started when it has no session,
+then tested: a fresh handshake that lists its tools proves it, and the
+read-only probe its connector declares, when it declares one, says whether
+its operations fail. A connection the organisation forbids is not reached.
+What a check finds is kept and announced like any other state.
+
 ## Connectors {#connectors}
 
 Google and Microsoft connectors authenticate through OAuth2 with PKCE. No

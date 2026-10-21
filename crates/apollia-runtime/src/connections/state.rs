@@ -163,6 +163,25 @@ pub(crate) fn kept_mcp_state(stored: Option<&ConnectionStateRecord>) -> Connecti
     }
 }
 
+/// The detailed state of a native account, a mailbox or a folder, read from
+/// the state kept for it: one no check has found failing reads as connected.
+pub(crate) fn kept_detail(stored: Option<&ConnectionStateRecord>) -> ConnectionState {
+    let key = stored
+        .filter(|s| s.state == ConnectionStatus::NeedsRepair)
+        .and_then(|s| s.reason.as_ref())
+        .map(|r| r.key);
+    match key {
+        Some(ConnectionReasonKey::SignInAgain | ConnectionReasonKey::PasswordRefused) => {
+            ConnectionState::NeedsReauth
+        }
+        Some(ConnectionReasonKey::Unreachable | ConnectionReasonKey::FolderNotFound) => {
+            ConnectionState::Unavailable
+        }
+        Some(ConnectionReasonKey::Failing) => ConnectionState::Degraded,
+        _ => ConnectionState::Connected,
+    }
+}
+
 /// The state kept for every connection, by identifier.
 ///
 /// Never an error: a store that cannot be read is logged and answers no
