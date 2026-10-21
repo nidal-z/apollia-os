@@ -86,6 +86,7 @@ mod tests {
     use super::*;
     use crate::manager::McpClientManagerHandle;
     use apollia_core::McpHealth;
+    use futures::FutureExt;
     use tokio::sync::{mpsc, watch};
 
     fn status(name: &str) -> McpServerStatus {
@@ -125,14 +126,15 @@ mod tests {
         let (_sender, snapshot) = watch::channel(published);
         let handle = McpClientManagerHandle { tx, snapshot };
 
-        // WHEN the statuses and the tool index are read
-        let read = tokio::time::timeout(std::time::Duration::from_millis(100), async {
-            (handle.status().await, handle.get_tool_index().await)
-        })
-        .await;
+        // WHEN the statuses and the tool index are polled once
+        let statuses = handle.status().now_or_never();
+        let index = handle.get_tool_index().now_or_never();
 
-        // THEN both answer from the published state, uptime counted to now
-        let (statuses, index) = read.expect("the read waited on the actor");
+        // THEN both complete at the first poll, from the published state: a
+        // read through the actor would never complete, since nothing drains
+        // its channel; the uptime is counted to now
+        let statuses = statuses.expect("the status read waited on the actor");
+        let index = index.expect("the tool index read waited on the actor");
         assert_eq!(statuses.len(), 1);
         assert_eq!(statuses[0].name, "notion");
         assert_eq!(statuses[0].uptime_secs, Some(0));

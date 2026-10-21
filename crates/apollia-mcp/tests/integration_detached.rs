@@ -11,6 +11,7 @@ use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::manager::McpClientManagerHandle;
 use apollia_mcp::session::LoadingMode;
 use apollia_tools::ToolRegistryHandle;
+use futures::FutureExt;
 
 fn slow_server_config(name: &str) -> McpServerConfig {
     McpServerConfig {
@@ -96,7 +97,10 @@ async fn test_a_call_outcome_is_published_before_the_answer() {
     )
     .await
     .unwrap();
-    let before = manager.status().await;
+    let before = manager
+        .status()
+        .now_or_never()
+        .expect("the status read waited on the actor");
     assert_eq!(before[0].health, McpHealth::Healthy { verified: false });
     assert!(before[0].last_call_at.is_none());
 
@@ -106,8 +110,13 @@ async fn test_a_call_outcome_is_published_before_the_answer() {
         .await
         .unwrap();
 
-    // THEN the state read right after the answer carries its outcome
-    let after = manager.status().await;
+    // THEN the state read right after the answer carries its outcome, and
+    // the read completes at its first poll: it is the published state, not
+    // a question to the actor, which would answer on another task
+    let after = manager
+        .status()
+        .now_or_never()
+        .expect("the status read waited on the actor");
     assert_eq!(after[0].health, McpHealth::Healthy { verified: true });
     assert!(after[0].last_call_at.is_some());
 
