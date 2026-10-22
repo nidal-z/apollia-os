@@ -558,11 +558,17 @@ lui-même.
 
 Une connexion se lit dans l'un de quatre états : elle marche, elle est à
 réparer (avec la raison et la seule action qui la répare), elle est en pause,
-ou elle est bloquée par l'organisation. Le runtime constate l'état ; personne
-ne le saisit. L'état d'un serveur MCP suit sa santé, et une session dont la
-poignée de main a réussi mais dont aucune opération n'a encore fait ses
-preuves ne se lit pas comme marchant : elle garde l'état « marche » constaté
-avant, et sinon demande une vérification. Un jeton impossible à obtenir au
+ou elle est bloquée par l'organisation. Tant que rien ne l'a constatée dans
+l'un d'eux, elle se lit « pas encore vérifiée » : un état neutre, sans date,
+dont la seule action est de la vérifier, rangé avec le reste et jamais avec ce
+qui est à réparer. Elle ne marche ni n'est cassée : une installation mise à
+jour depuis une version qui ne gardait aucun état ne montre rien à réparer
+tant que rien n'a échoué. Le runtime constate l'état ; personne ne le saisit.
+L'état d'un serveur MCP suit sa santé, et une session dont la poignée de main
+a réussi mais dont aucune opération n'a encore fait ses preuves ne se lit pas
+comme marchant : elle garde l'état « marche » constaté avant, et sinon se lit
+« pas encore vérifiée ». Une vérification, un usage ou un échec au démarrage
+la remplace par l'état constaté. Un jeton impossible à obtenir au
 démarrage demande de se reconnecter ; une session dont le transport se ferme
 de lui-même est marquée injoignable au moment où il se ferme, pas au prochain
 appel.

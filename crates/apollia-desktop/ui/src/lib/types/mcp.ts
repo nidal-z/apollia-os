@@ -276,10 +276,11 @@ export type ConnectionState =
 
 /**
  * The state of a connection as its user reads it, found by the runtime: it
- * works, it needs repair (the reason says why), its user paused it, or the
- * organisation policy blocks it.
+ * works, it needs repair (the reason says why), its user paused it, the
+ * organisation policy blocks it, or nothing has found it in any state yet
+ * (`not_checked`, neither working nor broken).
  */
-export type ConnectionStatusKey = "working" | "needs_repair" | "paused" | "blocked";
+export type ConnectionStatusKey = "working" | "needs_repair" | "paused" | "blocked" | "not_checked";
 
 /** Why a connection is not working, as a key the interface translates. */
 export type ConnectionReasonKey =

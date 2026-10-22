@@ -21803,12 +21803,13 @@
           },
           "status": {
             "type": "string",
-            "description": "What its user reads: working, needs repair, paused, or blocked by the organisation.",
+            "description": "What its user reads: working, needs repair, paused, blocked by the organisation, or not checked yet (nothing has found it in any state).",
             "enum": [
               "working",
               "needs_repair",
               "paused",
-              "blocked"
+              "blocked",
+              "not_checked"
             ]
           },
           "tools": {

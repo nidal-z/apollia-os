@@ -1,19 +1,23 @@
 //! The state a connection reads in: found, dated, kept, and announced.
 //!
 //! Four states, never six: working, needs repair (with its reason), paused,
-//! blocked by the organisation. A state is found, never declared:
+//! blocked by the organisation; and, before any of them was found, not
+//! checked yet, which is neither working nor broken. A state is found, never
+//! declared:
 //!
 //! - An MCP server's state follows its health. A session whose handshake
 //!   passed but whose operations nothing has yet proven is not working: it
-//!   keeps the working state it was last found in, and otherwise needs a
-//!   check.
+//!   keeps the working state it was last found in, and otherwise reads as
+//!   not checked yet.
 //! - Every state found is kept in `connection_states` of `system.db` by the
 //!   recorder ([`spawn_state_recorder`]) and announced as
 //!   [`RuntimeEvent::ConnectionStateChanged`]. The list reads the kept state,
 //!   so it shows what was last found, dated, even for a connection nothing
 //!   has run since the start, and even when the event was sent before its
 //!   reader subscribed.
-//! - A connection with no state kept needs a check.
+//! - A connection with no state kept reads as not checked yet, never as
+//!   needing repair: a 0.3.0 installation, which kept no state, shows nothing
+//!   to repair until something has failed.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -49,7 +53,7 @@ pub fn mcp_record(
                 return None;
             }
             (
-                ConnectionStatus::NeedsRepair,
+                ConnectionStatus::NotChecked,
                 Some(ConnectionReason::new(
                     ConnectionReasonKey::NotChecked,
                     Some(NOT_VERIFIED.to_owned()),
@@ -112,7 +116,8 @@ pub(crate) fn shown_state(
     forbidden: bool,
     live: Option<&McpHealth>,
 ) -> ShownState {
-    let stored = states.get(id);
+    let stored = states.get(id).map(read_as_today);
+    let stored = stored.as_ref();
     if forbidden {
         return ShownState {
             status: ConnectionStatus::Blocked,
@@ -140,11 +145,26 @@ pub(crate) fn shown_state(
             checked_at: Some(kept.checked_at.clone()),
         },
         (None, None) => ShownState {
-            status: ConnectionStatus::NeedsRepair,
+            status: ConnectionStatus::NotChecked,
             reason: Some(not_checked()),
             checked_at: None,
         },
     }
+}
+
+/// A kept state as it reads today: a record written before the state
+/// `not_checked` existed said "needs repair, not checked", which reads as
+/// not checked yet.
+fn read_as_today(kept: &ConnectionStateRecord) -> ConnectionStateRecord {
+    let mut record = kept.clone();
+    let unproven = record
+        .reason
+        .as_ref()
+        .is_some_and(|r| r.key == ConnectionReasonKey::NotChecked);
+    if record.state == ConnectionStatus::NeedsRepair && unproven {
+        record.state = ConnectionStatus::NotChecked;
+    }
+    record
 }
 
 /// The detailed state of an MCP server with no live session, read from the
@@ -185,7 +205,7 @@ pub(crate) fn kept_detail(stored: Option<&ConnectionStateRecord>) -> ConnectionS
 /// The state kept for every connection, by identifier.
 ///
 /// Never an error: a store that cannot be read is logged and answers no
-/// state, so every connection then reads as needing a check and the list
+/// state, so every connection then reads as not checked yet and the list
 /// still loads.
 pub(crate) fn kept_states(data_dir: &std::path::Path) -> HashMap<String, ConnectionStateRecord> {
     let path = apollia_core::paths::DataFile::System.path(data_dir);

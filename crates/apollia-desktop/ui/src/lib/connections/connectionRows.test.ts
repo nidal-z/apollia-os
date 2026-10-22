@@ -84,6 +84,23 @@ describe("connectionRows", () => {
     expect(rows.map((r) => r.label)).toEqual(["delta", "zeta", "alpha", "beta", "gamma"]);
   });
 
+  it("ranks a connection not checked yet with the rest, by name, never with what needs repair", () => {
+    // GIVEN one server to repair, two never checked and one working
+    const never = { status: "not_checked", reason: { key: "not_checked" } } as const;
+    const connections = [
+      connection({ id: "mcp:omega", label: "omega", ...repair }),
+      connection({ id: "mcp:alpha", label: "alpha", ...never }),
+      connection({ id: "mcp:kappa", label: "kappa" }),
+      connection({ id: "mcp:beta", label: "beta", ...never }),
+    ];
+
+    // WHEN the rows are built
+    const rows = connectionRows(connections);
+
+    // THEN only the one to repair leads; the two never checked sit among the rest by name
+    expect(rows.map((r) => r.label)).toEqual(["omega", "alpha", "beta", "kappa"]);
+  });
+
   it("carries the state, its reason, its date and the package the runtime gave", () => {
     // GIVEN a server brought by a package, to repair since a given time
     const connections = [

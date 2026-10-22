@@ -919,6 +919,10 @@
       "needs_repair": "À réparer",
       "paused": "En pause",
       "blocked": "Bloquée par l'organisation",
+      "not_checked": "Pas encore vérifiée",
+      "action": {
+        "check": "Vérifier"
+      },
       "reason": {
         "not_checked": "pas encore vérifiée",
         "sign_in_again": "le compte doit se reconnecter",

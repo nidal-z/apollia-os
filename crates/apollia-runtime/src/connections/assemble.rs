@@ -58,7 +58,8 @@ pub struct ConnectionSources {
 /// marked so, whatever else its state would be. A connection in pause reads
 /// paused, whatever state was kept for it before, and stopped in the detail
 /// its kind gives. Each other one reads in the state it was last found in,
-/// dated; one never found yet needs a check.
+/// dated; one never found yet reads as not checked yet, not as needing
+/// repair.
 #[must_use]
 pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
     let mut out = Vec::new();
@@ -120,7 +121,7 @@ fn native_connection(provider: ConnectorProvider, account: &str) -> Connection {
         remote: true,
         official,
         state: ConnectionState::Connected,
-        status: ConnectionStatus::NeedsRepair,
+        status: ConnectionStatus::NotChecked,
         reason: Some(super::state::not_checked()),
         checked_at: None,
         package: None,
@@ -147,7 +148,7 @@ fn imap_connection(account: &ImapAccount) -> Connection {
         remote: is_remote_host(&account.host),
         official,
         state: ConnectionState::Connected,
-        status: ConnectionStatus::NeedsRepair,
+        status: ConnectionStatus::NotChecked,
         reason: Some(super::state::not_checked()),
         checked_at: None,
         package: None,
@@ -192,7 +193,7 @@ fn mcp_connection(config: &McpServerConfig, sources: &ConnectionSources) -> Conn
         remote: is_remote(&config.transport, config.url.as_deref()),
         official,
         state,
-        status: ConnectionStatus::NeedsRepair,
+        status: ConnectionStatus::NotChecked,
         reason: Some(super::state::not_checked()),
         checked_at: None,
         package,

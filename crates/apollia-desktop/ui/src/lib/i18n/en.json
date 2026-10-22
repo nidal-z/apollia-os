@@ -919,6 +919,10 @@
       "needs_repair": "Needs repair",
       "paused": "Paused",
       "blocked": "Blocked by your organisation",
+      "not_checked": "Not checked yet",
+      "action": {
+        "check": "Check"
+      },
       "reason": {
         "not_checked": "not checked yet",
         "sign_in_again": "the account must sign in again",

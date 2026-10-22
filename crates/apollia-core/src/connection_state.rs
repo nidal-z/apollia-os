@@ -3,7 +3,9 @@
 //!
 //! A connection reads in one of four states: it works, it needs repair (with
 //! the reason and the one action that repairs it), it is paused, or the
-//! organisation blocked it. The state is found by the runtime, never entered
+//! organisation blocked it. Until something has found it in one of them, it
+//! reads as not checked yet, which says neither that it works nor that it is
+//! broken. The state is found by the runtime, never entered
 //! by anyone, and each record carries the moment it was found. The last
 //! record of each connection is kept in the table `connection_states`
 //! (created by `system_db::migrate_v13`), so a list opened after a restart
@@ -49,6 +51,9 @@ pub enum ConnectionStatus {
     Paused,
     /// The organisation policy forbids it.
     Blocked,
+    /// Nothing has found it in any state yet: no check, no use, no failure.
+    /// The action is to check it.
+    NotChecked,
 }
 
 /// Why a connection is not working, as a key the interface translates.
@@ -113,6 +118,7 @@ impl ConnectionStatus {
             Self::NeedsRepair => "needs_repair",
             Self::Paused => "paused",
             Self::Blocked => "blocked",
+            Self::NotChecked => "not_checked",
         }
     }
 
@@ -122,6 +128,7 @@ impl ConnectionStatus {
             Self::NeedsRepair,
             Self::Paused,
             Self::Blocked,
+            Self::NotChecked,
         ]
         .into_iter()
         .find(|s| s.as_str() == text)
@@ -367,6 +374,7 @@ mod tests {
             ConnectionStatus::NeedsRepair,
             ConnectionStatus::Paused,
             ConnectionStatus::Blocked,
+            ConnectionStatus::NotChecked,
         ];
         for status in all {
             // WHEN it is serialized and written as text
