@@ -3,10 +3,11 @@ import type { Connection } from "$lib/types";
 
 const getAgentDefinition = vi.fn();
 const setAgentOverride = vi.fn();
+const grantConnection = vi.fn();
 
 vi.mock("$lib/ipc/agentSheet", () => ({ getAgentDefinition }));
 vi.mock("$lib/ipc/agentAdjust", () => ({ setAgentOverride }));
-vi.mock("$lib/ipc/connections", () => ({ listConnections: vi.fn() }));
+vi.mock("$lib/ipc/connections", () => ({ listConnections: vi.fn(), grantConnection }));
 
 const { accessWithTools, connectionTools, grantConnectionToApollia } = await import("./apolliaGrant");
 
@@ -29,6 +30,7 @@ describe("granting a connection just added to the agent of the chat", () => {
   beforeEach(() => {
     getAgentDefinition.mockReset();
     setAgentOverride.mockReset();
+    grantConnection.mockReset();
   });
 
   test("every tool of the connection is given, after what the agent held and once", () => {
@@ -58,18 +60,33 @@ describe("granting a connection just added to the agent of the chat", () => {
       .fn()
       .mockResolvedValueOnce([browser([])])
       .mockResolvedValueOnce([browser(["mcp:navigateur/browser_navigate"])]);
-    getAgentDefinition.mockResolvedValue({ access: ["web_search"] });
+    getAgentDefinition.mockResolvedValue({ access: ["web_search"], overridden: ["access"] });
 
     // WHEN the connection is granted to Apollia
     const added = await grantConnectionToApollia("navigateur", { list, waitMs: 0 });
 
-    // THEN its tool is written into the accesses of Apollia
+    // THEN its tool is granted to Apollia by the runtime
     expect(added).toBe(1);
     expect(list).toHaveBeenCalledTimes(2);
-    expect(setAgentOverride).toHaveBeenCalledWith("apollia:chat", "access", [
-      "web_search",
+    expect(grantConnection).toHaveBeenCalledWith("mcp:navigateur", ["apollia:chat"], [
       "mcp:navigateur/browser_navigate",
     ]);
+  });
+
+  test("an Apollia on the default access is not given its default as a fixed list", async () => {
+    // GIVEN an Apollia nobody chose an access for, whose card lists the reading family
+    const list = vi.fn().mockResolvedValue([browser(["mcp:navigateur/browser_click"])]);
+    getAgentDefinition.mockResolvedValue({ access: ["web_search", "file_read"], overridden: [] });
+
+    // WHEN the browser is granted to it
+    const added = await grantConnectionToApollia("navigateur", { list, waitMs: 0 });
+
+    // THEN only the tool of the browser goes to the runtime, and no access list is written
+    expect(added).toBe(1);
+    expect(grantConnection).toHaveBeenCalledWith("mcp:navigateur", ["apollia:chat"], [
+      "mcp:navigateur/browser_click",
+    ]);
+    expect(setAgentOverride).not.toHaveBeenCalled();
   });
 
   test("a connection that never offers a tool writes nothing", async () => {
@@ -83,6 +100,6 @@ describe("granting a connection just added to the agent of the chat", () => {
     expect(added).toBe(0);
     expect(list).toHaveBeenCalledTimes(3);
     expect(getAgentDefinition).not.toHaveBeenCalled();
-    expect(setAgentOverride).not.toHaveBeenCalled();
+    expect(grantConnection).not.toHaveBeenCalled();
   });
 });

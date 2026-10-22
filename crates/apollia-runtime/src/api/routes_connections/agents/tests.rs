@@ -161,11 +161,33 @@ async fn test_agents_of_each_connection_are_resolved_by_the_runtime() {
     assert_eq!(unknown.unwrap_err().0, StatusCode::NOT_FOUND);
 }
 
+/// The tools the journal of `agent` records as granted, in order.
+async fn granted(journal: &AuditJournalHandle, agent: &str) -> Vec<String> {
+    journal
+        .query_run(&governance_run_id(agent))
+        .await
+        .into_iter()
+        .filter(|e| e.kind == JournalEntryKind::AccessChanged && e.payload["change"] == "granted")
+        .filter_map(|e| e.payload["access_id"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// The overrides of `agent`, by field.
+fn override_fields(dir: &tempfile::TempDir, agent: &str) -> Vec<apollia_tools::OverrideField> {
+    AgentRepository::open(&apollia_core::paths::DataFile::Agents.path(dir.path()))
+        .unwrap()
+        .overrides(agent)
+        .unwrap()
+        .into_iter()
+        .map(|o| o.field)
+        .collect()
+}
+
 // GIVEN the runtime above with a signed journal
 // WHEN gmail.send of the account is granted to `triage` and to `writer`
-// THEN both hold it in the answer, `writer` keeps its default access as a
-//      fixed list, and the journal of each agent records its override and the
-//      tool granted
+// THEN both hold it in the answer; `triage` has it appended to its list,
+//      `writer` keeps its default access and holds the tool on top of it; the
+//      journal of each agent records its override and that tool alone
 #[tokio::test]
 async fn test_a_grant_to_several_agents_writes_and_journals_each() {
     // GIVEN
@@ -189,20 +211,110 @@ async fn test_a_grant_to_several_agents_writes_and_journals_each() {
     let server = agents_of(&state, google(), "mcp:notion").await.unwrap();
     assert_eq!(ids(&server), ["apollia:chat", "writer"]);
     assert_eq!(server.agents[1].tools, ["mcp:notion/search"]);
-    assert!(!server.agents[1].by_default);
+    assert!(server.agents[1].by_default);
+    assert_eq!(
+        override_fields(&dir, "triage"),
+        [apollia_tools::OverrideField::Access]
+    );
+    assert_eq!(
+        override_fields(&dir, "writer"),
+        [apollia_tools::OverrideField::AccessAdded]
+    );
     for agent in ["triage", "writer"] {
         let entries = journal.query_run(&governance_run_id(agent)).await;
         assert_eq!(
             entries.first().map(|e| e.kind.clone()),
             Some(JournalEntryKind::AgentOverrideChanged)
         );
+        assert_eq!(granted(&journal, agent).await, [GMAIL_SEND], "{agent}");
+    }
+}
+
+// GIVEN `writer` on the default access, given gmail.send of the account
+// WHEN a reading tool of the server reaches the machine afterwards
+// THEN `writer` holds it too, by default, beside the tool given
+#[tokio::test]
+async fn test_an_agent_given_a_connection_still_follows_the_default() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let (state, _) = runtime(&dir, true).await;
+    let body = GrantConnectionBody {
+        agents: vec!["writer".into()],
+        tools: vec![GMAIL_SEND.into()],
+    };
+    grant(&state, google(), "native:google:ada@example.com", &body)
+        .await
+        .unwrap();
+
+    // WHEN
+    let mut fetch = crate::connectors_bridge::google_tool_descriptors()[0].clone();
+    fetch.name = "mcp:notion/fetch".to_owned();
+    fetch.family = ActionFamily::Read;
+    state
+        .tool_registry_handle
+        .as_ref()
+        .unwrap()
+        .register(fetch)
+        .await
+        .unwrap();
+    let server = agents_of(&state, google(), "mcp:notion").await.unwrap();
+    let account = agents_of(&state, google(), "native:google:ada@example.com")
+        .await
+        .unwrap();
+
+    // THEN
+    let writer = server.agents.iter().find(|a| a.id == "writer").unwrap();
+    assert_eq!(writer.tools, ["mcp:notion/fetch", "mcp:notion/search"]);
+    assert!(writer.by_default);
+    let writer = account.agents.iter().find(|a| a.id == "writer").unwrap();
+    assert_eq!(writer.tools, [GMAIL_SEND]);
+}
+
+// GIVEN the runtime above with a signed journal: `mailer` holds the bare
+//      gmail.send its package declares, `writer` holds the server's reading
+//      tool by default
+// WHEN gmail.send of the account is granted to `mailer`, and the server's
+//      reading tool to `writer`
+// THEN neither agent receives an override nor a journal entry: each held the
+//      tool already
+#[tokio::test]
+async fn test_a_tool_already_held_is_neither_written_nor_journaled() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let (state, journal) = runtime(&dir, true).await;
+    let journal = journal.unwrap();
+    let to = |agent: &str, tool: &str| GrantConnectionBody {
+        agents: vec![agent.to_owned()],
+        tools: vec![tool.to_owned()],
+    };
+
+    // WHEN
+    grant(
+        &state,
+        google(),
+        "native:google:ada@example.com",
+        &to("mailer", GMAIL_SEND),
+    )
+    .await
+    .unwrap();
+    grant(
+        &state,
+        google(),
+        "mcp:notion",
+        &to("writer", "mcp:notion/search"),
+    )
+    .await
+    .unwrap();
+
+    // THEN
+    for agent in ["mailer", "writer"] {
+        assert_eq!(overrides(&dir, agent), 0, "{agent}");
         assert!(
-            entries
-                .iter()
-                .any(|e| e.kind == JournalEntryKind::AccessChanged
-                    && e.payload["access_id"] == GMAIL_SEND
-                    && e.payload["change"] == "granted"),
-            "{agent}: {entries:?}"
+            journal
+                .query_run(&governance_run_id(agent))
+                .await
+                .is_empty(),
+            "{agent}"
         );
     }
 }

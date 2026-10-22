@@ -83,14 +83,8 @@
     "catalogue-entry-com.notion/mcp",
     "catalogue-entry-io.apollia/seed-failing",
     "catalogue-entry-io.apollia/seed-stub",
-    "catalogue-filter-all",
-    "catalogue-filter-community",
-    "catalogue-filter-installed",
-    "catalogue-filter-official",
     "catalogue-native-google",
     "catalogue-native-microsoft",
-    "catalogue-tab-custom",
-    "catalogue-tab-discover",
     "channel-card-det-auto-channel",
     "channel-card-seed-channel-desktop",
     "channel-card-seed-channel-webhook",
@@ -9812,6 +9806,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-card-add",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "native-detail-tabbar",
       "timeoutMs": 3000
@@ -9888,6 +9887,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-card-add",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "native-detail-tab-accounts",
       "timeoutMs": 3000
@@ -9924,6 +9928,11 @@
     {
       "kind": "click",
       "testid": "catalogue-native-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {
@@ -10362,6 +10371,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-card-add",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "native-detail-tab-accounts",
       "timeoutMs": 3000
@@ -10383,42 +10397,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "catalogue-tabbar",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "catalogue-tab-discover",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-tab-custom",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-filter-all",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-filter-installed",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-filter-official",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-filter-community",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-filter-official",
+      "testid": "catalogue-address",
       "timeoutMs": 3000
     },
     {
@@ -10426,27 +10410,12 @@
       "ms": 250
     },
     {
-      "kind": "click",
-      "testid": "catalogue-filter-community",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "sleep",
       "ms": 250
     },
     {
-      "kind": "click",
-      "testid": "catalogue-filter-installed",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "sleep",
       "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-filter-all",
-      "timeoutMs": 3000
     },
     {
       "kind": "fill",
@@ -10496,7 +10465,7 @@
     },
     {
       "kind": "click",
-      "testid": "catalogue-tab-custom",
+      "testid": "catalogue-address",
       "timeoutMs": 3000
     },
     {
@@ -10578,12 +10547,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "catalogue-tabbar",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
-      "testid": "catalogue-tab-custom",
+      "testid": "catalogue-address",
       "timeoutMs": 3000
     },
     {
@@ -10871,11 +10840,6 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "waitFor",
       "testid": "catalogue-native-google",
       "timeoutMs": 3000
@@ -10883,6 +10847,11 @@
     {
       "kind": "click",
       "testid": "catalogue-native-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {
@@ -11020,12 +10989,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "catalogue-tabbar",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
@@ -11039,7 +11003,7 @@
     },
     {
       "kind": "click",
-      "testid": "catalogue-tab-custom",
+      "testid": "catalogue-address",
       "timeoutMs": 3000
     },
     {
@@ -11110,11 +11074,6 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "waitFor",
       "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
@@ -11122,6 +11081,11 @@
     {
       "kind": "click",
       "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {
@@ -11151,17 +11115,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "catalogue-tabbar",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-filter-community",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
@@ -11172,6 +11126,11 @@
     {
       "kind": "click",
       "testid": "catalogue-entry-@modelcontextprotocol/server-brave-search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {
@@ -11240,22 +11199,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "catalogue-tabbar",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
       "testid": "catalogue-explore-all",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-filter-community",
       "timeoutMs": 3000
     },
     {
@@ -11266,6 +11215,11 @@
     {
       "kind": "click",
       "testid": "catalogue-entry-io.apollia/seed-failing",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {
@@ -11332,6 +11286,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-card-add",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "native-detail-tab-accounts",
       "timeoutMs": 3000
@@ -11359,22 +11318,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "catalogue-tabbar",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
       "testid": "catalogue-explore-all",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-filter-community",
       "timeoutMs": 3000
     },
     {
@@ -11385,6 +11334,11 @@
     {
       "kind": "click",
       "testid": "catalogue-entry-io.apollia/seed-stub",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {
@@ -11460,6 +11414,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-card-add",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "native-detail-tab-accounts",
       "timeoutMs": 3000
@@ -11487,22 +11446,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "catalogue-tabbar",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
       "testid": "catalogue-explore-all",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-filter-community",
       "timeoutMs": 3000
     },
     {
@@ -11513,6 +11462,11 @@
     {
       "kind": "click",
       "testid": "catalogue-entry-io.apollia/seed-stub",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {
@@ -11662,6 +11616,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-card-add",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "native-detail-tab-accounts",
       "timeoutMs": 3000
@@ -11689,22 +11648,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "catalogue-tabbar",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
       "testid": "catalogue-explore-all",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-filter-community",
       "timeoutMs": 3000
     },
     {
@@ -11715,6 +11664,11 @@
     {
       "kind": "click",
       "testid": "catalogue-entry-io.apollia/seed-stub",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {
@@ -11776,6 +11730,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-card-add",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "native-detail-tab-accounts",
       "timeoutMs": 3000
@@ -11822,17 +11781,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "catalogue-tabbar",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-filter-official",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
@@ -11843,6 +11792,11 @@
     {
       "kind": "click",
       "testid": "catalogue-entry-com.notion/mcp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {
@@ -12019,6 +11973,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-card-add",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "native-detail-tab-accounts",
       "timeoutMs": 3000
@@ -12106,6 +12065,11 @@
     {
       "kind": "click",
       "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {
@@ -12315,6 +12279,11 @@
     {
       "kind": "click",
       "testid": "catalogue-native-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
       "timeoutMs": 3000
     },
     {

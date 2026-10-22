@@ -21,7 +21,7 @@ vi.hoisted(() => {
 import "$lib/i18n";
 import fr from "$lib/i18n/fr.json";
 import FolderConnectionDialog from "./FolderConnectionDialog.svelte";
-import CatalogueSheet from "./CatalogueSheet.svelte";
+import AddConnectionWindow from "./AddConnectionWindow.svelte";
 import ConnectionSummaryDetail from "../detail/ConnectionSummaryDetail.svelte";
 import type { Connection } from "$lib/types";
 
@@ -55,25 +55,27 @@ async function french(): Promise<void> {
   await waitLocale("fr");
 }
 
-describe("the folder in the selection", () => {
-  test("the add sheet offers Folder first, built in", async () => {
-    // GIVEN the add sheet, in French
+describe("the folder in the add window", () => {
+  test("the add window offers Folder on this computer, beside the mailbox", async () => {
+    // GIVEN the add window, in French
     await french();
 
     // WHEN it is rendered
-    const html = renderToString(CatalogueSheet as never, {
+    const html = renderToString(AddConnectionWindow as never, {
       props: {
-        open: true, registry: [], agents: [], installedNames: new Set(), installedByPackage: new Map(),
-        registryLoading: false, catalogueTier: "curated", onclose: noop, onconnect: noop,
-        onmanage: noop, oninstalled: noop, onaddnative: noop, onaddfolder: noop,
+        open: true, query: "", chosen: null, selection: [], publicEntries: [], failures: [],
+        catalogueTier: "curated", loading: false, agents: [], installedNames: new Set(),
+        installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop,
+        onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, oninstalled: noop,
       } as never,
     }).body;
+    const computer = html.slice(html.indexOf('data-testid="catalogue-group-computer"'));
 
-    // THEN "Dossier" comes before the native accounts, with the "Intégrée" badge
-    expect(html).toContain('data-testid="catalogue-folder"');
-    expect(html.indexOf("catalogue-folder")).toBeLessThan(html.indexOf("catalogue-native-google"));
+    // THEN "Dossier" sits in "Sur cet ordinateur", before the mailbox
+    expect(computer).toContain('data-testid="catalogue-folder"');
+    expect(computer.indexOf("catalogue-folder")).toBeLessThan(computer.indexOf("catalogue-native-mailbox"));
+    expect(text(html)).toContain(fr.connections.add_window.groups.computer);
     expect(text(html)).toContain(fr.connections.folder.name);
-    expect(text(html)).toContain(fr.connections.badge_builtin);
   });
 });
 

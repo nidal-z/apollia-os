@@ -23,7 +23,7 @@
   import ConnectionSummaryDetail from "../components/connections/detail/ConnectionSummaryDetail.svelte";
   import BuiltinToolsDetail from "../components/connections/detail/BuiltinToolsDetail.svelte";
   import { tools as builtinTools, loadTools as loadBuiltinTools } from "$lib/stores/toolGovernance";
-  import CatalogueSheet from "../components/connections/catalogue/CatalogueSheet.svelte";
+  import AddConnectionWindow from "../components/connections/catalogue/AddConnectionWindow.svelte";
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
   import MailboxDialog from "../components/integrations/MailboxDialog.svelte";
@@ -41,7 +41,21 @@
   import { messageOf, formatTauriError } from "$lib/connections/errors";
   import { needsOauthSetup } from "$lib/connections/status";
   import { loadConnections, forbiddenConnections } from "$lib/connections/connectionList";
-  import { createCatalogueSource, type CatalogueTier } from "$lib/connections/catalogueSource";
+  import {
+    createCatalogueSource,
+    type CatalogueFailure,
+    type CatalogueTier,
+    type CatalogueView,
+  } from "$lib/connections/catalogueSource";
+  import {
+    ADD_WINDOW_CLOSED,
+    backToSearch,
+    flowCancelled,
+    flowDone,
+    leaveForFlow,
+    openAddWindow,
+    type AddEntry,
+  } from "$lib/connections/addWindow";
   import {
     NATIVE_PROVIDER_KEYS,
     connectionRows,
@@ -93,6 +107,8 @@
   let servers = $state<McpServerStatusView[]>([]);
   let enrichmentMap = $state(new Map<string, ConnectorEnrichmentView>());
   let registry = $state<RegistryServerView[]>([]);
+  let publicEntries = $state<RegistryServerView[]>([]);
+  let catalogueFailures = $state<CatalogueFailure[]>([]);
   let agents = $state<AgentListItem[]>([]);
   let loading = $state(false);
   let loadError = $state<string | null>(null);
@@ -149,8 +165,10 @@
     });
   }
 
-  // ── Catalogue + wizard ───────────────────────────────────────────────────────
-  let catalogueOpen = $state(false);
+  // ── Add window + wizard ──────────────────────────────────────────────────────
+  // The window keeps its search while a flow it opened stands in its place, so
+  // cancelling that flow gives the search back rather than the list.
+  let addWindow = $state(ADD_WINDOW_CLOSED);
   let registryLoading = $state(false);
   let catalogueTier = $state<CatalogueTier>("none");
   // Opening reads the selection only; the public catalogue is asked by
@@ -266,12 +284,17 @@
     }
   }
 
+  function showView(view: CatalogueView): void {
+    catalogueTier = view.tier;
+    registry = view.selection;
+    publicEntries = view.publicEntries;
+    catalogueFailures = view.failures;
+  }
+
   async function showSelection(): Promise<void> {
     registryLoading = true;
     try {
-      const view = await catalogueSource.selection();
-      catalogueTier = view.tier;
-      registry = view.entries;
+      showView(await catalogueSource.selection());
     } finally {
       registryLoading = false;
     }
@@ -281,9 +304,7 @@
     if (registryLoading) return;
     registryLoading = true;
     try {
-      const view = await catalogueSource.exploreAll();
-      catalogueTier = view.tier;
-      registry = view.entries;
+      showView(await catalogueSource.exploreAll());
     } finally {
       registryLoading = false;
     }
@@ -314,15 +335,37 @@
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   function handleOpenCatalogue(): void {
-    catalogueOpen = true;
+    addWindow = openAddWindow();
     void showSelection();
   }
 
-  /** Choosing an entry opens the add dialog on its warning. */
+  /** Add on a catalogue card opens the add dialog on its warning, in place of the window. */
   function handleConnect(server: RegistryServerView): void {
-    catalogueOpen = false;
+    addWindow = leaveForFlow(addWindow);
     selectedRegistryServer = server;
     wizardOpen = true;
+  }
+
+  /** Add on the card of `entry`: the flow of its kind. */
+  function addEntry(entry: AddEntry): void {
+    switch (entry.kind) {
+      case "catalogue":
+        handleConnect(entry.entry);
+        return;
+      case "native":
+        addWindow = flowDone();
+        selection = { kind: "native", provider: entry.provider };
+        return;
+      case "mailbox":
+        addWindow = leaveForFlow(addWindow);
+        mailboxOpen = true;
+        return;
+      case "folder":
+        void addFolder();
+        return;
+      case "address":
+        return;
+    }
   }
 
   /**
@@ -333,7 +376,7 @@
     await showSelection();
     const entry = findSelectionEntry(registry, entryId);
     if (entry) handleConnect(entry);
-    else catalogueOpen = true;
+    else addWindow = openAddWindow();
   }
 
   /**
@@ -341,9 +384,13 @@
    * system picker, then the folder added. A cancelled picker changes nothing.
    */
   async function addFolder(): Promise<void> {
-    catalogueOpen = false;
+    addWindow = leaveForFlow(addWindow);
     const outcome = await chooseAndAddFolder($t("connections.folder.picker_title"));
-    if (outcome.kind === "cancelled") return;
+    if (outcome.kind === "cancelled") {
+      addWindow = flowCancelled(addWindow);
+      return;
+    }
+    addWindow = flowDone();
     folderOutcome = outcome;
     folderDialogOpen = true;
     if (outcome.kind === "added") {
@@ -358,7 +405,7 @@
   }
 
   function handleManage(name: string): void {
-    catalogueOpen = false;
+    addWindow = flowDone();
     selection = { kind: "mcp", name };
   }
 
@@ -478,7 +525,7 @@
     tryTarget = null;
     wizardOpen = false;
     selectedRegistryServer = null;
-    catalogueOpen = false;
+    addWindow = flowDone();
     void loadAll();
   }
 
@@ -611,11 +658,12 @@
     onclose={() => {
       wizardOpen = false;
       selectedRegistryServer = null;
+      addWindow = flowCancelled(addWindow);
     }}
     oncomplete={() => {
       wizardOpen = false;
       selectedRegistryServer = null;
-      catalogueOpen = false;
+      addWindow = flowDone();
       void loadAll();
     }}
     ontryprompt={tryAddedServer}
@@ -624,8 +672,12 @@
 
 <MailboxDialog
   open={mailboxOpen}
-  onclose={() => (mailboxOpen = false)}
+  onclose={() => {
+    mailboxOpen = false;
+    addWindow = flowCancelled(addWindow);
+  }}
   onadded={(connectionId) => {
+    addWindow = flowDone();
     selection = { kind: "connection", id: connectionId };
     void loadAll();
   }}
@@ -661,30 +713,27 @@
   onopenclient={(provider) => openClientSection(provider)}
 />
 
-<CatalogueSheet
-  open={catalogueOpen}
-  {registry}
+<AddConnectionWindow
+  open={addWindow.open}
+  bind:query={addWindow.query}
+  chosen={addWindow.chosen}
+  selection={registry}
+  {publicEntries}
+  failures={catalogueFailures}
+  {catalogueTier}
+  loading={registryLoading}
   {agents}
   {installedNames}
   {installedByPackage}
-  {registryLoading}
-  {catalogueTier}
-  onclose={() => (catalogueOpen = false)}
+  onclose={() => (addWindow = ADD_WINDOW_CLOSED)}
+  onchoose={(key) => (addWindow = { ...addWindow, chosen: key })}
+  onback={() => (addWindow = backToSearch(addWindow))}
   onexploreall={handleExploreAll}
   onbacktoselection={showSelection}
-  onconnect={handleConnect}
+  onadd={addEntry}
   onmanage={handleManage}
-  onaddfolder={() => void addFolder()}
-  onaddnative={(provider) => {
-    catalogueOpen = false;
-    selection = { kind: "native", provider };
-  }}
-  onaddmailbox={() => {
-    catalogueOpen = false;
-    mailboxOpen = true;
-  }}
   oninstalled={() => {
-    catalogueOpen = false;
+    addWindow = flowDone();
     void loadAll();
   }}
 />

@@ -9,6 +9,10 @@
 //! nothing else. Any other access is a choice made on its card, an override
 //! of the access field, which then replaces the default whole.
 //!
+//! Giving such an agent a connection does not replace its default: the tools
+//! given are stored apart ([`OverrideField::AccessAdded`]), and the agent
+//! holds the default, read again at each run, plus those tools.
+//!
 //! "Active" is what the tool registry holds: a native tool compiled in, an
 //! MCP tool of a connected server. The tools switched off by the operator are
 //! taken out by the caller, which knows the disabled list.
@@ -80,14 +84,22 @@ pub enum AgentAccess {
     Listed(Vec<String>),
     /// The default access, read against the machine when the run starts.
     Default,
+    /// The default access, read against the machine when the run starts,
+    /// plus the tools given on top of it.
+    DefaultWith(Vec<String>),
 }
 
 impl AgentAccess {
     /// The access of `agent`: the default access when nobody chose for it
-    /// ([`reads_by_default`]), its listed access otherwise.
+    /// ([`reads_by_default`]), with the tools given on top of it if any; its
+    /// listed access otherwise.
     pub fn of(agent: &ResolvedAgent) -> Self {
         if reads_by_default(agent) {
-            AgentAccess::Default
+            if agent.access_added.is_empty() {
+                AgentAccess::Default
+            } else {
+                AgentAccess::DefaultWith(agent.access_added.clone())
+            }
         } else {
             AgentAccess::Listed(agent.access.clone())
         }
@@ -103,6 +115,9 @@ impl AgentAccess {
         match self {
             AgentAccess::Listed(tools) => tools,
             AgentAccess::Default => default_access(registry, default, &[]).await,
+            AgentAccess::DefaultWith(added) => {
+                with_added(default_access(registry, default, &[]).await, &added)
+            }
         }
     }
 }
@@ -160,16 +175,35 @@ pub async fn default_access(
     names
 }
 
-/// `agent` with its default access written in when nobody chose for it, so a
-/// card shows what the agent is granted. The `overridden` list is left as it
-/// is: the access is still the default, not the user's.
+/// `default` with every tool of `added` it lacks appended, in order.
+fn with_added(mut default: Vec<String>, added: &[String]) -> Vec<String> {
+    for tool in added {
+        if !default.contains(tool) {
+            default.push(tool.clone());
+        }
+    }
+    default
+}
+
+/// `agent` with its default access written in when nobody chose for it, the
+/// tools given on top of it after, `disabled` left out of both: a card shows
+/// what the agent is granted, and a tool switched off is granted to nobody.
+/// The `overridden` list is left as it is: the access is still the default,
+/// not the user's.
 pub async fn with_default_access(
     mut agent: ResolvedAgent,
     registry: &ToolRegistryHandle,
     default: &DefaultAccess,
+    disabled: &[String],
 ) -> ResolvedAgent {
     if reads_by_default(&agent) {
-        agent.access = default_access(registry, default, &[]).await;
+        let added: Vec<String> = agent
+            .access_added
+            .iter()
+            .filter(|tool| !disabled.contains(tool))
+            .cloned()
+            .collect();
+        agent.access = with_added(default_access(registry, default, disabled).await, &added);
     }
     agent
 }

@@ -28607,7 +28607,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`,\n`planning`, `profile`."
+            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `access_added`, `sources`,\n`autonomy`, `planning`, `profile`. `access_added` names the tools\ngiven on top of the default access, which `access` lists after it."
           },
           "package": {
             "type": [
