@@ -139,6 +139,9 @@ pub enum FamilySource {
     Builtin,
     /// Declared by the package that ships the tool, in its `apollia.toml`.
     Package,
+    /// Set by the operator for a tool of a connection the selection does not
+    /// classify. It wins over the hints the server declares.
+    Operator,
 }
 
 /// Coarse-grained risk classification surfaced in approval UIs.
@@ -620,6 +623,8 @@ mod tests {
             (FamilySource::Selection, "selection"),
             (FamilySource::Unsourced, "none"),
             (FamilySource::Builtin, "builtin"),
+            (FamilySource::Package, "package"),
+            (FamilySource::Operator, "operator"),
         ];
         for (source, wire) in cases {
             // WHEN it is serialised then read back

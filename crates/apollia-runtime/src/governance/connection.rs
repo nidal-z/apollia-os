@@ -9,6 +9,7 @@
 use std::sync::Arc;
 
 use apollia_mcp::Provenance;
+use apollia_tools::ActionFamily;
 use serde::{Deserialize, Serialize};
 
 use crate::audit_journal::{AuditJournalHandle, JournalEntryDraft, JournalEntryKind};
@@ -122,6 +123,19 @@ pub enum ConnectionEvent {
         /// Who added it.
         actor: String,
     },
+    /// The operator gave a tool of the connection another action family.
+    ToolReclassified {
+        /// Connection identifier, `mcp:<server>`.
+        connection_id: String,
+        /// Name of the tool on its server.
+        tool: String,
+        /// Family the tool had before.
+        from: ActionFamily,
+        /// Family the operator gave it.
+        to: ActionFamily,
+        /// Who reclassified it.
+        actor: String,
+    },
 }
 
 impl ConnectionEvent {
@@ -164,7 +178,8 @@ impl ConnectionEvent {
             | ConnectionEvent::SecretRemoved { connection_id, .. }
             | ConnectionEvent::AccountConnected { connection_id, .. }
             | ConnectionEvent::AccountDisconnected { connection_id, .. }
-            | ConnectionEvent::FolderAdded { connection_id, .. } => connection_id,
+            | ConnectionEvent::FolderAdded { connection_id, .. }
+            | ConnectionEvent::ToolReclassified { connection_id, .. } => connection_id,
         }
     }
 
@@ -180,6 +195,7 @@ impl ConnectionEvent {
             ConnectionEvent::AccountConnected { .. } => JournalEntryKind::AccountConnected,
             ConnectionEvent::AccountDisconnected { .. } => JournalEntryKind::AccountDisconnected,
             ConnectionEvent::FolderAdded { .. } => JournalEntryKind::FolderAdded,
+            ConnectionEvent::ToolReclassified { .. } => JournalEntryKind::ToolReclassified,
         }
     }
 }
@@ -355,6 +371,13 @@ mod tests {
                 key: "NOTION_TOKEN".into(),
                 actor: actor.clone(),
             },
+            ConnectionEvent::ToolReclassified {
+                connection_id: id.clone(),
+                tool: "notion-search".into(),
+                from: ActionFamily::Read,
+                to: ActionFamily::SendExternal,
+                actor: actor.clone(),
+            },
             ConnectionEvent::Removed {
                 connection_id: id,
                 actor,
@@ -422,6 +445,36 @@ mod tests {
                 "event": "secret_set",
                 "connection_id": "mcp:github",
                 "key": "GITHUB_TOKEN",
+                "actor": "api",
+            })
+        );
+    }
+
+    // A reclassification is journaled with the tool and both families.
+    #[test]
+    fn test_a_reclassification_names_the_tool_and_both_families() {
+        // GIVEN a tool the operator moved from reading to writing
+        let event = ConnectionEvent::ToolReclassified {
+            connection_id: "mcp:files".into(),
+            tool: "write_file".into(),
+            from: ActionFamily::Read,
+            to: ActionFamily::WriteOrDelete,
+            actor: "api".into(),
+        };
+        // WHEN the draft is built
+        let draft = ConnectionRecord::draft(&event, "2026-01-01T00:00:00Z".into()).expect("draft");
+        // THEN it lands in the connection's run, under its own kind, with the
+        //      tool, the family before and the family after
+        assert_eq!(draft.run_id, "connection:mcp:files");
+        assert_eq!(draft.kind, JournalEntryKind::ToolReclassified);
+        assert_eq!(
+            draft.payload,
+            serde_json::json!({
+                "event": "tool_reclassified",
+                "connection_id": "mcp:files",
+                "tool": "write_file",
+                "from": "read",
+                "to": "write_or_delete",
                 "actor": "api",
             })
         );

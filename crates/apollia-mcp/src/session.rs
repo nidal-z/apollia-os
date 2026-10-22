@@ -477,6 +477,14 @@ impl McpSession {
         &self.config
     }
 
+    /// Record that the operator gave `tool` the family `family`, so the next
+    /// classification of this session's tools reads it.
+    pub(crate) fn set_operator_family(&mut self, tool: &str, family: apollia_tools::ActionFamily) {
+        self.config
+            .operator_families
+            .insert(tool.to_string(), family);
+    }
+
     /// A receiver that turns `true` once the dispatch task ended, that is once
     /// the transport closed and the server can no longer answer.
     pub(crate) fn dispatch_ended(&self) -> watch::Receiver<bool> {
@@ -652,6 +660,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         }
     }

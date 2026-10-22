@@ -159,6 +159,7 @@ pub fn nature_of(kind: &JournalEntryKind) -> JournalNature {
         | K::AccountConnected
         | K::AccountDisconnected
         | K::FolderAdded
+        | K::ToolReclassified
         | K::AlwaysWithdrawn
         | K::RuleAdded
         | K::RuleRemoved
@@ -290,10 +291,13 @@ pub fn summarize(entry: &JournalEntry) -> JournalSummary {
         | K::ConnectionSecretRemoved
         | K::AccountConnected
         | K::AccountDisconnected
-        | K::FolderAdded => match serde_json::from_value::<ConnectionRecord>(payload.clone()) {
-            Ok(record) => connection_summary(&mut summary, &record.event),
-            Err(_) => summary.what = entry.kind.tag().to_owned(),
-        },
+        | K::FolderAdded
+        | K::ToolReclassified => {
+            match serde_json::from_value::<ConnectionRecord>(payload.clone()) {
+                Ok(record) => connection_summary(&mut summary, &record.event),
+                Err(_) => summary.what = entry.kind.tag().to_owned(),
+            }
+        }
         K::AccessChanged
         | K::AgentInstalled
         | K::AgentUpdated
@@ -383,6 +387,7 @@ fn connection_summary(summary: &mut JournalSummary, event: &ConnectionEvent) {
             summary.target = Some(path.clone());
             "Folder added"
         }
+        ConnectionEvent::ToolReclassified { .. } => "Tool reclassified",
     }
     .to_owned();
 }
