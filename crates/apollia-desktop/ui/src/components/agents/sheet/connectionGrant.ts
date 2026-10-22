@@ -135,6 +135,15 @@ export function remoteAccesses(
   return new Set(accessIds.filter((id) => remote.some((c) => belongsTo(id, c))));
 }
 
+/** The accesses among `accessIds` that come from a connection its user paused. */
+export function pausedAccesses(
+  accessIds: readonly string[],
+  connections: readonly Connection[],
+): Set<string> {
+  const paused = connections.filter((c) => c.status === "paused");
+  return new Set(accessIds.filter((id) => paused.some((c) => belongsTo(id, c))));
+}
+
 /** The family of an access that is a tool of a connection, `null` otherwise. */
 export function connectionToolFamily(
   accessId: string,

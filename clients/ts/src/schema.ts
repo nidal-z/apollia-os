@@ -10551,6 +10551,16 @@ export interface components {
             /** @description Tools granted. */
             access: string[];
             /**
+             * @description The tools of `access` given on top of the default access; empty for
+             *     an agent that does not hold it.
+             */
+            access_added: string[];
+            /**
+             * @description Whether the agent holds the default access, read again at every run,
+             *     rather than a list chosen for it.
+             */
+            access_by_default: boolean;
+            /**
              * @description Autonomy tier the agent runs at: `assisted`, `supervised`,
              *     `bounded_autonomous` or `long_autonomous`. The user's, else the
              *     package's, else the global default.

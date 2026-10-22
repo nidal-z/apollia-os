@@ -75,6 +75,12 @@ pub struct ResolvedAgentResponse {
     pub examples: Vec<String>,
     /// Tools granted.
     pub access: Vec<String>,
+    /// Whether the agent holds the default access, read again at every run,
+    /// rather than a list chosen for it.
+    pub access_by_default: bool,
+    /// The tools of `access` given on top of the default access; empty for
+    /// an agent that does not hold it.
+    pub access_added: Vec<String>,
     /// Sources checked.
     pub sources: Vec<String>,
     /// The model assigned to the agent, if any.
@@ -101,6 +107,17 @@ pub struct ResolvedAgentResponse {
 
 impl From<ResolvedAgent> for ResolvedAgentResponse {
     fn from(agent: ResolvedAgent) -> Self {
+        let access_by_default = apollia_tools::reads_by_default(&agent);
+        let access_added = if access_by_default {
+            agent
+                .access_added
+                .iter()
+                .filter(|tool| agent.access.contains(tool))
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
         Self {
             id: agent.id,
             origin: agent.origin.into(),
@@ -111,6 +128,8 @@ impl From<ResolvedAgent> for ResolvedAgentResponse {
             mission: agent.mission,
             examples: agent.examples,
             access: agent.access,
+            access_by_default,
+            access_added,
             sources: agent.sources,
             model: agent.model.map(Into::into),
             autonomy: agent.autonomy.as_str().to_owned(),
