@@ -102,6 +102,7 @@ fn test_supervisor_config(
         package_repository: None,
         tools_config: apollia_core::ToolsConfig::default(),
         mcp_loading: apollia_mcp::session::LoadingMode::Eager,
+        mcp_idle_stop: std::time::Duration::from_secs(900),
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
