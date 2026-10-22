@@ -13,8 +13,8 @@ function tool(id: string, familySource: ConnectionTool["familySource"] = "server
   return { id, family: "read", familySource, prechecked: false };
 }
 
-function installed(name: string): AgentListItem {
-  return { id: null, name } as AgentListItem;
+function installed(name: string, agentType: AgentListItem["agent_type"] = null): AgentListItem {
+  return { id: null, name, agent_type: agentType } as AgentListItem;
 }
 
 describe("connection card sections - decisions", () => {
@@ -56,6 +56,17 @@ describe("connection card sections - decisions", () => {
     // THEN Apollia comes first, the others by name, the holder left out
     expect(offer.map((agent) => agent.id)).toEqual(["apollia:chat", "analyst", "writer"]);
     expect(offer[0]?.name).toBe("Apollia");
+  });
+
+  test("Give to an agent leaves the system agents out, as the add window does", () => {
+    // GIVEN a worker, an assistant and a system agent, none holding the connection
+    const agents = [installed("writer", "worker"), installed("helper", "assistant"), installed("apollia-guide", "system")];
+
+    // WHEN the offer is built
+    const offer = agentsToOffer(agents, [], "Apollia");
+
+    // THEN the system agent is not offered
+    expect(offer.map((agent) => agent.id)).toEqual(["apollia:chat", "helper", "writer"]);
   });
 
   test("a grant from the card gives every tool of the connection", () => {

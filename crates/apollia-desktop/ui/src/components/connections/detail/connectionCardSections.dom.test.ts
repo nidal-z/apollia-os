@@ -235,6 +235,23 @@ describe("the tools of a connection and their family", () => {
     expect(updated.tools.find((t) => t.id === "mcp:acme/create_page")?.familySource).toBe("operator");
   });
 
+  test("a tool of the list is named in plain words, its identifier only in developer mode", async () => {
+    // GIVEN a service whose server is not running, with the developer mode off
+    // WHEN its card opens
+    await mountCard(service());
+
+    // THEN the tool reads by its name, and its identifier is not shown
+    expect(byTestid("connection-tool-name-mcp:acme/create_page")?.textContent?.trim()).toBe("Create page");
+    expect(byTestid("connection-tool-mcp:acme/create_page")?.textContent).not.toContain("mcp:acme/create_page");
+
+    // WHEN the developer mode is turned on
+    developerMode.set(true);
+    await settle();
+
+    // THEN the identifier is shown beside the name
+    expect(byTestid("connection-tool-id-mcp:acme/create_page")?.textContent?.trim()).toBe("mcp:acme/create_page");
+  });
+
   test("a service from the selection offers no Change", async () => {
     // GIVEN the card of a service from the selection
     // WHEN it opens

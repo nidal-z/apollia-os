@@ -84,8 +84,8 @@ export interface AgentChoice {
 
 /**
  * The agents offered by "Give to an agent": Apollia first, then every
- * installed agent by name, less those that hold a tool of the connection
- * already. `apollia` is how Apollia is named on the screen.
+ * installed agent by name, less the system agents and those that hold a tool
+ * of the connection already. `apollia` is how Apollia is named on the screen.
  */
 export function agentsToOffer(
   installed: readonly AgentListItem[],
@@ -94,7 +94,7 @@ export function agentsToOffer(
 ): AgentChoice[] {
   const held = new Set(holders.map((agent) => agent.id));
   const others = installed
-    .filter((agent) => agent.name !== APOLLIA_AGENT_ID)
+    .filter((agent) => agent.name !== APOLLIA_AGENT_ID && agent.agent_type !== "system")
     .map((agent) => ({ id: agent.name, name: agent.name }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return [{ id: APOLLIA_AGENT_ID, name: apollia }, ...others].filter((agent) => !held.has(agent.id));

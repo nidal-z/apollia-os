@@ -42,6 +42,7 @@
   } from "$lib/ipc/connections";
   import type { DriveFolderStatus, OauthClientIdStatus } from "$lib/ipc/oauthClients";
   import type { Connection, McpToolSummaryView } from "$lib/types";
+  import { connectionToolName } from "../../agents/sheet/connectionGrant";
   import ConnectionStateBadge from "../shared/ConnectionStateBadge.svelte";
   import McpToolsTab from "./McpToolsTab.svelte";
   import ConnectionAgentsSection from "./ConnectionAgentsSection.svelte";
@@ -392,7 +393,10 @@
           {#each connection.tools as tool (tool.id)}
             <li class="flex flex-wrap items-center gap-2 text-body-xs text-foreground" data-testid="connection-tool-{tool.id}">
               <Wrench size={11} class="shrink-0 text-muted-foreground" aria-hidden="true" />
-              {tool.id}
+              <span data-testid="connection-tool-name-{tool.id}">{connectionToolName(tool.id)}</span>
+              <DeveloperOnly>
+                <span class="font-mono text-caption text-muted-foreground" data-testid="connection-tool-id-{tool.id}">{tool.id}</span>
+              </DeveloperOnly>
               <ToolFamilyControl {connection} toolId={tool.id} {onupdated} />
             </li>
           {/each}
