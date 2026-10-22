@@ -1035,6 +1035,31 @@ d'autre dépendance que sa propre cale d'édition de liens, et la même version
 gagné aucun paquet. Le coût est un bloc de code FFI avec sa propre permission
 `unsafe`, confiné à un module.
 
+### Les outils appelés depuis le code d'un paquet {#python-tool-calls}
+
+Le proxy derrière `ctx.tools` décide chaque appel par la même gouvernance
+qu'un appel du Chat, d'un plan ou d'un élément de lot, dans le même ordre : la
+politique, une connexion en pause, les règles fines, puis les consentements de
+l'agent. Aucun code de paquet ne reçoit ce proxy aujourd'hui : `ctx.tools` vaut
+`None` dans un outil comme dans un workflow. Un workflow atteint les outils par
+un agent, avec `ctx.agents.run`, et cet agent tourne sur le moteur du Chat, qui
+décide déjà chacun de ses appels. La décision est placée dans le proxy pour que,
+le jour où `ctx.tools` sera donné au code d'un paquet, aucun appel de ce code
+ne la contourne.
+
+Ce code tournerait sans personne qui le regarde : il suit donc la règle d'un
+élément de lot, et aucune forme de consentement n'est ajoutée pour lui. Un
+refus de la politique, d'une règle ou d'une pause n'exécute pas l'outil :
+l'appel lève une `RuntimeError` qui nomme l'outil et la raison, sans ses
+arguments, le runtime émet le refus comme un appel d'outil refusé, et le
+journal l'enregistre comme sur les autres chemins. Un appel qui demanderait
+l'accord de la personne ne s'exécute pas non plus : il lève `NeedHumanInput`,
+porteur de la demande d'accord. Le moteur des workflows ne met pas une
+exécution en pause sur cette erreur : non rattrapée, elle termine l'exécution
+comme toute autre erreur. Un accès que l'appelant de l'exécution a accordé pour
+elle vaut consentement, comme un lot accorde les accès de son agent à ses
+éléments.
+
 ## Le fichier de configuration {#configuration-file}
 
 `apollia.toml` a un seul écrivain, `apollia_core::config::writer`. Les écrans de

@@ -12,7 +12,10 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
 use apollia_runtime::governance::FailClosed;
-use apollia_tools::{AuditTrailHandle, ToolDescriptor, ToolDispatcher, ToolRegistryHandle};
+use apollia_tools::{AuditTrailHandle, ToolDescriptor, ToolRegistryHandle};
+
+pub use crate::context::tool_executor::{DispatcherExecutor, ToolExecutor};
+use crate::context::tool_governance::ToolGovernance;
 
 use crate::context::tool_invoke::{
     emit_a2a_completion_events, emit_tool_completion_events, execute_tool, extract_a2a_skill_id,
@@ -65,110 +68,16 @@ pub enum ToolProxyError {
         /// What governance cannot read.
         detail: String,
     },
-}
 
-/// A tool call's failure, with the two approval outcomes kept typed.
-#[derive(Debug, Clone)]
-pub enum ToolCallError {
-    /// Any other failure, as text.
-    Failed(String),
-    /// The call needs an approval first.
-    ApprovalRequired {
-        /// Sentence shown to the human.
-        prompt: String,
-        /// The `approbation` payload.
-        payload: serde_json::Value,
+    /// Governance refuses the call: the policy, a fine rule or a connection
+    /// in pause. The call does not run.
+    #[error("tool '{tool}': {reason}")]
+    Refused {
+        /// The refused tool.
+        tool: String,
+        /// Why governance refuses, as the caller is told.
+        reason: String,
     },
-    /// The operator declined the call.
-    ApprovalDenied {
-        /// The declined gesture.
-        gesture: String,
-        /// The operator's reason.
-        reason: Option<String>,
-    },
-}
-/// Trait abstracting tool execution for testability.
-///
-/// Concrete implementations dispatch to native tools (FileIo, BashExecutor, etc.).
-/// Tests use a mock executor.
-pub trait ToolExecutor: Send + Sync {
-    /// Executes the named tool with the given JSON input.
-    fn execute(
-        &self,
-        tool_name: &str,
-        input: serde_json::Value,
-    ) -> Result<serde_json::Value, String>;
-
-    /// Executes the named tool, keeping an approval outcome typed.
-    ///
-    /// The default reads every failure as text, which is right for an executor
-    /// that never gates. An executor that can answer an approval outcome
-    /// overrides it, so that outcome reaches the agent as a pause or a typed
-    /// refusal rather than as a message to recognise.
-    fn execute_typed(
-        &self,
-        tool_name: &str,
-        input: serde_json::Value,
-    ) -> Result<serde_json::Value, ToolCallError> {
-        self.execute(tool_name, input)
-            .map_err(ToolCallError::Failed)
-    }
-}
-/// Sync adapter that exposes an `apollia_tools::ToolDispatcher` through the
-/// [`ToolExecutor`] trait consumed by [`ToolProxy`].
-///
-/// Python agents use the sync [`ToolExecutor`] trait, while the dispatcher is
-/// async. This adapter bridges the two by calling `block_in_place` +
-/// `block_on`; we're always invoked from inside the Tokio runtime because
-/// `ToolProxy::call` runs on a PyO3-async future.
-///
-/// Per-agent instance: the wrapped dispatcher holds per-agent state
-/// (sandbox root, memory namespace, ask_user pending registry).
-pub struct DispatcherExecutor {
-    pub(crate) dispatcher: Arc<ToolDispatcher>,
-}
-impl DispatcherExecutor {
-    /// Wrap *dispatcher* in a sync [`ToolExecutor`] facade.
-    pub fn new(dispatcher: Arc<ToolDispatcher>) -> Self {
-        Self { dispatcher }
-    }
-}
-impl ToolExecutor for DispatcherExecutor {
-    fn execute(
-        &self,
-        tool_name: &str,
-        input: serde_json::Value,
-    ) -> Result<serde_json::Value, String> {
-        let dispatcher = Arc::clone(&self.dispatcher);
-        let name = tool_name.to_string();
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current()
-                .block_on(async move { dispatcher.dispatch(&name, input).await })
-                .map_err(|e| e.to_string())
-        })
-    }
-
-    fn execute_typed(
-        &self,
-        tool_name: &str,
-        input: serde_json::Value,
-    ) -> Result<serde_json::Value, ToolCallError> {
-        let dispatcher = Arc::clone(&self.dispatcher);
-        let name = tool_name.to_string();
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current()
-                .block_on(async move { dispatcher.dispatch(&name, input).await })
-                .map_err(|e| match e {
-                    apollia_tools::ToolExecutionError::ApprovalRequired {
-                        prompt, payload, ..
-                    } => ToolCallError::ApprovalRequired { prompt, payload },
-                    apollia_tools::ToolExecutionError::ApprovalDenied { gesture, reason } => {
-                        ToolCallError::ApprovalDenied { gesture, reason }
-                    }
-                    other => ToolCallError::Failed(other.to_string()),
-                })
-        })
-    }
 }
 /// Converts a [`ToolDescriptor`] into a [`serde_json::Value`] for serialization to Python.
 ///
@@ -226,6 +135,10 @@ pub struct ToolProxy {
     /// The deferred MCP tool index of the run: the family of an `mcp:` tool
     /// the registry does not describe is read from its entry.
     pub(crate) mcp_index: Arc<Vec<apollia_mcp::tool_search::ToolIndexSnapshot>>,
+    /// The governance every call is decided by, as the Chat, a plan and a
+    /// batch decide theirs; `None` leaves the access list and fail-closed
+    /// governance as the only checks.
+    pub(crate) governance: Option<Arc<ToolGovernance>>,
 }
 #[pymethods]
 impl ToolProxy {
@@ -377,6 +290,7 @@ impl ToolProxy {
         let run_id = self.run_id.clone();
         let fail_closed = self.fail_closed.clone();
         let mcp_index = Arc::clone(&self.mcp_index);
+        let governance = self.governance.clone();
         let bus_for_async = self.event_bus.clone();
         let started_event_id_clone = started_event_id.clone();
         let tool_name_for_async = tool_name.clone();
@@ -413,6 +327,7 @@ impl ToolProxy {
                     run_id: run_id.as_ref().map(|r| r.as_str()),
                     fail_closed: fail_closed.as_deref(),
                     mcp_index: &mcp_index,
+                    governance: governance.as_deref(),
                 },
                 &tool_name,
                 input_value,
@@ -579,6 +494,7 @@ impl ToolProxy {
             budget: None,
             fail_closed: None,
             mcp_index: Arc::new(Vec::new()),
+            governance: None,
         }
     }
 
@@ -597,6 +513,14 @@ impl ToolProxy {
     /// started.
     pub fn with_fail_closed(mut self, fail_closed: Option<FailClosed>) -> Self {
         self.fail_closed = fail_closed.as_ref().map(FailClosed::detail);
+        self
+    }
+
+    /// Decides every call through `governance` before it runs: a refusal
+    /// comes back with its reason, a call that would ask raises an approval
+    /// request and does not run.
+    pub fn with_governance(mut self, governance: ToolGovernance) -> Self {
+        self.governance = Some(Arc::new(governance));
         self
     }
 
@@ -722,6 +646,7 @@ impl ToolProxy {
                 run_id: self.run_id.as_ref().map(|r| r.as_str()),
                 fail_closed: self.fail_closed.as_deref(),
                 mcp_index: &self.mcp_index,
+                governance: self.governance.as_deref(),
             },
             tool_name,
             input,

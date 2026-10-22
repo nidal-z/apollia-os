@@ -16,7 +16,9 @@ use apollia_tools::{
 
 use apollia_core::AIPPart;
 
-use crate::context::tool_proxy::{ToolCallError, ToolExecutor, ToolProxyError};
+use crate::context::tool_executor::{ToolCallError, ToolExecutor};
+use crate::context::tool_governance::ToolGovernance;
+use crate::context::tool_proxy::ToolProxyError;
 
 /// Extracts the original A2A `skill_id` from a tool name, supporting both
 /// the legacy `"a2a:{skill_id}"` prefix and the new
@@ -260,6 +262,16 @@ pub(crate) fn emit_tool_completion_events(
                 detail: Some(detail.clone()),
             });
         }
+        Err(ToolProxyError::Refused { tool, reason }) => {
+            let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallDenied {
+                parent_event_id: parent_id,
+                task_id: task_id.into(),
+                agent_id: agent_id.into(),
+                tool_name: tool.clone(),
+                reason: "permission_denied".to_string(),
+                detail: Some(reason.clone()),
+            });
+        }
         Err(e) => {
             let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
                 tool_call_id: Some(parent_id.clone()),
@@ -294,6 +306,8 @@ pub(crate) struct ToolCallContext<'a> {
     /// The deferred MCP tool index, which gives the family of an `mcp:` tool
     /// the registry does not describe.
     pub(crate) mcp_index: &'a [apollia_mcp::tool_search::ToolIndexSnapshot],
+    /// The governance the call is decided by, when the run carries one.
+    pub(crate) governance: Option<&'a ToolGovernance>,
 }
 /// Shared tool execution logic used by both the Python `call()` and Rust `call_inner()`.
 pub(crate) async fn execute_tool(
@@ -376,7 +390,36 @@ pub(crate) async fn execute_tool(
         }
     }
 
-    // 4. Execute, timed so the audit record below carries the duration
+    // 4. The decision of governance, as for the Chat, a plan and a batch: the
+    //    policy, a connection in pause, the fine rules, then the consents.
+    if let Some(governance) = ctx.governance {
+        let family =
+            apollia_mcp::tool_search::tool_family(tool_name, descriptor.as_ref(), ctx.mcp_index);
+        if let Err(refusal) = governance.gate(ctx.agent_id, tool_name, family, &input) {
+            let error_code = match &refusal {
+                ToolProxyError::ApprovalRequired { .. } => "approval_required".to_string(),
+                ToolProxyError::FailClosed { .. } => "fail_closed".to_string(),
+                other => other.to_string(),
+            };
+            emit_audit_record(
+                ctx,
+                tool_name,
+                &input_hash,
+                &sandbox_profile,
+                AuditOutcome {
+                    duration_ms: start.elapsed().as_millis() as u64,
+                    success: false,
+                    error_code: Some(error_code),
+                    args_json,
+                    stdout: None,
+                    stderr: None,
+                },
+            );
+            return Err(refusal);
+        }
+    }
+
+    // 5. Execute, timed so the audit record below carries the duration
     let exec_result = ctx.executor.execute_typed(tool_name, input);
     let duration = start.elapsed();
 
@@ -394,7 +437,7 @@ pub(crate) async fn execute_tool(
         ),
     };
 
-    // 5. Record audit (always, success or failure)
+    // 6. Record audit (always, success or failure)
     emit_audit_record(
         ctx,
         tool_name,
@@ -410,7 +453,7 @@ pub(crate) async fn execute_tool(
         },
     );
 
-    // 6. Return result
+    // 7. Return result
     exec_result.map_err(|e| match e {
         ToolCallError::Failed(message) => ToolProxyError::ExecutionFailed(message),
         ToolCallError::ApprovalRequired { prompt, payload } => {
