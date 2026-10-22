@@ -135,7 +135,10 @@ async fn test_a_request_server_is_never_kept() {
         &registry,
         None,
         LoadingMode::Deferred,
-        crate::tool_store::ToolIndexStore::new(&db),
+        crate::manager::OnDemand {
+            tool_store: crate::tool_store::ToolIndexStore::new(&db),
+            idle_stop: None,
+        },
     )
     .await
     .expect("manager");

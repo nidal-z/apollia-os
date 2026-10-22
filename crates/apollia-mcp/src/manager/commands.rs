@@ -84,16 +84,34 @@ impl McpClientManager {
                 cause: "server with this name already exists".to_string(),
             });
         }
+        // A dormant server of that name gives way to the session, and comes
+        // back when the session does not start.
+        let dormant = self.take_dormant(&name)?;
 
-        let session =
-            McpSession::start_with_mode(config, Some(&DefaultMcpSecretResolver), self.loading_mode)
-                .await?;
+        let session = match McpSession::start_with_mode(
+            config,
+            Some(&DefaultMcpSecretResolver),
+            self.loading_mode,
+        )
+        .await
+        {
+            Ok(session) => session,
+            Err(e) => {
+                if let Some(dormant) = dormant {
+                    self.dormant.insert(name, dormant);
+                }
+                return Err(e);
+            }
+        };
         tracing::info!(
             server = %name,
             tools = session.tools().len(),
             indexed = session.tool_index().len(),
             "mcp.server.added"
         );
+        if let Some(dormant) = &dormant {
+            self.unregister_dormant(&name, dormant).await;
+        }
         self.register_session_tools(&name, &session).await;
         let status = build_status(
             &name,
@@ -101,7 +119,8 @@ impl McpClientManager {
             self.last_call_at.get(&name).map(String::as_str),
         );
         self.watch_session_end(&name, &session);
-        self.sessions.insert(name, session);
+        self.sessions.insert(name.clone(), session);
+        self.mark_used(&name);
         Ok(status)
     }
     /// Shutdown the session named `name`, remove it from the managed set, and
@@ -125,7 +144,14 @@ impl McpClientManager {
                     }
                 }
                 self.last_call_at.remove(name);
+                self.last_used.remove(name);
+                self.in_flight.remove(name);
                 session.shutdown().await;
+                tracing::info!(server = %name, "mcp.server.removed");
+                Ok(())
+            }
+            None if self.drop_dormant(name).await => {
+                self.last_call_at.remove(name);
                 tracing::info!(server = %name, "mcp.server.removed");
                 Ok(())
             }
@@ -198,6 +224,7 @@ impl McpClientManager {
         self.register_session_tools(name, &new_session).await;
         self.watch_session_end(name, &new_session);
         self.sessions.insert(name.to_string(), new_session);
+        self.mark_used(name);
         self.reloading.remove(name);
 
         if let Some(ref tx) = self.event_bus {
@@ -307,9 +334,14 @@ impl McpClientManager {
         let old_session = match self.sessions.remove(&server_name) {
             Some(session) => session,
             None => {
-                return Err(McpSessionError::ServerExited {
-                    server: server_name,
-                });
+                // A dormant server has no session to stop: it starts.
+                let config = self.dormant.get(&server_name).map(|d| d.config.clone());
+                return match config {
+                    Some(config) => self.handle_add_server(config).await,
+                    None => Err(McpSessionError::ServerExited {
+                        server: server_name,
+                    }),
+                };
             }
         };
         let config = old_session.config().clone();
@@ -322,7 +354,8 @@ impl McpClientManager {
         self.last_call_at.remove(&server_name);
         let status = build_status(&server_name, &new_session, None);
         self.watch_session_end(&server_name, &new_session);
-        self.sessions.insert(server_name, new_session);
+        self.sessions.insert(server_name.clone(), new_session);
+        self.mark_used(&server_name);
         Ok(status)
     }
     /// Aggregate `resources/list` across every connected session.

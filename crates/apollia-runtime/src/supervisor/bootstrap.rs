@@ -258,12 +258,16 @@ pub(in crate::supervisor) fn migrate_mcp_from_toml(
 
 /// Start the MCP client manager (always, even when the server list is empty)
 /// and spawn the legacy `mcp.toml` config watcher when that file still exists.
+///
+/// No server is started here: each one starts at the first call of one of
+/// its tools, and stops after `idle_stop` without a call, so a server that
+/// does not answer never delays the API.
 pub(in crate::supervisor) async fn start_mcp_manager(
     server_configs: Vec<apollia_mcp::config::McpServerConfig>,
     tool_registry_handle: &ToolRegistryHandle,
     event_sender: &EventBusSender,
     data_dir: &std::path::Path,
-    loading_mode: LoadingMode,
+    (loading_mode, idle_stop): (LoadingMode, std::time::Duration),
 ) -> Option<McpClientManagerHandle> {
     let mcp_config_path = data_dir.join("mcp.toml");
     let mcp_db_path = data_dir.join(apollia_core::paths::DataFile::Mcp.file_name());
@@ -278,7 +282,10 @@ pub(in crate::supervisor) async fn start_mcp_manager(
         tool_registry_handle,
         Some(event_sender.clone()),
         loading_mode,
-        apollia_mcp::tool_store::ToolIndexStore::new(mcp_db_path),
+        apollia_mcp::manager::OnDemand {
+            tool_store: apollia_mcp::tool_store::ToolIndexStore::new(mcp_db_path),
+            idle_stop: Some(idle_stop),
+        },
     )
     .await
     {
@@ -450,3 +457,7 @@ pub(in crate::supervisor) fn seed_default_desktop_channel_if_needed(
     }
     info!("notification.seed.completed");
 }
+
+#[cfg(test)]
+#[path = "bootstrap_mcp_tests.rs"]
+mod mcp_tests;

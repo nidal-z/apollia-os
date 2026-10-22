@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use apollia_mcp::config::McpServerConfig;
-use apollia_mcp::manager::McpClientManagerHandle;
+use apollia_mcp::manager::{McpClientManagerHandle, OnDemand};
 use apollia_mcp::session::LoadingMode;
 use apollia_mcp::tool_search::ToolIndexSnapshot;
 use apollia_mcp::tool_store::ToolIndexStore;
@@ -56,10 +56,24 @@ async fn start(
         registry,
         None,
         LoadingMode::Deferred,
-        ToolIndexStore::new(db),
+        OnDemand {
+            tool_store: ToolIndexStore::new(db),
+            idle_stop: None,
+        },
     )
     .await
     .unwrap()
+}
+
+/// A manager over `db` to which `config` was added, its session started.
+async fn start_added(
+    config: McpServerConfig,
+    db: &Path,
+    registry: &ToolRegistryHandle,
+) -> McpClientManagerHandle {
+    let manager = start(vec![], db, registry).await;
+    manager.add_server(config).await.unwrap();
+    manager
 }
 
 fn by_name(index: &[ToolIndexSnapshot]) -> HashMap<String, ToolIndexSnapshot> {
@@ -72,7 +86,7 @@ fn by_name(index: &[ToolIndexSnapshot]) -> HashMap<String, ToolIndexSnapshot> {
 /// Run the annotated server once under `config`, so its tools are kept in `db`.
 async fn run_once(config: McpServerConfig, db: &Path) {
     let registry = ToolRegistryHandle::start();
-    let manager = start(vec![config], db, &registry).await;
+    let manager = start_added(config, db, &registry).await;
     manager.shutdown().await;
 }
 
@@ -85,7 +99,7 @@ async fn test_a_deferred_index_classifies_each_tool_by_its_hints() {
     let db = dir.path().join("mcp.db");
 
     // WHEN its tool index is read
-    let manager = start(vec![annotated_server_config("annotated")], &db, &registry).await;
+    let manager = start_added(annotated_server_config("annotated"), &db, &registry).await;
     let index = by_name(&manager.get_tool_index().await);
 
     // THEN each entry carries the hints and the family they give
@@ -104,7 +118,7 @@ async fn test_a_deferred_index_classifies_each_tool_by_its_hints() {
 
 #[tokio::test]
 async fn test_the_tools_list_is_kept_in_mcp_db() {
-    // GIVEN a server started once by a manager that keeps tools
+    // GIVEN a server added once to a manager that keeps tools
     let dir = TempDir::new().unwrap();
     let db = dir.path().join("mcp.db");
 
@@ -282,7 +296,7 @@ async fn test_a_tools_list_re_sent_at_a_call_is_kept() {
         env!("CARGO_MANIFEST_DIR")
     )];
     let registry = ToolRegistryHandle::start();
-    let manager = start(vec![config], &db, &registry).await;
+    let manager = start_added(config, &db, &registry).await;
     let kept = |db: &Path| {
         McpServerRepository::open(db)
             .unwrap()

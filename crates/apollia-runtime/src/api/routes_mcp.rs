@@ -757,6 +757,8 @@ fn merge_server_config_patch(
 #[cfg(test)]
 pub(crate) mod governance_tests;
 #[cfg(test)]
+mod on_demand_tests;
+#[cfg(test)]
 mod removal_tests;
 #[cfg(test)]
 mod secret_tests;

@@ -186,6 +186,24 @@ fn test_validate_tool_search_limit_at_max_passes() {
 }
 
 #[test]
+fn test_mcp_idle_stop_defaults_to_fifteen_minutes_and_is_bounded() {
+    // GIVEN an empty [mcp] section, and one whose idle delay is below the floor
+    let empty: McpConfig = serde_json::from_value(serde_json::json!({})).unwrap();
+    let short = McpConfig {
+        idle_stop_secs: 59,
+        ..McpConfig::default()
+    };
+    // WHEN both are read and validated
+    let result = short.validate();
+    // THEN the default is 900 seconds, and the short delay is refused by name
+    assert_eq!(empty.idle_stop_secs, 900);
+    assert!(
+        matches!(result, Err(ConfigError::OutOfBounds { ref key, .. }) if key == "mcp.idle_stop_secs"),
+        "expected OutOfBounds for mcp.idle_stop_secs, got: {result:?}"
+    );
+}
+
+#[test]
 fn test_mcp_config_default_validates_ok() {
     // GIVEN / WHEN / THEN the default config passes validation
     assert!(McpConfig::default().validate().is_ok());

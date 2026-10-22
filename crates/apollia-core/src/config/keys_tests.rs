@@ -122,6 +122,9 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("hitl", ReloadClass::Reloadable),
         ("tools", ReloadClass::Reloadable),
         ("mcp", ReloadClass::Reloadable),
+        // Read once, when the MCP manager starts with its sessions.
+        ("mcp.tool_loading", ReloadClass::Restart),
+        ("mcp.idle_stop_secs", ReloadClass::Restart),
         ("hooks", ReloadClass::Reloadable),
         ("chat", ReloadClass::Reloadable),
         ("observability", ReloadClass::Reloadable),
@@ -245,6 +248,7 @@ fn the_named_settings_are_lockable() {
             "tools.new_agent.families",
             "tools.new_agent.access",
             "mcp.tool_loading",
+            "mcp.idle_stop_secs",
             "mcp.tool_search_limit",
             "mcp.server_enabled",
             "mcp.catalogue_url",

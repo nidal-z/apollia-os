@@ -53,6 +53,7 @@ impl McpClientManager {
         if self.request_servers.contains(server_name) {
             return;
         }
+        self.reclassify_dormant(server_name, tool, family).await;
         if let Some(session) = self.sessions.get_mut(server_name) {
             session.set_operator_family(tool, family);
             let definition = session.tools().iter().find(|t| t.name == tool);

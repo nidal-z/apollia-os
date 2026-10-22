@@ -58,6 +58,13 @@ pub struct McpConfig {
     #[serde(default)]
     pub tool_loading: McpToolLoading,
 
+    /// Seconds an MCP server may go without a call before it is stopped. It
+    /// starts again at its next call; its tools stay listed meanwhile.
+    ///
+    /// Default: 900. Bounds: [60, 86400]. Read at startup.
+    #[serde(default = "default_idle_stop_secs")]
+    pub idle_stop_secs: u64,
+
     /// Maximum number of results returned by the `tool_search` synthetic tool.
     ///
     /// Default: 20. Bounds: [1, 500]. Passed to the `tool_search` executor at
@@ -94,6 +101,7 @@ impl Default for McpConfig {
     fn default() -> Self {
         Self {
             tool_loading: McpToolLoading::default(),
+            idle_stop_secs: default_idle_stop_secs(),
             tool_search_limit: default_tool_search_limit(),
             server_enabled: false,
             catalogue_url: default_catalogue_url(),
@@ -107,7 +115,14 @@ impl McpConfig {
     /// Validates the MCP configuration bounds at startup (fail-fast).
     ///
     /// - `tool_search_limit`: must be in [1, 500].
+    /// - `idle_stop_secs`: must be in [60, 86400].
     pub fn validate(&self) -> Result<(), ConfigError> {
+        validate_bounds(
+            "mcp.idle_stop_secs",
+            self.idle_stop_secs,
+            60_u64,
+            86_400_u64,
+        )?;
         validate_bounds(
             "mcp.tool_search_limit",
             self.tool_search_limit,
@@ -116,6 +131,10 @@ impl McpConfig {
         )?;
         Ok(())
     }
+}
+
+fn default_idle_stop_secs() -> u64 {
+    900
 }
 
 fn default_tool_search_limit() -> usize {

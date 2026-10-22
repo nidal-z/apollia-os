@@ -189,6 +189,7 @@ pub async fn run(
         package_repository,
         tools_config: tools_config.clone(),
         mcp_loading: apollia_mcp::session::LoadingMode::from(mcp_config.tool_loading),
+        mcp_idle_stop: std::time::Duration::from_secs(mcp_config.idle_stop_secs),
         tool_search_limit: mcp_config.tool_search_limit,
         hooks_config,
         plan_mode_default: chat_config.plan_mode_default,

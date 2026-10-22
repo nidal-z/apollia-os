@@ -3,27 +3,26 @@
 //! Split out of `manager.rs`: the actor stays in the parent, the cloneable
 //! sender every caller holds lives here.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::oneshot;
 
 use apollia_core::{EventBusSender, RuntimeEvent};
 use apollia_tools::registry::ToolRegistryHandle;
 
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
-use crate::manager::kept::{keep_session_tools, kept_snapshots};
-use crate::manager::snapshot::McpSnapshot;
+use crate::manager::kept::kept_snapshots;
+use crate::manager::on_demand::Dormant;
 use crate::manager::views::{
     log_session_start_error, register_session_tools_in_registry, ServerHints,
 };
 use crate::manager::{
     McpClientManager, McpClientManagerHandle, McpCommand, McpConnectionTestResult,
-    McpResourcePayload, McpResourceSummary, McpServerDetail, McpServerStatus, ProbeSpec,
+    McpResourcePayload, McpResourceSummary, McpServerDetail, McpServerStatus, OnDemand, ProbeSpec,
 };
 use crate::protocol::ToolCallResult;
 use crate::session::{LoadingMode, McpSession, McpSessionError};
 use crate::tool_search::ToolIndexSnapshot;
-use crate::tool_store::ToolIndexStore;
 
 impl McpClientManagerHandle {
     /// Start the MCP client manager.
@@ -53,33 +52,67 @@ impl McpClientManagerHandle {
         event_bus: Option<EventBusSender>,
         loading_mode: LoadingMode,
     ) -> Result<Self, McpSessionError> {
-        Self::start_inner(configs, tool_registry, event_bus, loading_mode, None).await
+        Self::start_inner(configs, tool_registry, event_bus, loading_mode).await
     }
 
-    /// Start the MCP client manager as [`McpClientManagerHandle::start`] does,
-    /// keeping the tools each server publishes in `tool_store`.
+    /// Start the MCP client manager without starting any server, keeping
+    /// the tools each server publishes in `tool_store`.
     ///
-    /// Every `tools/list` a session answers when it starts (at boot, or when
-    /// it is added, restarted or reloaded) is kept. In
-    /// [`LoadingMode::Deferred`], a server of `configs` whose session does
-    /// not start still contributes the tools it last published to
+    /// Each server of `configs` waits, dormant, with the tools it last
+    /// published: in [`LoadingMode::Deferred`] they serve
     /// [`McpClientManagerHandle::get_tool_index`], with their descriptions,
-    /// hints and family, until a session of it starts or it is removed.
+    /// hints and family; in [`LoadingMode::Eager`] their descriptors are
+    /// registered. The first [`McpClientManagerHandle::call_tool`] of a
+    /// dormant server starts it in a task and waits for its handshake. A
+    /// server with nothing kept is started at once, in a task: this function
+    /// waits for no handshake.
+    ///
+    /// Every `tools/list` a session answers when it starts is kept in the
+    /// store of `on_demand`. A session that answered no call for its
+    /// `idle_stop` is stopped and its server goes back to dormant; `None`
+    /// never stops one.
     pub async fn start_keeping_tools(
         configs: Vec<McpServerConfig>,
         tool_registry: &ToolRegistryHandle,
         event_bus: Option<EventBusSender>,
         loading_mode: LoadingMode,
-        tool_store: ToolIndexStore,
+        on_demand: OnDemand,
     ) -> Result<Self, McpSessionError> {
-        Self::start_inner(
-            configs,
+        let mut stored = on_demand.tool_store.load().await;
+        let (mut actor, handle) = McpClientManager::new(
             tool_registry,
             event_bus,
             loading_mode,
-            Some(tool_store),
-        )
-        .await
+            Some(on_demand.tool_store),
+        );
+        actor.idle_stop = on_demand.idle_stop;
+        let mut unknown = Vec::new();
+        for config in configs {
+            let name = config.name.clone();
+            let tools = stored.remove(&name).unwrap_or_default();
+            if tools.is_empty() {
+                unknown.push(name.clone());
+            } else if loading_mode == LoadingMode::Deferred {
+                actor
+                    .kept_index
+                    .insert(name.clone(), kept_snapshots(&config, &tools));
+            }
+            let dormant = Dormant::new(config, tools);
+            actor.register_dormant(&name, &dormant).await;
+            actor.dormant.insert(name, dormant);
+        }
+        tracing::event!(
+            tracing::Level::INFO,
+            servers = actor.dormant.len(),
+            started = unknown.len(),
+            "mcp.manager.started_dormant"
+        );
+        for name in &unknown {
+            actor.begin_start(name);
+        }
+        actor.publish();
+        tokio::spawn(actor.run());
+        Ok(handle)
     }
 
     async fn start_inner(
@@ -87,23 +120,12 @@ impl McpClientManagerHandle {
         tool_registry: &ToolRegistryHandle,
         event_bus: Option<EventBusSender>,
         loading_mode: LoadingMode,
-        tool_store: Option<ToolIndexStore>,
     ) -> Result<Self, McpSessionError> {
-        let (tx, rx) = mpsc::channel(32);
         let mut sessions: HashMap<String, McpSession> = HashMap::new();
-        let mut stored = match &tool_store {
-            Some(store) => store.load().await,
-            None => HashMap::new(),
-        };
-        let mut kept_index = HashMap::new();
 
         for config in configs {
             let server_name = config.name.clone();
             let tags = config.tags.clone();
-            let kept = stored
-                .remove(&server_name)
-                .filter(|_| loading_mode == LoadingMode::Deferred)
-                .map(|tools| kept_snapshots(&config, &tools));
 
             match McpSession::start_with_mode(config, Some(&DefaultMcpSecretResolver), loading_mode)
                 .await
@@ -135,7 +157,6 @@ impl McpClientManagerHandle {
                             health: session.health().clone(),
                         });
                     }
-                    keep_session_tools(tool_store.as_ref(), &server_name, &session).await;
                     sessions.insert(server_name, session);
                 }
                 Err(e) => {
@@ -149,41 +170,19 @@ impl McpClientManagerHandle {
                             health: crate::health::from_start_error(&e),
                         });
                     }
-                    if let Some(kept) = kept.filter(|kept| !kept.is_empty()) {
-                        tracing::event!(
-                            tracing::Level::INFO,
-                            server = %server_name,
-                            tools_count = kept.len(),
-                            "mcp.tools.kept_served"
-                        );
-                        kept_index.insert(server_name, kept);
-                    }
                 }
             }
         }
 
-        let (published, snapshot) = watch::channel(McpSnapshot::default());
-        let actor = McpClientManager {
-            sessions,
-            rx,
-            commands: tx.downgrade(),
-            published,
-            tool_registry: tool_registry.clone(),
-            reloading: HashSet::new(),
-            request_servers: HashSet::new(),
-            event_bus,
-            last_call_at: HashMap::new(),
-            loading_mode,
-            tool_store,
-            kept_index,
-        };
+        let (mut actor, handle) =
+            McpClientManager::new(tool_registry, event_bus, loading_mode, None);
+        actor.sessions = sessions;
         for (name, session) in &actor.sessions {
             actor.watch_session_end(name, session);
         }
         actor.publish();
         tokio::spawn(actor.run());
-
-        Ok(Self { tx, snapshot })
+        Ok(handle)
     }
     /// Execute a tool on the named MCP server.
     ///
