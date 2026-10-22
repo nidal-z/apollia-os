@@ -32,11 +32,14 @@
     McpServerDetailView,
     McpHealth,
     ConnectorEnrichmentView,
+    Connection,
   } from "$lib/types";
   import type { McpTab, TestState } from "../shared/types";
 
   interface Props {
     server: McpServerStatusView;
+    /** The connection of the server, as the list reads it, for its state. */
+    connection?: Connection | null;
     enrichment: ConnectorEnrichmentView | null;
     /** Sends data off this machine, as the connection list computes it. */
     remote?: boolean;
@@ -50,7 +53,7 @@
     ontry?: (name: string) => void;
   }
 
-  let { server, enrichment, remote = false, tab, ontabchange, onchanged, ondisconnected, ontry }: Props = $props();
+  let { server, connection = null, enrichment, remote = false, tab, ontabchange, onchanged, ondisconnected, ontry }: Props = $props();
 
   let mcpDetail = $state<McpServerDetailView | null>(null);
   let loading = $state(false);
@@ -209,7 +212,7 @@
   <div class="flex-1 overflow-auto px-8 py-5">
     {#if tab === "overview"}
       <McpOverviewTab
-        health={displayHealth}
+        {connection}
         toolsCount={mcpDetail.status.tools_count}
         statusError={mcpDetail.status.error}
         {lastActivityLabel}

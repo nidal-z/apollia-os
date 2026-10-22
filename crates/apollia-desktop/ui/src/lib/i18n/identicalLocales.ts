@@ -136,7 +136,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "dev.ai.panel.type.embeddings.label", // Embeddings
   "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
-  "connections.status_chip_attention", // Attention
+  "connections.list.kind_mcp", // Services
   "dev.developer.docs.admonition.danger", // Danger
   "dev.developer.docs.admonition.info", // Info
   "dev.developer.docs.admonition.note", // Note

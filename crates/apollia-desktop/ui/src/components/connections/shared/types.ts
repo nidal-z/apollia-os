@@ -24,12 +24,6 @@ export interface BuiltinToolsCount {
   total: number;
 }
 
-/** Status filter values for the sidebar chip bar. */
-export type StatusFilter = "all" | "active" | "attention" | "error" | "idle";
-
-/** Context-menu action requested from an MCP sidebar row. */
-export type McpRowAction = "test" | "configure" | "disconnect";
-
 /** MCP detail tab keys. */
 export type McpTab = "overview" | "tools" | "settings";
 

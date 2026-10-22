@@ -274,6 +274,28 @@ export type ConnectionState =
    *  its tools neither offered nor run, never deleted. */
   | "forbidden_by_policy";
 
+/**
+ * The state of a connection as its user reads it, found by the runtime: it
+ * works, it needs repair (the reason says why), its user paused it, or the
+ * organisation policy blocks it.
+ */
+export type ConnectionStatusKey = "working" | "needs_repair" | "paused" | "blocked";
+
+/** Why a connection is not working, as a key the interface translates. */
+export type ConnectionReasonKey =
+  | "not_checked"
+  | "sign_in_again"
+  | "unreachable"
+  | "failing"
+  | "forbidden_by_policy";
+
+/** The reason a connection is in its state, and its technical detail. */
+export interface ConnectionReason {
+  key: ConnectionReasonKey;
+  /** Technical detail, already redacted, shown in developer mode. */
+  detail?: string | null;
+}
+
 /** One tool a connection brings. */
 export interface ConnectionTool {
   id: string;
@@ -295,6 +317,15 @@ export interface Connection {
   /** Sends data off this machine; computed by the runtime. */
   remote: boolean;
   official: boolean;
+  /** The detail of the state its kind gives; what the user reads is `status`. */
   state: ConnectionState;
+  /** What its user reads, as last found. */
+  status: ConnectionStatusKey;
+  /** Why it is not working, absent when it works. */
+  reason: ConnectionReason | null;
+  /** When its state was last found, RFC 3339 in UTC; null when it never was. */
+  checkedAt: string | null;
+  /** Name of the installed package that brought it, when one did. */
+  package: string | null;
   tools: ConnectionTool[];
 }

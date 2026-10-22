@@ -117,6 +117,10 @@ function connection(over: Partial<Connection>): Connection {
     remote: false,
     official: false,
     state: "connected",
+    status: "working",
+    reason: null,
+    checkedAt: null,
+    package: null,
     tools: [],
     ...over,
   };

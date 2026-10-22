@@ -37,6 +37,10 @@ const FOLDER: Connection = {
   remote: false,
   official: false,
   state: "connected",
+  status: "working",
+  reason: null,
+  checkedAt: null,
+  package: null,
   tools: [
     { id: "file_read", family: "read", familySource: "builtin", prechecked: true },
     { id: "file_edit", family: "write_or_delete", familySource: "builtin", prechecked: false },

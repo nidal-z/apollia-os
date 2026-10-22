@@ -20,9 +20,8 @@
   import { Card } from "$lib/components/ui/card";
   import { developerMode } from "$lib/stores/developerMode";
   import { accentTokenFor } from "$lib/connections/accent";
-  import { statusOfState } from "$lib/connections/connectionRows";
   import ConnectorTile from "../shared/ConnectorTile.svelte";
-  import StatusBadge from "../shared/StatusBadge.svelte";
+  import ConnectionStateBadge from "../shared/ConnectionStateBadge.svelte";
   import type { Connection } from "$lib/types";
 
   interface Props {
@@ -80,7 +79,13 @@
     </ConnectorTile>
   {/snippet}
   {#snippet badges()}
-    <StatusBadge status={statusOfState(connection.state)} />
+    <ConnectionStateBadge
+      status={connection.status}
+      reason={connection.reason}
+      checkedAt={connection.checkedAt}
+      inline
+      data-testid="connection-detail-state"
+    />
     {#if connection.remote}
       <Badge size="sm" variant="info" data-testid="connection-detail-remote">
         {$t("connections.remote")}

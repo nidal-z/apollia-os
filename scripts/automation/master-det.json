@@ -98,11 +98,11 @@
     "command-item-agents.create",
     "command-item-companion.toggle",
     "config-editor-gutter-1",
-    "connections-sidebar-filter-active",
-    "connections-sidebar-filter-all",
-    "connections-sidebar-filter-attention",
-    "connections-sidebar-filter-error",
-    "connections-sidebar-filter-idle",
+    "connections-kind-filter-all",
+    "connections-kind-filter-folder",
+    "connections-kind-filter-imap",
+    "connections-kind-filter-mcp",
+    "connections-kind-filter-native",
     "credential-row-web_search-brave.api_key",
     "danger-card-clear-logs",
     "danger-card-clear-memories",
@@ -9545,36 +9545,36 @@
     },
     {
       "kind": "click",
-      "testid": "connections-sidebar-filter-all",
+      "testid": "connections-kind-filter-all",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
-      "testid": "connections-sidebar-filter-active",
+      "testid": "connections-kind-filter-native",
       "timeoutMs": 2500
     },
     {
       "kind": "click",
-      "testid": "connections-sidebar-filter-attention",
+      "testid": "connections-kind-filter-imap",
       "timeoutMs": 2500
     },
     {
       "kind": "click",
-      "testid": "connections-sidebar-filter-error",
+      "testid": "connections-kind-filter-mcp",
       "timeoutMs": 2500
     },
     {
       "kind": "click",
-      "testid": "connections-sidebar-filter-idle",
+      "testid": "connections-kind-filter-folder",
       "timeoutMs": 2500
     },
     {
       "kind": "screenshot",
-      "label": "02-sidebar-status-filters"
+      "label": "02-list-kind-filters"
     },
     {
       "kind": "click",
-      "testid": "connections-sidebar-filter-all",
+      "testid": "connections-kind-filter-all",
       "timeoutMs": 2500
     },
     {
@@ -9767,7 +9767,7 @@
     },
     {
       "kind": "click",
-      "testid": "connections-sidebar-filter-all",
+      "testid": "connections-kind-filter-all",
       "timeoutMs": 2500
     },
     {
@@ -12273,7 +12273,7 @@
     },
     {
       "kind": "click",
-      "testid": "connections-sidebar-filter-all",
+      "testid": "connections-kind-filter-all",
       "timeoutMs": 2500
     },
     {
