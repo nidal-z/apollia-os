@@ -18,6 +18,10 @@ function folder(over: Partial<Connection> = {}): Connection {
     remote: false,
     official: false,
     state: "connected",
+    status: "working",
+    reason: null,
+    checkedAt: null,
+    package: null,
     tools: [
       { id: "conn:folder:f1/file_read", family: "read", familySource: "builtin", prechecked: true },
       { id: "conn:folder:f1/file_write", family: "write_or_delete", familySource: "builtin", prechecked: false },

@@ -25,7 +25,7 @@ import fr from "$lib/i18n/fr.json";
 import { developerMode } from "$lib/stores/developerMode";
 import { connectionRows } from "$lib/connections/connectionRows";
 import Connections from "../../routes/Connections.svelte";
-import ConnectorSidebar from "./sidebar/ConnectorSidebar.svelte";
+import ConnectionList from "./list/ConnectionList.svelte";
 import NativeConnectorDetail from "./detail/NativeConnectorDetail.svelte";
 import McpDetailHeader from "./detail/McpDetailHeader.svelte";
 import McpToolsTab from "./detail/McpToolsTab.svelte";
@@ -55,6 +55,10 @@ function connection(over: Partial<Connection> = {}): Connection {
     remote: true,
     official: true,
     state: "connected",
+    status: "working",
+    reason: null,
+    checkedAt: null,
+    package: null,
     tools: [{ id: "mcp:linear/list_issues", family: "read", familySource: "server", prechecked: true }],
     ...over,
   };
@@ -98,8 +102,8 @@ function screens(): Record<string, Rendered> {
   return {
     route: { component: Connections },
     list: {
-      component: ConnectorSidebar,
-      props: { rows, selection: rows[1].selection, loading: false, loadError: null, onselect: noop, onopencatalogue: noop, oncontext: noop, builtinTools: { active: 2, total: 3 } },
+      component: ConnectionList,
+      props: { rows, query: "", kind: "all", selection: { kind: "connection", id: rows[1].key }, loading: false, onselect: noop, onadd: noop, builtinTools: { active: 2, total: 3 } },
     },
     native: {
       component: NativeConnectorDetail,
@@ -262,21 +266,27 @@ describe("Connections, developer mode on", () => {
 describe("Connections, one list and one word", () => {
   test("the list has no native or MCP section, and the route keeps no hard-coded connector list", async () => {
     // GIVEN the list rendered with an account, two servers and a folder
-    const text = visibleText(await render("list", false));
+    const html = await render("list", false);
+    const text = visibleText(html);
     const route = readFileSync(
       fileURLToPath(new URL("../../routes/Connections.svelte", import.meta.url)),
       "utf8",
     );
+    const header = readFileSync(
+      fileURLToPath(new URL("./list/ConnectionListHeader.svelte", import.meta.url)),
+      "utf8",
+    );
 
     // WHEN its words and the route source are read
-    // THEN the four connections sit under one title, with no section between them
-    expect(text).toContain("Connections · 4");
+    // THEN the four connections sit in one list, with no section between them
+    for (const c of CONNECTIONS) expect(html).toContain(`connection-state-${c.id}`);
     expect(text).not.toContain("Apollia native");
     expect(text).not.toContain("MCP servers");
     // AND adding one is the action of the page header, not a line of the list
-    expect(route).toContain('data-testid="connections-open-catalogue"');
+    expect(header).toContain('data-testid="connections-open-catalogue"');
+    expect(html).not.toContain('data-testid="connections-open-catalogue"');
     expect(route).not.toContain("NATIVE_CONNECTORS");
-    expect(route).toContain("loadConnections");
+    expect(route).toContain("listConnections");
   });
 
   test("the add window offers a service by its address under its plain name", async () => {

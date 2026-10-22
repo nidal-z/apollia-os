@@ -23,7 +23,7 @@ import fr from "$lib/i18n/fr.json";
 import { developerMode } from "$lib/stores/developerMode";
 import { tools, type ToolStatusDto } from "$lib/stores/toolGovernance";
 import Connections from "../../routes/Connections.svelte";
-import ConnectorSidebar from "./sidebar/ConnectorSidebar.svelte";
+import ConnectionList from "./list/ConnectionList.svelte";
 import BuiltinToolsDetail from "./detail/BuiltinToolsDetail.svelte";
 
 // The tools Apollia ships live on the Connections screen, as a source of their
@@ -66,14 +66,14 @@ describe("the built-in tools in Connections", () => {
   test("the entry of the built-in tools is the selected row when the page shows it", async () => {
     // GIVEN the list with the built-in tools selected
     // WHEN it is rendered
-    const html = await render(ConnectorSidebar, {
+    const html = await render(ConnectionList, {
       lang: "en",
       developer: false,
-      props: { rows: [], selection: { kind: "builtin" }, loading: false, loadError: null, onselect: noop, onopencatalogue: noop, oncontext: noop, builtinTools: { active: 1, total: 4 } },
+      props: { rows: [], query: "", kind: "all", selection: { kind: "builtin" }, loading: false, onselect: noop, onadd: noop, builtinTools: { active: 1, total: 4 } },
     });
 
-    // THEN the entry is shown, with its count, in a card of its own, apart
-    // from the card that says no connection was added yet
+    // THEN the entry is shown, with its count, in a section of its own, apart
+    // from the line that says no connection was added yet
     expect(html).toContain("Apollia, built-in tools");
     expect(html).toContain("1 of 4 on");
     expect(html.indexOf('data-testid="connections-builtin-section"')).toBeGreaterThan(

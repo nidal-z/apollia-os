@@ -33,6 +33,10 @@ function connection(id: string, tools: string[], overrides: Partial<Connection> 
     remote: false,
     official: false,
     state: "connected",
+    status: "working",
+    reason: null,
+    checkedAt: null,
+    package: null,
     tools: tools.map((t) => ({ id: t, family: "read", familySource: "selection", prechecked: true })),
     ...overrides,
   };

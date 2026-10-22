@@ -25,6 +25,10 @@ function connection(over: Partial<Connection> = {}): Connection {
     remote: true,
     official: true,
     state: "connected",
+    status: "working",
+    reason: null,
+    checkedAt: null,
+    package: null,
     tools: [
       tool("mcp:outlook/read_mail", "read", true),
       tool("mcp:outlook/search_mail", "read", true),

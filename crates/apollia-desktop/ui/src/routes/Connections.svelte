@@ -2,22 +2,24 @@
   /**
    * Connections - every connection of this machine, in one list.
    *
-   * Thin orchestrator: owns the top-level data (the connection list served by
-   * the loader, installed servers, enrichments, registry, native accounts, the
-   * count of built-in tools) and
-   * selection, wires IPC via
-   * `$lib/ipc/connections`, and composes the decomposed sub-components under
-   * `components/connections/*`. Business logic lives in `$lib/connections/*`
-   * (pure, testable) and inside the self-contained detail / catalogue / oauth
-   * components.
+   * Thin orchestrator on the shared browse layout: the list column (search,
+   * kind chips, one row per connection) and the card of the chosen connection
+   * beside it. It owns the top-level data (the connections, installed
+   * servers, enrichments, registry, native accounts, the count of built-in
+   * tools), each source read on its own so one that fails keeps the others;
+   * the place of the screen (card, search, chip) lives in the
+   * `connectionsView` store and outlives the screen. Business logic lives in
+   * `$lib/connections/*` (pure, testable) and inside the self-contained
+   * detail / catalogue / oauth components.
    */
+  import { untrack } from "svelte";
   import { t, locale } from "svelte-i18n";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import { ArrowLeft, Plus } from "lucide-svelte";
+  import { X } from "lucide-svelte";
   import InactiveServerDetail from "../components/connections/detail/InactiveServerDetail.svelte";
-  import { Button } from "$lib/components/ui/button";
-  import { PageHeader } from "$lib/components/operator";
-  import ConnectorSidebar from "../components/connections/sidebar/ConnectorSidebar.svelte";
+  import { BrowseLayout } from "$lib/components/operator";
+  import ConnectionListHeader from "../components/connections/list/ConnectionListHeader.svelte";
+  import ConnectionList from "../components/connections/list/ConnectionList.svelte";
   import NativeConnectorDetail from "../components/connections/detail/NativeConnectorDetail.svelte";
   import McpServerDetail from "../components/connections/detail/McpServerDetail.svelte";
   import ConnectionSummaryDetail from "../components/connections/detail/ConnectionSummaryDetail.svelte";
@@ -30,6 +32,7 @@
   import FolderConnectionDialog from "../components/connections/catalogue/FolderConnectionDialog.svelte";
   import { chooseAndAddFolder, type FolderOutcome } from "$lib/connections/folderConnection";
   import {
+    listConnections,
     listMcpServers,
     listMcpEnrichments,
     listAgents,
@@ -38,9 +41,16 @@
     type OauthAccountInfo,
     type ProviderId,
   } from "$lib/ipc/connections";
-  import { messageOf, formatTauriError } from "$lib/connections/errors";
+  import { formatTauriError } from "$lib/connections/errors";
   import { needsOauthSetup } from "$lib/connections/status";
-  import { loadConnections, forbiddenConnections } from "$lib/connections/connectionList";
+  import { loadConnections } from "$lib/connections/connectionList";
+  import {
+    EMPTY_PAGE,
+    applyStateChange,
+    loadPageSources,
+    type SourceFailure,
+    type StateChange,
+  } from "$lib/connections/pageSources";
   import {
     createCatalogueSource,
     type CatalogueFailure,
@@ -59,8 +69,10 @@
   import {
     NATIVE_PROVIDER_KEYS,
     connectionRows,
-    isSelected,
+    nativeProviderOf,
+    serverNameOf,
   } from "$lib/connections/connectionRows";
+  import { connectionsView } from "$lib/stores/connectionsView";
   import { oauthListClientIds, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
   import { navigateTo } from "$lib/stores/navigation";
   import {
@@ -94,7 +106,6 @@
     NativeConnectorCard,
     NativeTab,
     McpTab,
-    McpRowAction,
   } from "../components/connections/shared/types";
 
   interface Props {
@@ -110,11 +121,13 @@
   let publicEntries = $state<RegistryServerView[]>([]);
   let catalogueFailures = $state<CatalogueFailure[]>([]);
   let agents = $state<AgentListItem[]>([]);
-  let loading = $state(false);
-  let loadError = $state<string | null>(null);
+  let loading = $state(true);
+  let failures = $state<SourceFailure[]>([]);
 
   // ── Selection + tabs ────────────────────────────────────────────────────────
-  let selection = $state<Selection>(null);
+  // The place of the screen is kept in a store, so coming back finds it.
+  const selection: Selection = $derived($connectionsView.selection);
+  const select = (next: Selection): void => connectionsView.select(next);
   let nativeTab = $state<NativeTab>("accounts");
   let mcpTab = $state<McpTab>("overview");
 
@@ -192,24 +205,21 @@
     return enrichmentMap.get(server.package) ?? null;
   }
 
-  /** The connections the organisation policy forbade at the last start, listed apart. */
-  const forbidden = $derived(forbiddenConnections(connections));
-  /** The rows of the list: the loader's connections, a server named by its catalogue label. */
+  /** The rows of the list, one per connection, a server named by its catalogue label. */
   const rows = $derived(
-    connectionRows(connections.filter((c) => c.state !== "forbidden_by_policy"), (c) => {
+    connectionRows(connections, (c) => {
       if (c.kind !== "mcp") return c.label;
       const server = servers.find((s) => `mcp:${s.name}` === c.id);
       return (server && enrichmentLabel(resolveEnrichment(server), $locale)) ?? c.label;
     }),
-  );
-  const selectedRow = $derived(
-    rows.find((r) => isSelected(r, selection)) ?? null,
   );
   const selectedConnection = $derived.by(() => {
     const sel = selection;
     if (sel?.kind !== "connection") return null;
     return connections.find((c) => c.id === sel.id) ?? null;
   });
+  /** The name the list gives the chosen connection. */
+  const selectedLabel = $derived(rows.find((r) => r.key === selectedConnection?.id)?.label ?? selectedConnection?.label ?? "");
 
   const builtinCount = $derived({
     active: $builtinTools.filter((tool) => tool.enabled).length,
@@ -223,11 +233,9 @@
     return map;
   });
 
-  const selectedServer = $derived.by(() => {
-    const sel = selection;
-    if (sel?.kind !== "mcp") return null;
-    return servers.find((s) => s.name === sel.name) ?? null;
-  });
+  /** The server of the chosen service, by its name; null for another kind. */
+  const selectedServerName = $derived(selectedConnection ? serverNameOf(selectedConnection.id) : null);
+  const selectedServer = $derived(servers.find((s) => s.name === selectedServerName) ?? null);
   /** The first account connection of a native provider, the one its page tries. */
   function nativeConnectionOf(provider: ProviderId): Connection | null {
     return connections.find((c) => c.kind === "native" && c.id.startsWith(`native:${provider}:`)) ?? null;
@@ -255,33 +263,38 @@
     return tryQuestions(connection, examples, $locale ?? "en", general);
   });
 
+  /**
+   * The provider page the card shows: the provider of the chosen account, or
+   * a provider opened with no account yet to connect its first one.
+   */
   const selectedNativeConnector = $derived.by(() => {
     const sel = selection;
-    if (sel?.kind !== "native") return null;
-    return nativeCard(sel.provider);
+    if (sel?.kind === "native") return nativeCard(sel.provider);
+    const provider = selectedConnection ? nativeProviderOf(selectedConnection) : null;
+    return provider ? nativeCard(provider) : null;
   });
 
   // ── Loaders ──────────────────────────────────────────────────────────────────
+  /** Read every source of the page; one that fails keeps what it showed and gets its banner. */
   async function loadAll(): Promise<void> {
     loading = true;
-    loadError = null;
-    try {
-      const [listState, serverList, enrichmentEntries, agentList] = await Promise.all([
-        loadConnections(),
-        listMcpServers(),
-        listMcpEnrichments(),
-        listAgents().catch(() => [] as AgentListItem[]),
-      ]);
-      if (listState.status === "error") loadError = listState.message;
-      else if (listState.status === "ready") connections = listState.connections;
-      servers = serverList;
-      enrichmentMap = new Map(enrichmentEntries.map((e) => [e.package_identifier, e.enrichment]));
-      agents = agentList;
-    } catch (err: unknown) {
-      loadError = messageOf(err);
-    } finally {
-      loading = false;
-    }
+    const loaded = await loadPageSources(
+      {
+        connections: listConnections,
+        servers: listMcpServers,
+        enrichments: listMcpEnrichments,
+        agents: listAgents,
+      },
+      // Read without tracking: the effect that loads on mount must not run
+      // again each time a load replaces what it read.
+      untrack(() => ({ ...EMPTY_PAGE, connections, servers, enrichments: enrichmentMap, agents })),
+    );
+    connections = loaded.data.connections;
+    servers = loaded.data.servers;
+    enrichmentMap = loaded.data.enrichments;
+    agents = loaded.data.agents;
+    failures = loaded.failures;
+    loading = false;
   }
 
   function showView(view: CatalogueView): void {
@@ -354,7 +367,7 @@
         return;
       case "native":
         addWindow = flowDone();
-        selection = { kind: "native", provider: entry.provider };
+        select({ kind: "native", provider: entry.provider });
         return;
       case "mailbox":
         addWindow = leaveForFlow(addWindow);
@@ -395,7 +408,7 @@
     folderDialogOpen = true;
     if (outcome.kind === "added") {
       await loadAll();
-      selection = { kind: "connection", id: outcome.connection.id };
+      select({ kind: "connection", id: outcome.connection.id });
     }
   }
 
@@ -406,12 +419,7 @@
 
   function handleManage(name: string): void {
     addWindow = flowDone();
-    selection = { kind: "mcp", name };
-  }
-
-  function handleContext(name: string, action: McpRowAction): void {
-    selection = { kind: "mcp", name };
-    mcpTab = action === "test" ? "overview" : "settings";
+    select({ kind: "connection", id: `mcp:${name}` });
   }
 
   function startNativeConnect(provider: ProviderId): void {
@@ -450,38 +458,34 @@
     void loadBuiltinTools();
   });
 
-  // The screen opens on its list; a sheet whose target disappears gives the
-  // list back. A
-  // native provider stays selectable without an account: its page is where its
-  // client is entered and its first account connected.
+  // A card whose connection disappeared gives the list back, once the list is
+  // read. A native provider stays selectable without an account: its page is
+  // where its client is entered and its first account connected.
   $effect(() => {
-    if (loading) return;
-    const cur = selection;
-    if (cur !== null && cur.kind !== "native" && cur.kind !== "builtin" && selectedRow === null) {
-      selection = null;
-    }
+    if (loading || failures.some((f) => f.source === "connections")) return;
+    if (selection?.kind === "connection" && selectedConnection === null) select(null);
   });
 
   // Reset tabs on selection kind change.
   $effect(() => {
-    if (selection?.kind === "native") nativeTab = "accounts";
+    if (selectedNativeConnector !== null) nativeTab = "accounts";
   });
 
-  // Live health: reflect McpServerHealthChanged on the badge without a refresh.
+  // Live state: a connection found in a new state, and the health of a server
+  // on its card, change without a refresh.
   $effect(() => {
     type Envelope = { event_type: string; payload: Record<string, unknown> };
     let unlisten: UnlistenFn | null = null;
     let disposed = false;
     void listen<Envelope>("runtime-event", (event) => {
-      if (event.payload.event_type !== "McpServerHealthChanged") return;
-      const inner = event.payload.payload?.McpServerHealthChanged as
-        | { name: string; health: McpHealth }
-        | undefined;
-      if (!inner) return;
-      servers = servers.map((s) => (s.name === inner.name ? { ...s, health: inner.health } : s));
-      void loadConnections().then((next) => {
-        if (next.status === "ready") connections = next.connections;
-      });
+      const inner = event.payload.payload?.[event.payload.event_type];
+      if (event.payload.event_type === "ConnectionStateChanged" && inner) {
+        connections = applyStateChange(connections, inner as StateChange);
+        return;
+      }
+      if (event.payload.event_type !== "McpServerHealthChanged" || !inner) return;
+      const health = inner as { name: string; health: McpHealth };
+      servers = servers.map((s) => (s.name === health.name ? { ...s, health: health.health } : s));
     }).then((fn) => {
       if (disposed) fn();
       else unlisten = fn;
@@ -537,118 +541,119 @@
 </script>
 
 <div class="flex h-full min-h-0 w-full flex-col" data-testid="connections-route">
-  {#if selection === null}
-    <!-- The screen opens on one list, across the page; a row opens its sheet
-         in place of the list. -->
-    <div class="flex min-h-0 flex-1 flex-col" data-testid="connectors-sidebar">
-      <PageHeader title={$t("nav.connections")} subtitle={$t("connections.page_subtitle")}>
-        {#snippet actions()}
-          <Button
-            variant="primary-solid"
-            size="sm"
-            onclick={handleOpenCatalogue}
-            data-testid="connections-open-catalogue"
-          >
-            {#snippet icon()}<Plus size={13} />{/snippet}
-            {$t("connections.add_connection")}
-          </Button>
-        {/snippet}
-      </PageHeader>
-      <div class="min-h-0 flex-1 overflow-y-auto px-8 py-5">
-        <div class="flex flex-col gap-4">
-          <ConnectorSidebar
-            {rows}
-            {forbidden}
-            {selection}
-            {loading}
-            {loadError}
-            onselect={(sel) => (selection = sel)}
-            onopencatalogue={handleOpenCatalogue}
-            oncontext={handleContext}
-            builtinTools={builtinCount}
-          />
-        </div>
-      </div>
-    </div>
-  {:else}
-    <section class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" data-testid="connector-detail">
-      <div class="shrink-0 px-6 pt-3">
-        <button
-          type="button"
-          class="-ml-1.5 flex w-fit items-center gap-1 rounded-md px-1.5 py-1 text-body-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-          onclick={() => (selection = null)}
-          data-testid="connections-back"
-        >
-          <ArrowLeft size={13} aria-hidden="true" />
-          {$t("nav.connections")}
-        </button>
-      </div>
-    {#if selection?.kind === "native" && selectedNativeConnector}
-        <NativeConnectorDetail
-          connector={selectedNativeConnector}
-          remote={selectedRow?.remote ?? false}
-          accounts={accountsForProvider(selectedNativeConnector.id)}
-          loading={nativeLoading}
-          error={nativeError}
-          needsSetup={needsSetup(selectedNativeConnector.id)}
-          tab={nativeTab}
-          clientStatus={oauthClients.find((c) => c.provider === selectedNativeConnector.id)}
-          clientError={oauthClientsError}
-          onclientretry={() => void refreshNativeStatus()}
-          onconnect={() => startNativeConnect(selectedNativeConnector.id)}
-          onconfigure={() => openClientSection(selectedNativeConnector.id)}
-          ondisconnect={disconnectNative}
-          ontabchange={(tab) => (nativeTab = tab)}
-          ontry={nativeTry(selectedNativeConnector)}
-        />
-      {:else if selection?.kind === "mcp" && selectedServer}
-        <McpServerDetail
-          server={selectedServer}
-          enrichment={resolveEnrichment(selectedServer)}
-          remote={selectedRow?.remote ?? false}
-          tab={mcpTab}
-          ontabchange={(tab) => (mcpTab = tab)}
-          ontry={(name) => openTry(`mcp:${selectedServer.name}`, name)}
-          onchanged={() => void loadAll()}
-          ondisconnected={() => {
-            selection = null;
-            void loadAll();
-          }}
-        />
-      {:else if selection?.kind === "mcp"}
-        <!-- A server the runtime does not run keeps a page: it is started
-             again or removed from there. -->
-        <InactiveServerDetail
-          name={selection.name}
-          label={selectedRow?.label ?? selection.name}
-          onchanged={() => void loadAll()}
-          onremoved={() => {
-            selection = null;
-            void loadAll();
-          }}
-        />
-      {:else if selection?.kind === "builtin"}
-        <BuiltinToolsDetail />
-      {:else if selection?.kind === "connection" && selectedConnection}
-        <ConnectionSummaryDetail
-          connection={selectedConnection}
-          label={selectedRow?.label ?? selectedConnection.label}
-          ontry={() => openTry(selectedConnection.id, selectedRow?.label ?? selectedConnection.label)}
-          onremoved={() => {
-            selection = null;
-            void loadAll();
-          }}
-        />
-      {:else}
-        <div
-          class="flex flex-1 items-center justify-center text-body-sm text-muted-foreground"
-          data-testid="connections-select-prompt"
-        >
-          {$t("connections.select_connector_prompt")}
-        </div>
+  <BrowseLayout
+    detailOpen={selection !== null}
+    data-testid="connectors-sidebar"
+    listTestid="connections-sidebar-list"
+  >
+    {#snippet header()}
+      <ConnectionListHeader
+        {rows}
+        query={$connectionsView.query}
+        kind={$connectionsView.kind}
+        {failures}
+        onsearch={(query) => connectionsView.search(query)}
+        onkind={(kind) => connectionsView.filter(kind)}
+        onadd={handleOpenCatalogue}
+        onretry={() => void loadAll()}
+      />
+    {/snippet}
+
+    <ConnectionList
+      {rows}
+      query={$connectionsView.query}
+      kind={$connectionsView.kind}
+      {selection}
+      {loading}
+      builtinTools={builtinCount}
+      onselect={select}
+      onadd={handleOpenCatalogue}
+    />
+
+    {#snippet detail()}
+      {#if selection !== null}
+        <section class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" data-testid="connector-detail">
+          <div class="flex shrink-0 justify-end px-4 pt-2">
+            <button
+              type="button"
+              class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+              onclick={() => select(null)}
+              aria-label={$t("connections.list.close_card")}
+              title={$t("connections.list.close_card")}
+              data-testid="connections-back"
+            >
+              <X size={15} aria-hidden="true" />
+            </button>
+          </div>
+          {#if selectedNativeConnector}
+            <NativeConnectorDetail
+              connector={selectedNativeConnector}
+              remote={selectedConnection?.remote ?? false}
+              accounts={accountsForProvider(selectedNativeConnector.id)}
+              loading={nativeLoading}
+              error={nativeError}
+              needsSetup={needsSetup(selectedNativeConnector.id)}
+              tab={nativeTab}
+              clientStatus={oauthClients.find((c) => c.provider === selectedNativeConnector.id)}
+              clientError={oauthClientsError}
+              onclientretry={() => void refreshNativeStatus()}
+              onconnect={() => startNativeConnect(selectedNativeConnector.id)}
+              onconfigure={() => openClientSection(selectedNativeConnector.id)}
+              ondisconnect={disconnectNative}
+              ontabchange={(tab) => (nativeTab = tab)}
+              ontry={nativeTry(selectedNativeConnector)}
+            />
+          {:else if selectedConnection && selectedServer}
+            <McpServerDetail
+              server={selectedServer}
+              connection={selectedConnection}
+              enrichment={resolveEnrichment(selectedServer)}
+              remote={selectedConnection.remote}
+              tab={mcpTab}
+              ontabchange={(tab) => (mcpTab = tab)}
+              ontry={(name) => openTry(`mcp:${selectedServer.name}`, name)}
+              onchanged={() => void loadAll()}
+              ondisconnected={() => {
+                select(null);
+                void loadAll();
+              }}
+            />
+          {:else if selectedConnection && selectedServerName !== null}
+            <!-- A server the runtime does not run keeps a page: it is started
+                 again or removed from there. -->
+            <InactiveServerDetail
+              name={selectedServerName}
+              label={selectedLabel}
+              onchanged={() => void loadAll()}
+              onremoved={() => {
+                select(null);
+                void loadAll();
+              }}
+            />
+          {:else if selection?.kind === "builtin"}
+            <BuiltinToolsDetail />
+          {:else if selectedConnection}
+            <ConnectionSummaryDetail
+              connection={selectedConnection}
+              label={selectedLabel}
+              ontry={() => openTry(selectedConnection.id, selectedLabel)}
+              onremoved={() => {
+                select(null);
+                void loadAll();
+              }}
+            />
+          {:else}
+            <div
+              class="flex flex-1 items-center justify-center text-body-sm text-muted-foreground"
+              data-testid="connections-select-prompt"
+            >
+              {$t("connections.select_connector_prompt")}
+            </div>
+          {/if}
+        </section>
       {/if}
-    </section>
-  {/if}
+    {/snippet}
+  </BrowseLayout>
 </div>
 
 {#if selectedRegistryServer}
@@ -678,7 +683,7 @@
   }}
   onadded={(connectionId) => {
     addWindow = flowDone();
-    selection = { kind: "connection", id: connectionId };
+    select({ kind: "connection", id: connectionId });
     void loadAll();
   }}
 />
