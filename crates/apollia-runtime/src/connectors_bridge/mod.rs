@@ -48,6 +48,7 @@ pub use mail_source::{register_mail_source, IMAP_LOCATION, OUTLOOK_LOCATION};
 /// commands it sends, a login's password included, never reaches a log.
 pub use apollia_connectors::imap::LOG_DIRECTIVE as IMAP_LOG_DIRECTIVE;
 pub use microsoft::build_microsoft_executors;
+pub(crate) use microsoft::get_microsoft_connector;
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 #[cfg(test)]

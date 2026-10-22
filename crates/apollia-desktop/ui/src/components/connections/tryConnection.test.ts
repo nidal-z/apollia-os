@@ -24,9 +24,7 @@ vi.hoisted(() => {
 import "$lib/i18n";
 import fr from "$lib/i18n/fr.json";
 import TryConnectionDialog from "./shared/TryConnectionDialog.svelte";
-import NativeConnectorDetail from "./detail/NativeConnectorDetail.svelte";
-import McpDetailHeader from "./detail/McpDetailHeader.svelte";
-import ConnectionSummaryDetail from "./detail/ConnectionSummaryDetail.svelte";
+import ConnectionCard from "./detail/ConnectionCard.svelte";
 import FolderConnectionDialog from "./catalogue/FolderConnectionDialog.svelte";
 import type { TryQuestion } from "$lib/connections/tryConnectorPrompt";
 import type { Connection } from "$lib/types";
@@ -68,33 +66,18 @@ async function french(): Promise<void> {
   await waitLocale("fr");
 }
 
-function nativePage(ontry: (() => void) | undefined): string {
-  return renderToString(NativeConnectorDetail as never, {
+/** The card of `connection`, with `ontry` as its Try action. */
+function card(connection: Connection, ontry: (() => void) | undefined): string {
+  return renderToString(ConnectionCard as never, {
     props: {
-      connector: { id: "google", name: "Google", description: "Gmail, Agenda, Drive" },
-      accounts: [{ provider: "google", account_id: "ada@example.com" }],
-      loading: false,
-      error: null,
-      tab: "accounts",
-      clientStatus: undefined,
-      clientError: null,
-      onclientretry: noop,
-      onconnect: noop,
-      ondisconnect: noop,
-      ontabchange: noop,
-      ontry,
+      connection, label: connection.label, ontry,
+      onupdated: noop, onremoved: noop, onreload: noop, onrepair: noop,
     } as never,
   }).body;
 }
 
-function serverHeader(ontry: (() => void) | undefined): string {
-  return renderToString(McpDetailHeader as never, {
-    props: {
-      label: "Notion", meta: "productivity", status: "active", sync: null,
-      testing: false, reconnecting: false, ontest: noop, onreconnect: noop, ontry,
-    } as never,
-  }).body;
-}
+const ACCOUNT: Connection = { ...FOLDER, id: "native:google:ada@example.com", kind: "native", label: "Google", path: undefined, account: "ada@example.com" };
+const SERVER: Connection = { ...FOLDER, id: "mcp:notion", kind: "mcp", label: "Notion", path: undefined };
 
 describe("Try on the page of a connection", () => {
   test("a native account, a server and a folder each offer Try", async () => {
@@ -102,32 +85,28 @@ describe("Try on the page of a connection", () => {
     await french();
 
     // WHEN each is rendered with its Try action
-    const native = nativePage(noop);
-    const server = serverHeader(noop);
-    const folder = renderToString(ConnectionSummaryDetail as never, {
-      props: { connection: FOLDER, label: FOLDER.label, ontry: noop } as never,
-    }).body;
+    const native = card(ACCOUNT, noop);
+    const server = card(SERVER, noop);
+    const folder = card(FOLDER, noop);
 
     // THEN each carries the Try button, under its French name
-    expect(native).toContain('data-testid="native-try-google"');
-    expect(server).toContain('data-testid="mcp-try-btn"');
-    expect(folder).toContain('data-testid="connection-try-btn"');
     for (const html of [native, server, folder]) {
+      expect(html).toContain('data-testid="connection-try-btn"');
       expect(text(html)).toContain(fr.connections.try.action);
     }
   });
 
   test("a page with nothing to try offers no Try", async () => {
-    // GIVEN a native provider without an account and a server the screen gives no Try
+    // GIVEN an account and a server the screen gives no Try
     await french();
 
-    // WHEN they are rendered without the action
-    const native = nativePage(undefined);
-    const server = serverHeader(undefined);
+    // WHEN their cards are rendered without the action
+    const native = card(ACCOUNT, undefined);
+    const server = card(SERVER, undefined);
 
     // THEN no Try button is drawn
-    expect(native).not.toContain("native-try-google");
-    expect(server).not.toContain("mcp-try-btn");
+    expect(native).not.toContain("connection-try-btn");
+    expect(server).not.toContain("connection-try-btn");
   });
 });
 
@@ -162,9 +141,7 @@ describe("Try at the end of an addition", () => {
     expect(source).toMatch(/<FolderConnectionDialog[\s\S]*?ontry=\{\(connection\)/);
     expect(source).toMatch(/ontryprompt=\{tryAddedServer\}/);
     // AND every page passes its Try to the dialog, by the identifier of its connection
-    expect(source).toMatch(/<NativeConnectorDetail[\s\S]*?ontry=\{nativeTry\(/);
-    expect(source).toMatch(/<McpServerDetail[\s\S]*?ontry=\{\(name\) => openTry\(`mcp:/);
-    expect(source).toMatch(/<ConnectionSummaryDetail[\s\S]*?ontry=\{\(\) => openTry\(selectedConnection\.id/);
+    expect(source).toMatch(/<ConnectionCard[\s\S]*?ontry=\{\(\) => openTry\(selectedConnection\.id/);
   });
 });
 

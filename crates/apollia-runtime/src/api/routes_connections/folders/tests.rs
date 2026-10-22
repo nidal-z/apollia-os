@@ -303,3 +303,81 @@ async fn test_a_folder_no_source_depends_on_is_removed_without_confirmation() {
         .unwrap()
         .is_none());
 }
+
+#[tokio::test]
+async fn test_a_folder_connection_chosen_again_keeps_its_identifier_and_is_journaled() {
+    // GIVEN a folder connection over a journal, and the folder it moved to
+    let dir = tempfile::TempDir::new().unwrap();
+    let old = tempfile::TempDir::new().unwrap();
+    let new = tempfile::TempDir::new().unwrap();
+    let journal = AuditJournalHandle::open(&dir.path().join("journal.db"))
+        .await
+        .unwrap();
+    let governance = ConnectionGovernance::without_policy(Some(journal.clone()));
+    let store = store(dir.path()).unwrap();
+    let added = add(&governance, &store, &body(old.path())).unwrap();
+    let stored_id = added.id.trim_start_matches("folder:").to_owned();
+
+    // WHEN it is pointed at the new folder
+    let moved = repoint(
+        &governance,
+        &store,
+        &stored_id,
+        new.path().to_str().unwrap(),
+    )
+    .unwrap();
+
+    // THEN the connection is the same one, on the new canonical path, and the
+    // table still holds one row
+    let canonical = std::fs::canonicalize(new.path()).unwrap();
+    assert_eq!(moved.id, added.id);
+    assert_eq!(moved.path.as_deref(), canonical.to_str());
+    assert_eq!(store.list().unwrap().len(), 1);
+    // AND its connection run records the addition, then the modification
+    let entries = journal.query_run(&connection_run_id(&added.id)).await;
+    let kinds: Vec<JournalEntryKind> = entries.iter().map(|e| e.kind.clone()).collect();
+    assert_eq!(
+        kinds,
+        [
+            JournalEntryKind::FolderAdded,
+            JournalEntryKind::ConnectionModified
+        ]
+    );
+    journal.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_a_folder_the_admission_refuses_is_not_chosen_again() {
+    // GIVEN a folder connection added before a policy that refuses folders
+    let dir = tempfile::TempDir::new().unwrap();
+    let old = tempfile::TempDir::new().unwrap();
+    let new = tempfile::TempDir::new().unwrap();
+    let store = store(dir.path()).unwrap();
+    let added = add(
+        &ConnectionGovernance::without_policy(None),
+        &store,
+        &body(old.path()),
+    )
+    .unwrap();
+    let stored_id = added.id.trim_start_matches("folder:").to_owned();
+    let refusing = ConnectionGovernance::new(Arc::new(RefuseFolders), None);
+
+    // WHEN it is pointed at another folder, and an unknown connection too
+    let (status, Json(err)) =
+        repoint(&refusing, &store, &stored_id, new.path().to_str().unwrap()).unwrap_err();
+    let (unknown, Json(unknown_err)) = repoint(
+        &ConnectionGovernance::without_policy(None),
+        &store,
+        "nope",
+        new.path().to_str().unwrap(),
+    )
+    .unwrap_err();
+
+    // THEN the admission's reason is answered and the row keeps its folder;
+    // an unknown connection is not found
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(err.code, "admission_refused");
+    assert_eq!(store.list().unwrap()[0].path, added.path.unwrap());
+    assert_eq!(unknown, StatusCode::NOT_FOUND);
+    assert_eq!(unknown_err.code, "not_found");
+}

@@ -108,16 +108,6 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   },
   {
     pattern: new RegExp(
-      `^connections\\.capabilities\\.(group|scope_policy_body)_${SEG}$`,
-    ),
-    builtBy: "components/connections/detail/CapabilityMatrix.svelte",
-  },
-  {
-    pattern: new RegExp(`^connections\\.capabilities\\.entries\\.${SEG}$`),
-    builtBy: "lib/connections/capabilities.ts",
-  },
-  {
-    pattern: new RegExp(
       `^errors\\.${SEG}\\.(title|friendly_message|suggested_action)$`,
     ),
     builtBy: "lib/errors/humanize.ts",

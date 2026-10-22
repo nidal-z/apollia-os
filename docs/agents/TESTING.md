@@ -14,7 +14,7 @@ apply.
 
 |  | Rust crates | Python SDK | Tauri desktop | CLI | HTTP API | Actor mesh | LLM / MCP backends |
 |---|---|---|---|---|---|---|---|
-| **Unit** | `#[test]`, `#[tokio::test]`, inline `#[cfg(test)] mod tests` | pytest, pytest-asyncio | Vitest, `node` environment, no DOM (see §7) | clap parsing tests | unit fn tests | per-actor message tests | mocked backends |
+| **Unit** | `#[test]`, `#[tokio::test]`, inline `#[cfg(test)] mod tests` | pytest, pytest-asyncio | Vitest, `node` project, and a `dom` project under jsdom for `*.dom.test.ts` (see §7) | clap parsing tests | unit fn tests | per-actor message tests | mocked backends |
 | **Integration** | per-crate `tests/` directory, or a `#[cfg(test)]` module driving the public API | pytest + `tmp_path` fixtures | Playwright on the production bundle with the Tauri bridge stubbed | `tests/cli/cli-e2e.sh` against a seeded HOME | `tower::ServiceExt::oneshot` on the built router | inter-actor channel exchanges | `wiremock` |
 | **E2E** | delegated to CLI tests | n/a | `scripts/automation/` drives a dev build of the real app by `data-testid`; the packaged bundle is driven by nothing (no WKWebView WebDriver) | `tests/cli/cli-e2e.sh` Track 1 (OFFLINE) + Track 2 (RUNTIME) + Track 3 (LLM capture), seeded fixture | CLI → API → DB round-trip | full `Runtime::spawn` test harness | live providers, gated by env vars |
 | **Property** | `proptest` | none declared in `sdk/pyproject.toml` | n/a | proptest on argv | proptest on JSON payloads | sequence-shrinking on actor message streams | n/a |
@@ -215,18 +215,20 @@ Rules :
 
 - **Unit tests** : Vitest, `npm test` from `crates/apollia-desktop/ui/`,
   co-located in `*.test.ts` next to the unit they cover. `vitest.config.ts`
-  sets `environment: "node"` and `include: ["src/**/*.test.ts"]`, and
-  `package.json` carries no rendering library, so a test that mounts a
-  component cannot run here. Cover a component by exporting the logic under
-  test from its `<script module>` block and asserting on that export, the way
-  `crates/apollia-desktop/ui/src/components/observability/TaskTimeline.test.ts` does. Anything that
-  needs a rendered tree is a Playwright test. One exemption: a file may
-  declare `// @vitest-environment jsdom` (the `jsdom` devDependency exists
-  for it) when the unit under test is inert without a DOM,
-  the way `crates/apollia-desktop/ui/src/lib/utils/markdown-sanitize.test.ts`
-  drives DOMPurify, whose
-  sanitize is a no-op in the `node` environment. That buys a document, not a
-  renderer: mounting a component still needs Playwright.
+  declares two projects. `node` runs `src/**/*.test.ts`, the `*.dom.test.ts`
+  files excluded, in the `node` environment: cover a component by exporting
+  the logic under test from its `<script module>` block and asserting on
+  that export, the way
+  `crates/apollia-desktop/ui/src/components/observability/TaskTimeline.test.ts` does, or by its
+  `svelte/server` render. A file there may declare `// @vitest-environment jsdom`
+  (the `jsdom` devDependency exists for it) when the unit under test is inert
+  without a DOM, the way `crates/apollia-desktop/ui/src/lib/utils/markdown-sanitize.test.ts`
+  drives DOMPurify; that buys a document, not a renderer. `dom` runs
+  `src/**/*.dom.test.ts` under `jsdom` with the `browser` resolve condition,
+  so a component is mounted with `mount` from `svelte` and clicked: a gesture,
+  the command it reaches and what follows are held there, the way
+  `crates/apollia-desktop/ui/src/components/connections/detail/connectionCardRemoval.dom.test.ts` does.
+  What needs real layout or the real Tauri bridge is a Playwright test.
 - **Browser tests** : Playwright, in `crates/apollia-desktop/ui/tests/`, run
   against the production bundle served by `vite preview` with the Tauri bridge
   stubbed. They cover machinery that needs a real browser: dirty state, nav

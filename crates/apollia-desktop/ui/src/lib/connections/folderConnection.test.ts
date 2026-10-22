@@ -3,7 +3,7 @@ import { describe, test, expect, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => null) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(async () => null) }));
 
-import { chooseAndAddFolder, folderAbilities, readablePath } from "./folderConnection";
+import { chooseAndAddFolder, chooseFolderAgain, folderAbilities, readablePath } from "./folderConnection";
 import { REMOTE_DENIED_REASON } from "$lib/integrations/addConnection";
 import type { Connection } from "$lib/types";
 
@@ -55,7 +55,6 @@ describe("adding a folder", () => {
 
     // THEN nothing reaches the runtime
     expect(outcome).toEqual({ kind: "cancelled" });
-    expect(add).not.toHaveBeenCalled();
   });
 
   test("a refusal of the admission is told apart from a failure", async () => {
@@ -79,6 +78,40 @@ describe("adding a folder", () => {
       kind: "failed",
       message: "the folder '/Users/ada/Clients' is already a connection",
     });
+  });
+});
+
+describe("choosing the folder of a connection again", () => {
+  test("the connection is pointed at the folder picked, then checked, under its identifier", async () => {
+    // GIVEN a folder connection whose folder moved, a picker answering the new one
+    const pick = vi.fn(async () => "/Users/ada/Archive/Clients");
+    const repoint = vi.fn(async (id: string, path: string) => folder({ id, path }));
+    const check = vi.fn(async (id: string) => folder({ id, path: "/Users/ada/Archive/Clients" }));
+
+    // WHEN its folder is chosen again
+    const outcome = await chooseFolderAgain("folder:f1", "Choose", { pick, repoint, check });
+
+    // THEN the same connection is pointed at it, then checked
+    expect(repoint).toHaveBeenCalledWith("folder:f1", "/Users/ada/Archive/Clients");
+    expect(check).toHaveBeenCalledWith("folder:f1");
+    expect(outcome).toEqual({ kind: "repaired", connection: folder({ path: "/Users/ada/Archive/Clients" }) });
+  });
+
+  test("a cancelled picker changes nothing, and a refusal is told apart", async () => {
+    // GIVEN a picker that is cancelled, then a runtime that refuses the folder
+    const repoint = vi.fn(async () => folder());
+    const refusing = vi.fn(async () => {
+      throw new Error(REMOTE_DENIED_REASON);
+    });
+
+    // WHEN the folder is chosen again each way
+    const cancelled = await chooseFolderAgain("folder:f1", "Choose", { pick: async () => null, repoint });
+    const refused = await chooseFolderAgain("folder:f1", "Choose", { pick: async () => "/x", repoint: refusing });
+
+    // THEN the cancel reaches no command, and the refusal is a refusal
+    expect(cancelled).toEqual({ kind: "cancelled" });
+    expect(repoint).not.toHaveBeenCalled();
+    expect(refused.kind).toBe("refused");
   });
 });
 

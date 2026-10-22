@@ -2,7 +2,8 @@
   /**
    * ConnectionListItem - one connection of the list, whatever its kind: its
    * kind as an icon, its name, the account it acts as or what it brings, the
-   * package that brought it, and its state on the right. With the developer
+   * package that brought it, and its state on the right, with Check when it
+   * was never checked. With the developer
    * mode on, the second line also gives its technical kind and origin.
    */
   import { t } from "svelte-i18n";
@@ -17,9 +18,13 @@
     row: ConnectionRow;
     selected: boolean;
     onselect: () => void;
+    /** Check the connection now, from its badge. */
+    oncheck?: () => void;
+    /** A check of this connection is under way. */
+    checking?: boolean;
   }
 
-  let { row, selected, onselect }: Props = $props();
+  let { row, selected, onselect, oncheck, checking = false }: Props = $props();
 
   /** A service is anchored by its server name, any other connection by its identifier. */
   const serverName = $derived(serverNameOf(row.key));
@@ -71,6 +76,8 @@
     status={row.status}
     reason={row.reason}
     checkedAt={row.checkedAt}
+    {oncheck}
+    {checking}
     data-testid="connection-state-{row.key}"
   />
 </ListRow>

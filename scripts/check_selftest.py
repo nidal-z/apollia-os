@@ -2796,6 +2796,21 @@ def check_ui_vocabulary_fires() -> None:
         f"the call side answered {found!r}",
     )
 
+    wrapped = {
+        "src/inside.svelte": '<DeveloperOnly>\n  <p>{$t("dev.trace")}</p>\n</DeveloperOnly>',
+        "src/after.svelte": (
+            '<DeveloperOnly>\n  <p>{$t("dev.trace")}</p>\n</DeveloperOnly>\n'
+            '<p>{$t("dev.leak")}</p>'
+        ),
+        "src/before.svelte": '<p>{$t("dev.leak")}</p>\n<DeveloperOnly>\n  <p>x</p>\n</DeveloperOnly>',
+    }
+    found = uivocab.call_findings(wrapped)
+    case(
+        "a dev. text inside <DeveloperOnly> passes, one before or after the block is refused",
+        len(found) == 2 and "src/after.svelte" in found[0] and "src/before.svelte" in found[1],
+        f"the call side answered {found!r}",
+    )
+
     sidebar = """
   export const DEVELOPER_NAV: readonly DeveloperNavEntry[] = [
     { route: "transcriptions" as Route, Icon: Mic, labelKey: "a" },

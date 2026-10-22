@@ -33,9 +33,11 @@
     onclose: () => void;
     /** Called with the connection id once the mailbox is kept, so the list shows it. */
     onadded: (connectionId: string) => void;
+    /** The address of a mailbox kept already, whose password is entered again. */
+    address?: string | null;
   }
 
-  let { open, onclose, onadded }: Props = $props();
+  let { open, onclose, onadded, address = null }: Props = $props();
 
   type Phase = "form" | "trying" | "added" | "refused";
 
@@ -55,7 +57,7 @@
   $effect(() => {
     if (!open) return;
     phase = "form";
-    email = "";
+    email = address ?? "";
     password = "";
     host = "";
     port = String(IMAP_TLS_PORT);

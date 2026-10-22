@@ -286,15 +286,20 @@ export type ConnectionStatusKey = "working" | "needs_repair" | "paused" | "block
 export type ConnectionReasonKey =
   | "not_checked"
   | "sign_in_again"
+  | "password_refused"
+  | "folder_not_found"
   | "unreachable"
   | "failing"
-  | "forbidden_by_policy";
+  | "forbidden_by_policy"
+  | "admin_approval_required";
 
 /** The reason a connection is in its state, and its technical detail. */
 export interface ConnectionReason {
   key: ConnectionReasonKey;
   /** Technical detail, already redacted, shown in developer mode. */
   detail?: string | null;
+  /** The address the repairing action opens: the approval page to send an administrator. */
+  address?: string | null;
 }
 
 /** One tool a connection brings. */

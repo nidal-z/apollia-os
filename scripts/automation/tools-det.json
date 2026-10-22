@@ -10,8 +10,6 @@
   ],
   "dynamicTestids": [
     "credential-row-web_search-brave.api_key",
-    "mcp-detail-tab-overview",
-    "mcp-detail-tab-tools",
     "settings-nav-developer",
     "tool-card-bash_executor",
     "tool-card-file_read",
@@ -689,27 +687,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tab-overview",
+      "testid": "connection-card-state",
       "timeoutMs": 6000
     },
     {
-      "kind": "click",
-      "testid": "mcp-detail-tab-overview",
-      "timeoutMs": 4000
-    },
-    {
       "kind": "waitFor",
-      "testid": "mcp-tools-count",
+      "testid": "connection-detail-tools",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
       "label": "16-mcp-tools-count"
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-tools",
-      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",

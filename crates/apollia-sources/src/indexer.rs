@@ -292,6 +292,10 @@ impl<E: PassageEmbedder> Indexer<E> {
             self.untrack(&id);
         }
         for source in wanted {
+            let moved = self.moved(&source).await;
+            if moved {
+                self.untrack(&source.id);
+            }
             let new = !self.tracked.contains_key(&source.id);
             if new && !self.track(&source).await {
                 continue;
@@ -302,19 +306,31 @@ impl<E: PassageEmbedder> Indexer<E> {
         }
     }
 
+    /// Where the files of `source` are now, read under `spawn_blocking`.
+    async fn resolve(&self, source: &Source) -> Option<PathBuf> {
+        let system_db = self.system_db.clone();
+        let source = source.clone();
+        tokio::task::spawn_blocking(move || root_of(&system_db, &source))
+            .await
+            .ok()
+            .flatten()
+    }
+
+    /// Whether the kept `source` now resolves to another folder than the
+    /// one it was first read from, as a repointed folder connection does.
+    /// Its old index then no longer describes it.
+    async fn moved(&self, source: &Source) -> bool {
+        let Some(kept) = self.tracked.get(&source.id).map(|t| t.root.clone()) else {
+            return false;
+        };
+        self.resolve(source).await.is_some_and(|root| root != kept)
+    }
+
     /// Starts keeping `source`: resolves where its files are and watches
     /// them. `false`, its state set to `error`, when its files cannot be
     /// found.
     async fn track(&mut self, source: &Source) -> bool {
-        let system_db = self.system_db.clone();
-        let resolved = {
-            let source = source.clone();
-            tokio::task::spawn_blocking(move || root_of(&system_db, &source))
-                .await
-                .ok()
-                .flatten()
-        };
-        let Some(root) = resolved else {
+        let Some(root) = self.resolve(source).await else {
             tracing::event!(
                 tracing::Level::WARN,
                 source = %source.id,

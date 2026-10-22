@@ -412,3 +412,132 @@ async fn test_a_mailbox_password_that_stays_is_answered_left() {
     );
     h.manager.shutdown().await;
 }
+
+fn chosen(id: &str, path: &str) -> apollia_connectors::microsoft::onedrive_choices::OneDriveChoice {
+    apollia_connectors::microsoft::onedrive_choices::OneDriveChoice {
+        format_version: 1,
+        id: id.into(),
+        name: path.rsplit('/').next().unwrap_or_default().into(),
+        kind: apollia_connectors::microsoft::onedrive_choices::ChoiceKind::Folder,
+        path: path.into(),
+        drive_id: None,
+    }
+}
+
+/// A connected Microsoft account `ada@example.com` holding two OneDrive
+/// choices, and another account holding one.
+async fn microsoft_with_choices(h: &Harness) -> (AuthManager, std::path::PathBuf) {
+    let auth = no_accounts(h);
+    put_microsoft(&auth).await;
+    let file = h.dir.path().join(ONEDRIVE_CHOICES_FILENAME);
+    for (account, id, path) in [
+        ("ada@example.com", "c1", "/drive/root:/Clients"),
+        ("ada@example.com", "c2", "/drive/root:/Finance"),
+        ("grace@example.com", "c3", "/drive/root:/Lab"),
+    ] {
+        onedrive_choices::record(&file, account, chosen(id, path)).unwrap();
+    }
+    (auth, file)
+}
+
+async fn put_microsoft(auth: &AuthManager) {
+    auth.put_token(
+        apollia_auth::ConnectorProvider::Microsoft,
+        &apollia_auth::AccountId::new("ada@example.com"),
+        apollia_auth::StoredToken {
+            access_token: "at".into(),
+            refresh_token: None,
+            expires_at: None,
+            scopes: vec![],
+        },
+    )
+    .await
+    .unwrap();
+}
+
+const ADA_MICROSOFT: &str = "native:microsoft:ada@example.com";
+
+// GIVEN a connected Microsoft account with two OneDrive choices, and another
+//       account with one
+// WHEN its removal is asked as a dry run, then made, then the same account
+//      is connected again
+// THEN the dry run lists both choices by their path and erases nothing; the
+//      removal erases them, keeps the other account's, and the account
+//      connected again has nothing chosen
+#[tokio::test]
+async fn test_a_microsoft_account_removal_erases_its_onedrive_choices() {
+    // GIVEN
+    let (h, _) = runtime().await;
+    let (auth, file) = microsoft_with_choices(&h).await;
+
+    // WHEN
+    let dry = remove(&h.state, &auth, ADA_MICROSOFT, true).await.unwrap();
+    let kept_by_dry_run = onedrive_choices::choices_of(&file, "ada@example.com")
+        .unwrap()
+        .len();
+    let real = remove(&h.state, &auth, ADA_MICROSOFT, false).await.unwrap();
+    put_microsoft(&auth).await;
+    let again = remove(&h.state, &auth, ADA_MICROSOFT, true).await.unwrap();
+
+    // THEN
+    assert_eq!(
+        kinds(&dry),
+        [
+            RemovedKind::Token,
+            RemovedKind::OneDriveChoice,
+            RemovedKind::OneDriveChoice
+        ]
+    );
+    assert_eq!(dry.removed[1].name, "/drive/root:/Clients");
+    assert_eq!(dry.removed[2].name, "/drive/root:/Finance");
+    assert_eq!(kept_by_dry_run, 2);
+    assert_eq!(real.removed, dry.removed);
+    assert!(real.left.is_empty(), "{:?}", real.left);
+    assert!(onedrive_choices::choices_of(&file, "ada@example.com")
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        onedrive_choices::choices_of(&file, "grace@example.com")
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(kinds(&again), [RemovedKind::Token]);
+    h.manager.shutdown().await;
+}
+
+// GIVEN a connected Microsoft account whose OneDrive choices file cannot be
+//       written
+// WHEN it is removed
+// THEN its token goes, and its choices are answered under `left`, not under
+//      `removed`, and are still in the file
+#[cfg(unix)]
+#[tokio::test]
+async fn test_onedrive_choices_that_stay_are_answered_left() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // GIVEN
+    let (h, _) = runtime().await;
+    let (auth, file) = microsoft_with_choices(&h).await;
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o400)).unwrap();
+
+    // WHEN
+    let removal = remove(&h.state, &auth, ADA_MICROSOFT, false).await.unwrap();
+
+    // THEN
+    assert_eq!(kinds(&removal), [RemovedKind::Token]);
+    assert_eq!(
+        removal.left,
+        [
+            RemovedItem::new(RemovedKind::OneDriveChoice, "/drive/root:/Clients"),
+            RemovedItem::new(RemovedKind::OneDriveChoice, "/drive/root:/Finance"),
+        ]
+    );
+    assert_eq!(
+        onedrive_choices::choices_of(&file, "ada@example.com")
+            .unwrap()
+            .len(),
+        2
+    );
+    h.manager.shutdown().await;
+}
