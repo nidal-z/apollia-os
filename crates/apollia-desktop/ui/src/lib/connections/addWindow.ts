@@ -132,48 +132,98 @@ function catalogueNeeds(entry: RegistryServerView): AddNeed[] {
 }
 
 /**
- * Where the window stands. `away` is set while a flow it opened (an
- * addition, the mailbox form, the folder picker) stands in its place, so that
- * cancelling that flow brings the window back on its search.
+ * Where the window stands. `adding` is set once Add was pressed on the card:
+ * the flow of the addition stands in the card's place. `resume` names the
+ * connection a sign-in done in its own dialog added, for the flow to resume on.
+ * `away` is set while a dialog the flow opened (the sign-in to an account)
+ * stands in the window's place, so that cancelling it brings the window back
+ * on its search.
  */
 export interface AddWindowState {
   open: boolean;
   query: string;
   chosen: string | null;
+  adding: boolean;
+  resume: string | null;
   away: boolean;
+  /** The address of a mailbox kept already, whose password the flow asks again. */
+  mailbox: string;
 }
 
-export const ADD_WINDOW_CLOSED: AddWindowState = { open: false, query: "", chosen: null, away: false };
+export const ADD_WINDOW_CLOSED: AddWindowState = {
+  open: false,
+  query: "",
+  chosen: null,
+  adding: false,
+  resume: null,
+  away: false,
+  mailbox: "",
+};
 
 /** Each opening starts on an empty search, nothing chosen. */
 export function openAddWindow(): AddWindowState {
-  return { open: true, query: "", chosen: null, away: false };
+  return { ...ADD_WINDOW_CLOSED, open: true };
 }
 
-/** Cancel on a card: the search, as it was typed. */
-export function backToSearch(state: AddWindowState): AddWindowState {
-  return { ...state, chosen: null };
+/** The window opened on the card of one entry, asked for from another screen. */
+export function openOnEntry(key: string): AddWindowState {
+  return { ...ADD_WINDOW_CLOSED, open: true, chosen: key };
 }
 
 /**
- * The chosen entry's flow takes the place of the window. A flow started while
- * the window is closed (from another screen, or from a dialog after an
- * addition) is not the window's, and cancelling it will not open it.
+ * The repair of a mailbox whose password was refused: the flow of a mailbox,
+ * its address filled in, so only the password is typed again.
+ */
+export function openOnMailbox(address: string): AddWindowState {
+  return { ...ADD_WINDOW_CLOSED, open: true, chosen: "mailbox", adding: true, mailbox: address };
+}
+
+/**
+ * Another entry chosen in the list: its card opens, never its flow, so an
+ * entry is added only once its own card and warning were read.
+ */
+export function chooseEntry(state: AddWindowState, key: string): AddWindowState {
+  return { ...state, chosen: key, adding: false, resume: null, mailbox: "" };
+}
+
+/** Cancel on a card or in a flow not yet added: the search, as it was typed. */
+export function backToSearch(state: AddWindowState): AddWindowState {
+  return { ...state, chosen: null, adding: false, resume: null, mailbox: "" };
+}
+
+/** Add on the card: the flow of the entry takes the card's place. */
+export function startAdding(state: AddWindowState): AddWindowState {
+  return { ...state, adding: true, resume: null };
+}
+
+/**
+ * A dialog of the flow takes the place of the window. A flow started while
+ * the window is closed (from another screen) is not the window's, and
+ * cancelling it will not open it.
  */
 export function leaveForFlow(state: AddWindowState): AddWindowState {
   return { ...state, open: false, away: state.open || state.away };
 }
 
 /**
- * The flow was cancelled: back to the search it left, the words kept and no
- * card open. A flow the window did not open changes nothing.
+ * The dialog was cancelled: back to the search it left, the words kept and no
+ * card open. A dialog the window did not open changes nothing.
  */
 export function flowCancelled(state: AddWindowState): AddWindowState {
   if (!state.away) return state;
-  return { ...state, open: true, chosen: null, away: false };
+  return { ...state, open: true, chosen: null, adding: false, resume: null, away: false, mailbox: "" };
 }
 
-/** The connection exists: the window is done with. */
+/**
+ * The dialog added `connectionId`: the window comes back on the flow it left,
+ * which goes on from who may use it.
+ */
+export function flowResumed(state: AddWindowState, connectionId: string): AddWindowState {
+  if (!state.away) return state;
+  return { ...state, open: true, adding: true, resume: connectionId, away: false };
+}
+
+/** The flow is over: the window is done with. */
 export function flowDone(): AddWindowState {
   return ADD_WINDOW_CLOSED;
 }

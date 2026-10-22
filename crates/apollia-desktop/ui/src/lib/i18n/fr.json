@@ -559,6 +559,10 @@
     "oauth_admin_approval_declined_title": "L'accès n'a pas été accordé",
     "oauth_admin_approval_declined_body": "{provider} n'a pas accordé à Apollia l'accès à ce compte. Vous pouvez réessayer.",
     "oauth_admin_approval_possible": "Si votre organisation demande l'accord d'un administrateur, envoyez-lui cette adresse.",
+    "oauth_admin_approval_request_label": "Ou envoyez-lui cette demande, prête à copier :",
+    "oauth_admin_approval_request": "Bonjour,\n\nJe souhaite connecter mon compte professionnel à Apollia, une application qui fonctionne sur mon ordinateur, pour m'en servir avec mes mails, mon agenda et mes fichiers. {provider} demande qu'un administrateur de notre organisation approuve d'abord l'application.\n\nPourriez-vous l'approuver à cette adresse ?\n{address}\n\nMerci.",
+    "oauth_admin_approval_request_copy": "Copier la demande",
+    "oauth_admin_approval_request_copied": "Demande copiée",
     "oauth_missing_client_title": "Identifiant OAuth manquant",
     "oauth_missing_client_body_html": "Aucun client OAuth n'est configuré pour {provider}, Apollia s'est donc arrêté plutôt que d'ouvrir un écran de consentement qui n'aboutirait pas. Créez-le dans la console {console}, puis ouvrez sa fiche dans Connexions pour l'ajouter. Aucune variable d'environnement n'est nécessaire.",
     "oauth_missing_secret_title": "Secret client OAuth manquant",
@@ -587,14 +591,8 @@
     "custom_intro": "Pour brancher un service à vous, joint à son adresse : un outil interne, un service communautaire, un service en développement. Pour un service du catalogue, utilisez plutôt sa carte.",
     "custom_name_label": "Nom (interne, unique)",
     "custom_name_placeholder": "ex. acme-internal",
-    "custom_command_label": "Commande",
-    "custom_args_label": "Arguments (espace-séparé)",
     "custom_url_label": "Adresse",
-    "custom_env_label": "Variables d'environnement",
-    "custom_headers_label": "Headers HTTP",
-    "custom_env_hint_html": "(une par ligne, <code>NOM=valeur</code>)",
     "custom_test_ok": "Test OK - {result}",
-    "installing": "Installation…",
     "install": "Installer",
     "mcp_settings": {
       "loading": "Chargement…",
@@ -676,8 +674,6 @@
     "mailbox": {
       "entry_name": "Boîte mail",
       "entry_description": "Gmail, iCloud, Yahoo, Orange, Free, La Poste ou toute boîte qui accepte un mot de passe d'application",
-      "title": "Ajouter une boîte mail",
-      "subtitle": "Par son adresse et un mot de passe d'application",
       "email_label": "Adresse",
       "email_placeholder": "claire@exemple.fr",
       "email_hint": "Le serveur de messagerie est déduit de l'adresse.",
@@ -689,9 +685,8 @@
       "port_label": "Port",
       "add": "Ajouter",
       "add_hint": "Apollia essaie la connexion avant de l'ajouter.",
+      "read_only": "Apollia la lit seulement : il n'y envoie ni n'y supprime jamais rien.",
       "trying": "Essai de la connexion à la boîte mail…",
-      "added": "Essai réussi : {email} est ajoutée à vos connexions.",
-      "added_where": "Vos agents peuvent maintenant la lire, sans jamais rien y envoyer ni supprimer. Elle figure dans la liste des connexions.",
       "error": {
         "credentials_rejected": "Le serveur refuse le mot de passe. Vérifiez le mot de passe d'application, puis réessayez.",
         "unreachable": "Le serveur de messagerie ne répond pas. Vérifiez l'adresse, ou le serveur et le port sous « Avancé ».",
@@ -710,18 +705,11 @@
       "name": "Dossier",
       "description": "Un dossier de votre ordinateur, ouvert aux agents",
       "picker_title": "Choisir le dossier à ouvrir aux agents",
-      "added_title": "Dossier ajouté : {name}",
-      "added_subtitle": "Sur cet ordinateur · rien à télécharger",
-      "abilities_title": "Ce que les agents pourront y faire",
       "ability_read": "Lire : ouvrir et rechercher les fichiers du dossier",
       "ability_write": "Écrire ou supprimer : seulement avec votre accord",
       "bounds": "Rien en dehors de ce dossier. Vous choisissez quels agents y ont accès depuis leur fiche.",
-      "not_added_title": "Dossier non ajouté",
-      "add_failed": "Ce dossier n'a pas pu être ajouté.",
-      "choose_another": "Choisir un autre dossier",
       "done": "Terminé",
-      "grant_apollia": "Laisser Apollia lire ce dossier",
-      "grant_apollia_hint": "Apollia pourra ouvrir et chercher dans ce dossier et ses sous-dossiers. Les autres agents le reçoivent sur leur fiche, et vous pouvez le retirer à Apollia au même endroit."
+      "choose_another": "Choisir un autre dossier"
     },
     "try": {
       "action": "Essayer",
@@ -743,11 +731,7 @@
     },
     "badge_builtin": "Intégrée",
     "page_subtitle": "Les comptes, dossiers, services et outils auxquels Apollia accède pour vous.",
-    "inactive": {},
-    "grant_apollia": {
-      "label": "Laisser Apollia s'en servir dans le Chat",
-      "hint": "Apollia reçoit tous les outils de cette connexion. Ceux qui écrivent, envoient ou exécutent du code, et ceux qui ne sont pas classés, demandent votre accord avant de s'exécuter. Les autres agents la reçoivent sur leur fiche.",
-      "failed": "La connexion est ajoutée, mais Apollia n'a pas pu la recevoir : {error}. Accordez-la depuis la fiche d'Apollia."
+    "inactive": {
     },
     "add_window": {
       "subtitle": "Cherchez ce que vous voulez brancher, puis ouvrez sa fiche pour l'ajouter.",
@@ -781,6 +765,35 @@
       "add": "Ajouter",
       "open": "Ouvrir sa page",
       "back": "Retour à la recherche"
+    },
+    "add_flow": {
+      "steps": {
+        "connect": "Brancher",
+        "who": "Qui peut s'en servir",
+        "trial": "Essai"
+      },
+      "apollia_name": "Apollia, dans le Chat",
+      "apollia_hint": "L'agent avec qui vous parlez dans le Chat.",
+      "who_title": "Quels agents peuvent se servir de cette connexion ?",
+      "who_hint": "Les agents cochés reçoivent tous les outils de cette connexion. Vous pourrez le changer ensuite, sur la fiche de la connexion ou de chaque agent.",
+      "who_rule": "Un outil qui écrit, envoie ou exécute du code, et un outil que personne n'a classé, demandent toujours votre accord avant de s'exécuter.",
+      "who_loading": "Lecture des agents de cet ordinateur…",
+      "who_no_other": "Aucun autre agent sur cet ordinateur pour l'instant.",
+      "granting": "La connexion est donnée aux agents cochés…",
+      "grant_failed": "La connexion est ajoutée, mais les agents n'ont pas pu la recevoir : {error}. Donnez-la depuis la fiche de la connexion.",
+      "added": "La connexion {name} est ajoutée.",
+      "added_where": "Vous la retrouvez dans Connexions. Sa fiche dit quels agents s'en servent.",
+      "folder_body": "Choisissez le dossier de cet ordinateur que les agents pourront ouvrir. Rien en dehors de lui.",
+      "folder_pick": "Choisir le dossier",
+      "sign_in": "Se connecter",
+      "sign_in_body": "Une fenêtre s'ouvre pour vous connecter à votre compte {name}. Rien n'est gardé avant la fin de la connexion.",
+      "sign_in_work_account": "Avec un compte professionnel, votre organisation peut demander qu'un administrateur approuve d'abord Apollia. Dans ce cas, Apollia vous écrit la demande à lui envoyer.",
+      "key_label": "Clé d'accès",
+      "value_label": "Valeur que le service demande",
+      "key_asked": "Le service a répondu qu'il demande une clé.",
+      "key_vault": "Rangée dans le coffre de secrets de cet ordinateur, jamais dans les réglages de la connexion.",
+      "key_toggle": "Le service m'a donné une clé",
+      "permissions_title": "Ce que la connexion accordera"
     },
     "list": {
       "search_placeholder": "Rechercher une connexion…",
@@ -912,7 +925,6 @@
       }
     },
     "wizard": {
-      "title": "Configurer {name}",
       "encrypted_locally": "Chiffré et stocké localement",
       "test_retry": "Réessayer",
       "test_err": {
@@ -967,7 +979,6 @@
       "component_verified": "Son intégrité est vérifiée avant son installation.",
       "trying": "Essai de la connexion…",
       "added_success": "Connexion ajoutée et fonctionnelle : {count, plural, one {# outil disponible} other {# outils disponibles}}",
-      "added_where": "Vous la retrouvez dans Connexions, prête à être accordée à vos agents.",
       "added_failed": "La connexion est ajoutée, mais son essai a échoué",
       "failed_badge": "En échec",
       "remove": "Retirer",
@@ -4938,6 +4949,11 @@
       "custom_transport_stdio": "stdio (subprocess local)",
       "custom_transport_http": "Streamable HTTP (MCP 2025-11-25)",
       "custom_transport_sse": "SSE (legacy 2024-11-05)",
+      "custom_command_label": "Commande",
+      "custom_args_label": "Arguments (espace-séparé)",
+      "custom_env_label": "Variables d'environnement",
+      "custom_headers_label": "En-têtes HTTP",
+      "custom_env_hint_html": "(une par ligne, <code>NOM=valeur</code>)",
       "tool_provenance": "Serveur MCP {server} · {name}",
       "card": {
         "technical_title": "Détail technique"

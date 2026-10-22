@@ -3,7 +3,8 @@
    * AddConnectionWindow - the window that adds a connection: one search field
    * across its width, then four groups (what Apollia offers, what is on this
    * computer, the public catalogue, a service by its address), and beside
-   * them the card of the chosen entry. The public catalogue is read only when
+   * them the card of the chosen entry, then, once Add is pressed, the one flow
+   * of its addition in the card's place. The public catalogue is read only when
    * it is asked for, and is marked as not verified. A source that did not
    * answer says so in a banner under the search; it never reads as an empty
    * catalogue.
@@ -20,6 +21,7 @@
   import BrowseLayout from "$lib/components/operator/BrowseLayout.svelte";
   import ConnectorTile from "../shared/ConnectorTile.svelte";
   import AddEntryCard from "./AddEntryCard.svelte";
+  import AddFlow from "../add/AddFlow.svelte";
   import { rankSuggestions } from "../ConnectionSuggestions.svelte";
   import { NATIVE_PROVIDERS, NATIVE_PROVIDER_KEYS } from "$lib/connections/connectionRows";
   import { accentTokenFor } from "$lib/connections/accent";
@@ -33,6 +35,7 @@
     type AddEntry,
     type AddGroupKey,
   } from "$lib/connections/addWindow";
+  import type { ProviderId } from "$lib/ipc/connections";
   import type { AgentListItem, RegistryServerView } from "$lib/types";
 
   interface Props {
@@ -40,6 +43,12 @@
     query: string;
     /** The key of the entry whose card is open; null shows the groups alone. */
     chosen: string | null;
+    /** Add was pressed on the card: its flow stands in the card's place. */
+    adding: boolean;
+    /** The connection a sign-in done in its own dialog added: the flow resumes on it. */
+    resume: string | null;
+    /** The address of a mailbox whose password is typed again, empty for a new one. */
+    mailbox?: string;
     selection: RegistryServerView[];
     publicEntries: RegistryServerView[];
     failures: CatalogueFailure[];
@@ -56,18 +65,28 @@
     onexploreall: () => void;
     /** Show the selection alone again. */
     onbacktoselection: () => void;
-    /** Add on the card of `entry`. */
+    /** Add on the card of `entry`: its flow starts. */
     onadd: (entry: AddEntry) => void;
     /** Open the page of a connection already here. */
     onmanage: (name: string) => void;
-    /** The form of the address added its connection. */
-    oninstalled: () => void;
+    /** The flow added its connection. */
+    onadded: (connectionId: string) => void;
+    /** The flow is over, on the connection it added when it added one. */
+    ondone: (connectionId: string | null) => void;
+    /** Sign in to a native account, in the dialog of its provider. */
+    onsignin: (provider: ProviderId) => void;
+    ontry: (connectionId: string, name: string) => void;
+    ontryprompt: (connectionId: string, prompt: string) => void;
+    onopenrule: () => void;
   }
 
   let {
     open,
     query = $bindable(""),
     chosen,
+    adding,
+    resume,
+    mailbox = "",
     selection,
     publicEntries,
     failures,
@@ -83,7 +102,12 @@
     onbacktoselection,
     onadd,
     onmanage,
-    oninstalled,
+    onadded,
+    ondone,
+    onsignin,
+    ontry,
+    ontryprompt,
+    onopenrule,
   }: Props = $props();
 
   const PAGE = 48;
@@ -377,7 +401,26 @@
       </div>
 
       {#snippet detail()}
-        {#if chosenEntry}
+        {#if chosenEntry && (adding || chosenEntry.kind === "address")}
+          <!-- The address has nothing to read before its form: its flow opens
+               with it. Keyed on the entry, so another entry starts afresh. -->
+          {#key chosenEntry.key}
+            <AddFlow
+              entry={chosenEntry}
+              name={rowName(chosenEntry)}
+              accepted={chosenEntry.kind === "catalogue"}
+              {resume}
+              mailboxAddress={mailbox}
+              {onback}
+              {onadded}
+              {ondone}
+              {onsignin}
+              {ontry}
+              {ontryprompt}
+              {onopenrule}
+            />
+          {/key}
+        {:else if chosenEntry}
           <AddEntryCard
             entry={chosenEntry}
             installed={installedOf(chosenEntry)}
@@ -385,7 +428,6 @@
             onadd={() => onadd(chosenEntry)}
             onmanage={() => manage(chosenEntry)}
             oncancel={onback}
-            {oninstalled}
           />
         {/if}
       {/snippet}

@@ -1,18 +1,19 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * Adding a connection of the selection: choose it, read its card, add it,
- * accept its warning.
+ * Adding a connection of the selection, through the one flow of an addition:
+ * choose it, read its card and its warning, add it, say who may use it.
  *
  * Boots the UI bundle with the Tauri bridge stubbed (the three members the
  * boot path reaches for, as in `tests/agents/agent-sheet.spec.ts`), reaches
  * the Connections screen through its sidebar entry and opens its add window.
  * From there the clicks are counted on the document: one on the entry, one on
- * Add in its card, one on the warning's button, and the connection is added
- * and tried with no other gesture. Cancelling the addition gives the search
- * back, as it was typed. The stub answers a remote entry that needs no authentication, an
- * addition that succeeds and a live trial of two tools; a second case answers
- * the organisation's refusal of online connections.
+ * Add in its card, which accepts the warning it shows, one on Continue once
+ * the agents are checked, and the connection is added, granted and tried with
+ * no other gesture. Cancelling gives the search back, as it was typed. The
+ * stub answers a remote entry that needs no authentication, an addition that
+ * succeeds, the connection and its two tools, and a live trial; a second case
+ * answers the organisation's refusal of online connections.
  */
 
 type InvokeStub = (cmd: string, args: unknown) => unknown;
@@ -40,7 +41,19 @@ async function installTauriStub(page: Page, refuse: boolean): Promise<void> {
       remotes: [{ type: "streamable-http", url: "https://mcp.notion.com/mcp", headers: [] }],
     };
     const calls: string[] = [];
+    const grants: unknown[] = [];
     (globalThis as unknown as { __invokeCalls: string[] }).__invokeCalls = calls;
+    (globalThis as unknown as { __grants: unknown[] }).__grants = grants;
+    let added = false;
+    const connection = {
+      id: "mcp:com-notion-mcp", kind: "mcp", label: "com-notion-mcp", account: null,
+      provenance: "selection", remote: true, official: true, state: "connected",
+      status: "working", reason: null, checkedAt: null, package: null,
+      tools: [
+        { id: "mcp:com-notion-mcp/search", family: "read", familySource: "server", prechecked: true },
+        { id: "mcp:com-notion-mcp/update", family: "write_or_delete", familySource: "server", prechecked: false },
+      ],
+    };
     const handlers: Record<string, (args: unknown) => unknown> = {
       get_onboarding_state: () => ({ completed: true, skipped: false, started_at: null }),
       read_config_file: () => ({ path: "~/.apollia/apollia.toml", exists: true, text: "", sha256: "", diagnostics: [], locked: [], pendingRestart: [] }),
@@ -58,8 +71,15 @@ async function installTauriStub(page: Page, refuse: boolean): Promise<void> {
         if (refuseAddition) {
           throw "refused by the organisation policy: connections to online services are not allowed";
         }
+        added = true;
         const name = (args as { config: { name: string } }).config.name;
         return { name, health: { state: "healthy", verified: true } };
+      },
+      list_connections: () => (added ? [connection] : []),
+      list_agents: () => [{ name: "analyst", agent_type: "worker" }],
+      grant_connection: (args) => {
+        grants.push(args);
+        return { connection: "mcp:com-notion-mcp", agents: [], sharedWith: [] };
       },
       test_mcp_live_server: () => ({
         kind: "success", server_info: "notion", protocol_version: "2025-06-18",
@@ -138,26 +158,63 @@ test.describe("the public catalogue is asked on request only", () => {
 });
 
 test.describe("adding a connection", () => {
-  test("three clicks from the window add the connection and try it", async ({ page }) => {
+  test("three clicks from the window add the connection, give it to Apollia and try it", async ({ page }) => {
     // GIVEN the add window open on an entry that needs no authentication
     await installTauriStub(page, false);
     await openSelection(page);
 
-    // WHEN the entry is chosen, Add is pressed on its card, then its warning accepted
+    // WHEN the entry is chosen, Add is pressed on its card under its warning
     await page.getByTestId("catalogue-entry-com.notion/mcp").click();
     await expect(page.getByTestId("catalogue-card-needs")).toBeVisible();
-    await page.getByTestId("catalogue-card-add").click();
     await expect(page.getByTestId("wizard-step-disclaimer")).toBeVisible();
-    await expect(page.locator('[data-testid="connector-wizard"] input[type="checkbox"]')).toHaveCount(0);
-    await page.getByTestId("wizard-warning-accept").click();
+    await page.getByTestId("catalogue-card-add").click();
 
-    // THEN the connection is added and its trial succeeds, with no other gesture
+    // THEN the flow asks who may use it: Apollia checked, the other agent not
+    const who = page.getByTestId("add-flow-who");
+    await expect(who).toBeVisible();
+    await expect(page.getByTestId("add-flow-steps")).toHaveAttribute("data-step", "who");
+    const apollia = who.locator('[data-agent="apollia:chat"] [role="checkbox"]');
+    const analyst = who.locator('[data-agent="analyst"] [role="checkbox"]');
+    await expect(apollia).toHaveAttribute("aria-checked", "true");
+    await expect(analyst).toHaveAttribute("aria-checked", "false");
+
+    // WHEN Continue is pressed
+    await page.getByTestId("add-flow-who-continue").click();
+
+    // THEN Apollia is given every tool of the connection, and the trial succeeds
     await expect(page.getByTestId("test-result-success")).toBeVisible();
+    await expect(page.getByTestId("add-flow-steps")).toHaveAttribute("data-step", "trial");
     expect(await clicks(page)).toBe(3);
-    const calls = await page.evaluate(
-      () => (globalThis as unknown as { __invokeCalls: string[] }).__invokeCalls,
-    );
-    expect(calls.indexOf("add_mcp_server")).toBeLessThan(calls.indexOf("test_mcp_live_server"));
+    const calls = await invokeCalls(page);
+    expect(calls.indexOf("add_mcp_server")).toBeLessThan(calls.indexOf("grant_connection"));
+    expect(calls.indexOf("grant_connection")).toBeLessThan(calls.indexOf("test_mcp_live_server"));
+    const grants = await page.evaluate(() => (globalThis as unknown as { __grants: unknown[] }).__grants);
+    expect(grants).toEqual([
+      {
+        connectionId: "mcp:com-notion-mcp",
+        agents: ["apollia:chat"],
+        tools: ["mcp:com-notion-mcp/search", "mcp:com-notion-mcp/update"],
+      },
+    ]);
+  });
+
+  test("another agent checked gets the connection in the same grant", async ({ page }) => {
+    // GIVEN the flow of the entry on who may use it
+    await installTauriStub(page, false);
+    await openSelection(page);
+    await page.getByTestId("catalogue-entry-com.notion/mcp").click();
+    await page.getByTestId("catalogue-card-add").click();
+    await expect(page.getByTestId("add-flow-who")).toBeVisible();
+
+    // WHEN the other agent is checked too, then Continue pressed
+    await page.locator('[data-agent="analyst"] [role="checkbox"]').click();
+    await page.getByTestId("add-flow-who-continue").click();
+
+    // THEN one grant names both agents
+    await expect(page.getByTestId("test-result-success")).toBeVisible();
+    const grants = await page.evaluate(() => (globalThis as unknown as { __grants: Array<{ agents: string[] }> }).__grants);
+    expect(grants).toHaveLength(1);
+    expect(grants[0].agents).toEqual(["apollia:chat", "analyst"]);
   });
 
   test("a refusal by the organisation says who refused, in the same two clicks", async ({ page }) => {
@@ -165,33 +222,36 @@ test.describe("adding a connection", () => {
     await installTauriStub(page, true);
     await openSelection(page);
 
-    // WHEN the entry is chosen, added from its card, then its warning accepted
+    // WHEN the entry is chosen, then added from its card
     await page.getByTestId("catalogue-entry-com.notion/mcp").click();
     await page.getByTestId("catalogue-card-add").click();
-    await page.getByTestId("wizard-warning-accept").click();
 
-    // THEN the one refusal box shows, with its action
+    // THEN the one refusal box shows, with its action, and nothing was granted
     const refusal = page.getByTestId("connection-refusal");
     await expect(refusal).toBeVisible();
     await expect(refusal).toHaveAttribute("data-refusal", "remote_denied");
     await expect(page.getByTestId("connection-refusal-open")).toBeVisible();
-    expect(await clicks(page)).toBe(3);
+    expect(await clicks(page)).toBe(2);
+    expect(await invokeCalls(page)).not.toContain("grant_connection");
   });
 
-  test("cancelling the addition gives the search back, not the list", async ({ page }) => {
-    // GIVEN a search typed in the add window, and the addition of its entry opened
+  test("cancelling gives the search back, not the list", async ({ page }) => {
+    // GIVEN a search typed in the add window, and the card of its entry open
     await installTauriStub(page, false);
     await openSelection(page);
     await page.getByTestId("catalogue-search").fill("notion");
     await page.getByTestId("catalogue-entry-com.notion/mcp").click();
-    await page.getByTestId("catalogue-card-add").click();
     await expect(page.getByTestId("wizard-step-disclaimer")).toBeVisible();
 
-    // WHEN the addition is cancelled
+    // WHEN the card is cancelled, then the flow of an address opened and cancelled
+    await page.getByTestId("catalogue-card-cancel").click();
+    await expect(page.getByTestId("catalogue-search")).toHaveValue("notion");
+    await page.getByTestId("catalogue-search").fill("");
+    await page.getByTestId("catalogue-address").click();
+    await expect(page.getByTestId("add-flow-address")).toBeVisible();
     await page.getByTestId("wizard-cancel-btn").click();
 
-    // THEN the window is back on the same words, with no card open
-    await expect(page.getByTestId("catalogue-search")).toHaveValue("notion");
+    // THEN the window is back on its search each time, with no card nor flow open
     await expect(page.getByTestId("catalogue-entry-com.notion/mcp")).toBeVisible();
     await expect(page.getByTestId("catalogue-card")).toHaveCount(0);
     await expect(page.getByTestId("connector-wizard")).toHaveCount(0);

@@ -20,7 +20,6 @@ vi.hoisted(() => {
 
 import "$lib/i18n";
 import fr from "$lib/i18n/fr.json";
-import FolderConnectionDialog from "./FolderConnectionDialog.svelte";
 import AddConnectionWindow from "./AddConnectionWindow.svelte";
 import ConnectionCard from "../detail/ConnectionCard.svelte";
 import type { Connection } from "$lib/types";
@@ -70,7 +69,9 @@ describe("the folder in the add window", () => {
         open: true, query: "", chosen: null, selection: [], publicEntries: [], failures: [],
         catalogueTier: "curated", loading: false, agents: [], installedNames: new Set(),
         installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop,
-        onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, oninstalled: noop,
+        onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop,
+        adding: false, resume: null, onadded: noop, ondone: noop, onsignin: noop,
+        ontry: noop, ontryprompt: noop, onopenrule: noop,
       } as never,
     }).body;
     const computer = html.slice(html.indexOf('data-testid="catalogue-group-computer"'));
@@ -83,44 +84,7 @@ describe("the folder in the add window", () => {
   });
 });
 
-describe("the folder added", () => {
-  test("the dialog names the folder, its path and what agents may do there", async () => {
-    // GIVEN a folder just added, in French
-    await french();
-
-    // WHEN the dialog is rendered
-    const html = renderToString(FolderConnectionDialog as never, {
-      props: { open: true, outcome: { kind: "added", connection: FOLDER }, onclose: noop, onchooseanother: noop, onopenrule: noop } as never,
-    }).body;
-    const words = text(html);
-
-    // THEN the title, the readable path, both abilities and both buttons are there
-    expect(words).toContain(fr.connections.folder.added_title.replace("{name}", "Clients"));
-    expect(words).toContain("Documents › Clients");
-    expect(words).toContain(fr.connections.folder.ability_read);
-    expect(words).toContain(fr.connections.folder.ability_write);
-    expect(html).toContain('data-testid="folder-connection-choose-another"');
-    expect(html).toContain('data-testid="folder-connection-done"');
-  });
-
-  test("a refusal shows the one refusal box", async () => {
-    // GIVEN a folder refused by the organisation
-    await french();
-    const outcome = {
-      kind: "refused",
-      refusal: { code: "policy_unreadable", by: "organisation", reason: "the connection policy could not be read" },
-    };
-
-    // WHEN the dialog is rendered
-    const html = renderToString(FolderConnectionDialog as never, {
-      props: { open: true, outcome, onclose: noop, onchooseanother: noop, onopenrule: noop } as never,
-    }).body;
-
-    // THEN the refusal box is shown, not the folder
-    expect(html).toContain('data-testid="connection-refusal"');
-    expect(html).not.toContain('data-testid="folder-connection-added"');
-  });
-
+describe("the folder connection", () => {
   test("the card of a folder gives its path and a way to remove it", async () => {
     // GIVEN a folder connection, in French
     await french();

@@ -3,8 +3,8 @@
    * AddEntryCard - the card of the entry chosen in the add window, in its
    * centre: its name and who publishes it, what it is, what adding it asks,
    * then Add (or Manage when it is already here) and Cancel, which gives the
-   * search back as it was typed. The address of a service holds its form in
-   * the card.
+   * search back as it was typed. An entry of the catalogue shows its warning
+   * here: Add accepts it, and the flow of the addition takes the card's place.
    */
   import { locale, t } from "svelte-i18n";
   import { ArrowLeft, Check } from "lucide-svelte";
@@ -14,7 +14,7 @@
   import { entryDescription, entryLabel } from "$lib/connections/catalogueText";
   import { vendorLabel } from "$lib/connections/vendor";
   import { entryNeeds, type AddEntry, type AddNeed } from "$lib/connections/addWindow";
-  import CustomMcpForm from "./CustomMcpForm.svelte";
+  import WizardStepDisclaimer from "../../integrations/WizardStepDisclaimer.svelte";
 
   interface Props {
     entry: AddEntry;
@@ -25,11 +25,9 @@
     onmanage: () => void;
     /** Back to the search, the words kept. */
     oncancel: () => void;
-    /** The form of the address added its connection. */
-    oninstalled: () => void;
   }
 
-  let { entry, installed, official, onadd, onmanage, oncancel, oninstalled }: Props = $props();
+  let { entry, installed, official, onadd, onmanage, oncancel }: Props = $props();
 
   const name = $derived.by((): string => {
     switch (entry.kind) {
@@ -135,10 +133,8 @@
     </ul>
   </section>
 
-  {#if entry.kind === "address"}
-    <div class="-mx-6">
-      <CustomMcpForm {oninstalled} />
-    </div>
+  {#if entry.kind === "catalogue" && !installed}
+    <WizardStepDisclaimer {name} />
   {/if}
 
   <footer class="mt-auto flex justify-end gap-2 pt-2">
@@ -149,7 +145,7 @@
       <Button variant="primary-solid" size="sm" onclick={onmanage} data-testid="catalogue-card-add">
         {$t("connections.add_window.open")}
       </Button>
-    {:else if entry.kind !== "address"}
+    {:else}
       <Button variant="primary-solid" size="sm" onclick={onadd} data-testid="catalogue-card-add">
         {$t("connections.add_window.add")}
       </Button>

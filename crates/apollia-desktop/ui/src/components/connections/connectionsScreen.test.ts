@@ -31,7 +31,7 @@ import NativeProviderCard from "./detail/NativeProviderCard.svelte";
 import McpToolsTab from "./detail/McpToolsTab.svelte";
 import BuiltinToolsDetail from "./detail/BuiltinToolsDetail.svelte";
 import AddConnectionWindow from "./catalogue/AddConnectionWindow.svelte";
-import CustomMcpForm from "./catalogue/CustomMcpForm.svelte";
+import AddressForm from "./add/AddressForm.svelte";
 import { settingsGroups } from "../integrations/McpServerSettingsEditor.svelte";
 import type { Connection } from "$lib/types";
 
@@ -136,13 +136,13 @@ function screens(): Record<string, Rendered> {
     folderCard: { component: ConnectionCard, props: cardProps(CONNECTIONS[3], "Invoices") },
     addSheet: {
       component: AddConnectionWindow,
-      props: { open: true, query: "", chosen: null, selection: [], publicEntries: [], failures: [], catalogueTier: "none", loading: true, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, oninstalled: noop },
+      props: { open: true, query: "", chosen: null, selection: [], publicEntries: [], failures: [], catalogueTier: "none", loading: true, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, adding: false, resume: null, onadded: noop, ondone: noop, onsignin: noop, ontry: noop, ontryprompt: noop, onopenrule: noop },
     },
     addAddressCard: {
       component: AddConnectionWindow,
-      props: { open: true, query: "", chosen: "address", selection: [], publicEntries: [], failures: [], catalogueTier: "curated", loading: false, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, oninstalled: noop },
+      props: { open: true, query: "", chosen: "address", selection: [], publicEntries: [], failures: [], catalogueTier: "curated", loading: false, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, adding: false, resume: null, onadded: noop, ondone: noop, onsignin: noop, ontry: noop, ontryprompt: noop, onopenrule: noop },
     },
-    customConnection: { component: CustomMcpForm, props: { oninstalled: noop } },
+    customConnection: { component: AddressForm, props: { oncancel: noop, onsubmit: noop } },
   };
 }
 
@@ -205,14 +205,14 @@ describe("Connections, developer mode on", () => {
     expect(visibleText(html)).toContain("Schema");
   });
 
-  test("the custom connection offers the transport and the command line", async () => {
+  test("the custom connection offers the transport and the headers", async () => {
     // GIVEN the developer mode on
     // WHEN the custom connection form is rendered
     const html = await render("customConnection", true);
 
-    // THEN the transport selector and the command field are there
+    // THEN the transport selector and the headers field are there
     expect(html).toContain('data-testid="custom-mcp-transport-select"');
-    expect(html).toContain('data-testid="custom-mcp-command-input"');
+    expect(html).toContain('data-testid="custom-mcp-env-input"');
     expect(visibleText(html)).toMatch(/\bMCP\b/);
   });
 

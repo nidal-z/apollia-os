@@ -107,4 +107,26 @@ describe("OauthAdminApproval", () => {
       en.connections.oauth_admin_approval_possible,
     );
   });
+
+  test("writes the request to send the administrator, the address in it, in both languages", async () => {
+    for (const [lang, catalogue] of [
+      ["fr", fr],
+      ["en", en],
+    ] as const) {
+      // GIVEN the interface in that language and an organisation that blocks the account
+      // WHEN the box is rendered
+      const html = await renderIn(lang);
+
+      // THEN the request is written in that language, ready to copy, with the
+      // approval address inside it
+      const request = catalogue.connections.oauth_admin_approval_request
+        .replace("{provider}", "Microsoft")
+        .replace("{address}", ADDRESS);
+      expect(html).toContain('data-testid="oauth-admin-approval-request"');
+      expect(html).toContain('data-testid="oauth-admin-approval-request-copy"');
+      expect(shows(html, request), lang).toBe(true);
+      expect(shows(html, catalogue.connections.oauth_admin_approval_request_copy)).toBe(true);
+    }
+    expect(fr.connections.oauth_admin_approval_request).not.toBe(en.connections.oauth_admin_approval_request);
+  });
 });

@@ -16,9 +16,7 @@
     "env-input-BRAVE_API_KEY",
     "env-toggle-BRAVE_API_KEY",
     "native-client-google",
-    "native-client-microsoft",
     "native-needs-config-google",
-    "oauth-connect-google",
     "oauth-connect-microsoft",
     "settings-nav-developer",
     "sidebar-connection-folder:automation",
@@ -146,6 +144,49 @@
     },
     {
       "kind": "waitFor",
+      "testid": "add-flow-signin",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "reject": {
+        "kind": "oauth_client_not_configured",
+        "detail": "automation: forced by stubInvoke"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "waitFor",
       "testid": "connection-detail-title",
       "timeoutMs": 6000
     },
@@ -212,6 +253,53 @@
     },
     {
       "kind": "waitFor",
+      "testid": "add-flow-signin",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06a-native-microsoft-sign-in-step"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "reject": {
+        "kind": "oauth_client_not_configured",
+        "detail": "automation: forced by stubInvoke"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "waitFor",
       "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
@@ -256,7 +344,55 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-client-google",
+      "testid": "add-flow-signin",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "reject": {
+        "kind": "oauth_client_not_configured",
+        "detail": "automation: forced by stubInvoke"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-detail-title",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-needs-config-google",
       "timeoutMs": 8000
     },
     {
@@ -671,13 +807,28 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "wizard-cancel-btn",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -977,6 +1128,36 @@
     },
     {
       "kind": "waitFor",
+      "testid": "add-flow-who",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-flow-who-agent",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-who-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-success",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-done-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
       "testid": "sidebar-mcp-automation-stub-mcp",
       "timeoutMs": 15000
     },
@@ -1140,7 +1321,55 @@
     },
     {
       "kind": "waitFor",
+      "testid": "add-flow-signin",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "reject": {
+        "kind": "oauth_client_not_configured",
+        "detail": "automation: forced by stubInvoke"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "waitFor",
       "testid": "connection-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-client-google",
       "timeoutMs": 4000
     },
     {
@@ -1342,7 +1571,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
       "timeoutMs": 4000
     },
     {
@@ -1352,8 +1591,13 @@
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "catalogue-close",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -1381,6 +1625,11 @@
       "timeoutMs": 10000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 4000
@@ -1391,14 +1640,9 @@
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-warning-accept",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -1445,6 +1689,26 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 4000
@@ -1470,6 +1734,11 @@
       "timeoutMs": 10000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 4000
@@ -1480,14 +1749,9 @@
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-warning-accept",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -1523,6 +1787,26 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 4000
@@ -1544,7 +1828,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
       "timeoutMs": 4000
     },
     {
@@ -1555,8 +1849,13 @@
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "catalogue-close",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -1589,6 +1888,11 @@
       "timeoutMs": 10000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 4000
@@ -1599,14 +1903,9 @@
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-warning-accept",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -1672,7 +1971,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
       "timeoutMs": 4000
     },
     {
@@ -1683,8 +1992,13 @@
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "catalogue-close",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -1717,6 +2031,11 @@
       "timeoutMs": 10000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 4000
@@ -1727,13 +2046,23 @@
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
       "timeoutMs": 4000
     },
     {
+      "kind": "waitFor",
+      "testid": "add-flow-who",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-flow-who-agent",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
-      "testid": "wizard-warning-accept",
+      "testid": "add-flow-who-continue",
       "timeoutMs": 3000
     },
     {
@@ -1869,7 +2198,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
       "timeoutMs": 4000
     },
     {
@@ -1880,8 +2219,13 @@
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "catalogue-close",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -1914,6 +2258,11 @@
       "timeoutMs": 10000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 4000
@@ -1924,13 +2273,23 @@
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
       "timeoutMs": 4000
     },
     {
+      "kind": "waitFor",
+      "testid": "add-flow-who",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-flow-who-agent",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
-      "testid": "wizard-warning-accept",
+      "testid": "add-flow-who-continue",
       "timeoutMs": 3000
     },
     {
@@ -1983,7 +2342,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
       "timeoutMs": 4000
     },
     {
@@ -2013,8 +2382,13 @@
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "catalogue-close",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -2042,6 +2416,11 @@
       "timeoutMs": 10000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 4000
@@ -2052,14 +2431,9 @@
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-warning-accept",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -2073,8 +2447,13 @@
     },
     {
       "kind": "waitFor",
-      "testid": "auth-oauth-scopes",
+      "testid": "auth-oauth-permissions",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "auth-oauth-permissions",
+      "contains": "Read pages and databases"
     },
     {
       "kind": "screenshot",
@@ -2193,6 +2572,26 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "clearStubs",
       "command": "test_mcp_connection"
     },
@@ -2226,13 +2625,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-connect-microsoft",
-      "timeoutMs": 6000
     },
     {
       "kind": "stubInvoke",
@@ -2245,7 +2639,7 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-connect-microsoft",
+      "testid": "add-flow-signin",
       "timeoutMs": 3000
     },
     {
@@ -2269,7 +2663,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-client-microsoft",
+      "testid": "connection-detail-title",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-connect-microsoft",
       "timeoutMs": 8000
     },
     {
@@ -2321,13 +2720,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-connect-microsoft",
-      "timeoutMs": 6000
     },
     {
       "kind": "stubInvoke",
@@ -2340,7 +2734,7 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-connect-microsoft",
+      "testid": "add-flow-signin",
       "timeoutMs": 3000
     },
     {
@@ -2535,13 +2929,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-connect-google",
-      "timeoutMs": 6000
     },
     {
       "kind": "stubInvoke",
@@ -2567,7 +2956,7 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-connect-google",
+      "testid": "add-flow-signin",
       "timeoutMs": 3000
     },
     {
@@ -2677,18 +3066,38 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
-      "testid": "oauth-done",
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
       "timeoutMs": 6000
     },
     {
+      "kind": "waitFor",
+      "testid": "add-flow-who",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-flow-who-agent",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
-      "testid": "oauth-done-close",
+      "testid": "add-flow-who-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-success",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-done-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitGone",
-      "testid": "oauth-dialog",
+      "testid": "connector-wizard",
       "timeoutMs": 6000
     },
     {
@@ -2958,15 +3367,16 @@
   ],
   "notes": [
     "Detail tabs and the catalogue sheet keep the last selected tab across a selection change: the operator pass leaves the MCP detail on Settings and the catalogue on Custom, so the builder pass re-selects mcp-detail-tab-overview and catalogue-tab-discover before asserting their bodies (mcp-tools-count / catalogue-list).",
-    "The add dialog opens on its one warning, which has nothing to tick and remembers nothing in the window: every block that opens it accepts it by wizard-warning-accept, the second of the two gestures (ConnectorWizard.svelte acceptWarning), and the desktop journals that acceptance.",
-    "Two installs happen and both are undone in their own block: the custom form on /usr/bin/python3 ${HOME}/.apollia/mcp-stub-server.py (server automation-stub-mcp) through mcp-disconnect-btn then mcp-disconnect-confirm-btn, and the add dialog on catalogue-entry-io.apollia/seed-stub (server io-apollia-seed-stub, deriveServerName of its registry identifier) twice: once removed from its page the same way, once by wizard-remove-btn after a failed trial. A native connector is selected before each install and before the OAuth blocks, so a failed install leaves no MCP detail for the removal clicks to reach, and the seeded rows filesystem and notes are never the target of a confirm. Later sections see the two seeded rows only.",
-    "The add dialog closes from any phase without a confirmation: wizard-cancel-btn at the warning, the authentication or a failed addition, wizard-done-btn after a trial or a refusal. An addition that went through calls oncomplete on close, so the list shows it.",
+    "The warning of a catalogue entry is on its card (AddEntryCard.svelte renders WizardStepDisclaimer), and Add on the card accepts it: every block that adds from the catalogue waits for wizard-step-disclaimer before catalogue-card-add, then for connector-wizard (AddFlow.svelte) and for the warning to be gone, since AddConnectionWindow.svelte passes accepted to the flow, which accepts at mount; the desktop journals that acceptance. Once the connection exists the flow asks who may use it (add-flow-who, one add-flow-who-agent row per agent, Apollia checked) and goes on by add-flow-who-continue: the trial (test-result-*) only comes after it, a failed or refused addition never reaches it.",
+    "Two installs happen and both are undone in their own block: the custom form on /usr/bin/python3 ${HOME}/.apollia/mcp-stub-server.py (server automation-stub-mcp), whose flow is taken through add-flow-who, add-flow-who-continue, the trial (test-result-success) and wizard-done-btn so the window is closed before the list is clicked, then removed through connection-remove-btn then connection-remove-confirm-btn, and the add dialog on catalogue-entry-io.apollia/seed-stub (server io-apollia-seed-stub, deriveServerName of its registry identifier) twice: once removed from its page the same way, once by wizard-remove-btn after a failed trial. The card of the page is closed (connections-back) before each install and before the OAuth blocks, and the Microsoft detours between them only open its sign-in step in the window and close the window, so a failed install leaves no MCP detail for the removal clicks to reach, and the seeded rows filesystem and notes are never the target of a confirm. Later sections see the two seeded rows only.",
+    "The flow of the window closes from any phase before the connection exists by wizard-cancel-btn (the authentication, a failed addition, the sign-in step of a provider), which gives the search of the window back, and catalogue-close then closes the window before the route is clicked again; after a trial, wizard-done-btn closes the window, and the list shows the connection.",
     "plugin:opener|open_url is stubbed (resolve null) for the whole wizard and OAuth section: auth-help-link and oauth-open-url-link go through handleExternalLinkClick to the opener plugin, and the stub keeps the host browser closed while the click still fires. The stub is dropped by the clearStubs at the end of the section.",
+    "The card of a provider with no account has no row in the list: Add on catalogue-native-google or catalogue-native-microsoft opens the sign-in step of the flow (add-flow-signin), and its card is reached from the sign-in dialog. oauth_start_flow is answered once with a reject {kind: oauth_client_not_configured}, the dialog offers oauth-open-settings-btn, and its onopenclient selects the provider (Connections.svelte) and brings its client section into view on NativeProviderCard: connection-detail-title, then native-needs-config-google (no Google client on a fresh install) or oauth-connect-microsoft; the client section native-client-* sits under DeveloperOnly, so it is waited for in the developer-mode block only. The banner and the button read the real client status, the stub only opens the dialog on that branch. The sign-in of a whole Google account (the Drive folder block) is the sign-in of the flow: the dialog hands the account back to the flow (onconnected), which resumes on add-flow-who; Continue grants nothing, the account being a stub with no tools, and the trial says it is added.",
     "oauth_start_flow is answered by the script twice. A reject {kind: oauth_client_not_configured} reaches the missing-client branch of NativeOauthDialog (isMissingClientError reads .kind) for oauth-open-settings-btn, with no sovereignty detour since the command never runs. A resolve imitating OauthStartResult (lib/ipc/connections.ts: auth_url, state, callback_port) reaches the auth step for oauth-open-url-link, oauth-paste-code-toggle, oauth-paste-code-input, oauth-finalize-btn and oauth-cancel-btn; oauth_complete_flow then runs for real with the unknown state and fails with FlowNotFound, the error line the finalize screenshot shows. Each OAuth block ends with clearStubs and a goto chat then goto integrations so the route is healthy again.",
     "catalogue-entry-io.apollia/seed-failing launches /usr/bin/false, which exits before any MCP handshake, so the addition itself fails and wizard-finalize-error lands at once; the 45 s waits only cover a runtime that waits out init_timeout_secs (30 s) instead of the EOF. The retry is proven by the error block coming back after wizard-retry-add-btn. The trial of seed-stub is failed by answering test_mcp_live_server once with a reject (the McpConnectionTestResponse path of tryAddedConnection), and the refusal by answering add_mcp_server once with the runtime's REMOTE_DENIED_REASON text, the string the admission route returns and refusalOf recognises.",
     "mcp-settings-url-input and mcp-settings-oauth-reconnect are reached by answering get_mcp_server_raw_config from the script with a value imitating McpServerConfig (apollia-mcp config.rs, the McpServerRawConfig of lib/ipc/connections.ts): transport streamable-http and an env carrying ${APOLLIA_OAUTH}, which is what McpServerSettingsEditor.svelte branches on (remote, oauthEnvHeaders). The stub is armed while the editor shows the seeded stdio server, and mcp-settings-reset is the reload that makes it take (reset calls load). mcp_oauth_login is answered twice, a reject for mcp-settings-oauth-error and a resolve imitating McpOAuthAccount (lib/types/mcp.ts) for mcp-settings-oauth-success. The URL fill is proven through update_mcp_server_config: a stub whose argsMatch carries the exact config the editor must build, new url included, rejects with the text the expect reads, and a catch-all reject behind it keeps the seeded row from ever being rewritten and reads differently when the url did not reach the config. The block ends with the three commands cleared and a real reload back to the stdio form. The block sits before the real timeout save of the same section: mcp-settings-reset is disabled while that save is in flight (McpServerSettingsEditor.svelte, disabled={saving || loading}), and a click on a disabled button is dropped, so the stubbed reload must not queue behind a restart of the seeded server.",
-    "The MCP OAuth branch of the wizard is reached on catalogue-entry-com.notion/mcp, the curated remote entry (enrichments.json remote_url https://mcp.notion.com/mcp, no oauth_pre_registered_client_id_env, so mcp_oauth_resolve_client_id never runs). test_mcp_connection is answered once with the McpConnectionTestResponse OauthRequired arm (commands/mcp.rs, kind + www_authenticate) and mcp_oauth_discover once with an McpOAuthDiscoveryResult (commands/mcp/oauth.rs: as_url, scopes_supported, scope_descriptions, registration_supported), which is what puts probeMode on oauth (ConnectorWizard.svelte acceptWarning, runAuthProbe then runOAuthDiscovery). mcp_oauth_login is armed once before each click: a string reject for the first auth-oauth-signin-btn (auth-oauth-error shows the message), an McpOAuthAccount resolve (sub, email, scopes) for the second (auth-oauth-success names the email), and a string reject for auth-oauth-reconnect-btn, whose proof is a fresh auth-oauth-error next to the success card that stays (startOAuthSignin keeps oauthAccount on failure). The dialog is left by wizard-cancel-btn without adding, and the three commands are cleared.",
-    "The Google Drive folder step is reached through NativeOauthDialog on the Google connector. oauth_list_client_ids is answered with two OauthClientIdStatus rows (commands/integrations/credentials.rs) whose google row has source file and a secret, so needsOauthSetup is false and the header renders oauth-add-account-google instead of oauth-configure-google; the route is remounted through the chat so refreshNativeStatus reads the stub. oauth_start_flow is answered once with an OauthStartFlow (auth_url, state, callback_port) and oauth_complete_flow once with an OauthCompletedAccount whose provider is google (commands/integrations.rs: provider, account_id, granted_scopes), which is the branch that sets step drive_folder (NativeOauthDialog.svelte completeFlow). oauth_set_drive_folder is answered first by a reject {kind: internal, detail} whose argsMatch carries the exact accountId and folderPath the dialog must send (the account of the completed flow, the path filled in oauth-drive-folder-input), which is the proof of the fill (formatTauriError renders kind: detail in oauth-drive-folder-error); a catch-all reject behind it reads differently and keeps the real command from ever writing drive prefs when the path did not reach the call. The command is cleared, then answered once with resolve null, on which the dialog closes. All four commands are cleared and the route is remounted so the real client-id status is back on screen.",
+    "The MCP OAuth branch of the wizard is reached on catalogue-entry-com.notion/mcp, the curated remote entry (enrichments.json remote_url https://mcp.notion.com/mcp, no oauth_pre_registered_client_id_env, so mcp_oauth_resolve_client_id never runs). test_mcp_connection is answered once with the McpConnectionTestResponse OauthRequired arm (commands/mcp.rs, kind + www_authenticate) and mcp_oauth_discover once with an McpOAuthDiscoveryResult (commands/mcp/oauth.rs: as_url, scopes_supported, scope_descriptions, registration_supported), which is what puts probeMode on oauth (AddFlow.svelte acceptWarning, then the probe of catalogueSetup.svelte.ts and its discovery). Developer mode is off in this section, so the scopes read as their descriptions in auth-oauth-permissions (WizardStepAuth.svelte), the identifiers of auth-oauth-scopes being shown in developer mode only. mcp_oauth_login is armed once before each click: a string reject for the first auth-oauth-signin-btn (auth-oauth-error shows the message), an McpOAuthAccount resolve (sub, email, scopes) for the second (auth-oauth-success names the email), and a string reject for auth-oauth-reconnect-btn, whose proof is a fresh auth-oauth-error next to the success card that stays (startOAuthSignin keeps oauthAccount on failure). The flow is left by wizard-cancel-btn without adding, and the three commands are cleared.",
+    "The Google Drive folder step is reached through NativeOauthDialog on the Google connector. oauth_list_client_ids is answered with two OauthClientIdStatus rows (commands/integrations/credentials.rs) whose google row has source file and a secret, so needsOauthSetup is false; the route is remounted through the chat so refreshNativeStatus reads the stub. oauth_start_flow is answered once with an OauthStartFlow (auth_url, state, callback_port) and oauth_complete_flow once with an OauthCompletedAccount whose provider is google (commands/integrations.rs: provider, account_id, granted_scopes), which is the branch that sets step drive_folder (NativeOauthDialog.svelte completeFlow). oauth_set_drive_folder is answered first by a reject {kind: internal, detail} whose argsMatch carries the exact accountId and folderPath the dialog must send (the account of the completed flow, the path filled in oauth-drive-folder-input), which is the proof of the fill (formatTauriError renders kind: detail in oauth-drive-folder-error); a catch-all reject behind it reads differently and keeps the real command from ever writing drive prefs when the path did not reach the call. The command is cleared, then answered once with resolve null, on which the dialog gives the account to the flow and closes. All four commands are cleared and the route is remounted so the real client-id status is back on screen.",
     "The removal of a folder connection is played against stubs, since the seed ships no folder connection and a real one would be removed for good. list_connections is answered with one folder connection and the route is remounted through the chat so the list reads it. remove_connection is answered only for that identifier: with dryRun true by the list of what goes (a source and the tool of an agent), which connection-remove-items must read before anything is confirmed, and with dryRun false by a removal that left one source behind, which the toast connection-remove-left must name. A catch-all reject behind them keeps the confirmation open, and the step waiting for it to go fails, if the card removed without the dry run first or without the confirmation. The confirmation is cancelled once, then confirmed. The stubs are cleared and the route is remounted, so the real list is back on screen."
   ]
 }

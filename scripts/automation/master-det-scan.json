@@ -132,7 +132,6 @@
     "namespace-sidebar-item-apollia-guide",
     "namespace-sidebar-item-onboarding-agent",
     "native-client-google",
-    "native-client-microsoft",
     "native-needs-config-google",
     "nav-agents",
     "nav-authorizations",
@@ -148,7 +147,6 @@
     "nav-observability",
     "nav-settings",
     "nav-transcriptions",
-    "oauth-connect-google",
     "oauth-connect-microsoft",
     "observability-tab-capture",
     "observability-tab-delegation",
@@ -9805,6 +9803,49 @@
     },
     {
       "kind": "waitFor",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "reject": {
+        "kind": "oauth_client_not_configured",
+        "detail": "automation: forced by stubInvoke"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "waitFor",
       "testid": "connection-detail-title",
       "timeoutMs": 3000
     },
@@ -9871,6 +9912,53 @@
     },
     {
       "kind": "waitFor",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06a-native-microsoft-sign-in-step"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "reject": {
+        "kind": "oauth_client_not_configured",
+        "detail": "automation: forced by stubInvoke"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "waitFor",
       "testid": "connection-detail-title",
       "timeoutMs": 3000
     },
@@ -9915,7 +10003,55 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-client-google",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "reject": {
+        "kind": "oauth_client_not_configured",
+        "detail": "automation: forced by stubInvoke"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-detail-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-needs-config-google",
       "timeoutMs": 3000
     },
     {
@@ -10335,12 +10471,27 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
       "timeoutMs": 3000
     },
     {
@@ -10644,6 +10795,36 @@
     },
     {
       "kind": "waitFor",
+      "testid": "add-flow-who",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-flow-who-agent",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-who-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-success",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-done-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "sidebar-mcp-automation-stub-mcp",
       "timeoutMs": 3000
     },
@@ -10809,7 +10990,55 @@
     },
     {
       "kind": "waitFor",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "reject": {
+        "kind": "oauth_client_not_configured",
+        "detail": "automation: forced by stubInvoke"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "waitFor",
       "testid": "connection-detail-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-client-google",
       "timeoutMs": 3000
     },
     {
@@ -11013,7 +11242,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
@@ -11023,7 +11262,12 @@
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
       "timeoutMs": 3000
     },
     {
@@ -11052,6 +11296,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 3000
@@ -11062,13 +11311,8 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-warning-accept",
       "timeoutMs": 3000
     },
     {
@@ -11116,6 +11360,26 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 3000
@@ -11141,6 +11405,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 3000
@@ -11151,13 +11420,8 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-warning-accept",
       "timeoutMs": 3000
     },
     {
@@ -11194,6 +11458,26 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 3000
@@ -11215,7 +11499,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
@@ -11226,7 +11520,12 @@
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
       "timeoutMs": 3000
     },
     {
@@ -11260,6 +11559,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 3000
@@ -11270,13 +11574,8 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-warning-accept",
       "timeoutMs": 3000
     },
     {
@@ -11343,7 +11642,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
@@ -11354,7 +11663,12 @@
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
       "timeoutMs": 3000
     },
     {
@@ -11388,6 +11702,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 3000
@@ -11398,13 +11717,23 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "add-flow-who",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-flow-who-agent",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
-      "testid": "wizard-warning-accept",
+      "testid": "add-flow-who-continue",
       "timeoutMs": 3000
     },
     {
@@ -11540,7 +11869,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
@@ -11551,7 +11890,12 @@
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
       "timeoutMs": 3000
     },
     {
@@ -11585,6 +11929,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 3000
@@ -11595,13 +11944,23 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "add-flow-who",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-flow-who-agent",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
-      "testid": "wizard-warning-accept",
+      "testid": "add-flow-who-continue",
       "timeoutMs": 3000
     },
     {
@@ -11654,7 +12013,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
+      "testid": "add-flow-signin",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
       "timeoutMs": 3000
     },
     {
@@ -11684,7 +12053,12 @@
     },
     {
       "kind": "click",
-      "testid": "connections-back",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
       "timeoutMs": 3000
     },
     {
@@ -11713,6 +12087,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 3000
@@ -11723,13 +12102,8 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "wizard-step-disclaimer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-warning-accept",
       "timeoutMs": 3000
     },
     {
@@ -11744,8 +12118,13 @@
     },
     {
       "kind": "waitFor",
-      "testid": "auth-oauth-scopes",
+      "testid": "auth-oauth-permissions",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "auth-oauth-permissions",
+      "contains": "Read pages and databases"
     },
     {
       "kind": "screenshot",
@@ -11864,6 +12243,26 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "clearStubs",
       "command": "test_mcp_connection"
     },
@@ -11897,12 +12296,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-connect-microsoft",
+      "testid": "add-flow-signin",
       "timeoutMs": 3000
     },
     {
@@ -11916,7 +12310,7 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-connect-microsoft",
+      "testid": "add-flow-signin",
       "timeoutMs": 3000
     },
     {
@@ -11940,7 +12334,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-client-microsoft",
+      "testid": "connection-detail-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-connect-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -11992,12 +12391,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-connect-microsoft",
+      "testid": "add-flow-signin",
       "timeoutMs": 3000
     },
     {
@@ -12011,7 +12405,7 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-connect-microsoft",
+      "testid": "add-flow-signin",
       "timeoutMs": 3000
     },
     {
@@ -12206,12 +12600,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-detail-title",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-connect-google",
+      "testid": "add-flow-signin",
       "timeoutMs": 3000
     },
     {
@@ -12238,7 +12627,7 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-connect-google",
+      "testid": "add-flow-signin",
       "timeoutMs": 3000
     },
     {
@@ -12348,18 +12737,38 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
-      "testid": "oauth-done",
+      "testid": "add-flow-who",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-flow-who-agent",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
-      "testid": "oauth-done-close",
+      "testid": "add-flow-who-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-success",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-done-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitGone",
-      "testid": "oauth-dialog",
+      "testid": "connector-wizard",
       "timeoutMs": 3000
     },
     {

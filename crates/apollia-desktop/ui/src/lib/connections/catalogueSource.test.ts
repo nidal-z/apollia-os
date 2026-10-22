@@ -70,7 +70,7 @@ describe("opening the catalogue never asks the public catalogue", () => {
     const exploreCalls = route.match(/catalogueSource\.exploreAll\(/g) ?? [];
     const openHandler = route.slice(
       route.indexOf("function handleOpenCatalogue"),
-      route.indexOf("function handleConnect"),
+      route.indexOf("\n  }\n", route.indexOf("function handleOpenCatalogue")),
     );
 
     // THEN no command is called directly, one handler explores, the opening

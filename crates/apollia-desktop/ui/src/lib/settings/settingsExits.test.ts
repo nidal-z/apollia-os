@@ -240,10 +240,8 @@ describe("the tools and the permissions leave the settings", () => {
   });
 
   it.each([
-    "components/integrations/ConnectorWizard.svelte",
-    "components/integrations/MailboxDialog.svelte",
+    "components/connections/add/AddFlow.svelte",
     "components/packages/PackagePreviewDialog.svelte",
-    "routes/Connections.svelte",
   ])("%s leads a refusal to the Authorizations screen, not to the settings", (file) => {
     // GIVEN a surface that shows the rule behind a refusal
     const text = source(file);

@@ -559,6 +559,10 @@
     "oauth_admin_approval_declined_title": "Access was not granted",
     "oauth_admin_approval_declined_body": "{provider} did not grant Apollia access to this account. You can try again.",
     "oauth_admin_approval_possible": "If your organisation requires an administrator's approval, send them this address.",
+    "oauth_admin_approval_request_label": "Or send them this request, ready to copy:",
+    "oauth_admin_approval_request": "Hello,\n\nI would like to connect my work account to Apollia, an application that runs on my computer, to use my mail, my calendar and my files with it. {provider} asks an administrator of our organisation to approve the application first.\n\nCould you approve it at this address?\n{address}\n\nThank you.",
+    "oauth_admin_approval_request_copy": "Copy the request",
+    "oauth_admin_approval_request_copied": "Request copied",
     "oauth_missing_client_title": "Missing OAuth client ID",
     "oauth_missing_client_body_html": "No OAuth client is configured for {provider}, so Apollia stopped rather than opening a consent screen that could not complete. Create one in the {console} console, then open its page in Connections to add it. No environment variable is required.",
     "oauth_missing_secret_title": "Missing OAuth client secret",
@@ -587,14 +591,8 @@
     "custom_intro": "To connect a service of your own, reached at its address: an internal tool, a community service, one in development. For a service of the catalogue, use its card instead.",
     "custom_name_label": "Name (internal, unique)",
     "custom_name_placeholder": "e.g. acme-internal",
-    "custom_command_label": "Command",
-    "custom_args_label": "Arguments (space-separated)",
     "custom_url_label": "Address",
-    "custom_env_label": "Environment variables",
-    "custom_headers_label": "HTTP headers",
-    "custom_env_hint_html": "(one per line, <code>NAME=value</code>)",
     "custom_test_ok": "Test OK - {result}",
-    "installing": "Installing…",
     "install": "Install",
     "mcp_settings": {
       "loading": "Loading…",
@@ -676,8 +674,6 @@
     "mailbox": {
       "entry_name": "Mailbox",
       "entry_description": "Gmail, iCloud, Yahoo, Orange, Free, La Poste or any mailbox that accepts an app password",
-      "title": "Add a mailbox",
-      "subtitle": "With its address and an app password",
       "email_label": "Address",
       "email_placeholder": "claire@example.com",
       "email_hint": "The mail server is worked out from the address.",
@@ -689,9 +685,8 @@
       "port_label": "Port",
       "add": "Add",
       "add_hint": "Apollia tries the connection before adding it.",
+      "read_only": "Apollia only reads it: it never sends or deletes anything there.",
       "trying": "Trying the connection to the mailbox…",
-      "added": "Trial succeeded: {email} is added to your connections.",
-      "added_where": "Your agents can now read it, and never send or delete anything there. It is in the list of connections.",
       "error": {
         "credentials_rejected": "The server refuses the password. Check the app password, then try again.",
         "unreachable": "The mail server does not answer. Check the address, or the server and port under “Advanced”.",
@@ -710,18 +705,11 @@
       "name": "Folder",
       "description": "A folder of your computer, opened to agents",
       "picker_title": "Choose the folder to open to agents",
-      "added_title": "Folder added: {name}",
-      "added_subtitle": "On this computer · nothing to download",
-      "abilities_title": "What agents will be able to do in it",
       "ability_read": "Read: open and search the files of the folder",
       "ability_write": "Write or delete: only with your agreement",
       "bounds": "Nothing outside this folder. You choose which agents have access from their page.",
-      "not_added_title": "Folder not added",
-      "add_failed": "This folder could not be added.",
-      "choose_another": "Choose another folder",
       "done": "Done",
-      "grant_apollia": "Let Apollia read this folder",
-      "grant_apollia_hint": "Apollia will be able to open and search this folder and its subfolders. Other agents are granted it on their sheet, and you can take it back from Apollia in the same place."
+      "choose_another": "Choose another folder"
     },
     "try": {
       "action": "Try",
@@ -743,11 +731,7 @@
     },
     "badge_builtin": "Built in",
     "page_subtitle": "The accounts, folders, services and tools Apollia reaches for you.",
-    "inactive": {},
-    "grant_apollia": {
-      "label": "Let Apollia use it in the Chat",
-      "hint": "Apollia gets every tool of this connection. Those that write, send or run code, and those nobody classified, ask for your approval before they run. Other agents get it on their sheet.",
-      "failed": "The connection is added, but Apollia could not be given it: {error}. Grant it from the sheet of Apollia."
+    "inactive": {
     },
     "add_window": {
       "subtitle": "Search for what you want to connect, then open its card to add it.",
@@ -781,6 +765,35 @@
       "add": "Add",
       "open": "Open its page",
       "back": "Back to the search"
+    },
+    "add_flow": {
+      "steps": {
+        "connect": "Connect",
+        "who": "Who can use it",
+        "trial": "Try it"
+      },
+      "apollia_name": "Apollia, in the Chat",
+      "apollia_hint": "The agent you talk to in the Chat.",
+      "who_title": "Which agents can use this connection?",
+      "who_hint": "The agents checked get every tool of this connection. You can change it later, on the card of the connection or of each agent.",
+      "who_rule": "A tool that writes, sends or runs code, and one nobody classified, still asks for your approval before it runs.",
+      "who_loading": "Reading the agents of this computer…",
+      "who_no_other": "No other agent on this computer yet.",
+      "granting": "Giving the connection to the agents checked…",
+      "grant_failed": "The connection is added, but the agents could not be given it: {error}. Give it from the card of the connection.",
+      "added": "The connection {name} is added.",
+      "added_where": "You will find it in Connections. Its card says which agents use it.",
+      "folder_body": "Choose the folder of this computer the agents may open. Nothing outside it.",
+      "folder_pick": "Choose the folder",
+      "sign_in": "Sign in",
+      "sign_in_body": "A window opens to sign in to your {name} account. Nothing is kept until the sign-in is done.",
+      "sign_in_work_account": "With a work account, your organisation may ask an administrator to approve Apollia first. If so, Apollia writes you the request to send them.",
+      "key_label": "Access key",
+      "value_label": "Value the service asks for",
+      "key_asked": "The service answered that it asks for a key.",
+      "key_vault": "Kept in the secret store of this computer, never in the settings of the connection.",
+      "key_toggle": "The service gave me a key",
+      "permissions_title": "What the sign-in will grant"
     },
     "list": {
       "search_placeholder": "Search a connection…",
@@ -912,7 +925,6 @@
       }
     },
     "wizard": {
-      "title": "Configure {name}",
       "encrypted_locally": "Encrypted and stored locally",
       "test_retry": "Retry",
       "test_err": {
@@ -967,7 +979,6 @@
       "component_verified": "Its integrity is checked before it is installed.",
       "trying": "Trying the connection…",
       "added_success": "Connection added and working: {count, plural, one {# tool} other {# tools}} available",
-      "added_where": "You will find it in Connections, ready to be granted to your agents.",
       "added_failed": "The connection is added, but its trial failed",
       "failed_badge": "Failed",
       "remove": "Remove",
@@ -4938,6 +4949,11 @@
       "custom_transport_stdio": "stdio (local subprocess)",
       "custom_transport_http": "Streamable HTTP (MCP 2025-11-25)",
       "custom_transport_sse": "SSE (legacy 2024-11-05)",
+      "custom_command_label": "Command",
+      "custom_args_label": "Arguments (space-separated)",
+      "custom_env_label": "Environment variables",
+      "custom_headers_label": "HTTP headers",
+      "custom_env_hint_html": "(one per line, <code>NAME=value</code>)",
       "tool_provenance": "MCP server {server} · {name}",
       "card": {
         "technical_title": "Technical detail"
