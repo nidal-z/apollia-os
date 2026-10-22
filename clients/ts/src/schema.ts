@@ -7465,10 +7465,10 @@ export interface components {
             /** @description Whether it can be used right now, in the detail its kind gives. */
             state: components["schemas"]["ConnectionState"];
             /**
-             * @description What its user reads: working, needs repair, paused, or blocked by the organisation.
+             * @description What its user reads: working, needs repair, paused, blocked by the organisation, or not checked yet (nothing has found it in any state).
              * @enum {string}
              */
-            status: "working" | "needs_repair" | "paused" | "blocked";
+            status: "working" | "needs_repair" | "paused" | "blocked" | "not_checked";
             /** @description Tools the connection brings. */
             tools: components["schemas"]["ConnectionTool"][];
         };

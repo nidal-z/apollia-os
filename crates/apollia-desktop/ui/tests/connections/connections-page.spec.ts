@@ -48,7 +48,7 @@ async function installTauriStub(page: Page): Promise<void> {
         account: "ada@example.com",
         remote: true,
         status: "needs_repair",
-        reason: { key: "not_checked" },
+        reason: { key: "sign_in_again" },
         checkedAt: null,
         package: null,
       },
@@ -60,7 +60,7 @@ async function installTauriStub(page: Page): Promise<void> {
         account: null,
         path: "/tmp/invoices",
         remote: false,
-        status: "needs_repair",
+        status: "not_checked",
         reason: { key: "not_checked" },
         checkedAt: null,
         package: null,
@@ -122,15 +122,16 @@ test("what needs repair leads the list, and a failed source is one banner", asyn
   // WHEN the page is shown
   await expect(list.locator(ROWS)).toHaveCount(3);
 
-  // THEN the two never checked come first, by name, then the working service,
-  // brought by its package; the failed source has its banner and the list stays
+  // THEN the account to repair comes first, then the rest by name: the folder
+  // never checked, neutral, then the working service, brought by its package;
+  // the failed source has its banner and the list stays
   const ids = await list.locator(ROWS).evaluateAll((rows) => rows.map((r) => r.getAttribute("data-testid")));
   expect(ids).toEqual([
     "sidebar-connection-native:google:ada@example.com",
     "sidebar-connection-folder:invoices",
     "sidebar-mcp-notion",
   ]);
-  await expect(page.getByTestId("connection-state-folder:invoices")).toHaveAttribute("data-status", "needs_repair");
+  await expect(page.getByTestId("connection-state-folder:invoices")).toHaveAttribute("data-status", "not_checked");
   await expect(page.getByTestId("connection-package-mcp:notion")).toBeVisible();
   await expect(page.getByTestId("connections-source-error-services")).toBeVisible();
   await expect(page.getByTestId("connections-source-error-connections")).toHaveCount(0);

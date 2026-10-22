@@ -580,7 +580,8 @@ pub(crate) fn migrate_v12(conn: &Connection) -> Result<(), rusqlite::Error> {
 
 /// v13: the last state each connection was found in, one row per connection.
 ///
-/// `state` is one of `working`, `needs_repair`, `paused`, `blocked`;
+/// `state` is one of `working`, `needs_repair`, `paused`, `blocked`,
+/// `not_checked`;
 /// `reason` is the JSON of the reason, absent when it works; `checked_at` is
 /// when the state was found. The statement is idempotent, so a replay
 /// changes nothing.

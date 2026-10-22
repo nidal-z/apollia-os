@@ -69,8 +69,8 @@ fn test_a_session_reachable_but_unproven_is_not_working() {
     // WHEN the connections are listed
     let list = assemble(&sources);
 
-    // THEN it needs a check, it does not read as working
-    assert_eq!(list[0].status, ConnectionStatus::NeedsRepair);
+    // THEN it reads as not checked yet: neither working nor to repair
+    assert_eq!(list[0].status, ConnectionStatus::NotChecked);
     assert_eq!(
         list[0].reason.as_ref().map(|r| r.key),
         Some(ConnectionReasonKey::NotChecked)
@@ -161,7 +161,8 @@ fn test_a_failed_start_keeps_what_its_failure_said_instead_of_stopped() {
     let list = assemble(&sources);
 
     // THEN it reads as needing to sign in again, dated, not as stopped; a
-    // server nothing was ever found about stays stopped and needs a check
+    // server nothing was ever found about stays stopped and reads as not
+    // checked yet
     let notion = list.iter().find(|c| c.id == "mcp:notion").unwrap();
     assert_eq!(notion.state, ConnectionState::NeedsReauth);
     assert_eq!(notion.status, ConnectionStatus::NeedsRepair);
@@ -172,6 +173,8 @@ fn test_a_failed_start_keeps_what_its_failure_said_instead_of_stopped() {
     assert_eq!(notion.checked_at.as_deref(), Some(NOW));
     let idle = list.iter().find(|c| c.id == "mcp:idle").unwrap();
     assert_eq!(idle.state, ConnectionState::Stopped);
+    assert_eq!(idle.status, ConnectionStatus::NotChecked);
+    assert_eq!(idle.checked_at, None);
     assert_eq!(
         idle.reason.as_ref().map(|r| r.key),
         Some(ConnectionReasonKey::NotChecked)
@@ -316,6 +319,86 @@ fn test_a_paused_connection_reads_paused_whatever_was_kept() {
         assert_eq!(connection.reason, None, "{}", connection.id);
     }
     assert_eq!(list[2].status, ConnectionStatus::Blocked);
+}
+
+#[test]
+fn test_an_updated_installation_with_no_state_kept_shows_nothing_to_repair() {
+    // GIVEN the data directory of a 0.3.0 installation brought to this
+    // version: `system.db` migrated, `connection_states` empty, and one
+    // connection of every kind, an MCP server live but unproven among them
+    let dir = tempfile::tempdir().unwrap();
+    assert!(system_db(&dir).list().unwrap().is_empty());
+    let mut sources = ConnectionSources {
+        mcp_configs: vec![server("idle"), server("notion")],
+        mcp_statuses: vec![live("notion", &McpHealth::Healthy { verified: false })],
+        native_accounts: vec![(
+            apollia_auth::ConnectorProvider::Microsoft,
+            vec!["ada@example.com".to_owned()],
+        )],
+        imap_accounts: vec![apollia_connectors::imap::ImapAccount {
+            email: "ada@example.com".to_owned(),
+            host: "imap.example.com".to_owned(),
+            port: 993,
+            username: "ada@example.com".to_owned(),
+        }],
+        folders: vec![apollia_core::FolderConnection {
+            id: "f1".to_owned(),
+            path: "/Users/ada/Clients".to_owned(),
+            label: "Clients".to_owned(),
+            added_at: "2026-10-04T10:00:00.000Z".to_owned(),
+        }],
+        states: kept_states(dir.path()),
+        ..ConnectionSources::default()
+    };
+
+    // WHEN the connections are listed, then again once one server has failed
+    let before = assemble(&sources);
+    sources.mcp_statuses.push(live(
+        "idle",
+        &McpHealth::Unavailable {
+            reason: "process_exited".into(),
+        },
+    ));
+    let after = assemble(&sources);
+
+    // THEN none of the five reads as needing repair, each reads as not
+    // checked yet, undated; and the failure alone turns its one to repair
+    assert_eq!(before.len(), 5);
+    for connection in &before {
+        assert_eq!(
+            connection.status,
+            ConnectionStatus::NotChecked,
+            "{}",
+            connection.id
+        );
+        assert_eq!(connection.checked_at, None, "{}", connection.id);
+    }
+    let repair: Vec<&str> = after
+        .iter()
+        .filter(|c| c.status == ConnectionStatus::NeedsRepair)
+        .map(|c| c.id.as_str())
+        .collect();
+    assert_eq!(repair, vec!["mcp:idle"]);
+}
+
+#[test]
+fn test_a_state_kept_as_unproven_before_this_version_reads_not_checked() {
+    // GIVEN a state written before `not_checked` existed: needs repair,
+    // because not checked
+    let states = HashMap::from([(
+        "imap:ada@example.com".to_owned(),
+        kept(
+            "imap:ada@example.com",
+            ConnectionStatus::NeedsRepair,
+            Some(ConnectionReasonKey::NotChecked),
+        ),
+    )]);
+
+    // WHEN the state shown is read
+    let shown = shown_state("imap:ada@example.com", &states, false, None);
+
+    // THEN it reads as not checked yet, not as to repair
+    assert_eq!(shown.status, ConnectionStatus::NotChecked);
 }
 
 const APPROVAL: &str =

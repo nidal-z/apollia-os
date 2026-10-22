@@ -36,12 +36,28 @@ describe("stateBadge", () => {
     // GIVEN a connection checked five minutes ago, and one never checked
     // WHEN their badges are built
     const checked = stateBadge("working", null, "2026-10-21T11:55:00Z", NOW);
-    const never = stateBadge("needs_repair", { key: "not_checked" }, null, NOW);
+    const never = stateBadge("not_checked", { key: "not_checked" }, null, NOW);
 
     // THEN the first says how long ago, the second says it was not checked, with no date
     expect(checked.when).toEqual({ key: "connections.state.checked_minutes_ago", values: { mins: 5 } });
     expect(never.when).toBeNull();
-    expect(never.reasonKey).toBe("connections.state.reason.not_checked");
+    expect(never.labelKey).toBe("connections.state.not_checked");
+  });
+
+  it("reads a connection never checked as neutral, undated, with Check, never as to repair", () => {
+    // GIVEN a connection nothing has found in any state, even with a date and a reason given
+    // WHEN its badge is built
+    const never = stateBadge("not_checked", { key: "not_checked" }, "2026-10-21T11:55:00Z", NOW);
+
+    // THEN its word is its own, its tone neutral, it carries no date and no
+    // reason, and its one action is Check; a state found offers none here
+    expect(never.labelKey).toBe("connections.state.not_checked");
+    expect(never.labelKey).not.toBe("connections.state.needs_repair");
+    expect(never.variant).toBe("neutral");
+    expect(never.when).toBeNull();
+    expect(never.reasonKey).toBeNull();
+    expect(never.actionKey).toBe("connections.state.action.check");
+    expect(stateBadge("working", null, null, NOW).actionKey).toBeNull();
   });
 });
 

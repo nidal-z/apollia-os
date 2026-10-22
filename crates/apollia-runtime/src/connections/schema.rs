@@ -9,11 +9,12 @@ use utoipa::openapi::schema::{ObjectBuilder, Schema, Type};
 use utoipa::openapi::RefOr;
 
 /// Every state, in its wire name.
-pub(super) const STATUSES: [ConnectionStatus; 4] = [
+pub(super) const STATUSES: [ConnectionStatus; 5] = [
     ConnectionStatus::Working,
     ConnectionStatus::NeedsRepair,
     ConnectionStatus::Paused,
     ConnectionStatus::Blocked,
+    ConnectionStatus::NotChecked,
 ];
 
 /// Every reason key, in its wire name.
@@ -46,7 +47,7 @@ pub(super) fn status_schema() -> impl Into<RefOr<Schema>> {
         .schema_type(Type::String)
         .enum_values(Some(names(&STATUSES)))
         .description(Some(
-            "What its user reads: working, needs repair, paused, or blocked by the organisation.",
+            "What its user reads: working, needs repair, paused, blocked by the organisation, or not checked yet (nothing has found it in any state).",
         ))
 }
 
@@ -96,7 +97,8 @@ mod tests {
             ConnectionStatus::Working
             | ConnectionStatus::NeedsRepair
             | ConnectionStatus::Paused
-            | ConnectionStatus::Blocked => STATUSES.contains(&s),
+            | ConnectionStatus::Blocked
+            | ConnectionStatus::NotChecked => STATUSES.contains(&s),
         };
         let listed_key = |k: ConnectionReasonKey| match k {
             ConnectionReasonKey::NotChecked
@@ -118,7 +120,13 @@ mod tests {
         assert!(REASON_KEYS.iter().all(|k| listed_key(*k)));
         assert_eq!(
             status["enum"],
-            serde_json::json!(["working", "needs_repair", "paused", "blocked"])
+            serde_json::json!([
+                "working",
+                "needs_repair",
+                "paused",
+                "blocked",
+                "not_checked"
+            ])
         );
         assert_eq!(
             reason["properties"]["key"]["enum"],
