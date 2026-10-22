@@ -367,10 +367,12 @@ pub(crate) async fn add_server_to<B: ExecutionBackend + Clone>(
 
 /// `DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
 ///
-/// Shuts down the session, unregisters the server, removes its database entry,
-/// then journals the removal.
+/// Shuts down the session when there is one, unregisters the server, removes
+/// its database entry, then journals the removal. A server that never started
+/// is removed all the same. `DELETE /api/v1/connections/{id}` removes what
+/// else the server leaves behind.
 /// Returns `200 OK` with `{"removed": "<name>"}` on success.
-/// Returns `404 Not Found` when no server with the given name is managed.
+/// Returns `404 Not Found` when the server is neither running nor stored.
 /// Returns `503 Service Unavailable` when MCP is not configured.
 #[utoipa::path(
     delete,
@@ -379,7 +381,7 @@ pub(crate) async fn add_server_to<B: ExecutionBackend + Clone>(
     params(("name" = String, Path, description = "Server name")),
     responses(
         (status = 200, description = "Server removed"),
-        (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Server neither running nor stored", body = crate::api::openapi::ApiErrorBody),
         (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
     )
@@ -402,23 +404,32 @@ pub(crate) async fn remove_server_from<B: ExecutionBackend + Clone>(
     let handle = require_mcp_handle(state)?;
     let repo = require_mcp_repo(state)?;
 
-    handle.remove_server(name).await.map_err(|_| {
-        json_err(
-            StatusCode::NOT_FOUND,
-            format!("server '{}' not found", name),
-        )
-    })?;
-
-    {
+    // A server that never started, or whose session ended, has no session
+    // to stop: its configuration is removed all the same.
+    let stopped = handle.remove_server(name).await.is_ok();
+    let deleted = {
         let guard = repo.lock().map_err(|_| {
             json_err(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "repository lock poisoned",
             )
         })?;
-        guard
-            .delete(name)
-            .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        let known = guard
+            .find_by_name(name)
+            .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?
+            .is_some();
+        if known {
+            guard
+                .delete(name)
+                .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        }
+        known
+    };
+    if !stopped && !deleted {
+        return Err(json_err(
+            StatusCode::NOT_FOUND,
+            format!("server '{}' not found", name),
+        ));
     }
 
     state
@@ -617,7 +628,7 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
                 )
             })?
     };
-    let config = merge_server_config_patch(existing, &patch)
+    let config = merge_server_config_patch(existing.clone(), &patch)
         .map_err(|e| json_err(StatusCode::BAD_REQUEST, e))?;
     refuse_forbidden(&state, &name)?;
     let request = AdmissionRequest::for_mcp_server(&config);
@@ -632,10 +643,22 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
         )
     })?;
 
-    let status = handle
-        .add_server(config.clone())
-        .await
-        .map_err(|e| json_err(StatusCode::BAD_REQUEST, e))?;
+    let status = match handle.add_server(config.clone()).await {
+        Ok(status) => status,
+        Err(e) => {
+            // The configuration in `mcp.db` is still the previous one: start
+            // it again, so a change that fails does not take the server out.
+            if let Err(restore) = handle.add_server(existing).await {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    server = %name,
+                    error = %restore,
+                    "mcp.server.config_update.restore_failed"
+                );
+            }
+            return Err(json_err(StatusCode::BAD_REQUEST, e));
+        }
+    };
 
     {
         let guard = repo.lock().map_err(|_| {
@@ -718,7 +741,9 @@ fn merge_server_config_patch(
 }
 
 #[cfg(test)]
-mod governance_tests;
+pub(crate) mod governance_tests;
+#[cfg(test)]
+mod removal_tests;
 
 // ─── tests ────────────────────────────────────────────────────────────────────
 

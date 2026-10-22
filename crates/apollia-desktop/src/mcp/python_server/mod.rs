@@ -402,22 +402,15 @@ pub async fn prepare(
     Ok(config)
 }
 
-/// Directory holding every connection's own files: `<data>/connections`.
+/// Directory holding every connection's own files: `<data>/connections`,
+/// which the runtime erases when the connection is removed.
 pub fn connections_dir() -> PathBuf {
     let home = apollia_core::paths::home_dir_or_temp();
-    apollia_core::paths::data_dir_under(home).join("connections")
+    apollia_core::paths::data_dir_under(home)
+        .join(apollia_runtime::connections::INSTALLED_FILES_DIR)
 }
 
 /// Directory of one connection: `<connections>/<name>`.
 pub fn connection_dir(connections: &Path, name: &str) -> PathBuf {
     connections.join(venv_dir_component(name))
-}
-
-/// Delete a connection's directory, venv included. Absent is not an error.
-///
-/// # Errors
-///
-/// [`PythonServerError::Io`] when the directory exists and cannot be removed.
-pub fn remove_connection_dir(connections: &Path, name: &str) -> Result<(), PythonServerError> {
-    install::remove_dir(&connection_dir(connections, name))
 }
