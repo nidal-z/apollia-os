@@ -121,6 +121,7 @@ mod tests {
                 description: None,
                 tags: vec![],
                 input_schema: None,
+                ..Default::default()
             }],
         };
         let (_sender, snapshot) = watch::channel(published);

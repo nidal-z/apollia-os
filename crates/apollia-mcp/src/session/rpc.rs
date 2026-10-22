@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 
 use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
-use crate::protocol::{ToolCallParams, ToolCallResult, ToolsListResult};
+use crate::protocol::{McpToolDefinition, ToolCallParams, ToolCallResult, ToolsListResult};
 use crate::session::format_stderr_hint;
 use crate::session::retry::{with_transport_retry, McpRetryConfig};
 use crate::session::{McpSession, McpSessionError};
@@ -146,6 +146,7 @@ pub struct SessionCaller {
     rpc: Arc<RpcLink>,
     call_timeout_secs: u64,
     init_timeout_secs: u64,
+    max_tools: u32,
 }
 
 impl SessionCaller {
@@ -204,15 +205,17 @@ impl SessionCaller {
             cause: e.to_string(),
         })
     }
-    /// Read every tool schema the server lists (`tools/list`), name to schema.
+    /// Read every tool the server lists (`tools/list`), bounded and
+    /// validated as at discovery.
     ///
-    /// What a deferred session caches when a tool appears that its index did
-    /// not hold. A failure names `tool_name`, the tool the schemas were
-    /// fetched for.
-    pub(crate) async fn list_tool_schemas(
+    /// What a deferred session takes in when a tool appears that its index
+    /// did not hold: the schemas, and the index itself, which the manager
+    /// then keeps. A failure names `tool_name`, the tool the list was fetched
+    /// for.
+    pub(crate) async fn list_tools(
         &self,
         tool_name: &str,
-    ) -> Result<Vec<(String, serde_json::Value)>, McpSessionError> {
+    ) -> Result<Vec<McpToolDefinition>, McpSessionError> {
         let failed = |cause: String| McpSessionError::SchemaFetchFailed {
             server: self.rpc.server.clone(),
             tool: tool_name.to_string(),
@@ -225,11 +228,11 @@ impl SessionCaller {
             .map_err(|e| failed(e.to_string()))?;
         let result: ToolsListResult =
             serde_json::from_value(response).map_err(|e| failed(e.to_string()))?;
-        Ok(result
-            .tools
-            .into_iter()
-            .map(|tool| (tool.name, tool.input_schema))
-            .collect())
+        Ok(crate::sanitize::sanitize_tool_definitions(
+            result.tools,
+            &self.rpc.server,
+            self.max_tools as usize,
+        ))
     }
 }
 
@@ -242,6 +245,7 @@ impl McpSession {
             rpc: Arc::clone(&self.rpc),
             call_timeout_secs: self.config.call_timeout_secs,
             init_timeout_secs: self.config.init_timeout_secs,
+            max_tools: self.config.max_tools,
         }
     }
     /// Send a JSON-RPC request on this session's link. See

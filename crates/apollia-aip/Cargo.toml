@@ -13,6 +13,7 @@ apollia-tools         = { workspace = true }
 apollia-memory        = { workspace = true }
 apollia-llm           = { workspace = true, features = ["cloud"] }
 apollia-runtime       = { workspace = true }
+apollia-mcp           = { workspace = true }
 apollia-workspace     = { workspace = true }
 apollia-notifications = { workspace = true }
 apollia-stt           = { workspace = true, default-features = false }
@@ -33,7 +34,6 @@ minijinja           = { workspace = true }
 [dev-dependencies]
 apollia-auth = { workspace = true }
 tempfile = { workspace = true }
-apollia-mcp = { workspace = true }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)', 'cfg(kani)'] }

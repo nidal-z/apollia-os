@@ -240,3 +240,73 @@ fn test_unknown_address_is_not_found() {
         "not_found"
     );
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_a_removed_mailbox_leaves_the_list_and_its_password_the_store() {
+    let _events = EVENTS.lock().await;
+    // GIVEN a store holding a Gmail connection and its password
+    let dir = tempfile::tempdir().unwrap();
+    let secrets = MemorySecrets::default();
+    let store =
+        ImapAccountStore::with_store(dir.path().join(IMAP_INDEX_FILE), Box::new(secrets.clone()));
+    store
+        .add_verified(gmail(), PASSWORD, &Probe(None))
+        .await
+        .unwrap();
+
+    // WHEN it is removed, by an address written in another case, then again
+    let removed = store.remove("Ana@Gmail.com").unwrap();
+    let again = store.remove("ana@gmail.com");
+
+    // THEN the list is empty, the password is gone, and the second removal
+    //      finds nothing
+    assert_eq!(removed.account, gmail());
+    assert!(removed.password_deleted);
+    assert!(store.list().unwrap().is_empty());
+    assert!(secrets.is_empty());
+    assert_eq!(again.unwrap_err().code(), "not_found");
+}
+
+/// A secret store whose deletions fail.
+struct UndeletableSecrets(MemorySecrets);
+
+impl SecretStore for UndeletableSecrets {
+    fn set(&self, service: &str, user: &str, value: &str) -> Result<(), AuthError> {
+        self.0.set(service, user, value)
+    }
+    fn get(&self, service: &str, user: &str) -> Result<Option<String>, AuthError> {
+        self.0.get(service, user)
+    }
+    fn delete(&self, _service: &str, _user: &str) -> Result<(), AuthError> {
+        Err(AuthError::Keyring("locked".into()))
+    }
+    fn backend_id(&self) -> &'static str {
+        "undeletable"
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_a_password_that_cannot_be_deleted_is_answered_left() {
+    let _events = EVENTS.lock().await;
+    // GIVEN a store holding a Gmail connection, over a secret store whose
+    //       deletions fail
+    let dir = tempfile::tempdir().unwrap();
+    let secrets = MemorySecrets::default();
+    let store = ImapAccountStore::with_store(
+        dir.path().join(IMAP_INDEX_FILE),
+        Box::new(UndeletableSecrets(secrets.clone())),
+    );
+    store
+        .add_verified(gmail(), PASSWORD, &Probe(None))
+        .await
+        .unwrap();
+
+    // WHEN it is removed
+    let removed = store.remove("ana@gmail.com").unwrap();
+
+    // THEN it leaves the list, and the answer says its password was not
+    //      deleted
+    assert!(store.list().unwrap().is_empty());
+    assert!(!removed.password_deleted);
+    assert!(!secrets.is_empty());
+}

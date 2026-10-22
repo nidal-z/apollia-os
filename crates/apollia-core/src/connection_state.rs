@@ -243,6 +243,18 @@ impl ConnectionStateStore {
         )?;
         Ok(())
     }
+
+    /// Forget the last state of connection `id`, once the connection is
+    /// removed. Answers whether a state was kept for it.
+    ///
+    /// # Errors
+    /// [`ConnectionStateError::Db`] on any SQLite failure.
+    pub fn delete(&self, id: &str) -> Result<bool, ConnectionStateError> {
+        let removed = self
+            .conn
+            .execute("DELETE FROM connection_states WHERE id = ?1", params![id])?;
+        Ok(removed > 0)
+    }
 }
 
 type RawRow = (String, String, Option<String>, String);
@@ -362,6 +374,30 @@ mod tests {
             "admin_approval_required"
         );
         assert_eq!(old.reason.unwrap().address, None);
+    }
+
+    #[test]
+    fn test_a_deleted_state_is_gone_and_a_second_delete_says_so() {
+        // GIVEN states kept for two connections
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(&dir);
+        store
+            .put(&record("mcp:notion", ConnectionStatus::Working, None))
+            .unwrap();
+        store
+            .put(&record("mcp:other", ConnectionStatus::Working, None))
+            .unwrap();
+
+        // WHEN the state of one is deleted, twice
+        let first = store.delete("mcp:notion").unwrap();
+        let second = store.delete("mcp:notion").unwrap();
+
+        // THEN it is gone, the other is kept, and only the first delete
+        //      found a row
+        assert!(first);
+        assert!(!second);
+        assert!(store.get("mcp:notion").unwrap().is_none());
+        assert_eq!(store.list().unwrap().len(), 1);
     }
 
     #[test]

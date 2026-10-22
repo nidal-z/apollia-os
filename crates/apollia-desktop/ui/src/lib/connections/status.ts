@@ -6,7 +6,7 @@
  * the live `svelte-i18n` formatter, keeping this module unit-testable.
  */
 import type { OauthClientIdStatus } from "$lib/ipc/oauthClients";
-import type { McpHealth, McpServerStatusView } from "$lib/types";
+import type { McpHealth } from "$lib/types";
 
 /** Coarse operational state of a connection, driving dots and badges. */
 export type ConnectionStatus = "active" | "attention" | "error" | "syncing" | "idle";
@@ -31,11 +31,6 @@ export function statusFromHealth(health: McpHealth): ConnectionStatus {
     case "unavailable":
       return "error";
   }
-}
-
-/** Map an MCP server's operational health to a coarse connection status. */
-export function statusOf(server: McpServerStatusView): ConnectionStatus {
-  return statusFromHealth(server.health);
 }
 
 /** Accent colour token for a status dot / rail. */
@@ -146,23 +141,4 @@ export function syncDescriptor(lastCallAt: string | null): I18nDescriptor | null
   if (hours < 24) return { key: "connections.sync_hours_ago", values: { hours } };
   const days = Math.floor(hours / 24);
   return { key: "connections.sync_days_ago", values: { days } };
-}
-
-/** Sort order weight per status: error first, idle last. */
-const STATUS_WEIGHT: Record<ConnectionStatus, number> = {
-  error: 0,
-  attention: 1,
-  active: 2,
-  syncing: 3,
-  idle: 4,
-};
-
-/** Sort MCP servers by status severity, then name. Returns a new array. */
-export function sortServers(servers: McpServerStatusView[]): McpServerStatusView[] {
-  return [...servers].sort((a, b) => {
-    const wa = STATUS_WEIGHT[statusOf(a)] ?? 99;
-    const wb = STATUS_WEIGHT[statusOf(b)] ?? 99;
-    if (wa !== wb) return wa - wb;
-    return a.name.localeCompare(b.name);
-  });
 }

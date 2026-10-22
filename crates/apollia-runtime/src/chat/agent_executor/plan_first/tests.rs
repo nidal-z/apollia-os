@@ -31,6 +31,11 @@ const PLAN_JSON: &str = r#"{"steps":[
     {"step_id":"s2","description":"run the check","tool_hint":"bash_executor","depends_on":["s1"]}
 ]}"#;
 
+/// A plan of one step, on a deferred MCP tool.
+const MCP_PLAN_JSON: &str = r#"{"steps":[
+    {"step_id":"s1","description":"look up the record","tool_hint":"mcp:crm/lookup","depends_on":[]}
+]}"#;
+
 /// A plan of one step, which writes.
 const WRITE_PLAN_JSON: &str = r#"{"steps":[
     {"step_id":"s1","description":"write the report","tool_hint":"file_write","depends_on":[]}
@@ -211,6 +216,40 @@ async fn harness_under(
     cancel: CancellationToken,
     governance: GovernanceHandle,
 ) -> Harness {
+    harness_wired(spec, plan, plan_cache, cancel, (governance, None)).await
+}
+
+/// The deferred MCP tool index a harness offers its run, if any.
+type McpIndex = Option<Vec<apollia_mcp::tool_search::ToolIndexSnapshot>>;
+
+/// [`harness_under`], the run offered `mcp_index` as its deferred MCP tool
+/// index, with no plan cache.
+async fn harness_indexed(
+    spec: AgentRunSpec,
+    plan: &'static str,
+    governance: GovernanceHandle,
+    mcp_index: McpIndex,
+) -> Harness {
+    harness_wired(
+        spec,
+        plan,
+        None,
+        CancellationToken::new(),
+        (governance, mcp_index),
+    )
+    .await
+}
+
+/// The harness, its calls decided by the governance of `wiring` and its run
+/// offered the index of `wiring`.
+async fn harness_wired(
+    spec: AgentRunSpec,
+    plan: &'static str,
+    plan_cache: Option<Arc<Mutex<PlanCacheRepository>>>,
+    cancel: CancellationToken,
+    wiring: (GovernanceHandle, McpIndex),
+) -> Harness {
+    let (governance, mcp_index) = wiring;
     let tool_registry = ToolRegistryHandle::start();
     describe(&tool_registry, "file_io", apollia_tools::ActionFamily::Read).await;
     describe(
@@ -241,6 +280,7 @@ async fn harness_under(
         ApolliaContext::default(),
         SessionWiring {
             governance: Some(governance),
+            mcp_index,
             ..SessionWiring::default()
         },
         &ceiling(),
@@ -760,4 +800,74 @@ async fn test_a_step_a_deny_rule_matches_never_runs_and_asks_nobody() {
     assert!(run.offered.is_empty(), "{:?}", run.offered);
     assert!(!run.ran);
     assert!(run.result.is_err());
+}
+
+#[tokio::test]
+async fn test_a_step_on_a_deferred_mcp_tool_its_index_classifies_read_runs_unasked() {
+    // GIVEN an agent that always plans, granted a deferred MCP tool no
+    //       descriptor describes and the index classifies read, under a
+    //       governance that holds nothing, a human refusing whatever is asked
+    let mut lookup = apollia_mcp::tool_search::ToolIndexSnapshot {
+        server_name: "crm".into(),
+        tool_name: "lookup".into(),
+        ..Default::default()
+    };
+    lookup.family = apollia_tools::ActionFamily::Read;
+    let h = harness_indexed(
+        spec(PlanningMode::Always, &["mcp:crm/lookup"]),
+        MCP_PLAN_JSON,
+        empty_governance(),
+        Some(vec![lookup]),
+    )
+    .await;
+    let approvals = PendingChatApprovals::new();
+    let answering = approvals.clone();
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&asked);
+    let mut events = h.bus.subscribe();
+    let human = tokio::spawn(async move {
+        loop {
+            let event = match events.recv().await {
+                Ok(event) => event,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            };
+            if let RuntimeEvent::ChatApprovalRequired {
+                session_id,
+                message_id,
+                tool_call_id,
+                tool_name,
+                ..
+            } = event
+            {
+                seen.lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(tool_name);
+                let key = format!("{session_id}::{message_id}::{tool_call_id}");
+                answering.resolve(&key, ToolDecision::Refuse { reason: None });
+            }
+        }
+    });
+
+    // WHEN the task runs
+    let _ = run(
+        &h.executor,
+        "look up the record",
+        &HashSet::new(),
+        &approvals,
+    )
+    .await;
+    human.abort();
+
+    // THEN the step ran, and nobody was asked
+    let asked = asked
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    assert!(asked.is_empty(), "a read asks nobody: {asked:?}");
+    assert!(
+        h.called().contains(&"mcp:crm/lookup".to_string()),
+        "{:?}",
+        h.called()
+    );
 }

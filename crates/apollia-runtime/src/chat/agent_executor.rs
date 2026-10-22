@@ -306,6 +306,7 @@ impl AgentExecutor {
                 )
             }),
             unattended: wiring.unattended,
+            mcp_index: wiring.mcp_index.clone().unwrap_or_default(),
         };
         let plan_mode = wiring.plan_mode;
         let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {

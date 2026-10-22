@@ -99,6 +99,46 @@ impl OverrideWriter<'_> {
         Ok(())
     }
 
+    /// Sets lists of tools of several agents at once, each `(agent, field,
+    /// tools)` of `writes`, and records each agent's change: its override,
+    /// then one [`GovernanceEvent::AccessChanged`] per tool granted or taken
+    /// away. An agent written in two fields (`access` and `access_added`)
+    /// has its access compared once, so each tool is journaled once.
+    ///
+    /// The lists are stored in one transaction, so a refusal stores none and
+    /// records nothing.
+    ///
+    /// # Errors
+    ///
+    /// As [`OverrideWriter::set`].
+    pub fn set_tool_lists_of_many(
+        &self,
+        writes: &[(String, OverrideField, Vec<String>)],
+    ) -> Result<(), AgentOverrideError> {
+        let mut agents: Vec<&str> = Vec::new();
+        for (agent, _, _) in writes {
+            if !agents.contains(&agent.as_str()) {
+                agents.push(agent);
+            }
+        }
+        let before = agents
+            .iter()
+            .map(|agent| access_of(self.repo, agent))
+            .collect::<Result<Vec<_>, _>>()?;
+        let values: Vec<(String, OverrideField, Value)> = writes
+            .iter()
+            .map(|(agent, field, tools)| (agent.clone(), *field, Value::from(tools.clone())))
+            .collect();
+        self.repo.set_overrides(&values)?;
+        for (agent, before) in agents.iter().zip(&before) {
+            for (_, field, _) in writes.iter().filter(|(written, _, _)| written == agent) {
+                self.record_change(agent, *field, OverrideChange::Set)?;
+            }
+            self.record_access_diff(agent, before, &access_of(self.repo, agent)?)?;
+        }
+        Ok(())
+    }
+
     /// Removes the user's value of `field` for `agent`, and records it.
     /// Removing a field that was not overridden changes nothing and records
     /// nothing.

@@ -9,7 +9,9 @@
 //! granted to several agents, under `/api/v1/connections/{id}` (see
 //! [`agents`]). A connection is checked now under
 //! `/api/v1/connections/{id}/check` (see [`check`]), and put in pause and
-//! resumed there too (see [`pause`]).
+//! resumed there too (see [`pause`]). A connection of any kind is removed,
+//! with what it leaves behind, by `DELETE /api/v1/connections/{id}` (see
+//! [`remove`]).
 
 use axum::{
     extract::State,
@@ -49,6 +51,10 @@ pub fn connections_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> 
         .route(
             "/api/v1/connections/folders/:id",
             delete(folders::remove_folder_connection::<B>),
+        )
+        .route(
+            "/api/v1/connections/:id",
+            delete(remove::remove_connection::<B>),
         )
         .route(
             "/api/v1/connections/:id/agents",
@@ -92,9 +98,21 @@ pub(crate) async fn list_connections<B: ExecutionBackend + Clone>(
 
 /// Connected accounts of every native provider.
 pub(crate) async fn native_accounts() -> Result<Vec<NativeAccounts>, ApiError> {
-    let manager = crate::connectors_bridge::get_auth()
+    let manager = auth_manager().await?;
+    accounts_of(&manager).await
+}
+
+/// The auth manager the native connectors run with.
+pub(crate) async fn auth_manager() -> Result<std::sync::Arc<apollia_auth::AuthManager>, ApiError> {
+    crate::connectors_bridge::get_auth()
         .await
-        .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))
+}
+
+/// Connected accounts of every native provider in `manager`.
+pub(crate) async fn accounts_of(
+    manager: &apollia_auth::AuthManager,
+) -> Result<Vec<NativeAccounts>, ApiError> {
     let mut out = Vec::new();
     for provider in ConnectorProvider::ALL {
         let accounts = manager
@@ -179,6 +197,7 @@ pub(crate) mod agents;
 pub(crate) mod check;
 pub(crate) mod folders;
 pub(crate) mod pause;
+pub(crate) mod remove;
 
 #[cfg(test)]
 mod tests;

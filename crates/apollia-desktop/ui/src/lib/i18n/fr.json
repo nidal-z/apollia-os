@@ -591,8 +591,6 @@
     },
     "native_google_description": "Gmail (envoi + brouillons), Calendar, Drive Workspace",
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
-    "forbidden_by_policy": "Interdite par la politique",
-    "sidebar_forbidden_section": "Interdites par la politique ({count})",
     "error_refused_by_policy": "Refusé par la politique de l'organisation.",
     "error_oauth_client_missing": "Identifiant OAuth manquant - saisissez-le sur la fiche de cette connexion, dans Connexions.",
     "error_oauth_client_secret_missing": "Secret client OAuth manquant - ajoutez-le sur la fiche de cette connexion, dans Connexions.",
@@ -606,20 +604,10 @@
     "custom_error_url_required": "Indiquez l'adresse de la connexion.",
     "custom_test_tools_detected": "{count} outil(s) détecté(s).",
     "custom_error_oauth_required": "Ce serveur exige une authentification OAuth. Installez-le depuis le catalogue plutôt que via le formulaire personnalisé.",
-    "sidebar_my_connectors": "Connexions · {count}",
-    "sidebar_filter_placeholder": "Filtrer…",
-    "status_chip_all": "Tous",
-    "status_chip_active": "Actifs",
-    "status_chip_attention": "Attention",
-    "status_chip_error": "Erreur",
-    "status_chip_idle": "Inactif",
-    "status_filter_label": "Filtre statut",
-    "sidebar_accounts_active": "{count} compte(s) actif(s)",
     "not_connected": "Non connecté",
     "needs_configuration": "Configuration requise",
     "sidebar_no_servers": "Aucune connexion pour l'instant.",
     "sidebar_no_results": "Aucun résultat.",
-    "sidebar_no_servers_status": "Aucune connexion dans ce statut.",
     "tools_count_label": "{count} outil(s)",
     "badge_active_count": "{count} actif(s)",
     "add_account": "Ajouter un compte",
@@ -750,7 +738,6 @@
       "hint_postgres": "URI de connexion PostgreSQL (`postgres://user:pass@host:5432/db`) en premier argument.",
       "hint_sqlite": "Chemin absolu vers le fichier `.sqlite` à exposer."
     },
-    "ctx_configure": "Configurer",
     "tool_schema": "Schéma",
     "oauth_client": {
       "title": {
@@ -918,6 +905,41 @@
       "add": "Ajouter",
       "open": "Ouvrir sa page",
       "back": "Retour à la recherche"
+    },
+    "list": {
+      "search_placeholder": "Rechercher une connexion…",
+      "kind_filter_label": "Genre de connexion",
+      "kind_all": "Toutes",
+      "kind_native": "Comptes",
+      "kind_imap": "Boîtes",
+      "kind_mcp": "Services",
+      "kind_folder": "Dossiers",
+      "no_connection_of_kind": "Aucune connexion de ce genre.",
+      "brought_by": "Apportée par le paquet {package}",
+      "close_card": "Fermer la fiche",
+      "source_failed": {
+        "connections": "La liste des connexions n'a pas pu être lue : {error}",
+        "services": "L'état des services n'a pas pu être lu : {error}",
+        "descriptions": "Les descriptions du catalogue n'ont pas pu être lues : {error}",
+        "agents": "La liste des agents n'a pas pu être lue : {error}"
+      }
+    },
+    "state": {
+      "working": "Fonctionne",
+      "needs_repair": "À réparer",
+      "paused": "En pause",
+      "blocked": "Bloquée par l'organisation",
+      "reason": {
+        "not_checked": "pas encore vérifiée",
+        "sign_in_again": "le compte doit se reconnecter",
+        "unreachable": "injoignable",
+        "failing": "ses opérations échouent",
+        "forbidden_by_policy": "interdite par la politique"
+      },
+      "checked_just_now": "vérifiée à l'instant",
+      "checked_minutes_ago": "vérifiée il y a {mins} min",
+      "checked_hours_ago": "vérifiée il y a {hours} h",
+      "checked_days_ago": "vérifiée il y a {days} j"
     }
   },
   "integrations": {
@@ -927,13 +949,6 @@
       "data": "Ce que vos agents lisent ou envoient par cette connexion passe par {name}, selon ses propres conditions.",
       "responsibility": "Apollia teste les connexions de sa sélection ; il ne répond pas du service lui-même, que vous pouvez retirer à tout moment depuis Connexions.",
       "journal": "Votre accord est inscrit au Journal."
-    },
-    "status": {
-      "connected": "Connecté",
-      "unverified": "Joignable",
-      "degraded": "Dégradé",
-      "needs_reauth": "Reconnexion requise",
-      "unavailable": "Indisponible"
     },
     "connectors": {
       "figma": {

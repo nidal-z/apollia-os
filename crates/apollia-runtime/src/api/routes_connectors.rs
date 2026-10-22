@@ -382,7 +382,7 @@ async fn disconnect_account(
 
 /// Forget the token of `account_id` in `manager`, then journal the
 /// disconnection.
-async fn revoke_and_record(
+pub(crate) async fn revoke_and_record(
     governance: &ConnectionGovernance,
     manager: &apollia_auth::AuthManager,
     provider: ConnectorProvider,

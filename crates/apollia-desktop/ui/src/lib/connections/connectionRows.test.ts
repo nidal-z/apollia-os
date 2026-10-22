@@ -2,12 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   connectionRows,
   isSelected,
+  kindCounts,
   nativeProviderOf,
   provenanceLine,
   rowMatches,
-  statusOfState,
+  serverNameOf,
+  visibleRows,
 } from "./connectionRows";
-import { sortConnections } from "./connectionList";
 import type { Connection } from "$lib/types";
 
 function connection(over: Partial<Connection> = {}): Connection {
@@ -20,6 +21,10 @@ function connection(over: Partial<Connection> = {}): Connection {
     remote: false,
     official: false,
     state: "connected",
+    status: "working",
+    reason: null,
+    checkedAt: null,
+    package: null,
     tools: [],
     ...over,
   };
@@ -35,60 +40,70 @@ const google = (account: string, over: Partial<Connection> = {}): Connection =>
     ...over,
   });
 
+const repair = { status: "needs_repair", reason: { key: "unreachable" } } as const;
+
 describe("connectionRows", () => {
-  it("puts accounts, mailboxes, servers and folders in one list, in the loader's order", () => {
-    // GIVEN the loader's answer: a Google account, a mailbox, a server, a folder
-    const connections = sortConnections([
+  it("puts accounts, mailboxes, services and folders in one list, one row per connection", () => {
+    // GIVEN two Google accounts, a mailbox, a server and a folder
+    const connections = [
       connection({ id: "folder:invoices", kind: "folder", label: "Invoices" }),
       connection(),
       connection({ id: "imap:ada@example.com", kind: "imap", label: "Fastmail", account: "ada@example.com" }),
       google("ada@example.com"),
-    ]);
-
-    // WHEN the rows are built
-    const rows = connectionRows(connections);
-
-    // THEN one list holds the four kinds, no section between them
-    expect(rows.map((r) => r.kind)).toEqual(["native", "imap", "mcp", "folder"]);
-    expect(rows.map((r) => r.selection)).toEqual([
-      { kind: "native", provider: "google" },
-      { kind: "connection", id: "imap:ada@example.com" },
-      { kind: "mcp", name: "files" },
-      { kind: "connection", id: "folder:invoices" },
-    ]);
-  });
-
-  it("folds the accounts of one native provider into one row, at its least usable state", () => {
-    // GIVEN two Google accounts, the second to sign in again
-    const connections = [
-      google("ada@example.com"),
-      google("bob@example.com", { state: "needs_reauth" }),
+      google("bob@example.com"),
     ];
 
     // WHEN the rows are built
     const rows = connectionRows(connections);
 
-    // THEN one Google row carries both accounts and asks for attention
-    expect(rows).toHaveLength(1);
-    expect(rows[0].accounts).toEqual(["ada@example.com", "bob@example.com"]);
-    expect(rows[0].selection).toEqual({ kind: "native", provider: "google" });
-    expect(rows[0].state).toBe("needs_reauth");
-    expect(rows[0].status).toBe("attention");
+    // THEN each connection has its own row, keyed by its identifier, each
+    // Google account apart, by name then account
+    expect(rows.map((r) => r.key)).toEqual([
+      "imap:ada@example.com",
+      "mcp:files",
+      "native:google:ada@example.com",
+      "native:google:bob@example.com",
+      "folder:invoices",
+    ]);
   });
 
-  it("carries the remote attribute the runtime computed, never guessed", () => {
-    // GIVEN a remote server and a local one
+  it("puts what needs repair first, then the rest by name", () => {
+    // GIVEN a working server, a paused one, a blocked one and two to repair
     const connections = [
-      connection({ id: "mcp:linear", label: "linear", remote: true }),
-      connection({ id: "mcp:files", label: "files", remote: false }),
+      connection({ id: "mcp:alpha", label: "alpha" }),
+      connection({ id: "mcp:zeta", label: "zeta", ...repair }),
+      connection({ id: "mcp:beta", label: "beta", status: "paused" }),
+      connection({ id: "mcp:gamma", label: "gamma", status: "blocked" }),
+      connection({ id: "mcp:delta", label: "delta", ...repair }),
     ];
 
     // WHEN the rows are built
-    const [linear, files] = connectionRows(connections);
+    const rows = connectionRows(connections);
 
-    // THEN only the remote one is marked remote
-    expect(linear.remote).toBe(true);
-    expect(files.remote).toBe(false);
+    // THEN the two to repair lead, by name, and every other state follows by name
+    expect(rows.map((r) => r.label)).toEqual(["delta", "zeta", "alpha", "beta", "gamma"]);
+  });
+
+  it("carries the state, its reason, its date and the package the runtime gave", () => {
+    // GIVEN a server brought by a package, to repair since a given time
+    const connections = [
+      connection({
+        ...repair,
+        checkedAt: "2026-10-21T09:00:00Z",
+        package: "invoices-kit",
+        remote: true,
+      }),
+    ];
+
+    // WHEN the rows are built
+    const [row] = connectionRows(connections);
+
+    // THEN the row keeps all of it, as given
+    expect(row.status).toBe("needs_repair");
+    expect(row.reason).toEqual({ key: "unreachable" });
+    expect(row.checkedAt).toBe("2026-10-21T09:00:00Z");
+    expect(row.package).toBe("invoices-kit");
+    expect(row.remote).toBe(true);
   });
 
   it("names a server row by the label the screen hands it", () => {
@@ -98,24 +113,53 @@ describe("connectionRows", () => {
     // WHEN the rows are built with a naming function
     const rows = connectionRows(connections, (c) => (c.kind === "mcp" ? "Local files" : c.label));
 
-    // THEN the row shows the label and still selects the server by its name
+    // THEN the row shows the label and keeps the server's identifier
     expect(rows[0].label).toBe("Local files");
-    expect(rows[0].selection).toEqual({ kind: "mcp", name: "server-filesystem" });
+    expect(rows[0].key).toBe("mcp:server-filesystem");
+  });
+});
+
+describe("the search and the kind chips", () => {
+  const rows = connectionRows([
+    google("ada@example.com"),
+    connection({ id: "imap:bob@example.com", kind: "imap", label: "Fastmail", account: "bob@example.com" }),
+    connection({ id: "mcp:notion", label: "notion", package: "wiki-kit" }),
+    connection({ id: "folder:invoices", kind: "folder", label: "Invoices" }),
+  ]);
+
+  it("matches the name, the account or the package", () => {
+    // GIVEN the Google row and the server brought by a package
+    const googleRow = rows.find((r) => r.kind === "native")!;
+    const notion = rows.find((r) => r.kind === "mcp")!;
+
+    // WHEN they are searched
+    // THEN the name, the account and the package match, another word does not
+    expect(rowMatches(googleRow, "goo")).toBe(true);
+    expect(rowMatches(googleRow, "ADA@")).toBe(true);
+    expect(rowMatches(notion, "wiki")).toBe(true);
+    expect(rowMatches(googleRow, "notion")).toBe(false);
+    expect(rowMatches(googleRow, "  ")).toBe(true);
+  });
+
+  it("lets through the kind of the chip, and every kind with All", () => {
+    // GIVEN the four kinds in the list
+    // WHEN a chip is chosen
+    // THEN only its kind is shown, and All shows them all
+    expect(visibleRows(rows, "", "imap").map((r) => r.key)).toEqual(["imap:bob@example.com"]);
+    expect(visibleRows(rows, "", "folder").map((r) => r.key)).toEqual(["folder:invoices"]);
+    expect(visibleRows(rows, "", "all")).toHaveLength(4);
+    expect(visibleRows(rows, "fast", "native")).toEqual([]);
+  });
+
+  it("counts the rows of each chip", () => {
+    // GIVEN one connection of each kind
+    // WHEN the chips are counted
+    // THEN each kind holds one and All holds four
+    expect(kindCounts(rows)).toEqual({ all: 4, native: 1, imap: 1, mcp: 1, folder: 1 });
   });
 });
 
 describe("row helpers", () => {
-  it("maps every connection state to a status of the filter chips", () => {
-    // GIVEN the five states of a connection
-    // WHEN each is mapped
-    // THEN connected is active, the two recoverable ones attention, unavailable an error, stopped idle
-    expect(statusOfState("connected")).toBe("active");
-    expect(statusOfState("degraded")).toBe("attention");
-    expect(statusOfState("needs_reauth")).toBe("attention");
-    expect(statusOfState("unavailable")).toBe("error");
-    expect(statusOfState("stopped")).toBe("idle");
-  });
-
   it("reads the native provider from the identifier, and only for a native connection", () => {
     // GIVEN a Microsoft account and a server whose name looks like a provider
     const microsoft = connection({ id: "native:microsoft:ada@example.com", kind: "native" });
@@ -125,21 +169,11 @@ describe("row helpers", () => {
     // THEN the account has one, the server none
     expect(nativeProviderOf(microsoft)).toBe("microsoft");
     expect(nativeProviderOf(server)).toBeNull();
+    expect(serverNameOf(server.id)).toBe("google");
+    expect(serverNameOf(microsoft.id)).toBeNull();
   });
 
-  it("matches the filter on the label or an account", () => {
-    // GIVEN a Google row with one account
-    const [row] = connectionRows([google("ada@example.com")]);
-
-    // WHEN it is filtered
-    // THEN the label and the account both match, another word does not
-    expect(rowMatches(row, "goo")).toBe(true);
-    expect(rowMatches(row, "ADA@")).toBe(true);
-    expect(rowMatches(row, "notion")).toBe(false);
-    expect(rowMatches(row, "  ")).toBe(true);
-  });
-
-  it("knows which row the detail pane shows", () => {
+  it("knows which row the detail card shows", () => {
     // GIVEN a server row and a folder row
     const [server, folder] = connectionRows([
       connection(),
@@ -149,17 +183,18 @@ describe("row helpers", () => {
     // WHEN the selection points at the folder
     const selection = { kind: "connection", id: "folder:invoices" } as const;
 
-    // THEN the folder is selected and the server is not
+    // THEN the folder is selected, the server is not, nor anything without a selection
     expect(isSelected(folder, selection)).toBe(true);
     expect(isSelected(server, selection)).toBe(false);
     expect(isSelected(server, null)).toBe(false);
+    expect(isSelected(server, { kind: "builtin" })).toBe(false);
   });
 
   it("writes the developer provenance line with the technical kind and the origin", () => {
     // GIVEN an official server of the registry and a custom one
     const [official, custom] = connectionRows([
       connection({ id: "mcp:notion", label: "notion", provenance: "registry", official: true }),
-      connection({ id: "mcp:mine", label: "mine", provenance: "custom" }),
+      connection({ id: "mcp:wiki", label: "wiki", provenance: "custom" }),
     ]);
 
     // WHEN the provenance lines are written

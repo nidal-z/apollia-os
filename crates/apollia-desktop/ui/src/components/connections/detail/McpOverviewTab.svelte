@@ -2,19 +2,20 @@
   /**
    * McpOverviewTab - connection status, activity, and the live-test verdict.
    *
-   * Operator sees plain-language phrasing; Builder sees the raw health verdict
-   * (via ConnectionStatusIndicator) plus technical test detail.
+   * The state of the connection as the runtime found it, dated; the
+   * developer mode adds the technical detail of its reason and of a test.
    */
   import { t } from "svelte-i18n";
   import { Wrench } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
   import { developerMode } from "$lib/stores/developerMode";
-  import ConnectionStatusIndicator from "../../integrations/ConnectionStatusIndicator.svelte";
-  import type { McpHealth } from "$lib/types";
+  import ConnectionStateBadge from "../shared/ConnectionStateBadge.svelte";
+  import type { Connection } from "$lib/types";
   import type { TestState } from "../shared/types";
 
   interface Props {
-    health: McpHealth;
+    /** The connection of the server, as the list reads it; absent before the list is read. */
+    connection?: Connection | null;
     toolsCount: number;
     statusError: string | null;
     lastActivityLabel: string | null;
@@ -26,7 +27,7 @@
   }
 
   let {
-    health,
+    connection = null,
     toolsCount,
     statusError,
     lastActivityLabel,
@@ -45,7 +46,15 @@
     <div class="mb-2 text-overline text-muted-foreground/60">
       {$t("connections.overview_connection")}
     </div>
-    <ConnectionStatusIndicator {health} />
+    {#if connection}
+      <ConnectionStateBadge
+        status={connection.status}
+        reason={connection.reason}
+        checkedAt={connection.checkedAt}
+        inline
+        data-testid="mcp-overview-state"
+      />
+    {/if}
     <div class="mt-2 flex items-center gap-1.5 text-caption text-muted-foreground">
       <Wrench size={11} />
       <span data-testid="mcp-tools-count">

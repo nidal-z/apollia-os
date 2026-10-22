@@ -3021,10 +3021,12 @@ export interface paths {
         post?: never;
         /**
          * `DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
-         * @description Shuts down the session, unregisters the server, removes its database entry,
-         *     then journals the removal.
+         * @description Shuts down the session when there is one, unregisters the server, removes
+         *     its database entry, then journals the removal. A server that never started
+         *     is removed all the same. `DELETE /api/v1/connections/{id}` removes what
+         *     else the server leaves behind.
          *     Returns `200 OK` with `{"removed": "<name>"}` on success.
-         *     Returns `404 Not Found` when no server with the given name is managed.
+         *     Returns `404 Not Found` when the server is neither running nor stored.
          *     Returns `503 Service Unavailable` when MCP is not configured.
          */
         delete: operations["remove_server"];
@@ -6349,6 +6351,27 @@ export interface paths {
         put: operations["put_session_settings"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/connections/{id}`: remove a connection of any kind, and
+         *     answer what was erased; with `?dry_run=1`, erase nothing and answer what
+         *     would be.
+         */
+        delete: operations["remove_connection"];
         options?: never;
         head?: never;
         patch?: never;
@@ -12450,6 +12473,34 @@ export interface components {
             /** @description The file it was written to, when the source is a file or a folder. */
             path?: string | null;
         };
+        /** @description What a removal erased, or would erase. */
+        ConnectionRemoval: {
+            /** @description Identifier of the connection. */
+            connection: string;
+            /** @description Whether nothing was erased, the list saying what would be. */
+            dryRun: boolean;
+            /** @description What could not be erased; empty on a dry run. */
+            left: components["schemas"]["RemovedItem"][];
+            /** @description What was erased, or would be. */
+            removed: components["schemas"]["RemovedItem"][];
+        };
+        /** @description One thing a removal erases. */
+        RemovedItem: {
+            /** @description The agent the tool is taken from, for an agent access. */
+            agent?: string | null;
+            /** @description What it is. */
+            kind: components["schemas"]["RemovedKind"];
+            /**
+             * @description Its name: the server, the folder of installed files, the secret key,
+             *     the tool taken away, the source.
+             */
+            name: string;
+        };
+        /**
+         * @description The kinds of things a removal erases.
+         * @enum {string}
+         */
+        RemovedKind: "configuration" | "installed_files" | "token" | "secret" | "agent_access" | "source" | "state";
     };
     responses: never;
     parameters: never;
@@ -19989,7 +20040,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Server not found */
+            /** @description Server neither running nor stored */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -28037,6 +28088,62 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    remove_connection: {
+        parameters: {
+            query?: {
+                /**
+                 * @description `1` (or `true`) to erase nothing and answer what the removal would
+                 *     erase.
+                 */
+                dry_run?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Connection identifier, as `GET /api/v1/connections` lists it */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed, or on a dry run what would be; what was erased, and what could not be */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionRemoval"];
+                };
+            };
+            /** @description Connection not found; nothing erased */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A store could not be read or written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Secret store or audit journal not available; nothing erased */
             503: {
                 headers: {
                     [name: string]: unknown;

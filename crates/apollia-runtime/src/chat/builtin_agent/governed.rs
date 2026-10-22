@@ -18,13 +18,17 @@ pub(super) struct AskedConsent {
     pub(super) always_offered: bool,
 }
 
-/// The family of the tool `name`, as its descriptor declares it. The search
-/// over the deferred tools reads an in-memory index and acts on nothing else;
-/// the search over the connections reads Apollia's selection and the servers
-/// configured on this machine; a tool nothing describes is unclassified.
+/// The family of the tool `name`, as its descriptor declares it. A deferred
+/// MCP tool has no descriptor: its family is the one the tool index carries,
+/// decided by the MCP manager from the selection entry, then the server's
+/// hints. The search over the deferred tools reads an in-memory index and acts
+/// on nothing else; the search over the connections reads Apollia's selection
+/// and the servers configured on this machine; a tool nothing describes is
+/// unclassified.
 pub(super) fn family_of(
     name: &str,
     descriptor: Option<&apollia_tools::ToolDescriptor>,
+    mcp_index: Option<&[apollia_mcp::tool_search::ToolIndexSnapshot]>,
 ) -> ActionFamily {
     match descriptor {
         Some(descriptor) => descriptor.family,
@@ -32,7 +36,7 @@ pub(super) fn family_of(
         None if name == crate::chat::connection_lookup::CONNECTION_LOOKUP_NAME => {
             ActionFamily::Read
         }
-        None => ActionFamily::Unclassified,
+        None => apollia_mcp::tool_search::tool_family(name, None, mcp_index.unwrap_or(&[])),
     }
 }
 

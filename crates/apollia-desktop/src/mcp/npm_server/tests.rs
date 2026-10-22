@@ -6,7 +6,6 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::*;
-use crate::mcp::python_server::remove_connection_dir;
 
 const TEST_PACKAGE: &str = "apollia-echo-server";
 
@@ -547,19 +546,6 @@ async fn without_node_the_installation_is_refused_with_node_required() {
     // THEN it is refused as needing Node.js, and nothing is left behind
     assert!(matches!(result, Err(NpmServerError::NodeRequired(_))));
     assert!(!work.path().join("connections").join("echo").exists());
-}
-
-#[test]
-fn removing_a_connection_deletes_its_installed_packages() {
-    // GIVEN an npm connection directory holding its packages
-    let data = tempfile::tempdir().expect("data");
-    let dir = data.path().join("memory").join("node_modules").join("x");
-    std::fs::create_dir_all(&dir).expect("dir");
-    std::fs::write(dir.join("index.js"), b"").expect("file");
-    // WHEN the connection is removed
-    remove_connection_dir(data.path(), "memory").expect("remove");
-    // THEN its directory is gone
-    assert!(!data.path().join("memory").exists());
 }
 
 // ─── The shipped catalogue, against the real registry ──────────────────────
