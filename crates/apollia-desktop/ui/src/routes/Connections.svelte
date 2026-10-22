@@ -628,8 +628,10 @@
   }}
   onopenclient={(provider) => {
     // The client is entered on the provider's card: the window of an
-    // addition that asked for the sign-in gives way to it.
+    // addition that asked for the sign-in gives way to it. With no account
+    // yet the provider has no row in the list, so its card is opened by it.
     addWindow = flowDone();
+    select({ kind: "native", provider });
     openClientSection(provider);
   }}
 />

@@ -28,6 +28,7 @@ import { APOLLIA_AGENT_ID } from "$lib/chat/chatTargets";
 import AddFlow from "./AddFlow.svelte";
 import AddressForm from "./AddressForm.svelte";
 import WhoCanUse from "./WhoCanUse.svelte";
+import TrialSucceeded from "./TrialSucceeded.svelte";
 import WizardStepAuth from "../../integrations/WizardStepAuth.svelte";
 import ConnectionRefusal from "../../integrations/ConnectionRefusal.svelte";
 import { REMOTE_DENIED_REASON } from "$lib/integrations/addConnection";
@@ -38,6 +39,7 @@ import {
   connectGesture,
   fieldLabel,
   grantToAgents,
+  keptOnceAdded,
   plainScopes,
   stepOf,
   whoChoices,
@@ -530,5 +532,113 @@ describe("the refusal box", () => {
     expect(body).toContain(fr.connections.refusal.permissions_title);
     expect(body).toContain(fr.connections.refusal.open_permissions);
     expect(body).not.toContain(fr.connections.refusal.ask_administrator);
+  });
+});
+
+describe("what the former dialogs said and offered, kept in the flow", () => {
+  const FOLDER = {
+    ...connection("folder:clients", [
+      ["file_read", "read"],
+      ["file_write", "write_or_delete"],
+    ]),
+    kind: "folder",
+    path: "/Users/ada/Documents/Clients",
+  } as unknown as Connection;
+
+  test.each(["fr", "en"] as const)("a folder added offers to choose another one (%s)", async (lang) => {
+    // GIVEN a folder added and tried
+    await inLocale(lang);
+    const words = lang === "fr" ? fr : en;
+
+    // WHEN the trial that answered is rendered
+    const { body } = renderToString(TrialSucceeded, {
+      props: { kind: "folder", name: "Clients", tools: null, folder: FOLDER, onchooseanother: noop },
+    });
+
+    // THEN the system picker can be opened again from there
+    expect(body).toContain('data-testid="folder-connection-choose-another"');
+    expect(visible(body)).toContain(words.connections.folder.choose_another);
+  });
+
+  test("the flow opens the picker again from the trial and from a failure of a folder", () => {
+    // GIVEN the flow
+    const flowSource = source("./AddFlow.svelte");
+
+    // WHEN what it gives the trial of a folder, and its footer on a failure, are read
+    // THEN both lead to the picker of the folder step
+    expect(flowSource).toContain('onchooseanother={entry.kind === "folder" ? () => void pickFolder() : undefined}');
+    expect(flowSource).toMatch(
+      /entry\.kind === "folder"\}\s*<Button[^>]*onclick=\{\(\) => void pickFolder\(\)\}[^>]*data-testid="folder-connection-choose-another"/,
+    );
+  });
+
+  test.each(["fr", "en"] as const)("a mailbox added says it is only read (%s)", async (lang) => {
+    // GIVEN a mailbox added, then another kind of connection
+    await inLocale(lang);
+    const words = lang === "fr" ? fr : en;
+
+    // WHEN the trial of each is rendered
+    const mailbox = renderToString(TrialSucceeded, { props: { kind: "mailbox", name: "ada@example.com", tools: null } }).body;
+    const address = renderToString(TrialSucceeded, { props: { kind: "address", name: "Tools", tools: 3 } }).body;
+
+    // THEN the mailbox says nothing is ever sent from it or deleted, the other does not
+    expect(mailbox).toContain('data-testid="add-flow-mailbox-read-only"');
+    expect(visible(mailbox).replace(/&#39;/g, "'")).toContain(words.connections.mailbox.read_only);
+    expect(address).not.toContain('data-testid="add-flow-mailbox-read-only"');
+  });
+});
+
+describe("the key typed for a service by its address", () => {
+  test("is no longer kept once the service is added, and kept whole before, for a new attempt", () => {
+    // GIVEN the configuration of an address with the key the service asked for
+    const built = addressConfig({ ...EMPTY_ADDRESS_FORM, url: "https://tools.example.com/connect", key: "k-123" }, false);
+    if (built.kind !== "ok") throw new Error("the address must build");
+
+    // WHEN the flow keeps what it needs once the service is added
+    const kept = keptOnceAdded(built.config);
+
+    // THEN the trial and the removal still read its name, the key is gone,
+    // and the configuration of the attempt itself still carries it
+    expect(kept.name).toBe("tools-example-com");
+    expect(kept.url).toBe("https://tools.example.com/connect");
+    expect(kept.transport).toBe("streamable-http");
+    expect(JSON.stringify(kept)).not.toContain("k-123");
+    expect(built.config.env[KEY_HEADER]).toBe("Bearer k-123");
+  });
+
+  test("the flow drops it as soon as the addition succeeded, after the attempt that Retry reads", () => {
+    // GIVEN the flow
+    const flowSource = source("./AddFlow.svelte");
+    const addServer = flowSource.slice(flowSource.indexOf("async function addServer("), flowSource.indexOf("// ── Folder"));
+
+    // WHEN the addition of a server is read
+    const heldForRetry = addServer.indexOf("serverConfig = config;");
+    const dropped = addServer.indexOf("serverConfig = keptOnceAdded(config);");
+    const goneOn = addServer.indexOf("added(mcpConnectionId(config.name));");
+
+    // THEN the whole configuration is held while the attempt runs (a refusal
+    // returns before the drop, so Retry still has the key), and only what the
+    // trial reads is left once the server is added, before the flow goes on
+    expect(heldForRetry).toBeGreaterThan(-1);
+    expect(dropped).toBeGreaterThan(heldForRetry);
+    expect(goneOn).toBeGreaterThan(dropped);
+    expect(addServer.slice(heldForRetry, dropped)).toContain('phase = "failed";');
+  });
+});
+
+describe("a provider whose own client is missing", () => {
+  test("the sign-in of the flow leads to the card of the provider, where its client is entered", () => {
+    // GIVEN the screen, where the sign-in dialog of the flow says the client is missing
+    const route = source("../../../routes/Connections.svelte");
+
+    // WHEN what it does on "open the client" is read
+    const handler = route.slice(route.indexOf("onopenclient={(provider) => {"), route.indexOf("<AddConnectionWindow"));
+
+    // THEN the window gives way and the card of that provider is selected
+    // before its client section is brought into view: with no account yet,
+    // nothing else opens it
+    expect(handler).toContain("addWindow = flowDone();");
+    expect(handler.indexOf('select({ kind: "native", provider });')).toBeGreaterThan(-1);
+    expect(handler.indexOf('select({ kind: "native", provider });')).toBeLessThan(handler.indexOf("openClientSection(provider);"));
   });
 });

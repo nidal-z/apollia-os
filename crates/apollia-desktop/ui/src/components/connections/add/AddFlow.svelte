@@ -11,7 +11,7 @@
    */
   import { onMount, untrack } from "svelte";
   import { t } from "svelte-i18n";
-  import { ArrowLeft, CheckCircle2, Folder, LogIn, Play, XCircle } from "lucide-svelte";
+  import { ArrowLeft, Folder, LogIn, Play, XCircle } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import { ProgressBar, Spinner } from "$lib/components/ui/progress";
@@ -32,11 +32,12 @@
     type NodeRuntimeState,
     type Refusal,
   } from "$lib/integrations/addConnection";
-  import { chooseAndAddFolder, folderAbilities, readablePath } from "$lib/connections/folderConnection";
+  import { chooseAndAddFolder } from "$lib/connections/folderConnection";
   import {
     FLOW_STEPS,
     grantToAgents,
     initiallyChecked,
+    keptOnceAdded,
     mcpConnectionId,
     stepOf,
     type FlowPhase,
@@ -51,6 +52,7 @@
   import AddressForm from "./AddressForm.svelte";
   import MailboxForm from "./MailboxForm.svelte";
   import WhoCanUse from "./WhoCanUse.svelte";
+  import TrialSucceeded from "./TrialSucceeded.svelte";
 
   interface Props {
     entry: AddEntry;
@@ -98,7 +100,10 @@
   let phase = $state<FlowPhase>(untrack(() => (resume ? "who" : "connect")));
   let warningAccepted = $state(untrack(() => accepted));
   let connectionId = $state<string | null>(untrack(() => resume));
-  /** The configuration of a server added, read again by Retry. */
+  /**
+   * The configuration of the server being added, read again by Retry; once
+   * added, only what the trial and the removal read (`keptOnceAdded`).
+   */
   let serverConfig = $state<McpServerConfigInput | null>(null);
   let folder = $state<Connection | null>(null);
   let nodeState = $state<NodeRuntimeState | null>(null);
@@ -210,6 +215,7 @@
         return;
       }
     }
+    serverConfig = keptOnceAdded(config);
     added(mcpConnectionId(config.name));
   }
 
@@ -224,6 +230,7 @@
       return;
     }
     folder = outcome.connection;
+    grantError = null;
     added(outcome.connection.id);
   }
 
@@ -282,7 +289,6 @@
 
   const nodeDownloading = $derived(nodeState?.state === "downloading");
   const nodeProgress = $derived(nodeState ? nodePercent(nodeState) : null);
-  const abilities = $derived(folder ? folderAbilities(folder) : null);
   const WORKING_KEYS = {
     adding: "integrations.wizard.preparing",
     probing: "integrations.wizard.oauth_probing",
@@ -396,37 +402,13 @@
         </p>
       {/if}
       {#if trialOk}
-        <div class="rounded-md border border-success/30 bg-success/10 px-4 py-3" data-testid="test-result-success">
-          <div class="flex items-center gap-2">
-            <CheckCircle2 size={16} class="shrink-0 text-success" aria-hidden="true" />
-            <p class="text-sm font-medium text-success-a11y">
-              {trialTools !== null
-                ? $t("integrations.wizard.added_success", { values: { count: trialTools } })
-                : $t("connections.add_flow.added", { values: { name } })}
-            </p>
-          </div>
-          <p class="mt-1 text-xs text-muted-foreground">{$t("connections.add_flow.added_where")}</p>
-        </div>
-        {#if folder && abilities}
-          <div
-            class="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-body-sm text-foreground"
-            title={folder.path ?? ""}
-            data-testid="folder-connection-path"
-          >
-            <Folder size={14} class="shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span class="truncate">{readablePath(folder.path ?? folder.label)}</span>
-          </div>
-          {#if abilities.read}
-            <p class="text-caption text-muted-foreground" data-testid="folder-ability-read">
-              {$t("connections.folder.ability_read")}
-            </p>
-          {/if}
-          {#if abilities.writeOrDelete}
-            <p class="text-caption text-muted-foreground" data-testid="folder-ability-write">
-              {$t("connections.folder.ability_write")}
-            </p>
-          {/if}
-        {/if}
+        <TrialSucceeded
+          kind={entry.kind}
+          {name}
+          tools={trialTools}
+          {folder}
+          onchooseanother={entry.kind === "folder" ? () => void pickFolder() : undefined}
+        />
         {#if entry.kind === "catalogue" && connectionId}
           {@const id = connectionId}
           <WizardStepCoaching
@@ -533,6 +515,11 @@
         {#if serverConfig || setup}
           <Button variant="primary-solid" size="sm" onclick={retryAdd} data-testid="wizard-retry-add-btn">
             {$t("integrations.wizard.test_retry")}
+          </Button>
+        {:else if entry.kind === "folder"}
+          <Button variant="primary-solid" size="sm" onclick={() => void pickFolder()} data-testid="folder-connection-choose-another">
+            {#snippet icon()}<Folder size={12} />{/snippet}
+            {$t("connections.folder.choose_another")}
           </Button>
         {/if}
       {:else if phase === "refused"}

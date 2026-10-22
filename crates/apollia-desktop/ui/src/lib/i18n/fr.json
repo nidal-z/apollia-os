@@ -796,6 +796,7 @@
       "port_label": "Port",
       "add": "Ajouter",
       "add_hint": "Apollia essaie la connexion avant de l'ajouter.",
+      "read_only": "Apollia la lit seulement : il n'y envoie ni n'y supprime jamais rien.",
       "trying": "Essai de la connexion à la boîte mail…",
       "error": {
         "credentials_rejected": "Le serveur refuse le mot de passe. Vérifiez le mot de passe d'application, puis réessayez.",
@@ -819,6 +820,7 @@
       "ability_write": "Écrire ou supprimer : seulement avec votre accord",
       "bounds": "Rien en dehors de ce dossier. Vous choisissez quels agents y ont accès depuis leur fiche.",
       "done": "Terminé",
+      "choose_another": "Choisir un autre dossier",
       "remove": "Retirer",
       "remove_title": "Retirer la connexion « {name} » ?",
       "remove_plain": "Les agents perdent l'accès à ce dossier. Ses fichiers restent sur votre ordinateur.",

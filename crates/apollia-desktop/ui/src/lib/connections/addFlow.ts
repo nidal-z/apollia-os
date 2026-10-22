@@ -228,6 +228,17 @@ export function addressConfig(form: AddressForm, developerMode: boolean): Addres
   };
 }
 
+/**
+ * What the flow keeps of a server once it is added: its name and transport,
+ * which the trial and the removal read, and none of its variables or headers.
+ * A key typed in the address form lives in the flow only until the runtime
+ * holds it; before that, the whole configuration is kept, so a refused
+ * attempt can be tried again with the same key.
+ */
+export function keptOnceAdded(config: McpServerConfigInput): McpServerConfigInput {
+  return { ...config, env: {} };
+}
+
 /** Whether a test of the address answered that the service wants a key. */
 export function asksForKey(messageKey: string): boolean {
   return (

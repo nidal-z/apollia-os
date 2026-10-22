@@ -796,6 +796,7 @@
       "port_label": "Port",
       "add": "Add",
       "add_hint": "Apollia tries the connection before adding it.",
+      "read_only": "Apollia only reads it: it never sends or deletes anything there.",
       "trying": "Trying the connection to the mailbox…",
       "error": {
         "credentials_rejected": "The server refuses the password. Check the app password, then try again.",
@@ -819,6 +820,7 @@
       "ability_write": "Write or delete: only with your agreement",
       "bounds": "Nothing outside this folder. You choose which agents have access from their page.",
       "done": "Done",
+      "choose_another": "Choose another folder",
       "remove": "Remove",
       "remove_title": "Remove the connection “{name}”?",
       "remove_plain": "The agents lose access to this folder. Its files stay on your computer.",
