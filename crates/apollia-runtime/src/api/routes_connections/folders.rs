@@ -1,12 +1,18 @@
 //! A folder of this machine added or removed as a connection.
 //!
 //! - `POST   /api/v1/connections/folders`      , add the folder at a path
+//! - `PUT    /api/v1/connections/folders/{id}` , point a folder connection at
+//!   another folder, its identifier kept
 //! - `DELETE /api/v1/connections/folders/{id}` , remove a folder connection
 //!
 //! An addition goes through the connection admission first, then the folder
 //! is kept in `system.db` by its canonical path and the addition is journaled
 //! as `folder_added`. A removal deletes the row and is journaled as
-//! `connection_removed`. Both answer the connection as the list shows it.
+//! `connection_removed`. A folder that moved or was renamed is chosen again
+//! under the same connection: the new folder goes through the admission, the
+//! row keeps its identifier, so the accesses of its agents and the sources made
+//! on it stay, and the change is journaled as `connection_modified`. Each
+//! answers the connection as the list shows it.
 //!
 //! Sources may be made on a folder connection (a folder whose documents are
 //! indexed, a code folder). Removing the connection then asks for
@@ -44,6 +50,14 @@ pub struct AddFolderBody {
     /// Name shown to the user; the folder's own name when absent.
     #[serde(default)]
     pub label: Option<String>,
+}
+
+/// Body of `PUT /api/v1/connections/folders/{id}`.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RepointFolderBody {
+    /// Absolute path of the folder, as the system picker answered it.
+    pub path: String,
 }
 
 /// Query of `DELETE /api/v1/connections/folders/{id}`.
@@ -172,6 +186,66 @@ pub(crate) fn add_as(
         tracing::Level::INFO,
         connection_id = %connection.id,
         "connections.folder.added"
+    );
+    Ok(connection)
+}
+
+/// `PUT /api/v1/connections/folders/{id}`: point a folder connection at
+/// another folder, its identifier, label and accesses kept.
+#[utoipa::path(
+    put,
+    path = "/api/v1/connections/folders/{id}",
+    tag = "connections",
+    params(
+        ("id" = String, Path, description = "Identifier of the stored folder, the part of the connection identifier after `folder:`"),
+    ),
+    request_body = RepointFolderBody,
+    responses(
+        (status = 200, description = "The connection now points at the folder; the connection it is", body = Connection),
+        (status = 400, description = "The path is not a folder of this machine", body = FolderErrorBody),
+        (status = 403, description = "Refused by the connection admission", body = FolderErrorBody),
+        (status = 404, description = "No folder connection has this identifier", body = FolderErrorBody),
+        (status = 409, description = "Another connection already holds the folder", body = FolderErrorBody),
+        (status = 500, description = "system.db could not be written", body = FolderErrorBody),
+    )
+)]
+pub(crate) async fn repoint_folder_connection<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    UrlPath(id): UrlPath<String>,
+    Json(body): Json<RepointFolderBody>,
+) -> Result<Json<Connection>, FolderRouteError> {
+    let store = store(&state.data_dir).map_err(|e| store_err(&e))?;
+    repoint(&state.connection_governance, &store, &id, &body.path).map(Json)
+}
+
+/// Admit the folder at `path`, point the connection `id` at it and journal
+/// the change.
+pub(crate) fn repoint(
+    governance: &ConnectionGovernance,
+    store: &FolderConnectionStore,
+    id: &str,
+    path: &str,
+) -> Result<Connection, FolderRouteError> {
+    if store.get(id).map_err(|e| store_err(&e))?.is_none() {
+        return Err(store_err(&FolderConnectionError::NotFound(id.to_owned())));
+    }
+    let canonical = FolderConnectionStore::canonical_folder(path).map_err(|e| store_err(&e))?;
+    if let AdmissionDecision::Refused { reason } =
+        governance.admit(&AdmissionRequest::for_folder(&canonical, folder_families()))
+    {
+        return Err(refused(StatusCode::FORBIDDEN, "admission_refused", reason));
+    }
+    let folder = store.repoint(id, &canonical).map_err(|e| store_err(&e))?;
+    let connection = folder_connection(&folder);
+    governance.record_or_warn(&ConnectionEvent::Modified {
+        connection_id: connection.id.clone(),
+        remote: false,
+        actor: ROUTE_ACTOR.to_owned(),
+    });
+    tracing::event!(
+        tracing::Level::INFO,
+        connection_id = %connection.id,
+        "connections.folder.repointed"
     );
     Ok(connection)
 }

@@ -3613,6 +3613,96 @@
       }
     },
     "/api/v1/connections/folders/{id}": {
+      "put": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`PUT /api/v1/connections/folders/{id}`: point a folder connection at\nanother folder, its identifier, label and accesses kept.",
+        "operationId": "repoint_folder_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identifier of the stored folder, the part of the connection identifier after `folder:`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepointFolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The connection now points at the folder; the connection it is",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path is not a folder of this machine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No folder connection has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another connection already holds the folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "connections"
@@ -4010,6 +4100,107 @@
         }
       }
     },
+    "/api/v1/connections/{id}/tools/{tool}/family": {
+      "put": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`PUT /api/v1/connections/{id}/tools/{tool}/family`: give a tool of a\nconnection the selection does not classify another action family.",
+        "operationId": "set_tool_family",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Connection identifier, as `GET /api/v1/connections` lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool",
+            "in": "path",
+            "description": "Name of the tool on its server",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolFamilyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reclassified and journaled; the connection as the list now shows it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A family the operator cannot give; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection or tool not found; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The selection, or Apollia's code, classifies this tool; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store could not be read or written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The MCP repository is not available; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/accounts": {
       "get": {
         "tags": [
@@ -4233,6 +4424,291 @@
           },
           "500": {
             "description": "The preferences could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/onedrive/{account_id}/browse": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/connectors/onedrive/{account_id}/browse`: the children of a\nfolder of the drive, each marked chosen or not, for the user to choose from.",
+        "operationId": "browse_onedrive",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Microsoft account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "description": "Folder to list; the root of the drive when absent.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The children of the folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OneDriveEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized account or folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account is not connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The choices could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "OneDrive answered with an error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/onedrive/{account_id}/choices": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/connectors/onedrive/{account_id}/choices`: the folders and\nfiles the account lets Apollia read.",
+        "operationId": "list_onedrive_choices",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Microsoft account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The chosen folders and files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OneDriveChoiceView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The choices could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/onedrive/{account_id}/choices/{item_id}": {
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`PUT /api/v1/connectors/onedrive/{account_id}/choices/{item_id}`: let\nApollia read the folder or file `item_id`, as OneDrive describes it.",
+        "operationId": "choose_onedrive_item",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Microsoft account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "OneDrive item id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The choices as recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OneDriveChoiceView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized input, or the root of the drive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account is not connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The choices could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "OneDrive answered with an error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`DELETE /api/v1/connectors/onedrive/{account_id}/choices/{item_id}`: stop\nletting Apollia read the folder or file `item_id`.",
+        "operationId": "forget_onedrive_item",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Microsoft account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "OneDrive item id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The choices as recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OneDriveChoiceView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The choices could not be written",
             "content": {
               "application/json": {
                 "schema": {
@@ -23291,6 +23767,62 @@
           }
         }
       },
+      "OneDriveChoiceView": {
+        "type": "object",
+        "description": "One chosen folder or file, as a client reads it.",
+        "required": [
+          "id",
+          "name",
+          "is_folder",
+          "path"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Graph item id."
+          },
+          "is_folder": {
+            "type": "boolean",
+            "description": "`true` for a folder, which admits everything under it."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name at the time of the choice."
+          },
+          "path": {
+            "type": "string",
+            "description": "Path of the item in the drive, `/drive/root:/Documents/Clients`."
+          }
+        }
+      },
+      "OneDriveEntry": {
+        "type": "object",
+        "description": "One item of a folder being browsed.",
+        "required": [
+          "id",
+          "name",
+          "is_folder",
+          "chosen"
+        ],
+        "properties": {
+          "chosen": {
+            "type": "boolean",
+            "description": "`true` when the item itself is chosen."
+          },
+          "id": {
+            "type": "string",
+            "description": "Graph item id."
+          },
+          "is_folder": {
+            "type": "boolean",
+            "description": "`true` for a folder, which can be opened or chosen whole."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          }
+        }
+      },
       "EditAnswerRequest": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/sessions/{id}/messages/{message_id}`.",
@@ -28701,6 +29233,19 @@
           }
         }
       },
+      "RepointFolderBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/connections/folders/{id}`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the folder, as the system picker answered it."
+          }
+        }
+      },
       "RequiredConnectionPreview": {
         "type": "object",
         "description": "A connection the package requires.",
@@ -31452,6 +31997,19 @@
           }
         }
       },
+      "ToolFamilyBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/connections/{id}/tools/{tool}/family`.",
+        "required": [
+          "family"
+        ],
+        "properties": {
+          "family": {
+            "type": "string",
+            "description": "The family the tool takes: `read`, `read_personal`,\n`write_or_delete`, `send_external`, `execute_code` or `unclassified`."
+          }
+        }
+      },
       "ToolListResponse": {
         "type": "object",
         "description": "Response body for `GET /api/v1/tools`.",
@@ -33045,7 +33603,7 @@
           },
           "name": {
             "type": "string",
-            "description": "Its name: the server, the folder of installed files, the secret key,\nthe tool taken away, the source."
+            "description": "Its name: the server, the folder of installed files, the secret key,\nthe tool taken away, the source, the path of a OneDrive choice."
           }
         }
       },
@@ -33059,7 +33617,8 @@
           "secret",
           "agent_access",
           "source",
-          "state"
+          "state",
+          "onedrive_choice"
         ]
       }
     },

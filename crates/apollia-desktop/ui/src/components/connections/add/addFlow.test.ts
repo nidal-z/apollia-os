@@ -560,18 +560,6 @@ describe("what the former dialogs said and offered, kept in the flow", () => {
     expect(visible(body)).toContain(words.connections.folder.choose_another);
   });
 
-  test("the flow opens the picker again from the trial and from a failure of a folder", () => {
-    // GIVEN the flow
-    const flowSource = source("./AddFlow.svelte");
-
-    // WHEN what it gives the trial of a folder, and its footer on a failure, are read
-    // THEN both lead to the picker of the folder step
-    expect(flowSource).toContain('onchooseanother={entry.kind === "folder" ? () => void pickFolder() : undefined}');
-    expect(flowSource).toMatch(
-      /entry\.kind === "folder"\}\s*<Button[^>]*onclick=\{\(\) => void pickFolder\(\)\}[^>]*data-testid="folder-connection-choose-another"/,
-    );
-  });
-
   test.each(["fr", "en"] as const)("a mailbox added says it is only read (%s)", async (lang) => {
     // GIVEN a mailbox added, then another kind of connection
     await inLocale(lang);
@@ -606,6 +594,10 @@ describe("the key typed for a service by its address", () => {
     expect(built.config.env[KEY_HEADER]).toBe("Bearer k-123");
   });
 
+  // Once added, the configuration is read only by its name (the trial, the
+  // removal); Retry is reachable before the addition alone. Dropping the key
+  // changes nothing on screen, so the order is read from the flow itself; the
+  // key kept for Retry is held by addFlow.dom.test.ts.
   test("the flow drops it as soon as the addition succeeded, after the attempt that Retry reads", () => {
     // GIVEN the flow
     const flowSource = source("./AddFlow.svelte");
@@ -623,22 +615,5 @@ describe("the key typed for a service by its address", () => {
     expect(dropped).toBeGreaterThan(heldForRetry);
     expect(goneOn).toBeGreaterThan(dropped);
     expect(addServer.slice(heldForRetry, dropped)).toContain('phase = "failed";');
-  });
-});
-
-describe("a provider whose own client is missing", () => {
-  test("the sign-in of the flow leads to the card of the provider, where its client is entered", () => {
-    // GIVEN the screen, where the sign-in dialog of the flow says the client is missing
-    const route = source("../../../routes/Connections.svelte");
-
-    // WHEN what it does on "open the client" is read
-    const handler = route.slice(route.indexOf("onopenclient={(provider) => {"), route.indexOf("<AddConnectionWindow"));
-
-    // THEN the window gives way and the card of that provider is selected
-    // before its client section is brought into view: with no account yet,
-    // nothing else opens it
-    expect(handler).toContain("addWindow = flowDone();");
-    expect(handler.indexOf('select({ kind: "native", provider });')).toBeGreaterThan(-1);
-    expect(handler.indexOf('select({ kind: "native", provider });')).toBeLessThan(handler.indexOf("openClientSection(provider);"));
   });
 });

@@ -146,6 +146,8 @@ export interface AddWindowState {
   adding: boolean;
   resume: string | null;
   away: boolean;
+  /** The address of a mailbox kept already, whose password the flow asks again. */
+  mailbox: string;
 }
 
 export const ADD_WINDOW_CLOSED: AddWindowState = {
@@ -155,6 +157,7 @@ export const ADD_WINDOW_CLOSED: AddWindowState = {
   adding: false,
   resume: null,
   away: false,
+  mailbox: "",
 };
 
 /** Each opening starts on an empty search, nothing chosen. */
@@ -168,16 +171,24 @@ export function openOnEntry(key: string): AddWindowState {
 }
 
 /**
+ * The repair of a mailbox whose password was refused: the flow of a mailbox,
+ * its address filled in, so only the password is typed again.
+ */
+export function openOnMailbox(address: string): AddWindowState {
+  return { ...ADD_WINDOW_CLOSED, open: true, chosen: "mailbox", adding: true, mailbox: address };
+}
+
+/**
  * Another entry chosen in the list: its card opens, never its flow, so an
  * entry is added only once its own card and warning were read.
  */
 export function chooseEntry(state: AddWindowState, key: string): AddWindowState {
-  return { ...state, chosen: key, adding: false, resume: null };
+  return { ...state, chosen: key, adding: false, resume: null, mailbox: "" };
 }
 
 /** Cancel on a card or in a flow not yet added: the search, as it was typed. */
 export function backToSearch(state: AddWindowState): AddWindowState {
-  return { ...state, chosen: null, adding: false, resume: null };
+  return { ...state, chosen: null, adding: false, resume: null, mailbox: "" };
 }
 
 /** Add on the card: the flow of the entry takes the card's place. */
@@ -200,7 +211,7 @@ export function leaveForFlow(state: AddWindowState): AddWindowState {
  */
 export function flowCancelled(state: AddWindowState): AddWindowState {
   if (!state.away) return state;
-  return { ...state, open: true, chosen: null, adding: false, resume: null, away: false };
+  return { ...state, open: true, chosen: null, adding: false, resume: null, away: false, mailbox: "" };
 }
 
 /**

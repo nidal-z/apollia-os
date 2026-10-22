@@ -45,6 +45,8 @@ MANIFEST = [
     ("mcp.toml", "crates/apollia-mcp/src/config.rs", ["McpConfig", "McpServerConfig"], False),
     ("models/sampling-defaults.json", "crates/apollia-llm/src/model_defaults/mod.rs", ["UserOverrides", "ModelDefaults"], False),
     ("drive-prefs.toml", "crates/apollia-auth/src/drive_prefs.rs", ["DrivePrefsFile", "AccountDrivePref", "PickedFolder"], False),
+    ("onedrive-choices.toml", "crates/apollia-runtime/src/onedrive_choices.rs", ["OneDriveChoicesFile", "AccountChoices"], False),
+    ("onedrive-choices.toml, one choice", "crates/apollia-connectors/src/microsoft/onedrive_choices.rs", ["OneDriveChoice"], False),
     ("oauth-clients.toml", "crates/apollia-auth/src/oauth_clients_file.rs", ["OAuthClientsFile", "OAuthClientEntry"], False),
     ("connectors-index.json", "crates/apollia-auth/src/multi_account.rs", ["AccountIndex"], False),
     ("agents.db, manifest_json of a row a previous version stored", "crates/apollia-core/src/manifest.rs", ["AgentManifest"], False),

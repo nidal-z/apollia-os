@@ -21,7 +21,7 @@ vi.hoisted(() => {
 import "$lib/i18n";
 import fr from "$lib/i18n/fr.json";
 import AddConnectionWindow from "./AddConnectionWindow.svelte";
-import ConnectionSummaryDetail from "../detail/ConnectionSummaryDetail.svelte";
+import ConnectionCard from "../detail/ConnectionCard.svelte";
 import type { Connection } from "$lib/types";
 
 const noop = () => {};
@@ -85,21 +85,23 @@ describe("the folder in the add window", () => {
 });
 
 describe("the folder connection", () => {
-  test("the page of a folder gives its path and a way to remove it", async () => {
+  test("the card of a folder gives its path and a way to remove it", async () => {
     // GIVEN a folder connection, in French
     await french();
+    const handlers = { onupdated: noop, onremoved: noop, onreload: noop, onrepair: noop };
 
-    // WHEN its page is rendered, and the page of a mailbox
-    const folderPage = renderToString(ConnectionSummaryDetail as never, {
-      props: { connection: FOLDER, label: "Clients" } as never,
+    // WHEN its card is rendered, and the card of a mailbox
+    const folderPage = renderToString(ConnectionCard as never, {
+      props: { connection: FOLDER, label: "Clients", ...handlers } as never,
     }).body;
-    const mailPage = renderToString(ConnectionSummaryDetail as never, {
-      props: { connection: { ...FOLDER, id: "imap:ada@example.com", kind: "imap", path: undefined, account: "ada@example.com" }, label: "Mail" } as never,
+    const mailPage = renderToString(ConnectionCard as never, {
+      props: { connection: { ...FOLDER, id: "imap:ada@example.com", kind: "imap", path: undefined, account: "ada@example.com" }, label: "Mail", ...handlers } as never,
     }).body;
 
-    // THEN only the folder carries its path and the remove button
+    // THEN the folder carries its path, the mailbox its address, and both the same Remove
     expect(text(folderPage)).toContain("/Users/ada/Documents/Clients");
-    expect(folderPage).toContain('data-testid="connection-folder-remove"');
-    expect(mailPage).not.toContain('data-testid="connection-folder-remove"');
+    expect(text(mailPage)).toContain("ada@example.com");
+    expect(folderPage).toContain('data-testid="connection-remove-btn"');
+    expect(mailPage).toContain('data-testid="connection-remove-btn"');
   });
 });

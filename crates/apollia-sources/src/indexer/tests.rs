@@ -504,6 +504,85 @@ async fn test_a_source_removed_stops_being_indexed_and_loses_its_index() {
     assert!(!index.exists());
 }
 
+/// Points the one folder connection of `world` at `to`, as
+/// `PUT /api/v1/connections/folders/{id}` does.
+fn repoint(world: &World, to: &Path) {
+    let connections = FolderConnectionStore::open(&world.data.path().join("system.db")).unwrap();
+    let connection = connections.list().unwrap().remove(0);
+    connections
+        .repoint(&connection.id, to.to_str().unwrap())
+        .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_a_repointed_folder_is_indexed_on_its_new_folder_and_drops_the_old_one() {
+    // GIVEN a ready folder source on a folder holding `old.txt`, and another
+    // folder holding `new.txt`
+    let world = World::new();
+    world.write("old.txt", "The lease of the Lyon office.");
+    let other = tempfile::tempdir().unwrap();
+    let other_root = std::fs::canonicalize(other.path()).unwrap();
+    std::fs::write(
+        other_root.join("new.txt"),
+        "The lease of the Nantes office.",
+    )
+    .unwrap();
+    let stub = Stub::new("e5-small");
+    world.start(&stub).await;
+    let id = world.folder_source().await;
+    world.refresh().await;
+    assert_eq!(
+        world.documents(&id),
+        BTreeSet::from([key(&world.root().join("old.txt"))])
+    );
+
+    // WHEN its connection is pointed at the other folder and the index
+    // brought in step, without a restart
+    repoint(&world, &other_root);
+    world.refresh().await;
+
+    // THEN the index holds the new folder's file and no longer the old one
+    assert_eq!(
+        world.documents(&id),
+        BTreeSet::from([key(&other_root.join("new.txt"))])
+    );
+    assert_eq!(world.state(&id).await, IndexState::Ready);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_a_folder_emptied_then_repointed_indexes_the_new_folder() {
+    // GIVEN a ready folder source whose folder is emptied, and another
+    // folder holding `new.txt`
+    let world = World::new();
+    let old = world.write("old.txt", "The lease of the Lyon office.");
+    let other = tempfile::tempdir().unwrap();
+    let other_root = std::fs::canonicalize(other.path()).unwrap();
+    std::fs::write(
+        other_root.join("new.txt"),
+        "The lease of the Nantes office.",
+    )
+    .unwrap();
+    let stub = Stub::new("e5-small");
+    world.start(&stub).await;
+    let id = world.folder_source().await;
+    world.refresh().await;
+    std::fs::remove_file(&old).unwrap();
+    world.refresh().await;
+    assert!(world.documents(&id).is_empty());
+
+    // WHEN its connection is pointed at the other folder and the index
+    // brought in step
+    repoint(&world, &other_root);
+    world.refresh().await;
+
+    // THEN the new folder's file is indexed
+    assert_eq!(
+        world.documents(&id),
+        BTreeSet::from([key(&other_root.join("new.txt"))])
+    );
+    assert_eq!(world.state(&id).await, IndexState::Ready);
+}
+
 #[test]
 fn test_reported_paths_become_scopes_under_the_root_hidden_ones_left_out() {
     // GIVEN the root of a source and paths a watcher reported

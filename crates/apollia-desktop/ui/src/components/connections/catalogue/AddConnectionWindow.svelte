@@ -47,6 +47,8 @@
     adding: boolean;
     /** The connection a sign-in done in its own dialog added: the flow resumes on it. */
     resume: string | null;
+    /** The address of a mailbox whose password is typed again, empty for a new one. */
+    mailbox?: string;
     selection: RegistryServerView[];
     publicEntries: RegistryServerView[];
     failures: CatalogueFailure[];
@@ -84,6 +86,7 @@
     chosen,
     adding,
     resume,
+    mailbox = "",
     selection,
     publicEntries,
     failures,
@@ -407,6 +410,7 @@
               name={rowName(chosenEntry)}
               accepted={chosenEntry.kind === "catalogue"}
               {resume}
+              mailboxAddress={mailbox}
               {onback}
               {onadded}
               {ondone}

@@ -63,18 +63,16 @@ describe("the OAuth integrations leave the settings (criterion 2)", () => {
     expect(section).toContain("openConnections");
   });
 
-  it("shows and disconnects a connected account on the Connections screen", () => {
-    // GIVEN the page of a native connection on the Connections screen
-    const detail = source("components/connections/detail/NativeConnectorDetail.svelte");
-    const accounts = source("components/connections/detail/NativeAccountsTab.svelte");
+  it("shows and removes a connected account on the Connections screen", () => {
+    // GIVEN the card of a connection on the Connections screen
+    const card = source("components/connections/detail/ConnectionCard.svelte");
 
-    // WHEN its accounts tab and its client section are read
-    // THEN each account row carries its disconnect action, and the OAuth
-    // client is entered on the same page
-    expect(detail).toContain("<NativeAccountsTab");
-    expect(detail).toContain("<NativeClientSection");
-    expect(accounts).toContain("onclick={() => ondisconnect(account)}");
-    expect(accounts).toContain('data-testid="oauth-disconnect-{account.account_id}"');
+    // WHEN its gestures and its technical section are read
+    // THEN an account is removed from its card, and its OAuth client is
+    // entered on the same card
+    expect(card).toContain("removeConnection(connection.id, true)");
+    expect(card).toContain('data-testid="connection-remove-btn"');
+    expect(card).toContain("<NativeClientSection");
   });
 });
 

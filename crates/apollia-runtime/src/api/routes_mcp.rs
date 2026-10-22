@@ -324,10 +324,16 @@ pub(crate) async fn add_server<B: ExecutionBackend + Clone>(
 /// installer: admission, spawn, persistence, journal.
 pub(crate) async fn add_server_to<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
-    config: McpServerConfig,
+    mut config: McpServerConfig,
 ) -> Result<McpServerStatus, JsonError> {
     let handle = require_mcp_handle(state)?;
     let repo = require_mcp_repo(state)?;
+    // A connection added again keeps the families the operator gave its tools.
+    if let Ok(guard) = repo.lock() {
+        if let Ok(families) = guard.operator_families(&config.name) {
+            config.operator_families = families;
+        }
+    }
 
     let request = AdmissionRequest::for_mcp_server(&config);
     if let AdmissionDecision::Refused { reason } = state.connection_governance.admit(&request) {

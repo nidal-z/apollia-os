@@ -7,7 +7,8 @@
 //!   installed for it, its sign-in token, the secrets its configuration names
 //!   (`${APOLLIA_SECRET:KEY}`, kept under `{server}:KEY`);
 //! - a mailbox: its entry in the mailbox list, and its password;
-//! - a native account: its token;
+//! - a native account: its token, and for a Microsoft account the OneDrive
+//!   folders and files chosen for it (`onedrive-choices.toml`);
 //! - a folder: its entry, and the sources made on it with their indexes.
 //!
 //! For every kind, the tools of the connection granted to agents are revoked
@@ -46,6 +47,7 @@ use crate::connections::removal::{
 use crate::connections::{Connection, ConnectionKind, INSTALLED_FILES_DIR};
 use crate::coordinator::ExecutionBackend;
 use crate::governance::{ConnectionEvent, ConnectionGovernance};
+use crate::onedrive_choices::{self, ONEDRIVE_CHOICES_FILENAME};
 
 use super::agents::{agents_error, find};
 use super::{accounts_of, api_err, auth_manager, collect_connections, ApiError};
@@ -141,6 +143,73 @@ fn installed_files(data_dir: &FsPath, name: &str) -> PathBuf {
         .join(venv_dir_component(name))
 }
 
+/// The provider part of native connection `id`, `native:<provider>:<account>`.
+fn native_provider(id: &str) -> &str {
+    id.strip_prefix("native:")
+        .and_then(|rest| rest.split_once(':'))
+        .map(|(provider, _)| provider)
+        .unwrap_or_default()
+}
+
+/// The OneDrive choices of native `connection`, each named by its path; none
+/// for an account that is not Microsoft. A file that cannot be read is listed
+/// as one item, so the removal still tries to erase it and says if it could
+/// not.
+fn onedrive_items(data_dir: &FsPath, connection: &Connection) -> Vec<RemovedItem> {
+    if native_provider(&connection.id) != apollia_auth::ConnectorProvider::Microsoft.id() {
+        return Vec::new();
+    }
+    let account = connection.account.as_deref().unwrap_or_default();
+    match onedrive_choices::choices_of(&data_dir.join(ONEDRIVE_CHOICES_FILENAME), account) {
+        Ok(choices) => choices
+            .into_iter()
+            .map(|c| RemovedItem::new(RemovedKind::OneDriveChoice, c.path))
+            .collect(),
+        Err(e) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                connection = %connection.id,
+                error = %e,
+                "connections.remove.onedrive_choices_unreadable"
+            );
+            vec![RemovedItem::new(
+                RemovedKind::OneDriveChoice,
+                ONEDRIVE_CHOICES_FILENAME,
+            )]
+        }
+    }
+}
+
+/// Erase the OneDrive choices of native `connection` listed in `items`.
+/// Answers those that stay.
+fn erase_onedrive_choices(
+    data_dir: &FsPath,
+    connection: &Connection,
+    items: &[RemovedItem],
+) -> Vec<RemovedItem> {
+    let listed: Vec<RemovedItem> = items
+        .iter()
+        .filter(|i| i.kind == RemovedKind::OneDriveChoice)
+        .cloned()
+        .collect();
+    if listed.is_empty() {
+        return listed;
+    }
+    let account = connection.account.as_deref().unwrap_or_default();
+    match onedrive_choices::forget_account(&data_dir.join(ONEDRIVE_CHOICES_FILENAME), account) {
+        Ok(()) => Vec::new(),
+        Err(e) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                connection = %connection.id,
+                error = %e,
+                "connections.remove.item_left"
+            );
+            listed
+        }
+    }
+}
+
 /// What removing MCP server `name` erases besides the agent accesses.
 fn mcp_items<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
@@ -201,10 +270,14 @@ async fn kind_items<B: ExecutionBackend + Clone>(
             }
             Ok(items)
         }
-        ConnectionKind::Native => Ok(vec![RemovedItem::new(
-            RemovedKind::Token,
-            connection.account.clone().unwrap_or_default(),
-        )]),
+        ConnectionKind::Native => {
+            let mut items = vec![RemovedItem::new(
+                RemovedKind::Token,
+                connection.account.clone().unwrap_or_default(),
+            )];
+            items.extend(onedrive_items(&state.data_dir, connection));
+            Ok(items)
+        }
         ConnectionKind::Folder => {
             let folder = crate::connections::folder_id_of(id).unwrap_or_default();
             let mut items = vec![RemovedItem::new(RemovedKind::Configuration, folder)];
@@ -261,12 +334,7 @@ async fn remove_configuration<B: ExecutionBackend + Clone>(
             })
         }
         ConnectionKind::Native => {
-            let provider = id
-                .strip_prefix("native:")
-                .and_then(|rest| rest.split_once(':'))
-                .map(|(provider, _)| provider)
-                .unwrap_or_default();
-            let provider = apollia_auth::connector_consent::provider_from_id(provider)
+            let provider = apollia_auth::connector_consent::provider_from_id(native_provider(id))
                 .map_err(|e| api_err(StatusCode::BAD_REQUEST, e))?;
             crate::api::routes_connectors::revoke_and_record(
                 &state.connection_governance,
@@ -442,6 +510,9 @@ pub(crate) async fn remove<B: ExecutionBackend + Clone>(
                 left.push(item.clone());
             }
         }
+    }
+    if connection.kind == ConnectionKind::Native {
+        left.extend(erase_onedrive_choices(&state.data_dir, &connection, &items));
     }
     if !forget_state(state, id) && state_kept {
         left.push(RemovedItem::new(RemovedKind::State, id));

@@ -1,8 +1,10 @@
 //! OneDrive client (Microsoft Graph `/me/drive`).
 //!
-//! Surface in v0.1.0: search across the user's drive, get item metadata,
-//! download item content, list recent items. Every call reads `/me/drive`,
-//! which `Files.Read` covers.
+//! Surface: search across the user's drive or inside one folder, get item
+//! metadata, download item content, list recent items, list the children of a
+//! folder. Every call reads `/me/drive`, which `Files.Read` covers. The token
+//! sees the whole drive; what an agent may read is bounded by the choices of
+//! [`crate::microsoft::onedrive_choices`].
 
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
@@ -44,6 +46,26 @@ pub struct DriveItem {
     /// Last modified time (RFC 3339).
     #[serde(default)]
     pub last_modified_date_time: Option<String>,
+    /// Where the item sits: its parent folder, its drive and the path of that
+    /// parent. Graph leaves the path out of some answers (search results on a
+    /// personal drive, recent items).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_reference: Option<ItemReference>,
+}
+
+/// Graph's reference to the parent of an item.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemReference {
+    /// Id of the parent folder.
+    #[serde(default)]
+    pub id: Option<String>,
+    /// Id of the drive holding the item.
+    #[serde(default)]
+    pub drive_id: Option<String>,
+    /// Path of the parent folder, `/drive/root:/Documents` for instance.
+    #[serde(default)]
+    pub path: Option<String>,
 }
 
 /// File facet (Graph's discriminator for items that are files).
@@ -67,6 +89,17 @@ pub struct FolderFacet {
 #[serde(rename_all = "camelCase")]
 struct ItemList {
     value: Vec<DriveItem>,
+}
+
+/// A search inside one folder of the drive.
+#[derive(Debug, Clone, Copy)]
+pub struct FolderSearch<'a> {
+    /// The folder searched, with its descendants.
+    pub folder_id: &'a str,
+    /// The words searched for.
+    pub query: &'a str,
+    /// Most items answered.
+    pub top: u32,
 }
 
 // ─── Client ──────────────────────────────────────────────────────────────────
@@ -180,6 +213,51 @@ impl OneDriveClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let url = format!("{}/recent?$top={top}", self.base);
+        let resp: ItemList = self.http.get_json(&url, bearer, refresh).await?;
+        Ok(resp.value)
+    }
+
+    /// Search for items matching `search.query` inside the folder
+    /// `search.folder_id` and its descendants.
+    pub async fn search_in<F, Fut>(
+        &self,
+        search: &FolderSearch<'_>,
+        bearer: &str,
+        refresh: F,
+    ) -> Result<Vec<DriveItem>, ConnectorError>
+    where
+        F: FnOnce() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
+    {
+        let url = format!(
+            "{}/items/{}/search(q='{}')?$top={}",
+            self.base,
+            urlencode(search.folder_id),
+            urlencode_singlequoted(search.query),
+            search.top
+        );
+        let resp: ItemList = self.http.get_json(&url, bearer, refresh).await?;
+        Ok(resp.value)
+    }
+
+    /// List the children of the folder `folder_id`, or of the root of the drive
+    /// when it is `None`. Used to browse the drive when the user chooses what
+    /// Apollia may read.
+    pub async fn list_children<F, Fut>(
+        &self,
+        folder_id: Option<&str>,
+        top: u32,
+        bearer: &str,
+        refresh: F,
+    ) -> Result<Vec<DriveItem>, ConnectorError>
+    where
+        F: FnOnce() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
+    {
+        let url = match folder_id {
+            Some(id) => format!("{}/items/{}/children?$top={top}", self.base, urlencode(id)),
+            None => format!("{}/root/children?$top={top}", self.base),
+        };
         let resp: ItemList = self.http.get_json(&url, bearer, refresh).await?;
         Ok(resp.value)
     }

@@ -34,6 +34,7 @@ fn annotated_server_config(name: &str) -> McpServerConfig {
         max_tools: 256,
         tags: vec!["records".to_string()],
         tool_families: Default::default(),
+        operator_families: Default::default(),
         origin: None,
     }
 }

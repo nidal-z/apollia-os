@@ -211,6 +211,7 @@ impl RequestMcp {
             max_tools: 256,
             tags: Vec::new(),
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         }
     }

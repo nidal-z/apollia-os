@@ -8,71 +8,10 @@
 import type { OauthClientIdStatus } from "$lib/ipc/oauthClients";
 import type { McpHealth } from "$lib/types";
 
-/** Coarse operational state of a connection, driving dots and badges. */
-export type ConnectionStatus = "active" | "attention" | "error" | "syncing" | "idle";
-
-/** Badge variant matching a connection status (mirrors the `Badge` variants). */
-export type StatusBadgeVariant = "success" | "warning" | "danger" | "neutral";
-
 /** An i18n key plus optional interpolation values, resolved by the caller. */
 export interface I18nDescriptor {
   key: string;
   values?: Record<string, number | string>;
-}
-
-/** Map operational health to a coarse connection status. */
-export function statusFromHealth(health: McpHealth): ConnectionStatus {
-  switch (health.state) {
-    case "healthy":
-      return "active";
-    case "degraded":
-    case "needs_reauth":
-      return "attention";
-    case "unavailable":
-      return "error";
-  }
-}
-
-/** Accent colour token for a status dot / rail. */
-export function statusAccent(status: ConnectionStatus): string {
-  switch (status) {
-    case "active":
-      return "hsl(var(--success))";
-    case "attention":
-      return "hsl(var(--warning))";
-    case "error":
-      return "hsl(var(--destructive))";
-    default:
-      return "hsl(var(--muted-foreground))";
-  }
-}
-
-/** Badge variant for a status. */
-export function statusBadgeVariant(status: ConnectionStatus): StatusBadgeVariant {
-  switch (status) {
-    case "active":
-      return "success";
-    case "attention":
-      return "warning";
-    case "error":
-      return "danger";
-    default:
-      return "neutral";
-  }
-}
-
-/** i18n key for the short status label shown on a badge. */
-export function statusLabelKey(status: ConnectionStatus): string {
-  switch (status) {
-    case "active":
-      return "connections.badge_status_active";
-    case "attention":
-      return "connections.badge_status_attention";
-    case "error":
-      return "connections.badge_status_error";
-    default:
-      return "connections.badge_status_idle";
-  }
 }
 
 /**
@@ -127,18 +66,4 @@ export function testOutcomeFromHealth(health: McpHealth | null): TestOutcome {
     case "unavailable":
       return { verdict: "error", error: health.reason };
   }
-}
-
-/** Relative "synced N ago" descriptor, or null when there is no last call. */
-export function syncDescriptor(lastCallAt: string | null): I18nDescriptor | null {
-  if (!lastCallAt) return null;
-  const diffMs = Date.now() - new Date(lastCallAt).getTime();
-  if (Number.isNaN(diffMs) || diffMs < 0) return null;
-  const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return { key: "connections.sync_just_now" };
-  if (mins < 60) return { key: "connections.sync_minutes_ago", values: { mins } };
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return { key: "connections.sync_hours_ago", values: { hours } };
-  const days = Math.floor(hours / 24);
-  return { key: "connections.sync_days_ago", values: { days } };
 }

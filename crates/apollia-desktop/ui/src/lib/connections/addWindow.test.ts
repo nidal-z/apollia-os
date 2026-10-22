@@ -14,6 +14,7 @@ import {
   flowResumed,
   leaveForFlow,
   openAddWindow,
+  openOnMailbox,
   startAdding,
   type AddEntry,
 } from "$lib/connections/addWindow";
@@ -139,7 +140,7 @@ describe("Cancel gives the search back, never the list", () => {
     const back = backToSearch(searched);
 
     // THEN the search stays, the card closes
-    expect(back).toEqual({ open: true, query: "notion", chosen: null, adding: false, resume: null, away: false });
+    expect(back).toEqual({ open: true, query: "notion", chosen: null, adding: false, resume: null, away: false, mailbox: "" });
   });
 
   test("cancel in a flow not yet added keeps the words typed and closes the flow", () => {
@@ -151,7 +152,7 @@ describe("Cancel gives the search back, never the list", () => {
 
     // THEN the search stays, neither the card nor the flow is open
     expect(adding.adding).toBe(true);
-    expect(back).toEqual({ open: true, query: "notion", chosen: null, adding: false, resume: null, away: false });
+    expect(back).toEqual({ open: true, query: "notion", chosen: null, adding: false, resume: null, away: false, mailbox: "" });
   });
 
   test("cancelling the sign-in the flow opened reopens the window on its search", () => {
@@ -164,7 +165,7 @@ describe("Cancel gives the search back, never the list", () => {
 
     // THEN the window is open again on the same words, no card open
     expect(adding.open).toBe(false);
-    expect(cancelled).toEqual({ open: true, query: "outlook", chosen: null, adding: false, resume: null, away: false });
+    expect(cancelled).toEqual({ open: true, query: "outlook", chosen: null, adding: false, resume: null, away: false, mailbox: "" });
   });
 
   test("an addition finished, or one the window did not open, does not reopen it", () => {
@@ -189,6 +190,18 @@ describe("Cancel gives the search back, never the list", () => {
     expect(chosen).toEqual({ ...adding, chosen: "entry:com.linear/mcp", adding: false, resume: null });
   });
 
+  test("the repair of a mailbox opens its flow, its address filled in, and leaving it forgets the address", () => {
+    // GIVEN a mailbox whose password was refused
+    // WHEN its repair opens the window
+    const repair = openOnMailbox("ada@example.com");
+
+    // THEN the window is open on the flow of a mailbox, its address given
+    expect(repair).toEqual({ ...openAddWindow(), chosen: "mailbox", adding: true, mailbox: "ada@example.com" });
+    // AND going back to the search, or to another entry, forgets it
+    expect(backToSearch(repair).mailbox).toBe("");
+    expect(chooseEntry(repair, "folder").mailbox).toBe("");
+  });
+
   test("a sign-in done resumes the flow on who may use the account", () => {
     // GIVEN the flow of an account that left the window for its sign-in dialog
     const away = leaveForFlow(startAdding({ ...openAddWindow(), query: "outlook", chosen: "native:microsoft" }));
@@ -204,6 +217,7 @@ describe("Cancel gives the search back, never the list", () => {
       adding: true,
       resume: "native:microsoft:ada@example.com",
       away: false,
+      mailbox: "",
     });
     // AND a sign-in the window did not open resumes nothing
     expect(flowResumed(ADD_WINDOW_CLOSED, "native:microsoft:ada@example.com")).toEqual(ADD_WINDOW_CLOSED);

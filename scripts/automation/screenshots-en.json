@@ -20,7 +20,6 @@
     "connections-kind-filter-all",
     "danger-card-factory-reset",
     "global-event-task.completed",
-    "mcp-detail-tab-overview",
     "observability-tab-llm-costs",
     "observability-tab-timeline",
     "period-7d",
@@ -652,7 +651,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tabbar",
+      "testid": "connection-card-state",
       "timeoutMs": 5000
     },
     {
@@ -664,12 +663,8 @@
       "label": "integration-tester-une-connexion-mcp-1"
     },
     {
-      "kind": "click",
-      "testid": "mcp-detail-tab-overview"
-    },
-    {
       "kind": "waitFor",
-      "testid": "mcp-test-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 5000
     },
     {
@@ -914,17 +909,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tabbar",
+      "testid": "connection-card-state",
       "timeoutMs": 10000
     },
     {
-      "kind": "click",
-      "testid": "mcp-detail-tab-overview",
-      "timeoutMs": 5000
-    },
-    {
       "kind": "waitFor",
-      "testid": "mcp-tools-count",
+      "testid": "connection-detail-tools",
       "timeoutMs": 8000
     },
     {

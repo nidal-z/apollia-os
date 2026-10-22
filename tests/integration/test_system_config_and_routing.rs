@@ -96,6 +96,7 @@ fn mcp_server(name: &str) -> McpServerConfig {
         max_response_bytes: 8 * 1024 * 1024,
         max_tools: 256,
         tool_families: Default::default(),
+        operator_families: Default::default(),
         origin: None,
     }
 }

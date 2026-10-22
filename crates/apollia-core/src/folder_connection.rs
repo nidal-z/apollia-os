@@ -167,6 +167,41 @@ impl FolderConnectionStore {
         self.get(&id)?.ok_or(FolderConnectionError::NotFound(id))
     }
 
+    /// Point the folder connection `id` at the folder `path`, its identifier,
+    /// label and date kept, so what refers to the connection by its
+    /// identifier (the accesses of its agents, the sources made on it) follows
+    /// it to the new folder.
+    ///
+    /// # Errors
+    /// [`FolderConnectionError::NotFound`] when no row has this identifier,
+    /// [`FolderConnectionError::NotAFolder`] when `path` is not an existing
+    /// folder, [`FolderConnectionError::AlreadyAdded`] when another connection
+    /// already holds its canonical path, and [`FolderConnectionError::Db`] on
+    /// any SQLite failure.
+    pub fn repoint(&self, id: &str, path: &str) -> Result<FolderConnection, FolderConnectionError> {
+        if self.get(id)?.is_none() {
+            return Err(FolderConnectionError::NotFound(id.to_owned()));
+        }
+        let canonical = Self::canonical_folder(path)?;
+        let holder: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT id FROM folder_connections WHERE path = ?1",
+                params![canonical],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if holder.as_deref().is_some_and(|other| other != id) {
+            return Err(FolderConnectionError::AlreadyAdded { path: canonical });
+        }
+        self.conn.execute(
+            "UPDATE folder_connections SET path = ?1 WHERE id = ?2",
+            params![canonical, id],
+        )?;
+        self.get(id)?
+            .ok_or_else(|| FolderConnectionError::NotFound(id.to_owned()))
+    }
+
     /// Remove the folder connection `id` and answer the row it was.
     ///
     /// # Errors
@@ -343,6 +378,69 @@ mod tests {
         assert_eq!(removed, first);
         assert_eq!(store.list().unwrap(), vec![second]);
         assert!(matches!(again, Err(FolderConnectionError::NotFound(_))));
+    }
+
+    #[test]
+    fn test_a_folder_connection_is_pointed_at_another_folder_under_the_same_identifier() {
+        // GIVEN a folder connection with a label, and another folder
+        let db = tempfile::TempDir::new().unwrap();
+        let old = tempfile::TempDir::new().unwrap();
+        let new = tempfile::TempDir::new().unwrap();
+        let store = store(&db);
+        let added = store
+            .add(old.path().to_str().unwrap(), Some("Contracts"))
+            .unwrap();
+
+        // WHEN it is pointed at the other folder
+        let moved = store
+            .repoint(&added.id, new.path().to_str().unwrap())
+            .unwrap();
+
+        // THEN the row keeps its identifier, label and date, holds the new
+        // canonical path, and stays the only row
+        let canonical = std::fs::canonicalize(new.path()).unwrap();
+        assert_eq!(moved.id, added.id);
+        assert_eq!(moved.label, "Contracts");
+        assert_eq!(moved.added_at, added.added_at);
+        assert_eq!(moved.path, canonical.to_str().unwrap());
+        assert_eq!(store.list().unwrap(), vec![moved]);
+    }
+
+    #[test]
+    fn test_a_folder_connection_is_not_pointed_at_a_folder_another_one_holds() {
+        // GIVEN two folder connections, and a path that is no folder
+        let db = tempfile::TempDir::new().unwrap();
+        let a = tempfile::TempDir::new().unwrap();
+        let b = tempfile::TempDir::new().unwrap();
+        let store = store(&db);
+        let first = store.add(a.path().to_str().unwrap(), None).unwrap();
+        let second = store.add(b.path().to_str().unwrap(), None).unwrap();
+        let missing = a.path().join("missing");
+
+        // WHEN the first is pointed at the folder of the second, at a missing
+        // path, at its own folder, and an unknown identifier is pointed anywhere
+        let taken = store.repoint(&first.id, b.path().to_str().unwrap());
+        let not_a_folder = store.repoint(&first.id, missing.to_str().unwrap());
+        let same = store.repoint(&first.id, a.path().to_str().unwrap());
+        let unknown = store.repoint("nope", b.path().to_str().unwrap());
+
+        // THEN the first two and the last are refused, its own folder is
+        // accepted, and both rows are unchanged
+        assert!(matches!(
+            taken,
+            Err(FolderConnectionError::AlreadyAdded { .. })
+        ));
+        assert!(matches!(
+            not_a_folder,
+            Err(FolderConnectionError::NotAFolder { .. })
+        ));
+        assert_eq!(same.unwrap(), first);
+        assert!(matches!(unknown, Err(FolderConnectionError::NotFound(_))));
+        let mut rows = store.list().unwrap();
+        let mut expected = vec![first, second];
+        rows.sort_by(|x, y| x.id.cmp(&y.id));
+        expected.sort_by(|x, y| x.id.cmp(&y.id));
+        assert_eq!(rows, expected);
     }
 
     #[test]

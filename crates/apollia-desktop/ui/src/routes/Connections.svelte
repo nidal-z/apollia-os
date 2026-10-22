@@ -16,27 +16,25 @@
   import { t, locale } from "svelte-i18n";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { X } from "lucide-svelte";
-  import InactiveServerDetail from "../components/connections/detail/InactiveServerDetail.svelte";
   import { BrowseLayout } from "$lib/components/operator";
   import ConnectionListHeader from "../components/connections/list/ConnectionListHeader.svelte";
   import ConnectionList from "../components/connections/list/ConnectionList.svelte";
-  import NativeConnectorDetail from "../components/connections/detail/NativeConnectorDetail.svelte";
-  import McpServerDetail from "../components/connections/detail/McpServerDetail.svelte";
-  import ConnectionSummaryDetail from "../components/connections/detail/ConnectionSummaryDetail.svelte";
+  import ConnectionCard from "../components/connections/detail/ConnectionCard.svelte";
+  import NativeProviderCard from "../components/connections/detail/NativeProviderCard.svelte";
   import BuiltinToolsDetail from "../components/connections/detail/BuiltinToolsDetail.svelte";
   import { tools as builtinTools, loadTools as loadBuiltinTools } from "$lib/stores/toolGovernance";
   import AddConnectionWindow from "../components/connections/catalogue/AddConnectionWindow.svelte";
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
+  import { chooseFolderAgain } from "$lib/connections/folderConnection";
   import {
     listConnections,
     listMcpServers,
     listMcpEnrichments,
     listAgents,
-    oauthGetStatus,
-    oauthDisconnect,
-    type OauthAccountInfo,
+    checkConnection,
     type ProviderId,
   } from "$lib/ipc/connections";
+  import { checkAndReplace, replaceConnection, type RepairKind } from "$lib/connections/connectionCard";
   import { formatTauriError } from "$lib/connections/errors";
   import { needsOauthSetup } from "$lib/connections/status";
   import { loadConnections } from "$lib/connections/connectionList";
@@ -64,6 +62,7 @@
     leaveForFlow,
     openAddWindow,
     openOnEntry,
+    openOnMailbox,
     startAdding,
   } from "$lib/connections/addWindow";
   import {
@@ -101,12 +100,7 @@
     McpServerStatusView,
     RegistryServerView,
   } from "$lib/types";
-  import type {
-    Selection,
-    NativeConnectorCard,
-    NativeTab,
-    McpTab,
-  } from "../components/connections/shared/types";
+  import type { Selection, NativeConnectorCard } from "../components/connections/shared/types";
 
   interface Props {
     onNavigateTasks?: () => void;
@@ -128,13 +122,11 @@
   // The place of the screen is kept in a store, so coming back finds it.
   const selection: Selection = $derived($connectionsView.selection);
   const select = (next: Selection): void => connectionsView.select(next);
-  let nativeTab = $state<NativeTab>("accounts");
-  let mcpTab = $state<McpTab>("overview");
+  /** The connections a check from the list is under way for. */
+  let checking = $state(new Set<string>());
 
   // ── Native connectors ────────────────────────────────────────────────────────
-  let nativeAccounts = $state<OauthAccountInfo[]>([]);
   let nativeLoading = $state(false);
-  let nativeError = $state<string | null>(null);
   let oauthOpen = $state(false);
   let oauthProvider = $state<ProviderId | null>(null);
   let oauthClients = $state<OauthClientIdStatus[]>([]);
@@ -147,10 +139,6 @@
       name: $t(NATIVE_PROVIDER_KEYS[provider].name),
       description: $t(NATIVE_PROVIDER_KEYS[provider].description),
     };
-  }
-
-  function accountsForProvider(provider: ProviderId): OauthAccountInfo[] {
-    return nativeAccounts.filter((a) => a.provider === provider);
   }
 
   /**
@@ -167,10 +155,9 @@
 
   /**
    * Bring the OAuth client of the selected native connection into view: it
-   * sits on the connection's page, under its accounts.
+   * sits on the provider's card, in the developer mode.
    */
   function openClientSection(provider: ProviderId): void {
-    nativeTab = "accounts";
     queueMicrotask(() => {
       document
         .getElementById(`oauth-client-${provider}`)
@@ -229,19 +216,13 @@
     return map;
   });
 
-  /** The server of the chosen service, by its name; null for another kind. */
-  const selectedServerName = $derived(selectedConnection ? serverNameOf(selectedConnection.id) : null);
-  const selectedServer = $derived(servers.find((s) => s.name === selectedServerName) ?? null);
-  /** The first account connection of a native provider, the one its page tries. */
-  function nativeConnectionOf(provider: ProviderId): Connection | null {
-    return connections.find((c) => c.kind === "native" && c.id.startsWith(`native:${provider}:`)) ?? null;
-  }
-
-  /** "Try" on a native provider's page: its first account, or nothing without one. */
-  function nativeTry(card: NativeConnectorCard): (() => void) | undefined {
-    const connection = nativeConnectionOf(card.id);
-    return connection ? () => openTry(connection.id, card.name) : undefined;
-  }
+  /** The chosen service runs, so its tools are read with their schema. */
+  const selectedServerRunning = $derived.by(() => {
+    const name = selectedConnection ? serverNameOf(selectedConnection.id) : null;
+    return name !== null && servers.some((s) => s.name === name);
+  });
+  /** The provider of the chosen account, whose client its card shows in developer mode. */
+  const selectedProvider = $derived(selectedConnection ? nativeProviderOf(selectedConnection) : null);
 
   /** The questions offered to try the connection `tryTarget` names. */
   const tryQuestionList = $derived.by((): TryQuestion[] => {
@@ -259,16 +240,8 @@
     return tryQuestions(connection, examples, $locale ?? "en", general);
   });
 
-  /**
-   * The provider page the card shows: the provider of the chosen account, or
-   * a provider opened with no account yet to connect its first one.
-   */
-  const selectedNativeConnector = $derived.by(() => {
-    const sel = selection;
-    if (sel?.kind === "native") return nativeCard(sel.provider);
-    const provider = selectedConnection ? nativeProviderOf(selectedConnection) : null;
-    return provider ? nativeCard(provider) : null;
-  });
+  /** A provider opened with no account yet, to connect its first one. */
+  const selectedNativeConnector = $derived(selection?.kind === "native" ? nativeCard(selection.provider) : null);
 
   // ── Loaders ──────────────────────────────────────────────────────────────────
   /** Read every source of the page; one that fails keeps what it showed and gets its banner. */
@@ -319,24 +292,15 @@
     }
   }
 
+  /** Read the OAuth clients of the providers: one with none cannot connect an account. */
   async function refreshNativeStatus(): Promise<void> {
     nativeLoading = true;
-    nativeError = null;
+    oauthClientsError = null;
     try {
-      // Credential status is fetched alongside the accounts: an unconfigured
-      // provider has no accounts and would otherwise look merely idle.
-      oauthClientsError = null;
-      const [accounts, clients] = await Promise.all([
-        oauthGetStatus(),
-        oauthListClientIds().catch((e: unknown) => {
-          oauthClientsError = formatTauriError(e, $t);
-          return [] as OauthClientIdStatus[];
-        }),
-      ]);
-      nativeAccounts = accounts;
-      oauthClients = clients;
+      oauthClients = await oauthListClientIds();
     } catch (e) {
-      nativeError = formatTauriError(e, $t);
+      oauthClientsError = formatTauriError(e, $t);
+      oauthClients = [];
     } finally {
       nativeLoading = false;
     }
@@ -383,22 +347,72 @@
     oauthOpen = true;
   }
 
-  async function disconnectNative(account: OauthAccountInfo): Promise<void> {
-    if (
-      !confirm(
-        $t("connections.disconnect_native_confirm", {
-          values: { account: account.account_id, provider: account.provider },
-        }),
-      )
-    ) {
-      return;
-    }
+  /** A gesture on a card answered its connection as it now is. */
+  function showUpdated(updated: Connection): void {
+    connections = replaceConnection(connections, updated);
+  }
+
+  /** Check from the badge of a row: its state found replaces it, the list is not read again. */
+  async function checkFromList(id: string): Promise<void> {
+    if (checking.has(id)) return;
+    checking = new Set([...checking, id]);
     try {
-      await oauthDisconnect(account.provider, account.account_id);
-      await refreshNativeStatus();
-    } catch (e) {
-      nativeError = formatTauriError(e, $t);
+      connections = await checkAndReplace(id, checkConnection, () => connections);
+    } catch (err: unknown) {
+      reportError(err, { surface: "toast", testid: "connection-check-error" });
+    } finally {
+      const next = new Set(checking);
+      next.delete(id);
+      checking = next;
     }
+  }
+
+  /** The repair a card asks for that opens another flow: sign in, the password, the folder, the rule. */
+  function repairConnection(connection: Connection, kind: Exclude<RepairKind, "restart">): void {
+    switch (kind) {
+      case "sign_in": {
+        const provider = nativeProviderOf(connection);
+        if (provider) startNativeConnect(provider);
+        return;
+      }
+      case "password":
+        addWindow = openOnMailbox(connection.account ?? "");
+        return;
+      case "folder":
+        void repairFolder(connection.id);
+        return;
+      case "rule":
+        navigateTo("authorizations");
+        return;
+    }
+  }
+
+  /**
+   * "Choose the folder" on a folder that cannot be found: the folder picked
+   * becomes the folder of the same connection, so its agents keep their
+   * accesses, and the state found replaces its row.
+   */
+  async function repairFolder(id: string): Promise<void> {
+    const outcome = await chooseFolderAgain(id, $t("connections.folder.picker_title"));
+    switch (outcome.kind) {
+      case "repaired":
+        connections = replaceConnection(connections, outcome.connection);
+        return;
+      case "refused":
+        reportError(new Error(outcome.refusal.reason), { surface: "toast", testid: "connection-repair-error" });
+        return;
+      case "failed":
+        reportError(new Error(outcome.message), { surface: "toast", testid: "connection-repair-error" });
+        return;
+      case "cancelled":
+        return;
+    }
+  }
+
+  /** The chosen connection is gone: the card closes and the page is read again. */
+  function removed(): void {
+    select(null);
+    void loadAll();
   }
 
   // ── Effects ──────────────────────────────────────────────────────────────────
@@ -420,11 +434,6 @@
   $effect(() => {
     if (loading || failures.some((f) => f.source === "connections")) return;
     if (selection?.kind === "connection" && selectedConnection === null) select(null);
-  });
-
-  // Reset tabs on selection kind change.
-  $effect(() => {
-    if (selectedNativeConnector !== null) nativeTab = "accounts";
   });
 
   // Live state: a connection found in a new state, and the health of a server
@@ -516,6 +525,8 @@
       builtinTools={builtinCount}
       onselect={select}
       onadd={handleOpenCatalogue}
+      oncheck={(id) => void checkFromList(id)}
+      {checking}
     />
 
     {#snippet detail()}
@@ -534,62 +545,34 @@
             </button>
           </div>
           {#if selectedNativeConnector}
-            <NativeConnectorDetail
+            <NativeProviderCard
               connector={selectedNativeConnector}
-              remote={selectedConnection?.remote ?? false}
-              accounts={accountsForProvider(selectedNativeConnector.id)}
-              loading={nativeLoading}
-              error={nativeError}
               needsSetup={needsSetup(selectedNativeConnector.id)}
-              tab={nativeTab}
               clientStatus={oauthClients.find((c) => c.provider === selectedNativeConnector.id)}
               clientError={oauthClientsError}
+              loading={nativeLoading}
               onclientretry={() => void refreshNativeStatus()}
               onconnect={() => startNativeConnect(selectedNativeConnector.id)}
-              onconfigure={() => openClientSection(selectedNativeConnector.id)}
-              ondisconnect={disconnectNative}
-              ontabchange={(tab) => (nativeTab = tab)}
-              ontry={nativeTry(selectedNativeConnector)}
-            />
-          {:else if selectedConnection && selectedServer}
-            <McpServerDetail
-              server={selectedServer}
-              connection={selectedConnection}
-              enrichment={resolveEnrichment(selectedServer)}
-              remote={selectedConnection.remote}
-              tab={mcpTab}
-              ontabchange={(tab) => (mcpTab = tab)}
-              ontry={(name) => openTry(`mcp:${selectedServer.name}`, name)}
-              onchanged={() => void loadAll()}
-              ondisconnected={() => {
-                select(null);
-                void loadAll();
-              }}
-            />
-          {:else if selectedConnection && selectedServerName !== null}
-            <!-- A server the runtime does not run keeps a page: it is started
-                 again or removed from there. -->
-            <InactiveServerDetail
-              name={selectedServerName}
-              label={selectedLabel}
-              onchanged={() => void loadAll()}
-              onremoved={() => {
-                select(null);
-                void loadAll();
-              }}
             />
           {:else if selection?.kind === "builtin"}
             <BuiltinToolsDetail />
           {:else if selectedConnection}
-            <ConnectionSummaryDetail
-              connection={selectedConnection}
-              label={selectedLabel}
-              ontry={() => openTry(selectedConnection.id, selectedLabel)}
-              onremoved={() => {
-                select(null);
-                void loadAll();
-              }}
-            />
+            {#key selectedConnection.id}
+              <ConnectionCard
+                connection={selectedConnection}
+                label={selectedLabel}
+                serverRunning={selectedServerRunning}
+                clientStatus={selectedProvider ? oauthClients.find((c) => c.provider === selectedProvider) : undefined}
+                clientError={oauthClientsError}
+                onclientretry={() => void refreshNativeStatus()}
+                onupdated={showUpdated}
+                onremoved={removed}
+                onreload={() => void loadAll()}
+                onrepair={(kind) => repairConnection(selectedConnection, kind)}
+                ontry={() => openTry(selectedConnection.id, selectedLabel)}
+                onaddaccount={selectedProvider ? () => startNativeConnect(selectedProvider) : undefined}
+              />
+            {/key}
           {:else}
             <div
               class="flex flex-1 items-center justify-center text-body-sm text-muted-foreground"
@@ -630,6 +613,8 @@
     // The client is entered on the provider's card: the window of an
     // addition that asked for the sign-in gives way to it. With no account
     // yet the provider has no row in the list, so its card is opened by it.
+    oauthOpen = false;
+    oauthForAdd = false;
     addWindow = flowDone();
     select({ kind: "native", provider });
     openClientSection(provider);
@@ -642,6 +627,7 @@
   chosen={addWindow.chosen}
   adding={addWindow.adding}
   resume={addWindow.resume}
+  mailbox={addWindow.mailbox}
   selection={registry}
   {publicEntries}
   failures={catalogueFailures}

@@ -15,17 +15,9 @@
     "connections-kind-filter-native",
     "env-input-BRAVE_API_KEY",
     "env-toggle-BRAVE_API_KEY",
-    "mcp-detail-tab-overview",
-    "mcp-detail-tab-settings",
-    "mcp-detail-tab-tools",
     "native-client-google",
-    "native-client-microsoft",
-    "native-detail-tab-accounts",
-    "native-detail-tab-capabilities",
-    "native-detail-tab-settings",
     "native-needs-config-google",
-    "oauth-add-account-microsoft",
-    "oauth-configure-google",
+    "oauth-connect-microsoft",
     "settings-nav-developer",
     "sidebar-connection-folder:automation",
     "sidebar-mcp-automation-stub-mcp",
@@ -195,12 +187,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tabbar",
+      "testid": "connection-detail-title",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
@@ -210,7 +202,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-configure-google",
+      "testid": "native-needs-config-google",
       "timeoutMs": 3000
     },
     {
@@ -218,23 +210,8 @@
       "label": "03-native-google-needs-config (no embedded Google client on a fresh install)"
     },
     {
-      "kind": "click",
-      "testid": "native-detail-tab-capabilities",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "native-capabilities",
-      "timeoutMs": 6000
-    },
-    {
       "kind": "screenshot",
       "label": "04-native-google-capabilities"
-    },
-    {
-      "kind": "click",
-      "testid": "native-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "sleep",
@@ -323,12 +300,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-add-account-microsoft",
+      "testid": "oauth-connect-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -409,23 +386,13 @@
       "command": "oauth_start_flow"
     },
     {
-      "kind": "click",
-      "testid": "native-detail-tab-capabilities",
-      "timeoutMs": 3000
+      "kind": "waitFor",
+      "testid": "connection-detail-title",
+      "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "native-capabilities",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "click",
-      "testid": "oauth-configure-google",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "native-client-google",
+      "testid": "native-needs-config-google",
       "timeoutMs": 8000
     },
     {
@@ -469,32 +436,32 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tabbar",
+      "testid": "connection-card-state",
       "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tab-overview",
+      "testid": "connection-card-state",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-tools-count",
+      "testid": "connection-detail-tools",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-test-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-reconnect-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 2000
     },
     {
       "kind": "click",
-      "testid": "mcp-reconnect-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 3000
     },
     {
@@ -507,7 +474,7 @@
     },
     {
       "kind": "click",
-      "testid": "mcp-test-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 3000
     },
     {
@@ -517,11 +484,6 @@
     {
       "kind": "screenshot",
       "label": "09-mcp-test-ext-boundary-operator"
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-tools",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -547,11 +509,6 @@
     {
       "kind": "screenshot",
       "label": "10-mcp-tools-schema"
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitGone",
@@ -801,17 +758,17 @@
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-btn",
+      "testid": "connection-remove-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-disconnect-confirm",
+      "testid": "connection-remove-confirm",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 3000
     },
     {
@@ -1209,13 +1166,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tabbar",
+      "testid": "connection-card-state",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -1224,17 +1176,17 @@
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-btn",
+      "testid": "connection-remove-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 3000
     },
     {
@@ -1382,27 +1334,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "native-detail-tab-capabilities",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "waitFor",
-      "testid": "native-capabilities",
-      "timeoutMs": 6000
+      "testid": "native-client-google",
+      "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
       "label": "20-native-capabilities-builder"
-    },
-    {
-      "kind": "click",
-      "testid": "native-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "sleep",
@@ -1430,17 +1372,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tab-overview",
+      "testid": "connection-card-state",
       "timeoutMs": 6000
     },
     {
-      "kind": "click",
-      "testid": "mcp-detail-tab-overview",
-      "timeoutMs": 4000
-    },
-    {
       "kind": "waitFor",
-      "testid": "mcp-tools-count",
+      "testid": "connection-detail-tools",
       "timeoutMs": 4000
     },
     {
@@ -1449,7 +1386,7 @@
     },
     {
       "kind": "click",
-      "testid": "mcp-test-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 3000
     },
     {
@@ -1461,11 +1398,6 @@
       "label": "23-mcp-test-builder-technical-detail"
     },
     {
-      "kind": "click",
-      "testid": "mcp-detail-tab-tools",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "waitFor",
       "testid": "mcp-tools-list",
       "timeoutMs": 5000
@@ -1473,11 +1405,6 @@
     {
       "kind": "screenshot",
       "label": "24-mcp-tools-builder"
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -2127,13 +2054,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tabbar",
+      "testid": "connection-card-state",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitGone",
@@ -2147,17 +2069,17 @@
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-btn",
+      "testid": "connection-remove-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 3000
     },
     {
@@ -2646,18 +2568,13 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-client-microsoft",
+      "testid": "connection-detail-title",
       "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-add-account-microsoft",
-      "timeoutMs": 4000
+      "testid": "oauth-connect-microsoft",
+      "timeoutMs": 8000
     },
     {
       "kind": "clearStubs",
@@ -3157,32 +3074,52 @@
     },
     {
       "kind": "stubInvoke",
-      "command": "list_sources",
-      "resolve": [
-        {
-          "id": "src-automation",
-          "kind": "folder",
-          "label": "Automation documents",
-          "group": null,
-          "reference": "folder:automation",
-          "indexState": "ready",
-          "addedAt": "2026-10-01T08:00:00.000Z"
-        }
-      ]
+      "command": "remove_connection",
+      "argsMatch": {
+        "connectionId": "folder:automation",
+        "dryRun": true
+      },
+      "resolve": {
+        "connection": "folder:automation",
+        "dryRun": true,
+        "removed": [
+          {
+            "kind": "source",
+            "name": "Automation documents"
+          },
+          {
+            "kind": "agent_access",
+            "name": "read_file",
+            "agent": "Automation agent"
+          }
+        ],
+        "left": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_connection",
+      "reject": "automation: remove_connection was not called with the dry run first, then the confirmation"
     },
     {
       "kind": "click",
-      "testid": "connection-folder-remove",
+      "testid": "connection-remove-btn",
       "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testid": "connection-folder-remove-dialog",
+      "testid": "connection-remove-confirm",
       "timeoutMs": 4000
     },
     {
       "kind": "expect",
-      "testid": "connection-folder-remove-source"
+      "testid": "connection-remove-items",
+      "contains": "Automation documents"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-remove-items",
+      "contains": "Automation agent"
     },
     {
       "kind": "screenshot",
@@ -3190,66 +3127,108 @@
     },
     {
       "kind": "click",
-      "testid": "connection-folder-remove-cancel",
+      "testid": "connection-remove-confirm-cancel",
       "timeoutMs": 2500
     },
     {
       "kind": "waitGone",
-      "testid": "connection-folder-remove-dialog",
+      "testid": "connection-remove-confirm",
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "connection-folder-remove",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "connection-folder-remove-dialog",
-      "timeoutMs": 4000
+      "kind": "clearStubs",
+      "command": "remove_connection"
     },
     {
       "kind": "stubInvoke",
-      "command": "remove_folder_connection",
-      "resolve": {
-        "id": "folder:automation",
-        "kind": "folder",
-        "label": "Automation folder",
-        "account": null,
-        "path": "/automation/folder",
-        "provenance": "custom",
-        "remote": false,
-        "official": false,
-        "state": "connected",
-        "tools": []
-      },
+      "command": "remove_connection",
       "argsMatch": {
         "connectionId": "folder:automation",
-        "confirm": true
+        "dryRun": true
+      },
+      "resolve": {
+        "connection": "folder:automation",
+        "dryRun": true,
+        "removed": [
+          {
+            "kind": "source",
+            "name": "Automation documents"
+          },
+          {
+            "kind": "agent_access",
+            "name": "read_file",
+            "agent": "Automation agent"
+          }
+        ],
+        "left": []
       }
     },
     {
       "kind": "stubInvoke",
-      "command": "remove_folder_connection",
-      "reject": "automation: remove_folder_connection was not called with the confirmation the dialog gave"
+      "command": "remove_connection",
+      "argsMatch": {
+        "connectionId": "folder:automation",
+        "dryRun": false
+      },
+      "resolve": {
+        "connection": "folder:automation",
+        "dryRun": false,
+        "removed": [
+          {
+            "kind": "source",
+            "name": "Automation documents"
+          }
+        ],
+        "left": [
+          {
+            "kind": "source",
+            "name": "Automation leftover"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_connection",
+      "reject": "automation: remove_connection was not called with the dry run first, then the confirmation"
     },
     {
       "kind": "click",
-      "testid": "connection-folder-remove-confirm",
+      "testid": "connection-remove-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-remove-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-remove-items",
+      "contains": "Automation documents"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 2500
     },
     {
       "kind": "waitGone",
-      "testid": "connection-folder-remove-dialog",
+      "testid": "connection-remove-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-remove-left",
+      "contains": "Automation leftover",
       "timeoutMs": 4000
     },
     {
       "kind": "clearStubs",
-      "command": "remove_folder_connection"
+      "command": "remove_connection"
     },
     {
-      "kind": "clearStubs",
-      "command": "list_sources"
+      "kind": "clearToasts"
     },
     {
       "kind": "clearStubs",
@@ -3297,12 +3276,12 @@
     "Two installs happen and both are undone in their own block: the custom form on /usr/bin/python3 ${HOME}/.apollia/mcp-stub-server.py (server automation-stub-mcp) through mcp-disconnect-btn then mcp-disconnect-confirm-btn, and the add dialog on catalogue-entry-io.apollia/seed-stub (server io-apollia-seed-stub, deriveServerName of its registry identifier) twice: once removed from its page the same way, once by wizard-remove-btn after a failed trial. The card of the page is closed (connections-back) before each install and before the OAuth blocks, and the Microsoft detours between them only open its sign-in step in the window and close the window, so a failed install leaves no MCP detail for the removal clicks to reach, and the seeded rows filesystem and notes are never the target of a confirm. Later sections see the two seeded rows only.",
     "The flow of the window closes from any phase before the connection exists by wizard-cancel-btn (the authentication, a failed addition, the sign-in step of a provider), which gives the search of the window back; after a trial, wizard-done-btn closes the window, and the list shows the connection.",
     "plugin:opener|open_url is stubbed (resolve null) for the whole wizard and OAuth section: auth-help-link and oauth-open-url-link go through handleExternalLinkClick to the opener plugin, and the stub keeps the host browser closed while the click still fires. The stub is dropped by the clearStubs at the end of the section.",
-    "The card of a provider with no account has no row in the list: Add on catalogue-native-google or catalogue-native-microsoft opens the sign-in step of the flow (add-flow-signin), and its card is reached from the sign-in dialog. oauth_start_flow is answered once with a reject {kind: oauth_client_not_configured}, the dialog offers oauth-open-settings-btn, and its onopenclient selects the provider (Connections.svelte) and brings its client section into view: native-detail-tabbar, the needs-config badge, oauth-configure-* or oauth-add-account-*, native-client-*. The badge and the button read the real client status, the stub only opens the dialog on that branch. The sign-in of a whole Google account (the Drive folder block) is the sign-in of the flow: the dialog hands the account back to the flow (onconnected), which resumes on add-flow-who; Continue grants nothing, the account being a stub with no tools, and the trial says it is added.",
+    "The card of a provider with no account has no row in the list: Add on catalogue-native-google or catalogue-native-microsoft opens the sign-in step of the flow (add-flow-signin), and its card is reached from the sign-in dialog. oauth_start_flow is answered once with a reject {kind: oauth_client_not_configured}, the dialog offers oauth-open-settings-btn, and its onopenclient selects the provider (Connections.svelte) and brings its client section into view on NativeProviderCard: connection-detail-title, then native-needs-config-google (no Google client on a fresh install) or oauth-connect-microsoft; the client section native-client-* sits under DeveloperOnly, so it is waited for in the developer-mode block only. The banner and the button read the real client status, the stub only opens the dialog on that branch. The sign-in of a whole Google account (the Drive folder block) is the sign-in of the flow: the dialog hands the account back to the flow (onconnected), which resumes on add-flow-who; Continue grants nothing, the account being a stub with no tools, and the trial says it is added.",
     "oauth_start_flow is answered by the script twice. A reject {kind: oauth_client_not_configured} reaches the missing-client branch of NativeOauthDialog (isMissingClientError reads .kind) for oauth-open-settings-btn, with no sovereignty detour since the command never runs. A resolve imitating OauthStartResult (lib/ipc/connections.ts: auth_url, state, callback_port) reaches the auth step for oauth-open-url-link, oauth-paste-code-toggle, oauth-paste-code-input, oauth-finalize-btn and oauth-cancel-btn; oauth_complete_flow then runs for real with the unknown state and fails with FlowNotFound, the error line the finalize screenshot shows. Each OAuth block ends with clearStubs and a goto chat then goto integrations so the route is healthy again.",
     "catalogue-entry-io.apollia/seed-failing launches /usr/bin/false, which exits before any MCP handshake, so the addition itself fails and wizard-finalize-error lands at once; the 45 s waits only cover a runtime that waits out init_timeout_secs (30 s) instead of the EOF. The retry is proven by the error block coming back after wizard-retry-add-btn. The trial of seed-stub is failed by answering test_mcp_live_server once with a reject (the McpConnectionTestResponse path of tryAddedConnection), and the refusal by answering add_mcp_server once with the runtime's REMOTE_DENIED_REASON text, the string the admission route returns and refusalOf recognises.",
     "mcp-settings-url-input and mcp-settings-oauth-reconnect are reached by answering get_mcp_server_raw_config from the script with a value imitating McpServerConfig (apollia-mcp config.rs, the McpServerRawConfig of lib/ipc/connections.ts): transport streamable-http and an env carrying ${APOLLIA_OAUTH}, which is what McpServerSettingsEditor.svelte branches on (remote, oauthEnvHeaders). The stub is armed while the editor shows the seeded stdio server, and mcp-settings-reset is the reload that makes it take (reset calls load). mcp_oauth_login is answered twice, a reject for mcp-settings-oauth-error and a resolve imitating McpOAuthAccount (lib/types/mcp.ts) for mcp-settings-oauth-success. The URL fill is proven through update_mcp_server_config: a stub whose argsMatch carries the exact config the editor must build, new url included, rejects with the text the expect reads, and a catch-all reject behind it keeps the seeded row from ever being rewritten and reads differently when the url did not reach the config. The block ends with the three commands cleared and a real reload back to the stdio form. The block sits before the real timeout save of the same section: mcp-settings-reset is disabled while that save is in flight (McpServerSettingsEditor.svelte, disabled={saving || loading}), and a click on a disabled button is dropped, so the stubbed reload must not queue behind a restart of the seeded server.",
     "The MCP OAuth branch of the wizard is reached on catalogue-entry-com.notion/mcp, the curated remote entry (enrichments.json remote_url https://mcp.notion.com/mcp, no oauth_pre_registered_client_id_env, so mcp_oauth_resolve_client_id never runs). test_mcp_connection is answered once with the McpConnectionTestResponse OauthRequired arm (commands/mcp.rs, kind + www_authenticate) and mcp_oauth_discover once with an McpOAuthDiscoveryResult (commands/mcp/oauth.rs: as_url, scopes_supported, scope_descriptions, registration_supported), which is what puts probeMode on oauth (AddFlow.svelte acceptWarning, then the probe of catalogueSetup.svelte.ts and its discovery). mcp_oauth_login is armed once before each click: a string reject for the first auth-oauth-signin-btn (auth-oauth-error shows the message), an McpOAuthAccount resolve (sub, email, scopes) for the second (auth-oauth-success names the email), and a string reject for auth-oauth-reconnect-btn, whose proof is a fresh auth-oauth-error next to the success card that stays (startOAuthSignin keeps oauthAccount on failure). The flow is left by wizard-cancel-btn without adding, and the three commands are cleared.",
     "The Google Drive folder step is reached through NativeOauthDialog on the Google connector. oauth_list_client_ids is answered with two OauthClientIdStatus rows (commands/integrations/credentials.rs) whose google row has source file and a secret, so needsOauthSetup is false; the route is remounted through the chat so refreshNativeStatus reads the stub. oauth_start_flow is answered once with an OauthStartFlow (auth_url, state, callback_port) and oauth_complete_flow once with an OauthCompletedAccount whose provider is google (commands/integrations.rs: provider, account_id, granted_scopes), which is the branch that sets step drive_folder (NativeOauthDialog.svelte completeFlow). oauth_set_drive_folder is answered first by a reject {kind: internal, detail} whose argsMatch carries the exact accountId and folderPath the dialog must send (the account of the completed flow, the path filled in oauth-drive-folder-input), which is the proof of the fill (formatTauriError renders kind: detail in oauth-drive-folder-error); a catch-all reject behind it reads differently and keeps the real command from ever writing drive prefs when the path did not reach the call. The command is cleared, then answered once with resolve null, on which the dialog gives the account to the flow and closes. All four commands are cleared and the route is remounted so the real client-id status is back on screen.",
-    "The removal of a folder connection is played against stubs, since the seed ships no folder connection and a real one would be removed for good. list_connections is answered with one folder connection and the route is remounted through the chat so the list reads it; list_sources is answered with one source made on that folder, so connection-folder-remove opens the dialog that lists it. The dialog is cancelled once, then confirmed: remove_folder_connection is answered only when it carries the identifier of the folder and confirm true, which is the proof that the confirmation of the dialog reaches the call; a catch-all reject behind it keeps the dialog open, and the step waiting for it to go fails, if the flag did not. The three commands are cleared and the route is remounted, so the real list is back on screen."
+    "The removal of a folder connection is played against stubs, since the seed ships no folder connection and a real one would be removed for good. list_connections is answered with one folder connection and the route is remounted through the chat so the list reads it. remove_connection is answered only for that identifier: with dryRun true by the list of what goes (a source and the tool of an agent), which connection-remove-items must read before anything is confirmed, and with dryRun false by a removal that left one source behind, which the toast connection-remove-left must name. A catch-all reject behind them keeps the confirmation open, and the step waiting for it to go fails, if the card removed without the dry run first or without the confirmation. The confirmation is cancelled once, then confirmed. The stubs are cleared and the route is remounted, so the real list is back on screen."
   ]
 }

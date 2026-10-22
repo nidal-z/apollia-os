@@ -8,8 +8,6 @@ use crate::attached::{gate, LinkMode};
 const TOKEN: &str = "token-of-this-installation";
 const START: &str = "/api/v1/connectors/oauth/start";
 const COMPLETE: &str = "/api/v1/connectors/oauth/complete";
-const ACCOUNTS: &str = "/api/v1/connectors/accounts";
-const ADA: &str = "/api/v1/connectors/accounts/google/ada%40example.test";
 const FOLDERS: &str = "/api/v1/connectors/drive-folders";
 const ADA_FOLDER: &str = "/api/v1/connectors/drive-folders/ada%40example.test";
 const LOOPBACK: &str = "http://127.0.0.1:4321/callback";
@@ -46,8 +44,6 @@ fn test_every_command_of_the_family_passes_the_gate_attached() {
     let family = [
         "oauth_start_flow",
         "oauth_complete_flow",
-        "oauth_get_status",
-        "oauth_disconnect",
         "oauth_list_drive_folders",
         "oauth_set_drive_folder",
         "oauth_reset_drive_folder",
@@ -65,15 +61,13 @@ fn test_every_command_of_the_family_passes_the_gate_attached() {
 
 #[tokio::test]
 async fn test_each_command_reaches_its_route_on_the_daemon_with_the_token() {
-    // GIVEN a daemon serving the seven routes, the disconnection with a 204
+    // GIVEN a daemon serving the five routes
     let started = json!({ "auth_url": "https://idp.test/auth?state=s-1", "state": "s-1" });
     let account =
         json!({ "provider": "google", "account_id": "ada@example.test", "granted_scopes": [] });
     let (_server, client) = daemon(vec![
         ("POST", START, 200, started),
-        ("POST", COMPLETE, 200, account.clone()),
-        ("GET", ACCOUNTS, 200, json!([account])),
-        ("DELETE", ADA, 204, Value::Null),
+        ("POST", COMPLETE, 200, account),
         ("GET", FOLDERS, 200, json!([folder(None)])),
         ("PUT", ADA_FOLDER, 200, folder(Some("Clients"))),
         ("DELETE", ADA_FOLDER, 200, folder(None)),
@@ -87,8 +81,6 @@ async fn test_each_command_reaches_its_route_on_the_daemon_with_the_token() {
     let connected = complete_consent(&client, &consent.state, "c-1")
         .await
         .unwrap();
-    let listed = accounts(&client).await.unwrap();
-    let gone = disconnect(&client, "google", "ada@example.test").await;
     let folders = drive_folders(&client).await.unwrap();
     let set = set_drive_folder(&client, " ada@example.test ", "Clients").await;
     let reset = reset_drive_folder(&client, "ada@example.test").await;
@@ -96,20 +88,16 @@ async fn test_each_command_reaches_its_route_on_the_daemon_with_the_token() {
     // THEN each reached its route once, and the answers are the daemon's
     assert!(consent.auth_url.contains("state=s-1"));
     assert_eq!(connected.account_id, "ada@example.test");
-    assert_eq!(listed[0].provider, "google");
-    assert!(gone.is_ok(), "{gone:?}");
     assert_eq!(folders[0].effective_folder_path, "Apollia");
     assert!(set.is_ok() && reset.is_ok(), "{set:?} {reset:?}");
 }
 
 #[tokio::test]
 async fn test_a_refusal_of_the_daemon_reaches_the_interface_in_its_own_words() {
-    // GIVEN a daemon refusing each of the seven routes with its own reason
+    // GIVEN a daemon refusing each of the five routes with its own reason
     let routes = [
         ("POST", START),
         ("POST", COMPLETE),
-        ("GET", ACCOUNTS),
-        ("DELETE", ADA),
         ("GET", FOLDERS),
         ("PUT", ADA_FOLDER),
         ("DELETE", ADA_FOLDER),
@@ -129,8 +117,6 @@ async fn test_a_refusal_of_the_daemon_reaches_the_interface_in_its_own_words() {
             .await
             .map(drop),
         complete_consent(&client, "s", "c").await.map(drop),
-        accounts(&client).await.map(drop),
-        disconnect(&client, "google", ada).await,
         drive_folders(&client).await.map(drop),
         set_drive_folder(&client, ada, "x").await,
         reset_drive_folder(&client, ada).await,

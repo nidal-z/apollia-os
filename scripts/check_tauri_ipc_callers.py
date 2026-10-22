@@ -80,6 +80,14 @@ UI_SUBTREE = Path("crates/apollia-desktop/ui/src")
 HANDLER_OPEN = re.compile(r"generate_handler\s*!\s*\[")
 HANDLER_ENTRY = re.compile(r"^(?:\w+\s*::\s*)*(\w+)$")
 IDENTIFIER = re.compile(r"^\w+$")
+# A function that takes its invoker as a parameter (`invokeFn = invoke`, for a
+# test to substitute it) calls `invokeFn("name", ...)`, which `INVOKE_CALL`
+# does not read. Such a call to a command nothing registers fails in the app
+# and passes every unit test, so its literal name is read too.
+INJECTED_INVOKE = re.compile(
+    r"\b(?!invoke\b)(?:[A-Za-z_$][\w$]*)?[Ii]nvoke[\w$]*\s*(?:<[^;(]*?>)?\s*\(\s*"
+    r"""(["'])([A-Za-z_]\w*)\1"""
+)
 LITERAL_COLLECTION = re.compile(
     r"\bconst\s+(\w+)\s*(?::[^=]*)?=\s*(?:new\s+(?:Set|Array)\s*\(\s*)?\["
 )
@@ -272,6 +280,12 @@ def invoke_sites(ui_root: Path) -> list[dict[str, object]]:
                     sites.append({"site": site, "names": names, "how": "declared list"})
                     continue
             sites.append({"site": site, "names": None, "how": "unreadable"})
+        for match in INJECTED_INVOKE.finditer(source):
+            line_number = _line_of(source, match.start())
+            if ipc_args._is_comment(lines[line_number - 1]):
+                continue
+            site = f"{path.relative_to(ui_root)}:{line_number}"
+            sites.append({"site": site, "names": [match.group(2)], "how": "injected"})
     return sites
 
 
@@ -439,6 +453,7 @@ def report(rust_root: Path, ui_root: Path) -> int:
     called: set[str] = set()
     resolved_sites = []
     literal_count = 0
+    injected_count = 0
     for site in sites:
         names = site["names"]
         if names is None:
@@ -447,6 +462,8 @@ def report(rust_root: Path, ui_root: Path) -> int:
             continue
         if site["how"] == "literal":
             literal_count += 1
+        elif site["how"] == "injected":
+            injected_count += 1
         else:
             resolved_sites.append(f"{site['site']} -> {names}")
         called.update(name for name in names if isinstance(name, str))
@@ -467,7 +484,8 @@ def report(rust_root: Path, ui_root: Path) -> int:
     print(f"lines left uninterpreted      : {len(uninterpreted)} {uninterpreted}")
     print(
         f"invoke calls read             : {len(sites)} "
-        f"(literal name {literal_count}, resolved through a declared list "
+        f"(literal name {literal_count}, through an injected invoker "
+        f"{injected_count}, resolved through a declared list "
         f"{len(resolved_sites)}: {', '.join(resolved_sites)})"
     )
     print(f"commands called               : {len(set(registered_names) & called)}")
@@ -699,6 +717,20 @@ def selftest() -> int:
         results.append(
             _case(
                 "an invoke naming a command nothing registers is a red",
+                code == 1
+                and "invoke to an absent command   : ['no_such_command']" in text,
+            )
+        )
+
+        text, code = measure(
+            CALLS_EVERY_COMMAND
+            + "export async function tryIt(invokeFn = invoke) {\n"
+            + '  return invokeFn<Reply>("no_such_command", { name });\n'
+            + "}\n"
+        )
+        results.append(
+            _case(
+                "a command called through an injected invoker and not registered is a red",
                 code == 1
                 and "invoke to an absent command   : ['no_such_command']" in text,
             )

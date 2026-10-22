@@ -10,7 +10,7 @@
 use apollia_runtime::drive_folders::DriveFolderStatus;
 use serde_json::json;
 
-use super::{IntegrationsError, OauthAccountInfo, OauthCompletedAccount};
+use super::{IntegrationsError, OauthCompletedAccount};
 use crate::attached::{segment, AttachedClient, AttachedError};
 
 /// What the daemon answers when it starts a consent: the URL to send the user
@@ -65,28 +65,6 @@ pub(super) async fn complete_consent(
         .post("/api/v1/connectors/oauth/complete", &body)
         .await;
     account.map_err(refused)
-}
-
-/// The accounts the daemon holds, every provider.
-pub(super) async fn accounts(
-    remote: &AttachedClient,
-) -> Result<Vec<OauthAccountInfo>, IntegrationsError> {
-    let accounts = remote.get("/api/v1/connectors/accounts").await;
-    accounts.map_err(refused)
-}
-
-/// Forget an account on the daemon, which journals the disconnection.
-pub(super) async fn disconnect(
-    remote: &AttachedClient,
-    provider: &str,
-    account_id: &str,
-) -> Result<(), IntegrationsError> {
-    let path = format!(
-        "/api/v1/connectors/accounts/{}/{}",
-        segment(provider),
-        segment(account_id)
-    );
-    remote.delete::<()>(&path).await.map_err(refused)
 }
 
 /// The Drive folder of every Google account the daemon holds.

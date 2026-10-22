@@ -366,6 +366,8 @@ from .onboarding_phase import OnboardingPhase
 from .onboarding_reset import OnboardingReset
 from .onboarding_state import OnboardingState
 from .onboarding_stats import OnboardingStats
+from .one_drive_choice_view import OneDriveChoiceView
+from .one_drive_entry import OneDriveEntry
 from .open_lease_request import OpenLeaseRequest
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
@@ -442,6 +444,7 @@ from .reload_router_response_backends_item import ReloadRouterResponseBackendsIt
 from .removed_item import RemovedItem
 from .removed_kind import RemovedKind
 from .rename_session_body import RenameSessionBody
+from .repoint_folder_body import RepointFolderBody
 from .required_connection_preview import RequiredConnectionPreview
 from .resend_message_request import ResendMessageRequest
 from .reset_response import ResetResponse
@@ -564,6 +567,7 @@ from .tool_call_detail_output_type_0 import ToolCallDetailOutputType0
 from .tool_config_body import ToolConfigBody
 from .tool_config_body_config_type_0 import ToolConfigBodyConfigType0
 from .tool_enabled_body import ToolEnabledBody
+from .tool_family_body import ToolFamilyBody
 from .tool_list_response import ToolListResponse
 from .tool_list_response_tools_item import ToolListResponseToolsItem
 from .tool_stat_entry import ToolStatEntry
@@ -997,6 +1001,8 @@ __all__ = (
     "OnboardingReset",
     "OnboardingState",
     "OnboardingStats",
+    "OneDriveChoiceView",
+    "OneDriveEntry",
     "OpenLeaseRequest",
     "PackageErrorBody",
     "PackageInstallRequest",
@@ -1071,6 +1077,7 @@ __all__ = (
     "RemovedItem",
     "RemovedKind",
     "RenameSessionBody",
+    "RepointFolderBody",
     "RequiredConnectionPreview",
     "ResendMessageRequest",
     "ResetResponse",
@@ -1191,6 +1198,7 @@ __all__ = (
     "ToolConfigBody",
     "ToolConfigBodyConfigType0",
     "ToolEnabledBody",
+    "ToolFamilyBody",
     "ToolListResponse",
     "ToolListResponseToolsItem",
     "ToolStatEntry",
