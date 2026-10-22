@@ -10,6 +10,7 @@
 
 use std::collections::HashMap;
 
+use apollia_mcp::tool_search::{indexed_family, ToolIndexSnapshot};
 use apollia_tools::{ActionFamily, ResolvedAgent, ToolDescriptor};
 use serde::{Deserialize, Serialize};
 
@@ -72,7 +73,8 @@ pub(crate) fn known_tools() -> HashMap<String, KnownTool> {
         .collect()
 }
 
-/// What `tools` says about the access `id`. The tool of a connected account
+/// What `tools` says about the access `id`. A deferred MCP tool is in none of
+/// them: its family comes from the MCP tool index (see [`classify`]). The tool of a connected account
 /// takes the family and the description of its operation, the account only
 /// choosing which token the call runs with.
 fn lookup<'a>(tools: &'a HashMap<String, KnownTool>, id: &str) -> Option<&'a KnownTool> {
@@ -100,8 +102,15 @@ fn declared_sensitive(family: ActionFamily) -> bool {
 pub(crate) fn classify(
     agent: &ResolvedAgent,
     tools: &HashMap<String, KnownTool>,
+    mcp_index: &[ToolIndexSnapshot],
     governance: Option<&dyn GovernanceContract>,
 ) -> Vec<(BatchAccess, bool)> {
+    let family_of = |id: &str| {
+        lookup(tools, id)
+            .map(|t| t.family)
+            .or_else(|| indexed_family(id, mcp_index))
+            .unwrap_or(ActionFamily::Unclassified)
+    };
     let declared: Vec<DeclaredAccess> = agent
         .access
         .iter()
@@ -112,9 +121,7 @@ pub(crate) fn classify(
                 permits: tool
                     .map(|t| first_line(&t.description))
                     .unwrap_or_else(|| format!("use {id}")),
-                declared_sensitive: declared_sensitive(
-                    tool.map_or(ActionFamily::Unclassified, |t| t.family),
-                ),
+                declared_sensitive: declared_sensitive(family_of(id)),
             }
         })
         .collect();
@@ -132,7 +139,7 @@ pub(crate) fn classify(
     effective
         .into_iter()
         .map(|(access_id, permits, sensitive)| {
-            let family = lookup(tools, &access_id).map_or(ActionFamily::Unclassified, |t| t.family);
+            let family = family_of(&access_id);
             let grantable = family
                 .consent_family()
                 .is_some_and(|f| f != apollia_permissions::ConsentFamily::ExecuteCode);
@@ -259,7 +266,7 @@ mod tests {
         // GIVEN an agent that reads the web, sends mail, runs code and uses an MCP server
         let agent = agent(&["web_search", "send_email", "bash_executor", "mcp:crm"]);
         // WHEN its accesses are classified without a deposited policy
-        let classified = classify(&agent, &tools(), None);
+        let classified = classify(&agent, &tools(), &[], None);
         let listed = sensitive(&classified);
         // THEN reading is not listed; sending is grantable; code and the unknown
         //      server are listed but cannot be granted for a batch
@@ -284,6 +291,7 @@ mod tests {
         let listed = sensitive(&classify(
             &agent(&["web_search", "send_email", "bash_executor"]),
             &tools(),
+            &[],
             None,
         ));
         // WHEN grants name a listed access, a plain one, and code
@@ -311,11 +319,42 @@ mod tests {
         .unwrap();
         let agent = agent(&[tool.as_str()]);
         // WHEN its accesses are classified against the descriptors known at launch
-        let listed = sensitive(&classify(&agent, &known_tools(), None));
+        let listed = sensitive(&classify(&agent, &known_tools(), &[], None));
         // THEN the account's tool takes the family of its operation and can be granted
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].access_id, tool);
         assert_eq!(listed[0].family, "send_external");
         assert!(listed[0].grantable);
+    }
+
+    #[test]
+    fn test_a_deferred_mcp_tool_takes_the_family_of_its_index_entry() {
+        // GIVEN an agent granted two tools of an MCP server no descriptor
+        //       describes, the index classifying one read and one writing
+        let agent = agent(&["mcp:crm/lookup", "mcp:crm/purge"]);
+        let entry = |tool: &str, family: ActionFamily| ToolIndexSnapshot {
+            server_name: "crm".to_owned(),
+            tool_name: tool.to_owned(),
+            family,
+            ..Default::default()
+        };
+        let index = vec![
+            entry("lookup", ActionFamily::Read),
+            entry("purge", ActionFamily::WriteOrDelete),
+        ];
+        // WHEN its accesses are classified with the index
+        let classified = classify(&agent, &tools(), &index, None);
+        // THEN the read is not sensitive, the write is, and can be granted
+        let by_id: HashMap<&str, (&str, bool, bool)> = classified
+            .iter()
+            .map(|(a, sensitive)| {
+                (
+                    a.access_id.as_str(),
+                    (a.family.as_str(), *sensitive, a.grantable),
+                )
+            })
+            .collect();
+        assert_eq!(by_id["mcp:crm/lookup"], ("read", false, true));
+        assert_eq!(by_id["mcp:crm/purge"], ("write_or_delete", true, true));
     }
 }

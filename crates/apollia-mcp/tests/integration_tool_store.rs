@@ -268,3 +268,44 @@ async fn test_a_server_that_starts_again_replaces_its_kept_tools() {
     assert_eq!(manager.status().await.len(), 1);
     manager.shutdown().await;
 }
+
+#[tokio::test]
+async fn test_a_tools_list_re_sent_at_a_call_is_kept() {
+    // GIVEN a deferred manager over a server that published one tool at its
+    //       start and publishes a second one since
+    let dir = TempDir::new().unwrap();
+    let db = dir.path().join("mcp.db");
+    let mut config = annotated_server_config("growing");
+    config.args = vec![format!(
+        "{}/tests/mock_mcp_server_growing.py",
+        env!("CARGO_MANIFEST_DIR")
+    )];
+    let registry = ToolRegistryHandle::start();
+    let manager = start(vec![config], &db, &registry).await;
+    let kept = |db: &Path| {
+        McpServerRepository::open(db)
+            .unwrap()
+            .stored_tools()
+            .unwrap()
+            .remove("growing")
+            .unwrap_or_default()
+    };
+    assert_eq!(kept(&db).len(), 1);
+
+    // WHEN the new tool, absent from the index, is called, which lists the
+    //      server's tools again
+    manager.call_tool("growing", "archive", None).await.unwrap();
+
+    // THEN that list is kept in mcp.db, its hints included, and indexed
+    let tools = kept(&db);
+    let names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names, vec!["archive", "lookup"]);
+    assert_eq!(
+        tools[0].annotations.and_then(|a| a.destructive_hint),
+        Some(true)
+    );
+    let index = by_name(&manager.get_tool_index().await);
+    assert_eq!(index["archive"].family, ActionFamily::WriteOrDelete);
+
+    manager.shutdown().await;
+}

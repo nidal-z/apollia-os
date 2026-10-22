@@ -11,9 +11,10 @@
 use tokio::sync::{mpsc, oneshot};
 
 use crate::config::McpServerConfig;
+use crate::manager::kept::keep_session_tools;
 use crate::manager::views::session_tool_names;
 use crate::manager::{McpClientManager, McpCommand, McpConnectionTestResult, ProbeSpec};
-use crate::protocol::ToolCallResult;
+use crate::protocol::{McpToolDefinition, ToolCallResult};
 use crate::session::McpSessionError;
 
 /// The answer of a tool call.
@@ -59,9 +60,9 @@ impl McpClientManager {
         let caller = session.caller();
         let fetch_schema = session.needs_schema_fetch(&tool_name);
         tokio::spawn(async move {
-            let schemas = if fetch_schema {
-                match caller.list_tool_schemas(&tool_name).await {
-                    Ok(schemas) => Some(schemas),
+            let listed = if fetch_schema {
+                match caller.list_tools(&tool_name).await {
+                    Ok(tools) => Some(tools),
                     Err(e) => {
                         tracing::warn!(
                             server = %server_name,
@@ -81,7 +82,7 @@ impl McpClientManager {
                 report,
                 McpCommand::CallFinished {
                     server_name,
-                    schemas,
+                    listed,
                     result,
                     reply,
                 },
@@ -90,18 +91,26 @@ impl McpClientManager {
         });
     }
 
-    /// Record a finished tool call: cache the schemas it fetched, update the
-    /// session's health, publish, then answer the caller.
-    pub(super) fn finish_call_tool(
+    /// Record a finished tool call: take in the `tools/list` it fetched and
+    /// keep it, update the session's health, publish, then answer the
+    /// caller, who then reads the list kept.
+    pub(super) async fn finish_call_tool(
         &mut self,
         server_name: &str,
-        schemas: Option<Vec<(String, serde_json::Value)>>,
+        listed: Option<Vec<McpToolDefinition>>,
         result: Result<ToolCallResult, McpSessionError>,
         reply: CallReply,
     ) {
-        if let Some(schemas) = schemas {
-            if let Some(session) = self.sessions.get_mut(server_name) {
-                session.cache_tool_schemas(schemas);
+        let relisted = match (listed, self.sessions.get_mut(server_name)) {
+            (Some(tools), Some(session)) => {
+                session.absorb_tools_list(tools);
+                true
+            }
+            _ => false,
+        };
+        if relisted && !self.request_servers.contains(server_name) {
+            if let Some(session) = self.sessions.get(server_name) {
+                keep_session_tools(self.tool_store.as_ref(), server_name, session).await;
             }
         }
         self.record_call_outcome(server_name, &result);

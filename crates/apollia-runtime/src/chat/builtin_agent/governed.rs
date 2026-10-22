@@ -36,9 +36,7 @@ pub(super) fn family_of(
         None if name == crate::chat::connection_lookup::CONNECTION_LOOKUP_NAME => {
             ActionFamily::Read
         }
-        None => mcp_index
-            .and_then(|index| index.iter().find(|entry| entry.full_name() == name))
-            .map_or(ActionFamily::Unclassified, |entry| entry.family),
+        None => apollia_mcp::tool_search::tool_family(name, None, mcp_index.unwrap_or(&[])),
     }
 }
 

@@ -119,3 +119,42 @@ async fn test_a_request_server_is_unclassified_and_leaves_the_registry_with_its_
         .expect("registry")
         .is_none());
 }
+
+#[tokio::test]
+async fn test_a_request_server_is_never_kept() {
+    // GIVEN a deferred manager that keeps the tools of its servers, and a
+    //       server a request brought
+    let addr = start_server(Router::new().fallback(answer)).await;
+    let url = format!("http://{addr}/mcp");
+    let dir = tempfile::TempDir::new().expect("dir");
+    let db = dir.path().join("mcp.db");
+    let registry = ToolRegistryHandle::start();
+    let manager = McpClientManagerHandle::start_keeping_tools(
+        vec![],
+        &registry,
+        None,
+        LoadingMode::Deferred,
+        crate::tool_store::ToolIndexStore::new(&db),
+    )
+    .await
+    .expect("manager");
+    manager
+        .add_request_server(config(&url), transport(&url))
+        .await
+        .expect("connected");
+
+    // WHEN a tool absent from its index is called, which lists its tools
+    //      again
+    let _ = manager.call_tool(NAME, "other", None).await;
+
+    // THEN its index entry stays unclassified, and nothing of it is kept
+    let index = manager.get_tool_index().await;
+    assert_eq!(index.len(), 1);
+    assert_eq!(index[0].family, ActionFamily::Unclassified);
+    let stored = crate::McpServerRepository::open(&db)
+        .expect("db")
+        .stored_tools()
+        .expect("stored");
+    assert!(stored.is_empty(), "{stored:?}");
+    manager.shutdown().await;
+}

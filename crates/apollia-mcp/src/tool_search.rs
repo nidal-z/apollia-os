@@ -70,6 +70,35 @@ impl ToolIndexSnapshot {
     }
 }
 
+/// The family of the tool `name` as the deferred tool `index` carries it, when
+/// the index holds the tool.
+#[must_use]
+pub fn indexed_family(name: &str, index: &[ToolIndexSnapshot]) -> Option<ActionFamily> {
+    let (server, tool) = name.strip_prefix("mcp:")?.split_once('/')?;
+    index
+        .iter()
+        .find(|entry| entry.server_name == server && entry.tool_name == tool)
+        .map(|entry| entry.family)
+}
+
+/// The family a call of the tool `name` is decided on: the one its
+/// descriptor declares; a deferred MCP tool has none, and takes the one its
+/// entry in `index` carries; a tool neither describes is unclassified.
+///
+/// Every path that decides a call reads the family here, so that a deferred
+/// tool is classified the same way whoever calls it.
+#[must_use]
+pub fn tool_family(
+    name: &str,
+    descriptor: Option<&apollia_tools::ToolDescriptor>,
+    index: &[ToolIndexSnapshot],
+) -> ActionFamily {
+    descriptor
+        .map(|d| d.family)
+        .or_else(|| indexed_family(name, index))
+        .unwrap_or(ActionFamily::Unclassified)
+}
+
 /// A single match returned by [`search_index`].
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ToolSearchMatch {
@@ -309,6 +338,43 @@ mod tests {
             input_schema: None,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn test_a_tool_is_decided_on_its_descriptor_then_its_index_entry() {
+        // GIVEN an index holding a tool its manager classified read
+        let mut search = entry("notion", "search", None, &[]);
+        search.family = ActionFamily::Read;
+        let index = vec![search, entry("notion", "write", None, &[])];
+        let mut described = apollia_tools::tools::native_descriptors()[0].clone();
+        described.family = ActionFamily::WriteOrDelete;
+
+        // WHEN the family of a call is looked up
+        // THEN a descriptor decides first, then the index entry, else nothing
+        assert_eq!(
+            tool_family("mcp:notion/search", Some(&described), &index),
+            ActionFamily::WriteOrDelete
+        );
+        assert_eq!(
+            tool_family("mcp:notion/search", None, &index),
+            ActionFamily::Read
+        );
+        assert_eq!(
+            tool_family("mcp:notion/write", None, &index),
+            ActionFamily::Unclassified
+        );
+        assert_eq!(
+            tool_family("mcp:drive/search", None, &index),
+            ActionFamily::Unclassified
+        );
+        assert_eq!(
+            tool_family("search", None, &index),
+            ActionFamily::Unclassified
+        );
+        assert_eq!(
+            indexed_family("mcp:notion/search", &index),
+            Some(ActionFamily::Read)
+        );
     }
 
     fn sample_index() -> Vec<ToolIndexSnapshot> {

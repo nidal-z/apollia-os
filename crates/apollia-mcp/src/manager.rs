@@ -39,8 +39,9 @@ enum McpCommand {
     /// A detached tool call ended: record its outcome, then answer.
     CallFinished {
         server_name: String,
-        /// Schemas a deferred session fetched before the call, to cache.
-        schemas: Option<Vec<(String, serde_json::Value)>>,
+        /// The `tools/list` a deferred session fetched before the call, to
+        /// take in and keep.
+        listed: Option<Vec<crate::protocol::McpToolDefinition>>,
         result: Result<ToolCallResult, McpSessionError>,
         reply: oneshot::Sender<Result<ToolCallResult, McpSessionError>>,
     },
@@ -339,10 +340,13 @@ impl McpClientManager {
 
                 McpCommand::CallFinished {
                     server_name,
-                    schemas,
+                    listed,
                     result,
                     reply,
-                } => self.finish_call_tool(&server_name, schemas, result, reply),
+                } => {
+                    self.finish_call_tool(&server_name, listed, result, reply)
+                        .await;
+                }
 
                 McpCommand::GetDetail { server_name, reply } => {
                     let _ = reply.send(self.server_detail(&server_name));

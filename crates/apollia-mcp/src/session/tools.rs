@@ -61,26 +61,7 @@ impl McpSession {
             &self.config.name,
             self.config.max_tools as usize,
         );
-        // One `tools/list` carries names, descriptions and schemas together. The
-        // index keeps the first two, and the schema cache keeps the third rather
-        // than dropping it: deferring is about what enters the prompt, not about
-        // what the process holds. Seeding the cache here also removes the extra
-        // `tools/list` round-trip `fetch_tool_schema` used to pay on its first
-        // call, and gives `collect_tool_index` a schema to hand to the model
-        // when the index is small enough to advertise in full.
-        self.tool_index = sanitized
-            .into_iter()
-            .map(|tool| {
-                self.schema_cache
-                    .insert(tool.name.clone(), tool.input_schema);
-                ToolIndexEntry {
-                    name: tool.name,
-                    title: tool.title,
-                    description: tool.description,
-                    annotations: tool.annotations,
-                }
-            })
-            .collect();
+        self.index_tools(sanitized);
 
         tracing::info!(
             server = %self.config.name,
@@ -159,9 +140,41 @@ impl McpSession {
                 .collect(),
         }
     }
-    /// Cache the schemas a `tools/list` answered, name to schema.
-    pub(crate) fn cache_tool_schemas(&mut self, schemas: Vec<(String, serde_json::Value)>) {
-        self.schema_cache.extend(schemas);
+    /// Make `tools` the deferred index, and cache their schemas.
+    ///
+    /// One `tools/list` carries names, descriptions and schemas together. The
+    /// index keeps names, titles, descriptions and hints, and the schema cache
+    /// keeps the schemas rather than dropping them: deferring is about what
+    /// enters the prompt, not about what the process holds. Seeding the cache
+    /// also spares `fetch_tool_schema` a `tools/list` round-trip on its first
+    /// call, and gives `collect_tool_index` a schema to hand to the model when
+    /// the index is small enough to advertise in full.
+    fn index_tools(&mut self, tools: Vec<McpToolDefinition>) {
+        self.tool_index = tools
+            .into_iter()
+            .map(|tool| {
+                self.schema_cache
+                    .insert(tool.name.clone(), tool.input_schema);
+                ToolIndexEntry {
+                    name: tool.name,
+                    title: tool.title,
+                    description: tool.description,
+                    annotations: tool.annotations,
+                }
+            })
+            .collect();
+    }
+    /// Take in a `tools/list` answered after discovery, already bounded and
+    /// validated: in deferred mode it becomes the index, its schemas cached;
+    /// in eager mode, where the registered tools stay as discovered, only the
+    /// schemas are cached.
+    pub(crate) fn absorb_tools_list(&mut self, tools: Vec<McpToolDefinition>) {
+        match self.loading_mode {
+            LoadingMode::Deferred => self.index_tools(tools),
+            LoadingMode::Eager => self
+                .schema_cache
+                .extend(tools.into_iter().map(|tool| (tool.name, tool.input_schema))),
+        }
     }
     /// Fetch and cache the full JSON schema for a named tool.
     ///
@@ -177,8 +190,8 @@ impl McpSession {
     /// known to the server, or when the on-demand `tools/list` round-trip fails
     /// at the transport level.
     // TEST-ONLY: the manager fetches a missing schema in the detached call,
-    // through `SessionCaller::list_tool_schemas`, and caches the answer with
-    // `cache_tool_schemas` once the outcome is back in the actor.
+    // through `SessionCaller::list_tools`, and takes the answer in with
+    // `absorb_tools_list` once the outcome is back in the actor.
     pub async fn fetch_tool_schema(
         &mut self,
         tool_name: &str,
@@ -199,8 +212,8 @@ impl McpSession {
                     return Ok(schema.clone());
                 }
 
-                let schemas = self.caller().list_tool_schemas(tool_name).await?;
-                self.cache_tool_schemas(schemas);
+                let tools = self.caller().list_tools(tool_name).await?;
+                self.absorb_tools_list(tools);
 
                 self.schema_cache.get(tool_name).cloned().ok_or_else(|| {
                     McpSessionError::SchemaFetchFailed {
