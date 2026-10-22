@@ -4109,6 +4109,15 @@
       },
       "scope_agent": "These settings hold for this conversation. {name} keeps its own until you apply them to it.",
       "scope_free": "These settings hold for this conversation only."
+    },
+    "connection_offer": {
+      "add": "Connect {name}",
+      "add_body": "Apollia needs {name} for this request. Connect it here, and the request is played again.",
+      "add_failed": "This service could not be opened here. Add it from the Connections screen.",
+      "grant": "Allow Apollia",
+      "grant_body": "{name} is connected, but Apollia may not use it yet. Allow it, and the request is played again.",
+      "grant_failed": "Apollia could not be allowed to use it. Try again from the Connections screen.",
+      "done": "Done, the request is played again"
     }
   },
   "transcriptions": {
@@ -4509,7 +4518,8 @@
       "memory_search": "Search memory",
       "todo_write": "Keep the task list",
       "memory_write": "Note in memory",
-      "profile_propose": "Propose for your profile"
+      "profile_propose": "Propose for your profile",
+      "connection_lookup": "Look for a connection"
     }
   },
   "project_migration": {

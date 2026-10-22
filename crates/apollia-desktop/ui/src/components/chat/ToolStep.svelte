@@ -32,6 +32,8 @@
   import AskUserBody from "./tool-bodies/AskUserBody.svelte";
   import GenericBody from "./tool-bodies/GenericBody.svelte";
   import ToolRawData from "./tool-bodies/ToolRawData.svelte";
+  import ConnectionOfferCards from "./ConnectionOfferCards.svelte";
+  import { CONNECTION_LOOKUP_TOOL } from "$lib/chat/connectionOffer";
 
   type ToolCallItem = Extract<ReasoningItem, { kind: "tool_call" }>;
 
@@ -128,6 +130,11 @@
 
   {#if failure}
     <p class="pl-6 text-body-xs text-destructive" data-testid="tool-step-failure">{failure}</p>
+  {/if}
+
+  <!-- What Apollia found missing is offered folded or not: it is what to do next. -->
+  {#if item.tool === CONNECTION_LOOKUP_TOOL && phase === "success" && sessionId}
+    <ConnectionOfferCards output={item.output} {sessionId} />
   {/if}
 
   {#if expanded}

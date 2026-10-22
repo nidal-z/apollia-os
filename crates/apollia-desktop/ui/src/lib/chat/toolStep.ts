@@ -67,6 +67,7 @@ const ACTION_KEYS: Record<string, string> = {
   memory_write: "tools.actions.memory_write",
   profile_propose: "tools.actions.profile_propose",
   todo_write: "tools.actions.todo_write",
+  connection_lookup: "tools.actions.connection_lookup",
 };
 
 /** The catalogue key of a tool's action name, or `null` when it has none. */

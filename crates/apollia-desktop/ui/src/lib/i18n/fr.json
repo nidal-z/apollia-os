@@ -4109,6 +4109,15 @@
       },
       "scope_agent": "Ces réglages valent pour cette conversation. {name} garde les siens tant que vous ne les lui appliquez pas.",
       "scope_free": "Ces réglages valent pour cette conversation seulement."
+    },
+    "connection_offer": {
+      "add": "Brancher {name}",
+      "add_body": "Apollia a besoin de {name} pour cette demande. Branchez-le ici, et la demande est relancée.",
+      "add_failed": "Ce service n'a pas pu être ouvert ici. Ajoutez-le depuis l'écran Connexions.",
+      "grant": "Autoriser Apollia",
+      "grant_body": "{name} est branché, mais Apollia ne peut pas encore s'en servir. Autorisez-le, et la demande est relancée.",
+      "grant_failed": "Apollia n'a pas pu être autorisé à s'en servir. Réessayez depuis l'écran Connexions.",
+      "done": "Fait, la demande est relancée"
     }
   },
   "transcriptions": {
@@ -4509,7 +4518,8 @@
       "memory_search": "Chercher en mémoire",
       "todo_write": "Tenir la liste de tâches",
       "memory_write": "Noter en mémoire",
-      "profile_propose": "Proposer pour votre profil"
+      "profile_propose": "Proposer pour votre profil",
+      "connection_lookup": "Chercher une connexion"
     }
   },
   "project_migration": {
