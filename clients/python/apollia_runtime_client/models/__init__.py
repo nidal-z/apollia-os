@@ -366,6 +366,8 @@ from .onboarding_phase import OnboardingPhase
 from .onboarding_reset import OnboardingReset
 from .onboarding_state import OnboardingState
 from .onboarding_stats import OnboardingStats
+from .one_drive_choice_view import OneDriveChoiceView
+from .one_drive_entry import OneDriveEntry
 from .open_lease_request import OpenLeaseRequest
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
@@ -998,6 +1000,8 @@ __all__ = (
     "OnboardingReset",
     "OnboardingState",
     "OnboardingStats",
+    "OneDriveChoiceView",
+    "OneDriveEntry",
     "OpenLeaseRequest",
     "PackageErrorBody",
     "PackageInstallRequest",

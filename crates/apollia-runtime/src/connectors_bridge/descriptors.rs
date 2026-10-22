@@ -141,10 +141,12 @@ fn short_impact(op: &OperationSpec) -> String {
         "outlook_cal.create_event" => "Creates an Outlook event; may notify attendees.".into(),
         "outlook_cal.update_event" => "Updates an Outlook event; may re-notify attendees.".into(),
         "outlook_cal.delete_event" => "Permanently removes an Outlook event.".into(),
-        "onedrive.search" => "Searches OneDrive (read-only).".into(),
-        "onedrive.get_metadata" => "Reads OneDrive item metadata (read-only).".into(),
-        "onedrive.download" => "Downloads a OneDrive item's content (read-only).".into(),
-        "onedrive.list_recent" => "Lists recent OneDrive items (read-only).".into(),
+        "onedrive.search" => "Searches the OneDrive folders the user chose (read-only).".into(),
+        "onedrive.get_metadata" => "Reads metadata of a chosen OneDrive item (read-only).".into(),
+        "onedrive.download" => "Downloads a chosen OneDrive item's content (read-only).".into(),
+        "onedrive.list_recent" => {
+            "Lists recent items inside the chosen OneDrive folders (read-only).".into()
+        }
         _ => "Calls a connected cloud account API on behalf of the user.".into(),
     }
 }

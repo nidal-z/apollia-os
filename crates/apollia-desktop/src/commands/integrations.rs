@@ -51,6 +51,7 @@
 mod admin_approval;
 mod attached;
 pub mod credentials;
+pub mod onedrive;
 
 use credentials::ensure_credentials;
 

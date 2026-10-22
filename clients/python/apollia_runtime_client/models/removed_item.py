@@ -19,7 +19,7 @@ class RemovedItem:
     Attributes:
         kind (RemovedKind): The kinds of things a removal erases.
         name (str): Its name: the server, the folder of installed files, the secret key,
-            the tool taken away, the source.
+            the tool taken away, the source, the path of a OneDrive choice.
         agent (None | str | Unset): The agent the tool is taken from, for an agent access.
     """
 

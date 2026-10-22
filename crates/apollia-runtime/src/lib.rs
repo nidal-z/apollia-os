@@ -52,6 +52,7 @@ pub mod mlx_engine;
 pub mod oauth_clients;
 pub mod observability;
 pub mod onboarding;
+pub mod onedrive_choices;
 pub mod package_tools;
 pub mod packages;
 pub mod perf_trace;

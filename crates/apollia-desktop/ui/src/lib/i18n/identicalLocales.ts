@@ -39,6 +39,7 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "connections.native_google_name", // Google Workspace
   "connections.native_microsoft_description", // Outlook Mail, Outlook Calendar, OneDrive
   "connections.native_microsoft_name", // Microsoft 365
+  "connections.onedrive_choices.root", // OneDrive
   "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
   "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
   "dev.workflows.depth", // depth

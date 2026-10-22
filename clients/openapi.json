@@ -4345,6 +4345,291 @@
         }
       }
     },
+    "/api/v1/connectors/onedrive/{account_id}/browse": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/connectors/onedrive/{account_id}/browse`: the children of a\nfolder of the drive, each marked chosen or not, for the user to choose from.",
+        "operationId": "browse_onedrive",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Microsoft account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "description": "Folder to list; the root of the drive when absent.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The children of the folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OneDriveEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized account or folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account is not connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The choices could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "OneDrive answered with an error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/onedrive/{account_id}/choices": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/connectors/onedrive/{account_id}/choices`: the folders and\nfiles the account lets Apollia read.",
+        "operationId": "list_onedrive_choices",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Microsoft account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The chosen folders and files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OneDriveChoiceView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The choices could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/onedrive/{account_id}/choices/{item_id}": {
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`PUT /api/v1/connectors/onedrive/{account_id}/choices/{item_id}`: let\nApollia read the folder or file `item_id`, as OneDrive describes it.",
+        "operationId": "choose_onedrive_item",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Microsoft account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "OneDrive item id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The choices as recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OneDriveChoiceView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized input, or the root of the drive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account is not connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The choices could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "OneDrive answered with an error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`DELETE /api/v1/connectors/onedrive/{account_id}/choices/{item_id}`: stop\nletting Apollia read the folder or file `item_id`.",
+        "operationId": "forget_onedrive_item",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Microsoft account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "OneDrive item id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The choices as recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OneDriveChoiceView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The choices could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/imap/accounts": {
       "post": {
         "tags": [
@@ -23392,6 +23677,62 @@
           }
         }
       },
+      "OneDriveChoiceView": {
+        "type": "object",
+        "description": "One chosen folder or file, as a client reads it.",
+        "required": [
+          "id",
+          "name",
+          "is_folder",
+          "path"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Graph item id."
+          },
+          "is_folder": {
+            "type": "boolean",
+            "description": "`true` for a folder, which admits everything under it."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name at the time of the choice."
+          },
+          "path": {
+            "type": "string",
+            "description": "Path of the item in the drive, `/drive/root:/Documents/Clients`."
+          }
+        }
+      },
+      "OneDriveEntry": {
+        "type": "object",
+        "description": "One item of a folder being browsed.",
+        "required": [
+          "id",
+          "name",
+          "is_folder",
+          "chosen"
+        ],
+        "properties": {
+          "chosen": {
+            "type": "boolean",
+            "description": "`true` when the item itself is chosen."
+          },
+          "id": {
+            "type": "string",
+            "description": "Graph item id."
+          },
+          "is_folder": {
+            "type": "boolean",
+            "description": "`true` for a folder, which can be opened or chosen whole."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          }
+        }
+      },
       "EditAnswerRequest": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/sessions/{id}/messages/{message_id}`.",
@@ -33159,7 +33500,7 @@
           },
           "name": {
             "type": "string",
-            "description": "Its name: the server, the folder of installed files, the secret key,\nthe tool taken away, the source."
+            "description": "Its name: the server, the folder of installed files, the secret key,\nthe tool taken away, the source, the path of a OneDrive choice."
           }
         }
       },
@@ -33173,7 +33514,8 @@
           "secret",
           "agent_access",
           "source",
-          "state"
+          "state",
+          "onedrive_choice"
         ]
       }
     },

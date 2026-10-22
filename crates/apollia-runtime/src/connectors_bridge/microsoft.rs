@@ -19,6 +19,8 @@ use serde_json::{json, Value};
 use tokio::sync::OnceCell;
 
 use crate::connectors_bridge::connection_tools::connection_tool_name;
+
+mod onedrive;
 use crate::connectors_bridge::{
     get_auth, get_str, get_str_array, get_str_opt, get_u32_or, parse_rfc3339,
 };
@@ -32,7 +34,7 @@ use crate::connectors_bridge::{
 
 static MICROSOFT_CONNECTOR: OnceCell<Arc<MicrosoftConnector>> = OnceCell::const_new();
 
-pub(super) async fn get_microsoft_connector() -> Result<Arc<MicrosoftConnector>, String> {
+pub(crate) async fn get_microsoft_connector() -> Result<Arc<MicrosoftConnector>, String> {
     let auth = get_auth().await?;
     MICROSOFT_CONNECTOR
         .get_or_try_init(|| async {
@@ -135,10 +137,10 @@ async fn dispatch_microsoft_tool(
         "outlook_cal.create_event" => outlook_cal_create_event(&connector, account, input).await,
         "outlook_cal.update_event" => outlook_cal_update_event(&connector, account, input).await,
         "outlook_cal.delete_event" => outlook_cal_delete_event(&connector, account, input).await,
-        "onedrive.search" => onedrive_search(&connector, account, input).await,
-        "onedrive.get_metadata" => onedrive_get_metadata(&connector, account, input).await,
-        "onedrive.download" => onedrive_download(&connector, account, input).await,
-        "onedrive.list_recent" => onedrive_list_recent(&connector, account, input).await,
+        "onedrive.search" => onedrive::search(&connector, account, input).await,
+        "onedrive.get_metadata" => onedrive::get_metadata(&connector, account, input).await,
+        "onedrive.download" => onedrive::download(&connector, account, input).await,
+        "onedrive.list_recent" => onedrive::list_recent(&connector, account, input).await,
         other => Err(format!("unknown microsoft tool: {other}")),
     }
 }
@@ -355,83 +357,6 @@ async fn outlook_cal_delete_event(
         .await
         .map_err(|e| e.to_string())?;
     Ok(json!({"deleted": true, "event_id": event_id}))
-}
-
-async fn onedrive_search(
-    connector: &Arc<MicrosoftConnector>,
-    account: &AccountId,
-    input: &Value,
-) -> Result<Value, String> {
-    let query = get_str(input, "query")?;
-    let top = get_u32_or(input, "top", 10);
-    let scopes = [MicrosoftScope::FilesRead];
-    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
-    let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
-    let items = connector
-        .onedrive()
-        .search(&query, top, &token, refresh)
-        .await
-        .map_err(|e| e.to_string())?;
-    serde_json::to_value(&items).map_err(|e| e.to_string())
-}
-
-async fn onedrive_get_metadata(
-    connector: &Arc<MicrosoftConnector>,
-    account: &AccountId,
-    input: &Value,
-) -> Result<Value, String> {
-    let item_id = get_str(input, "item_id")?;
-    let scopes = [MicrosoftScope::FilesRead];
-    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
-    let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
-    let item = connector
-        .onedrive()
-        .get_metadata(&item_id, &token, refresh)
-        .await
-        .map_err(|e| e.to_string())?;
-    serde_json::to_value(&item).map_err(|e| e.to_string())
-}
-
-async fn onedrive_download(
-    connector: &Arc<MicrosoftConnector>,
-    account: &AccountId,
-    input: &Value,
-) -> Result<Value, String> {
-    let item_id = get_str(input, "item_id")?;
-    let scopes = [MicrosoftScope::FilesRead];
-    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
-    let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
-    let bytes = connector
-        .onedrive()
-        .download(&item_id, &token, refresh)
-        .await
-        .map_err(|e| e.to_string())?;
-    let size = bytes.len();
-    match String::from_utf8(bytes) {
-        Ok(text) => Ok(json!({"item_id": item_id, "size": size, "text": text})),
-        Err(e) => {
-            use base64::Engine as _;
-            let b64 = base64::engine::general_purpose::STANDARD.encode(e.into_bytes());
-            Ok(json!({"item_id": item_id, "size": size, "base64": b64}))
-        }
-    }
-}
-
-async fn onedrive_list_recent(
-    connector: &Arc<MicrosoftConnector>,
-    account: &AccountId,
-    input: &Value,
-) -> Result<Value, String> {
-    let top = get_u32_or(input, "top", 10);
-    let scopes = [MicrosoftScope::FilesRead];
-    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
-    let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
-    let items = connector
-        .onedrive()
-        .list_recent(top, &token, refresh)
-        .await
-        .map_err(|e| e.to_string())?;
-    serde_json::to_value(&items).map_err(|e| e.to_string())
 }
 
 /// One Microsoft 365 operation of one connected account, named

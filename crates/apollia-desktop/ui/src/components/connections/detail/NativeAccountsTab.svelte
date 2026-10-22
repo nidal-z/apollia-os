@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
    * NativeAccountsTab - connected accounts list for a native connector, each
-   * Google account with the Drive folder its agents work in.
+   * Google account with the Drive folder its agents work in, each Microsoft
+   * account with the OneDrive folders and files Apollia may read.
    */
   import { t } from "svelte-i18n";
   import { Plus, Settings2 } from "lucide-svelte";
@@ -14,6 +15,7 @@
   import type { DriveFolderStatus } from "$lib/ipc/oauthClients";
   import { driveFolderFor, listDriveFolders } from "$lib/connections/oauthClient";
   import AccountDriveFolder from "./AccountDriveFolder.svelte";
+  import AccountOneDriveChoices from "./AccountOneDriveChoices.svelte";
 
   interface Props {
     connector: NativeConnectorCard;
@@ -42,6 +44,7 @@
   // list changes.
   let driveFolders = $state<DriveFolderStatus[]>([]);
   const showsDriveFolders = $derived(connector.id === "google" && accounts.length > 0);
+  const showsOneDriveChoices = $derived(connector.id === "microsoft");
 
   async function refreshDriveFolders(): Promise<void> {
     try {
@@ -131,6 +134,9 @@
           folder={driveFolderFor(driveFolders, account.account_id)}
           onchanged={() => void refreshDriveFolders()}
         />
+      {/if}
+      {#if showsOneDriveChoices}
+        <AccountOneDriveChoices accountId={account.account_id} />
       {/if}
       </div>
     {/each}
