@@ -31,6 +31,7 @@ use utoipa::{Modify, OpenApi};
         crate::api::routes_connections::check::check_connection,
         crate::api::routes_connections::pause::pause_connection,
         crate::api::routes_connections::pause::resume_connection,
+        crate::api::routes_connections::family::set_tool_family,
     ),
     components(schemas(
         crate::api::routes_audit::AuditJournalResponse,
@@ -62,6 +63,7 @@ use utoipa::{Modify, OpenApi};
         crate::api::routes_connections::folders::DependentSource,
         crate::api::routes_connections::agents::GrantConnectionBody,
         crate::api::routes_connections::check::CheckConnectionBody,
+        crate::api::routes_connections::family::ToolFamilyBody,
         crate::connections::agents::ConnectionAgents,
         crate::connections::agents::ConnectionAgent,
         crate::api::routes_connections::remove::ConnectionRemoval,

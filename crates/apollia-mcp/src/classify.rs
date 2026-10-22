@@ -1,11 +1,13 @@
 //! The action family of a tool published by an MCP server.
 //!
 //! A family is decided once, when the tool is registered, and never by the
-//! model. Three sources exist, in order of precedence:
+//! model. Four sources exist, in order of precedence:
 //!
 //! 1. the classification the curated selection ships for the tool;
-//! 2. the hints the server declares in the tool's `annotations`;
-//! 3. nothing, and the tool is `Unclassified`, which every reader treats as
+//! 2. the family the operator gave the tool, for a tool the selection does
+//!    not classify;
+//! 3. the hints the server declares in the tool's `annotations`;
+//! 4. nothing, and the tool is `Unclassified`, which every reader treats as
 //!    sensitive.
 //!
 //! The hints come from an untrusted server: they classify a tool, they never
@@ -15,7 +17,29 @@
 
 use apollia_tools::{ActionFamily, FamilySource};
 
+use crate::config::McpServerConfig;
 use crate::protocol::McpToolAnnotations;
+
+/// Decide the family of the tool `tool` of the server `config` describes:
+/// the selection's entry, then the operator's, then the declared `hints`.
+#[must_use]
+pub fn classify_configured_tool(
+    config: &McpServerConfig,
+    tool: &str,
+    hints: Option<&McpToolAnnotations>,
+) -> (ActionFamily, FamilySource) {
+    let selection = config
+        .tool_families
+        .get(tool)
+        .copied()
+        .filter(|f| *f != ActionFamily::Unclassified);
+    if selection.is_none() {
+        if let Some(family) = config.operator_families.get(tool) {
+            return (*family, FamilySource::Operator);
+        }
+    }
+    classify_mcp_tool(selection, hints, config.has_account())
+}
 
 /// Decide the family of one MCP tool, and where the decision came from.
 ///
@@ -168,5 +192,53 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn configured(
+        selection: &[(&str, ActionFamily)],
+        operator: &[(&str, ActionFamily)],
+    ) -> McpServerConfig {
+        let mut config: McpServerConfig =
+            serde_json::from_value(serde_json::json!({ "name": "srv", "command": "npx" }))
+                .expect("config");
+        config.tool_families = selection.iter().map(|(t, f)| (t.to_string(), *f)).collect();
+        config.operator_families = operator.iter().map(|(t, f)| (t.to_string(), *f)).collect();
+        config
+    }
+
+    #[test]
+    fn the_operator_family_wins_over_the_server_hints() {
+        // GIVEN a tool the server declares read-only, which the operator
+        //       classified as writing
+        let declared = hints(Some(true), None);
+        let config = configured(&[], &[("lookup", ActionFamily::WriteOrDelete)]);
+        // WHEN it is classified
+        let out = classify_configured_tool(&config, "lookup", Some(&declared));
+        // THEN the operator decides
+        assert_eq!(out, (ActionFamily::WriteOrDelete, FamilySource::Operator));
+    }
+
+    #[test]
+    fn the_selection_wins_over_the_operator_family() {
+        // GIVEN a tool both the selection and the operator classify
+        let config = configured(
+            &[("lookup", ActionFamily::Read)],
+            &[("lookup", ActionFamily::SendExternal)],
+        );
+        // WHEN it is classified
+        let out = classify_configured_tool(&config, "lookup", None);
+        // THEN the selection decides
+        assert_eq!(out, (ActionFamily::Read, FamilySource::Selection));
+    }
+
+    #[test]
+    fn a_tool_the_operator_left_alone_reads_its_hints() {
+        // GIVEN an operator family on another tool of the server
+        let declared = hints(None, Some(true));
+        let config = configured(&[], &[("other", ActionFamily::Read)]);
+        // WHEN this tool is classified
+        let out = classify_configured_tool(&config, "purge", Some(&declared));
+        // THEN its hints decide
+        assert_eq!(out, (ActionFamily::WriteOrDelete, FamilySource::Server));
     }
 }

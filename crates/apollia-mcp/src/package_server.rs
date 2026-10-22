@@ -33,6 +33,7 @@ pub fn config_from_package(decl: &McpServerDecl) -> McpServerConfig {
         max_tools: decl.max_tools,
         tags: decl.tags.clone(),
         tool_families: Default::default(),
+        operator_families: Default::default(),
         origin: Some(ConnectionOrigin {
             provenance: Provenance::Package,
             official: false,

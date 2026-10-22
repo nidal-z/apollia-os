@@ -43,6 +43,7 @@
   import ConnectionStateBadge from "../shared/ConnectionStateBadge.svelte";
   import McpToolsTab from "./McpToolsTab.svelte";
   import AccountDriveFolder from "./AccountDriveFolder.svelte";
+  import AccountOneDriveChoices from "./AccountOneDriveChoices.svelte";
   import NativeClientSection from "./NativeClientSection.svelte";
   import McpServerSettingsEditor from "../../integrations/McpServerSettingsEditor.svelte";
 
@@ -358,6 +359,12 @@
         folder={driveFolderFor(driveFolders, connection.account)}
         onchanged={() => void refreshDriveFolders()}
       />
+    </Card>
+  {/if}
+
+  {#if provider === "microsoft" && connection.account}
+    <Card class="max-w-3xl px-4 py-1">
+      <AccountOneDriveChoices accountId={connection.account} />
     </Card>
   {/if}
 

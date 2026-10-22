@@ -65,6 +65,8 @@ See the observable differences in the table further down.
 
 **OneDrive (read-only)**:
 - Search your files, read the metadata, download a file, list recent files.
+- Only inside the folders and files you choose. Under the account, on the Microsoft 365 connection page, **Choose folders and files** lets you browse your OneDrive and pick them; until you do, your agents read nothing there. A chosen folder opens everything under it, and **Remove** closes it again.
+- The permission Microsoft grants covers your whole OneDrive. The limit is held by Apollia on your computer, which checks every item before an agent sees it.
 - There is no OneDrive write, and no workspace folder pattern like Google's `Drive/Apollia/<agent>/`.
 
 Microsoft Teams is not covered.

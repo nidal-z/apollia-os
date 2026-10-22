@@ -126,8 +126,9 @@ pub(crate) async fn set_paused<B: ExecutionBackend + Clone>(
         set_server_enabled(state, name, !paused)?;
         if paused {
             if let Some(handle) = &state.mcp_handle {
-                // A server with no live session has nothing to stop.
-                let _ = handle.remove_server(name).await;
+                // A server with no live session has nothing to stop. What it
+                // published stays kept, for the list and its next start.
+                let _ = handle.stop_server(name).await;
             }
         } else {
             start_server(state, name).await;

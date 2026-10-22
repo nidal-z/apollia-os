@@ -10,6 +10,7 @@ mod detached;
 mod handle;
 mod kept;
 mod lifecycle;
+mod reclassify;
 mod snapshot;
 mod views;
 
@@ -62,8 +63,11 @@ enum McpCommand {
         reply: oneshot::Sender<Result<McpServerStatus, McpSessionError>>,
     },
     /// Remove a server: shutdown the session and unregister from the session map.
+    /// With `keep_tools`, what it last published stays kept in the store,
+    /// out of the tool index, for the list to show and its next start.
     RemoveServer {
         server_name: String,
+        keep_tools: bool,
         reply: oneshot::Sender<Result<(), McpSessionError>>,
     },
     /// Restart a specific server session (stop + re-spawn).
@@ -114,6 +118,13 @@ enum McpCommand {
         server_name: Option<String>,
         uri: String,
         reply: oneshot::Sender<Result<McpResourcePayload, McpSessionError>>,
+    },
+    /// Classify a tool in the family the operator gave it.
+    SetOperatorFamily {
+        server_name: String,
+        tool: String,
+        family: apollia_tools::ActionFamily,
+        reply: oneshot::Sender<()>,
     },
     /// Gracefully shut down all sessions and stop the actor loop.
     Shutdown,
@@ -372,9 +383,15 @@ impl McpClientManager {
                     let _ = reply.send(result);
                 }
 
-                McpCommand::RemoveServer { server_name, reply } => {
+                McpCommand::RemoveServer {
+                    server_name,
+                    keep_tools,
+                    reply,
+                } => {
                     let result = self.handle_remove_server(&server_name).await;
-                    if result.is_ok() || self.kept_index.contains_key(&server_name) {
+                    if keep_tools {
+                        self.kept_index.remove(&server_name);
+                    } else if result.is_ok() || self.kept_index.contains_key(&server_name) {
                         self.forget_kept(&server_name).await;
                     }
                     self.publish();
@@ -432,6 +449,18 @@ impl McpClientManager {
                     reply,
                 } => {
                     let _ = reply.send(self.handle_read_resource(server_name, &uri).await);
+                }
+
+                McpCommand::SetOperatorFamily {
+                    server_name,
+                    tool,
+                    family,
+                    reply,
+                } => {
+                    self.handle_set_operator_family(&server_name, &tool, family)
+                        .await;
+                    self.publish();
+                    let _ = reply.send(());
                 }
 
                 McpCommand::Shutdown => {

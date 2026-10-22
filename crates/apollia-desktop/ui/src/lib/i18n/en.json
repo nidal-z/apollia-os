@@ -853,6 +853,20 @@
           "source": "the source {name} and its index"
         }
       }
+    },
+    "onedrive_choices": {
+      "title": "OneDrive files Apollia can read",
+      "intro": "Your agents read only inside the folders and files chosen here. Microsoft's permission covers your whole OneDrive; Apollia holds this limit on your computer.",
+      "none": "Nothing chosen yet: your agents cannot read any OneDrive file.",
+      "browse": "Choose folders and files",
+      "root": "OneDrive",
+      "up": "Back",
+      "done": "Done",
+      "open": "Open",
+      "choose": "Choose",
+      "chosen": "Chosen",
+      "forget": "Remove",
+      "empty_folder": "This folder is empty."
     }
   },
   "integrations": {

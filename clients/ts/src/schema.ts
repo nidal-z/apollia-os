@@ -1264,6 +1264,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections/{id}/tools/{tool}/family": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/connections/{id}/tools/{tool}/family`: give a tool of a
+         *     connection the selection does not classify another action family.
+         */
+        put: operations["set_tool_family"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/accounts": {
         parameters: {
             query?: never;
@@ -1340,6 +1360,70 @@ export interface paths {
          *     folder of one Google account, so the default applies again.
          */
         delete: operations["reset_drive_folder"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/onedrive/{account_id}/browse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/connectors/onedrive/{account_id}/browse`: the children of a
+         *     folder of the drive, each marked chosen or not, for the user to choose from.
+         */
+        get: operations["browse_onedrive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/onedrive/{account_id}/choices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/connectors/onedrive/{account_id}/choices`: the folders and
+         *     files the account lets Apollia read.
+         */
+        get: operations["list_onedrive_choices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/onedrive/{account_id}/choices/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/connectors/onedrive/{account_id}/choices/{item_id}`: let
+         *     Apollia read the folder or file `item_id`, as OneDrive describes it.
+         */
+        put: operations["choose_onedrive_item"];
+        post?: never;
+        /**
+         * `DELETE /api/v1/connectors/onedrive/{account_id}/choices/{item_id}`: stop
+         *     letting Apollia read the folder or file `item_id`.
+         */
+        delete: operations["forget_onedrive_item"];
         options?: never;
         head?: never;
         patch?: never;
@@ -8089,6 +8173,28 @@ export interface components {
              */
             folder_path?: string | null;
         };
+        /** @description One chosen folder or file, as a client reads it. */
+        OneDriveChoiceView: {
+            /** @description Graph item id. */
+            id: string;
+            /** @description `true` for a folder, which admits everything under it. */
+            is_folder: boolean;
+            /** @description Name at the time of the choice. */
+            name: string;
+            /** @description Path of the item in the drive, `/drive/root:/Documents/Clients`. */
+            path: string;
+        };
+        /** @description One item of a folder being browsed. */
+        OneDriveEntry: {
+            /** @description `true` when the item itself is chosen. */
+            chosen: boolean;
+            /** @description Graph item id. */
+            id: string;
+            /** @description `true` for a folder, which can be opened or chosen whole. */
+            is_folder: boolean;
+            /** @description Display name. */
+            name: string;
+        };
         /** @description Request body for `PUT /api/v1/sessions/{id}/messages/{message_id}`. */
         EditAnswerRequest: {
             /** @description The new text of the answer. */
@@ -11830,6 +11936,14 @@ export interface components {
             /** @description `true` to enable the tool, `false` to disable it. */
             enabled: boolean;
         };
+        /** @description Body of `PUT /api/v1/connections/{id}/tools/{tool}/family`. */
+        ToolFamilyBody: {
+            /**
+             * @description The family the tool takes: `read`, `read_personal`,
+             *     `write_or_delete`, `send_external`, `execute_code` or `unclassified`.
+             */
+            family: string;
+        };
         /** @description Response body for `GET /api/v1/tools`. */
         ToolListResponse: {
             /** @description All descriptors currently registered in the tool catalogue. */
@@ -12514,7 +12628,7 @@ export interface components {
             kind: components["schemas"]["RemovedKind"];
             /**
              * @description Its name: the server, the folder of installed files, the secret key,
-             *     the tool taken away, the source.
+             *     the tool taken away, the source, the path of a OneDrive choice.
              */
             name: string;
         };
@@ -12522,7 +12636,7 @@ export interface components {
          * @description The kinds of things a removal erases.
          * @enum {string}
          */
-        RemovedKind: "configuration" | "installed_files" | "token" | "secret" | "agent_access" | "source" | "state";
+        RemovedKind: "configuration" | "installed_files" | "token" | "secret" | "agent_access" | "source" | "state" | "onedrive_choice";
     };
     responses: never;
     parameters: never;
@@ -15740,6 +15854,80 @@ export interface operations {
             };
         };
     };
+    set_tool_family: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Connection identifier, as `GET /api/v1/connections` lists it */
+                id: string;
+                /** @description Name of the tool on its server */
+                tool: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToolFamilyBody"];
+            };
+        };
+        responses: {
+            /** @description Reclassified and journaled; the connection as the list now shows it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"];
+                };
+            };
+            /** @description A family the operator cannot give; nothing written */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Connection or tool not found; nothing written */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The selection, or Apollia's code, classifies this tool; nothing written */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A store could not be read or written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The MCP repository is not available; nothing written */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_connector_accounts: {
         parameters: {
             query?: never;
@@ -15915,6 +16103,213 @@ export interface operations {
                 };
             };
             /** @description The preferences could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    browse_onedrive: {
+        parameters: {
+            query?: {
+                /** @description Folder to list; the root of the drive when absent. */
+                folder_id?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Microsoft account identifier */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The children of the folder */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneDriveEntry"][];
+                };
+            };
+            /** @description Empty or oversized account or folder */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The account is not connected */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The choices could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description OneDrive answered with an error */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_onedrive_choices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Microsoft account identifier */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The chosen folders and files */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneDriveChoiceView"][];
+                };
+            };
+            /** @description Empty or oversized account */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The choices could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    choose_onedrive_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Microsoft account identifier */
+                account_id: string;
+                /** @description OneDrive item id */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The choices as recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneDriveChoiceView"][];
+                };
+            };
+            /** @description Empty or oversized input, or the root of the drive */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The account is not connected */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The choices could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description OneDrive answered with an error */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    forget_onedrive_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Microsoft account identifier */
+                account_id: string;
+                /** @description OneDrive item id */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The choices as recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneDriveChoiceView"][];
+                };
+            };
+            /** @description Empty or oversized input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The choices could not be written */
             500: {
                 headers: {
                     [name: string]: unknown;

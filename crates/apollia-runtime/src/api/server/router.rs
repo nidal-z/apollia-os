@@ -126,6 +126,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     };
     use crate::api::routes_oauth_clients::oauth_clients_router;
     use crate::api::routes_onboarding::onboarding_router;
+    use crate::api::routes_onedrive_choices::onedrive_choices_router;
     use crate::api::routes_permissions::permissions_router;
     use crate::api::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use crate::api::routes_profile::profile_router;
@@ -444,6 +445,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(chat_assists_router::<B>())
         .merge(connectors_router::<B>())
         .merge(drive_folders_router::<B>())
+        .merge(onedrive_choices_router::<B>())
         .merge(imap_router::<B>())
         .merge(crate::api::routes_sources::sources_router::<B>())
         .merge(crate::api::routes_batches::batch_routes::<B>())

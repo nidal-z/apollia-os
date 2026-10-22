@@ -393,6 +393,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "oauth_reset_drive_folder",
     "oauth_set_drive_folder",
     "oauth_start_flow",
+    // The OneDrive folders and files a Microsoft account lets Apollia read,
+    // under `/api/v1/connectors/onedrive/`. The choices are the daemon's, read
+    // by its OneDrive executors.
+    "onedrive_browse",
+    "onedrive_choose",
+    "onedrive_forget",
+    "onedrive_list_choices",
     // The OAuth clients of the connectors, over `/api/v1/oauth/clients`. The
     // import reads the file the operator picked in this window and sends its
     // text, so the daemon never needs a path of this machine.

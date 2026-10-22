@@ -65,6 +65,8 @@ Voir les différences observables dans le tableau plus bas.
 
 **OneDrive (lecture seule)** :
 - Chercher dans vos fichiers, lire les métadonnées, télécharger un fichier, lister les fichiers récents.
+- Seulement dans les dossiers et fichiers que vous choisissez. Sous le compte, sur la page de la connexion Microsoft 365, **Choisir des dossiers et fichiers** permet de parcourir votre OneDrive et de les retenir ; tant que rien n'est choisi, vos agents n'y lisent rien. Un dossier choisi ouvre tout ce qu'il contient, et **Retirer** le referme.
+- L'autorisation que Microsoft accorde couvre tout votre OneDrive. La limite est tenue par Apollia, sur votre ordinateur, qui vérifie chaque élément avant qu'un agent le voie.
 - Il n'y a ni écriture OneDrive, ni dossier de travail par agent comme le `Drive/Apollia/<agent>/` de Google.
 
 Microsoft Teams n'est pas couvert.

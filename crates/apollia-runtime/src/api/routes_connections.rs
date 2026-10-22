@@ -9,9 +9,11 @@
 //! granted to several agents, under `/api/v1/connections/{id}` (see
 //! [`agents`]). A connection is checked now under
 //! `/api/v1/connections/{id}/check` (see [`check`]), and put in pause and
-//! resumed there too (see [`pause`]). A connection of any kind is removed,
-//! with what it leaves behind, by `DELETE /api/v1/connections/{id}` (see
-//! [`remove`]).
+//! resumed there too (see [`pause`]). A tool of a connection the selection
+//! does not classify is given another family under
+//! `/api/v1/connections/{id}/tools/{tool}/family` (see [`family`]). A
+//! connection of any kind is removed, with what it leaves behind, by
+//! `DELETE /api/v1/connections/{id}` (see [`remove`]).
 
 use axum::{
     extract::State,
@@ -25,7 +27,7 @@ use apollia_auth::ConnectorProvider;
 use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
 use crate::connections::{
-    assemble, package_connections, Connection, ConnectionSources, NativeAccounts,
+    assemble, kept_tool_index, package_connections, Connection, ConnectionSources, NativeAccounts,
 };
 use crate::coordinator::ExecutionBackend;
 
@@ -76,6 +78,10 @@ pub fn connections_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> 
         .route(
             "/api/v1/connections/:id/resume",
             post(pause::resume_connection::<B>),
+        )
+        .route(
+            "/api/v1/connections/:id/tools/:tool/family",
+            put(family::set_tool_family::<B>),
         )
 }
 
@@ -130,23 +136,28 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     native_accounts: Vec<NativeAccounts>,
 ) -> Result<Vec<Connection>, ApiError> {
-    let mcp_configs = match &state.mcp_server_repo {
-        Some(repo) => repo
-            .lock()
-            .map_err(|_| {
+    let (mcp_configs, stored_tools) = match &state.mcp_server_repo {
+        Some(repo) => {
+            let repo = repo.lock().map_err(|_| {
                 api_err(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "repository lock poisoned",
                 )
-            })?
-            .list()
-            .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?,
-        None => Vec::new(),
+            })?;
+            let read = |e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e);
+            (
+                repo.list().map_err(read)?,
+                repo.stored_tools().map_err(read)?,
+            )
+        }
+        None => Default::default(),
     };
-    let (mcp_statuses, mcp_index) = match &state.mcp_handle {
+    let (mcp_statuses, mut mcp_index) = match &state.mcp_handle {
         Some(handle) => (handle.status().await, handle.get_tool_index().await),
         None => (Vec::new(), Vec::new()),
     };
+    let kept = kept_tool_index(&mcp_configs, &mcp_statuses, &mcp_index, &stored_tools);
+    mcp_index.extend(kept);
     let descriptors = match &state.tool_registry_handle {
         Some(registry) => registry
             .list()
@@ -196,6 +207,7 @@ pub(crate) fn paused_connections<B: ExecutionBackend + Clone>(
 
 pub(crate) mod agents;
 pub(crate) mod check;
+pub(crate) mod family;
 pub(crate) mod folders;
 pub(crate) mod pause;
 pub(crate) mod remove;

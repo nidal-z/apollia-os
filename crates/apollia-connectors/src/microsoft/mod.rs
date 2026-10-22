@@ -8,6 +8,7 @@
 pub mod calendar;
 pub mod mail;
 pub mod onedrive;
+pub mod onedrive_choices;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -267,7 +268,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AutoApprove,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Search the user's OneDrive for items matching a query.\n\nInputs: query (string), top (integer).\nApproval: not required.\nSide effects: none.",
+        description: "Search the user's OneDrive for items matching a query. Only the folders and files the user chose in Apollia are reachable; an item outside them is refused.\n\nInputs: query (string), top (integer).\nApproval: not required.\nSide effects: none.",
     },
     OperationSpec {
         id: "onedrive.get_metadata",
@@ -277,7 +278,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AutoApprove,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Get metadata for a OneDrive item by id.\n\nInputs: item_id (string).\nApproval: not required.\nSide effects: none.",
+        description: "Get metadata for a OneDrive item by id. Only the folders and files the user chose in Apollia are reachable; an item outside them is refused.\n\nInputs: item_id (string).\nApproval: not required.\nSide effects: none.",
     },
     OperationSpec {
         id: "onedrive.download",
@@ -287,7 +288,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AutoApprove,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Download the content of a OneDrive item.\n\nInputs: item_id (string).\nApproval: not required.\nSide effects: none (read-only).",
+        description: "Download the content of a OneDrive item. Only the folders and files the user chose in Apollia are reachable; an item outside them is refused.\n\nInputs: item_id (string).\nApproval: not required.\nSide effects: none (read-only).",
     },
     OperationSpec {
         id: "onedrive.list_recent",
@@ -297,7 +298,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AutoApprove,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "List recently accessed OneDrive items.\n\nInputs: top (integer).\nApproval: not required.\nSide effects: none.",
+        description: "List recently accessed OneDrive items. Only the folders and files the user chose in Apollia are reachable; an item outside them is refused.\n\nInputs: top (integer).\nApproval: not required.\nSide effects: none.",
     },
 ];
 
