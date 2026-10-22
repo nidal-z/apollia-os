@@ -5,16 +5,6 @@ All notable changes to Apollia OS are documented in this file.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
 This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
-## [Unreleased]
-
-### Changed
-
-- A tool that a package's code calls through `ctx.tools` is now decided by
-  governance like a call of the Chat: the policy, a connection in pause and the
-  fine rules can refuse it, with the reason given back to the code that called
-  it, and a sensitive call without consent pauses the workflow until it is
-  answered, as a batch item waits.
-
 ## [0.3.0] - 2026-10-20
 
 The desktop application is named Apollia Desktop from this version on.

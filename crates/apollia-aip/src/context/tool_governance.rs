@@ -3,9 +3,11 @@
 //! A tool a package's code calls through `ctx.tools` is decided by the same
 //! governance as a call of the Chat, of a plan or of a batch item: the policy,
 //! a connection in pause, the fine rules, then the consents of the agent. A
-//! workflow runs with nobody watching it, so it follows the rule of a batch
-//! item: a call that would ask waits for an answer given later, which pauses
-//! the run, and an access granted for the run counts as a consent.
+//! package's code runs with nobody watching it, so it follows the rule of a
+//! batch item: a call that would ask is not run and raises the approval as
+//! `NeedHumanInput`, and an access granted for the run counts as a consent.
+//! No production run attaches `ctx.tools` yet: a workflow reaches the tools
+//! through an agent, whose engine decides its calls already.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -45,7 +47,7 @@ impl ToolGovernance {
 
     /// Decides the call of `tool` by `agent_id`, a tool in `family`, with
     /// `input` as its arguments. `Ok` when the call may run; a refusal carries
-    /// its reason, a call that would ask is an approval the run pauses on.
+    /// its reason, a call that would ask is an approval request.
     pub(crate) fn gate(
         &self,
         agent_id: &str,

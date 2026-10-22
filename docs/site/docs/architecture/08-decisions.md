@@ -953,21 +953,26 @@ block of FFI code with its own `unsafe` allowance, confined to one module.
 
 ### Tools called from a package's code {#python-tool-calls}
 
-A tool that the code of a package calls through `ctx.tools` is decided by the
-same governance as a call of the Chat, of a plan or of a batch item, in the
-same order: the policy, a connection in pause, the fine rules, then the
-consents of the agent. Before, the proxy behind `ctx.tools` checked the access
-list of the agent and fail-closed governance only, so a workflow escaped the
-policy, the rules, the consents and the pause.
+The proxy behind `ctx.tools` decides every call by the same governance as a
+call of the Chat, of a plan or of a batch item, in the same order: the policy,
+a connection in pause, the fine rules, then the consents of the agent. No code
+of a package receives that proxy today: `ctx.tools` is `None` in a tool and in
+a workflow. A workflow reaches the tools through an agent, with
+`ctx.agents.run`, and that agent runs on the engine of the Chat, which already
+decides each of its calls. The decision sits in the proxy so that the day
+`ctx.tools` is given to the code of a package, no call of that code goes
+around it.
 
-A workflow runs with nobody watching it, so it follows the rule of a batch
-item, and no form of consent was added for it. A call that would ask waits for
-an answer given later: the proxy raises the approval as `NeedHumanInput`, and
-the run pauses on it. An access the caller of the run granted for the run
-counts as a consent, as a batch grants the accesses of its agent for its
-items. A refusal does not run the tool and comes back to the code that called
-it with its reason, as the error of the call; a refusal of the policy, of a
-rule or of a pause is journaled as for the other paths.
+That code would run with nobody watching it, so it follows the rule of a batch
+item, and no form of consent is added for it. A refusal of the policy, of a
+rule or of a pause does not run the tool: the call raises a `RuntimeError`
+naming the tool and the reason, without its arguments, the runtime emits the
+refusal as a denied tool call, and the journal records it as for the other
+paths. A call that would ask the person is not run either: it raises
+`NeedHumanInput` carrying the approval. The workflow engine does not pause a
+run on that error, so an uncaught one ends the run as any other error does. An
+access the caller of the run granted for the run counts as a consent, as a
+batch grants the accesses of its agent for its items.
 
 ## The configuration file {#configuration-file}
 

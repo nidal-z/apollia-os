@@ -6,14 +6,16 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
+use apollia_core::events::RuntimeEvent;
 use apollia_core::SandboxProfile;
-use apollia_permissions::ConsentFamily;
+use apollia_permissions::{ConsentFamily, PrefixRule, RuleAction};
 use apollia_runtime::governance::{
     AccessCall, AccessDecision, DeclaredAccess, EffectiveAccess, GovernanceContract,
     GovernanceError, GovernanceEvent, GovernanceHandle, GovernanceState, InstallSubject,
     PolicyRefusals,
 };
 use apollia_tools::{ActionFamily, AuditTrailHandle, ToolDescriptor, ToolKind, ToolRegistryHandle};
+use pyo3::prelude::*;
 
 use crate::context::tool_proxy::ToolProxyError;
 use crate::context::{ToolExecutor, ToolGovernance, ToolProxy, ToolProxyConfig};
@@ -201,10 +203,10 @@ async fn test_a_tool_the_policy_refuses_is_refused_to_the_workflow_with_its_reas
 
 // GIVEN a workflow of an agent holding no consent for sending outside
 // WHEN it calls the sensitive tool
-// THEN the call does not run and waits for an answer, as a batch item does:
-// the run pauses on an approval of that tool
+// THEN the call does not run and asks for an approval of that tool, as a
+// batch item does
 #[tokio::test]
-async fn test_a_sensitive_tool_without_consent_pauses_the_workflow() {
+async fn test_a_sensitive_tool_without_consent_asks_for_an_approval() {
     let fx = fixture(GovernanceState::default(), &[]).await;
 
     let sent = fx.proxy.call_inner(SEND, serde_json::json!({})).await;
@@ -306,4 +308,144 @@ async fn test_a_tool_of_a_forbidden_connection_is_refused_to_the_workflow() {
     );
     assert!(fx.ran().is_empty());
     fx.shutdown().await;
+}
+
+// GIVEN a workflow of an agent and a fine rule refusing the read tool to
+// every agent
+// WHEN the workflow calls that tool
+// THEN the call does not run, its refusal names the rule, and it is
+// journaled as refused by that rule
+#[tokio::test]
+async fn test_a_tool_a_fine_rule_refuses_is_refused_to_the_workflow_and_journaled() {
+    let state = GovernanceState {
+        rules: vec![PrefixRule {
+            id: 7,
+            tool_name: LOOKUP.to_string(),
+            action: RuleAction::Deny,
+            ..PrefixRule::default()
+        }],
+        ..Default::default()
+    };
+    let fx = fixture(state, &[]).await;
+
+    let read = fx.proxy.call_inner(LOOKUP, serde_json::json!({})).await;
+
+    let message = read.as_ref().map_err(|e| e.to_string()).unwrap_err();
+    assert!(
+        message.contains("refused by permission rule 7"),
+        "{message}"
+    );
+    assert!(fx.ran().is_empty());
+    assert!(
+        matches!(
+            fx.recorded().as_slice(),
+            [GovernanceEvent::RuleRefused { agent_id, access_id, rule_id: 7, .. }]
+                if agent_id == AGENT && access_id == LOOKUP
+        ),
+        "{:?}",
+        fx.recorded()
+    );
+    fx.shutdown().await;
+}
+
+/// Awaits `proxy.call(tool, input)` from Python, under `asyncio.run` as a
+/// workflow does, and returns the message of the `RuntimeError` it raised,
+/// `None` when it raised nothing.
+fn call_from_python(proxy: ToolProxy, tool: &str, input: &str) -> Option<String> {
+    pyo3::prepare_freethreaded_python();
+    Python::with_gil(|py| {
+        let scope = pyo3::types::PyDict::new(py);
+        scope
+            .set_item("proxy", Py::new(py, proxy).unwrap())
+            .unwrap();
+        scope.set_item("tool", tool).unwrap();
+        scope.set_item("raw", input).unwrap();
+        py.run(
+            c"import asyncio, json
+async def main():
+    try:
+        await proxy.call(tool, json.loads(raw))
+    except RuntimeError as error:
+        return str(error)
+    return None
+outcome = asyncio.run(main())",
+            Some(&scope),
+            None,
+        )
+        .unwrap();
+        scope
+            .get_item("outcome")
+            .unwrap()
+            .and_then(|o| o.extract::<Option<String>>().ok())
+            .flatten()
+    })
+}
+
+// GIVEN a workflow of an agent whose policy refuses the sensitive tool, the
+// proxy wired to the event bus of the runtime
+// WHEN the code of the workflow awaits that tool from Python, with a
+// recipient as its argument
+// THEN the tool does not run, the code catches a RuntimeError that names the
+// tool and the reason of the policy and leaves the argument out, and the bus
+// carries the refusal as a `ToolCallDenied` with the same reason
+#[tokio::test(flavor = "multi_thread")]
+async fn test_a_refusal_reaches_python_as_a_readable_error_and_the_bus_as_a_denial() {
+    let state = GovernanceState {
+        policy: PolicyRefusals {
+            denied: HashSet::from([SEND.to_string()]),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let Fixture {
+        proxy,
+        registry,
+        audit,
+        ran,
+        governance,
+    } = fixture(state, &[]).await;
+    let (bus, mut events) = tokio::sync::broadcast::channel(8);
+    let proxy = proxy.with_event_bus(bus);
+
+    let raised = tokio::task::spawn_blocking(move || {
+        call_from_python(proxy, SEND, r#"{"to": "ada@example.org"}"#)
+    })
+    .await;
+    let journaled = governance.recorded.lock().map(|r| r.len()).unwrap_or(0);
+    let ran = ran.lock().map(|r| r.clone()).unwrap_or_default();
+    registry.shutdown().await;
+    audit.shutdown().await;
+
+    let message = raised
+        .unwrap()
+        .expect("the refused call raises a RuntimeError");
+    assert!(message.contains(SEND), "{message}");
+    assert!(
+        message.contains("refused by the organisation policy"),
+        "{message}"
+    );
+    assert!(!message.contains("ada@example.org"), "{message}");
+    assert!(ran.is_empty());
+    let mut denial = None;
+    while let Ok(event) = events.try_recv() {
+        if let RuntimeEvent::ToolCallDenied {
+            tool_name,
+            reason,
+            detail,
+            ..
+        } = event
+        {
+            denial = Some((tool_name, reason, detail));
+        }
+    }
+    let (tool_name, reason, detail) = denial.expect("a ToolCallDenied on the bus");
+    assert_eq!(tool_name, SEND);
+    assert_eq!(reason, "permission_denied");
+    let detail = detail.unwrap_or_default();
+    assert!(
+        detail.contains("refused by the organisation policy"),
+        "{detail}"
+    );
+    assert!(!detail.contains("ada@example.org"), "{detail}");
+    assert_eq!(journaled, 1);
 }

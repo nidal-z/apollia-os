@@ -517,7 +517,8 @@ impl ToolProxy {
     }
 
     /// Decides every call through `governance` before it runs: a refusal
-    /// comes back with its reason, a call that would ask pauses the run.
+    /// comes back with its reason, a call that would ask raises an approval
+    /// request and does not run.
     pub fn with_governance(mut self, governance: ToolGovernance) -> Self {
         self.governance = Some(Arc::new(governance));
         self
