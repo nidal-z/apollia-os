@@ -176,7 +176,10 @@ pub(crate) async fn get_server_detail<B: ExecutionBackend + Clone>(
 ///
 /// The `env` map contains either literal values for non-secret variables or
 /// `${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret
-/// material is never returned. Used by the desktop "Modifier les arguments"
+/// material is never returned: a secret still kept in clear (a header of a
+/// remote server, a variable whose name marks it secret) is shown as the
+/// placeholder of its variable, and a configuration sent back with that
+/// placeholder keeps the stored value. Used by the desktop "Modifier les arguments"
 /// flow to fetch the current config, patch `args`, and PUT the result back
 /// without losing the rest of the configuration.
 ///
@@ -214,7 +217,7 @@ pub(crate) async fn get_server_raw_config<B: ExecutionBackend + Clone>(
                 format!("server '{}' not found", name),
             )
         })?;
-    Ok(Json(config))
+    Ok(Json(apollia_mcp::secret_filing::masked(&config)))
 }
 
 /// `POST /api/v1/mcp/servers/:name/restart`, Restart a specific MCP server session.
@@ -340,6 +343,8 @@ pub(crate) async fn add_server_to<B: ExecutionBackend + Clone>(
         json_err(code, e)
     })?;
 
+    let mut stored = config;
+    secrets::file_secrets(&state.secret_store, &mut stored, None)?;
     {
         let guard = repo.lock().map_err(|_| {
             json_err(
@@ -348,14 +353,14 @@ pub(crate) async fn add_server_to<B: ExecutionBackend + Clone>(
             )
         })?;
         guard
-            .save(&config)
+            .save(&stored)
             .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     }
 
     state
         .connection_governance
         .record_or_warn(&ConnectionEvent::Added {
-            connection_id: mcp_connection_id(&config.name),
+            connection_id: mcp_connection_id(&stored.name),
             kind: request.kind,
             remote: request.remote,
             provenance: request.provenance,
@@ -628,8 +633,9 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
                 )
             })?
     };
-    let config = merge_server_config_patch(existing.clone(), &patch)
+    let mut config = merge_server_config_patch(existing.clone(), &patch)
         .map_err(|e| json_err(StatusCode::BAD_REQUEST, e))?;
+    apollia_mcp::secret_filing::restore_masked(&mut config, &existing);
     refuse_forbidden(&state, &name)?;
     let request = AdmissionRequest::for_mcp_server(&config);
     if let AdmissionDecision::Refused { reason } = state.connection_governance.admit(&request) {
@@ -660,6 +666,8 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
         }
     };
 
+    let mut stored = config;
+    secrets::file_secrets(&state.secret_store, &mut stored, Some(&existing))?;
     {
         let guard = repo.lock().map_err(|_| {
             json_err(
@@ -668,7 +676,7 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
             )
         })?;
         guard
-            .save(&config)
+            .save(&stored)
             .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     }
 
@@ -676,7 +684,7 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
         .connection_governance
         .record_or_warn(&ConnectionEvent::Modified {
             connection_id: mcp_connection_id(&name),
-            remote: crate::connections::is_remote(&config.transport, config.url.as_deref()),
+            remote: crate::connections::is_remote(&stored.transport, stored.url.as_deref()),
             actor: ROUTE_ACTOR.to_owned(),
         });
 
@@ -744,6 +752,9 @@ fn merge_server_config_patch(
 pub(crate) mod governance_tests;
 #[cfg(test)]
 mod removal_tests;
+#[cfg(test)]
+mod secret_tests;
+mod secrets;
 
 // ─── tests ────────────────────────────────────────────────────────────────────
 

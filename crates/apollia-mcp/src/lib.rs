@@ -23,6 +23,7 @@ pub mod package_server;
 pub mod protocol;
 pub mod registry;
 mod sanitize;
+pub mod secret_filing;
 pub mod server;
 pub mod server_repository;
 pub mod server_types;
