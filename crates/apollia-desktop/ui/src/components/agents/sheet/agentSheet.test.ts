@@ -168,6 +168,20 @@ describe("agent sheet - access", () => {
     expect(accessView("file_read", native("read")).provenance).toBe("builtin");
   });
 
+  test("a tool the operator classified still comes from its connection", () => {
+    // GIVEN a tool whose family the operator chose, described without a kind
+    const reclassified = accessView("acme_create_page", {
+      description: "Creates a page",
+      family: "write_or_delete",
+      family_source: "operator",
+      kind: null,
+    });
+
+    // WHEN its view is built
+    // THEN it is shown as coming from a connection, not as a built-in tool
+    expect(reclassified.provenance).toBe("connection");
+  });
+
   test("an access nobody describes is unclassified, sensitive, and named without its raw identifier", () => {
     // GIVEN an access the runtime does not describe
     // WHEN its view is built and grouped

@@ -852,6 +852,35 @@
           "agent_access": "the tool {name} of the agent {agent}",
           "source": "the source {name} and its index"
         }
+      },
+      "agents": {
+        "title": "Agents that use it",
+        "empty": "No agent uses it yet.",
+        "by_default": "By default",
+        "tools": "{count, plural, one {# tool} other {# tools}}",
+        "shared": "Its tools reach the other mailboxes too: an agent given one mailbox can read them all.",
+        "give": "Give to an agent",
+        "give_hint": "Each agent checked receives its {count, plural, one {tool} other {# tools}}; the sensitive ones still ask for your agreement.",
+        "give_none": "Every agent already uses it.",
+        "give_no_tools": "Its tools are not known yet: check it first.",
+        "give_confirm": "Give"
+      },
+      "activity": {
+        "title": "Activity over {days} days",
+        "none": "Not used over the last {days} days.",
+        "used_just_now": "Last used just now",
+        "used_minutes_ago": "Last used {mins} min ago",
+        "used_hours_ago": "Last used {hours} h ago",
+        "used_days_ago": "Last used {days} d ago",
+        "actions": "{count, plural, one {# action} other {# actions}}",
+        "unknown_agent": "Unnamed agent",
+        "mailbox": "Every mailbox shares the same tools, so the activity of this one cannot be counted on its own.",
+        "journal": "See in the journal"
+      },
+      "tools": {
+        "change": "Change",
+        "apply": "Apply",
+        "family": "Family of the tool"
       }
     },
     "onedrive_choices": {
@@ -6483,6 +6512,7 @@
       "connection_added": "A connection was added",
       "connection_modified": "A connection was changed",
       "connection_removed": "A connection was removed",
+      "tool_reclassified": "The family of a tool of a connection was changed",
       "connection_warning_accepted": "The warning of a connection was accepted",
       "connection_secret_set": "The secret of a connection was saved",
       "connection_secret_removed": "The secret of a connection was removed",

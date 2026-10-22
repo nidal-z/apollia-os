@@ -157,7 +157,11 @@ function provenanceOf(id: string, descriptor: AccessDescriptor | null): AccessPr
   if (!descriptor) return "unknown";
   if (descriptor.family_source === "package" || descriptor.kind === "python") return "package";
   if (descriptor.kind === "mcp_server" || descriptor.kind === "mcp") return "connection";
-  if (descriptor.family_source === "server" || descriptor.family_source === "selection") {
+  if (
+    descriptor.family_source === "server" ||
+    descriptor.family_source === "selection" ||
+    descriptor.family_source === "operator"
+  ) {
     return "connection";
   }
   return "builtin";

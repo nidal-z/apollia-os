@@ -11,15 +11,20 @@
   import { Card } from "$lib/components/ui/card";
   import { Disclosure } from "$lib/components/ui/disclosure";
   import { developerMode } from "$lib/stores/developerMode";
-  import type { McpToolSummaryView } from "$lib/types";
+  import type { Connection, McpToolSummaryView } from "$lib/types";
+  import ToolFamilyControl from "./ToolFamilyControl.svelte";
 
   interface Props {
     tools: McpToolSummaryView[];
     /** The server the tools come from, named in developer mode. */
     serverName: string;
+    /** The connection the tools come from, whose list holds their family. */
+    connection?: Connection;
+    /** A tool was given another family: the connection as the list now shows it. */
+    onupdated?: (connection: Connection) => void;
   }
 
-  let { tools, serverName }: Props = $props();
+  let { tools, serverName, connection, onupdated }: Props = $props();
 </script>
 
 <Card class="max-w-3xl px-4 py-3.5">
@@ -66,11 +71,19 @@
                   )}</pre>
               {/snippet}
             </Disclosure>
+            {#if connection}
+              <div class="px-2 pb-1">
+                <ToolFamilyControl {connection} toolId={`${connection.id}/${tool.local_name}`} {onupdated} />
+              </div>
+            {/if}
           {:else}
             <div class="flex min-w-0 flex-col gap-0.5 rounded-md px-2 py-1.5">
               <span class="truncate text-body-xs text-foreground">{tool.local_name}</span>
               {#if tool.description}
                 <span class="line-clamp-2 text-caption text-muted-foreground">{tool.description}</span>
+              {/if}
+              {#if connection}
+                <ToolFamilyControl {connection} toolId={`${connection.id}/${tool.local_name}`} {onupdated} />
               {/if}
             </div>
           {/if}

@@ -291,6 +291,7 @@ const FIXED_SENTENCE: Record<string, string> = {
   connection_added: "journal.sentence.connection_added",
   connection_modified: "journal.sentence.connection_modified",
   connection_removed: "journal.sentence.connection_removed",
+  tool_reclassified: "journal.sentence.tool_reclassified",
   connection_warning_accepted: "journal.sentence.connection_warning_accepted",
   connection_secret_set: "journal.sentence.connection_secret_set",
   connection_secret_removed: "journal.sentence.connection_secret_removed",

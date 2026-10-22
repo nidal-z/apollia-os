@@ -852,6 +852,35 @@
           "agent_access": "l'outil {name} de l'agent {agent}",
           "source": "la source {name} et son index"
         }
+      },
+      "agents": {
+        "title": "Agents qui s'en servent",
+        "empty": "Aucun agent ne s'en sert encore.",
+        "by_default": "Par défaut",
+        "tools": "{count, plural, one {# outil} other {# outils}}",
+        "shared": "Ses outils atteignent aussi les autres boîtes mail : un agent à qui l'on donne une boîte peut toutes les lire.",
+        "give": "Donner à un agent",
+        "give_hint": "Chaque agent coché reçoit {count, plural, one {son outil} other {ses # outils}} ; les sensibles demandent toujours votre accord.",
+        "give_none": "Tous les agents s'en servent déjà.",
+        "give_no_tools": "Ses outils ne sont pas encore connus : vérifiez-la d'abord.",
+        "give_confirm": "Donner"
+      },
+      "activity": {
+        "title": "Activité sur {days} jours",
+        "none": "Pas utilisée ces {days} derniers jours.",
+        "used_just_now": "Utilisée à l'instant",
+        "used_minutes_ago": "Utilisée il y a {mins} min",
+        "used_hours_ago": "Utilisée il y a {hours} h",
+        "used_days_ago": "Utilisée il y a {days} j",
+        "actions": "{count, plural, one {# action menée} other {# actions menées}}",
+        "unknown_agent": "Agent sans nom",
+        "mailbox": "Toutes les boîtes mail partagent les mêmes outils : l'activité de celle-ci ne se compte pas à part.",
+        "journal": "Voir dans le Journal"
+      },
+      "tools": {
+        "change": "Changer",
+        "apply": "Appliquer",
+        "family": "Famille de l'outil"
       }
     },
     "onedrive_choices": {
@@ -6483,6 +6512,7 @@
       "connection_added": "Une connexion a été ajoutée",
       "connection_modified": "Une connexion a été modifiée",
       "connection_removed": "Une connexion a été retirée",
+      "tool_reclassified": "La famille d'un outil d'une connexion a été changée",
       "connection_warning_accepted": "L'avertissement d'une connexion a été accepté",
       "connection_secret_set": "Le secret d'une connexion a été enregistré",
       "connection_secret_removed": "Le secret d'une connexion a été retiré",
