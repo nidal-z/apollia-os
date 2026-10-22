@@ -107,4 +107,38 @@ mod tests {
         assert_eq!(index[0].server_name, "notion");
         assert_eq!(index[0].tool_name, "search");
     }
+
+    // The tools of a connection just added, proposed to the conversation, are
+    // offered to its next turn and found by `tool_search`, though the agent
+    // does not hold them.
+    #[test]
+    fn test_tools_proposed_to_the_conversation_are_searched_in_its_turn() {
+        // GIVEN an agent holding a native only, an index where a new server
+        // lists two tools, and a conversation proposing both
+        let held = vec!["file_read".to_string()];
+        let index = vec![entry("notion", "search"), entry("notion", "create_page")];
+        let settings = crate::chat::session_settings::SessionSettings {
+            proposed_accesses: vec![
+                "mcp:notion/search".to_string(),
+                "mcp:notion/create_page".to_string(),
+            ],
+            ..Default::default()
+        };
+
+        // WHEN the turn builds its accesses and its index, as `libre` does
+        let proposed = settings.proposed_beyond(&held);
+        let available = settings.apply_to_accesses(held);
+        let index = only_granted(index, &available);
+
+        // THEN both tools are offered, found in the index, and asked about at each call
+        assert_eq!(
+            available,
+            vec!["file_read", "mcp:notion/search", "mcp:notion/create_page"]
+        );
+        assert_eq!(index.len(), 2);
+        assert_eq!(
+            proposed,
+            vec!["mcp:notion/search", "mcp:notion/create_page"]
+        );
+    }
 }

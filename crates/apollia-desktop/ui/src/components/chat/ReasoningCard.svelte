@@ -57,6 +57,8 @@
      * be revealed against the session working directory.
      */
     sessionId?: string;
+    /** The answer the card belongs to, forwarded to the step. */
+    messageId?: string;
   }
 
   let {
@@ -66,6 +68,7 @@
     persist = true,
     onCitation,
     sessionId,
+    messageId,
   }: Props = $props();
 
   const storageKey = $derived(`apollia.reasoning.expanded.${item.id}`);
@@ -108,7 +111,7 @@
 </script>
 
 {#if item.kind === "tool_call"}
-  <ToolStep {item} {skin} {expanded} ontoggle={toggle} {sessionId} />
+  <ToolStep {item} {skin} {expanded} ontoggle={toggle} {sessionId} {messageId} />
 {:else if item.kind === "thinking"}
   <ReasoningBlock
     content={item.content}

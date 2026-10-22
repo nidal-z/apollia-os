@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  answerRequested,
   answerToRegenerate,
   doubleClickEdits,
   doubleClickRenames,
@@ -183,5 +184,24 @@ describe("Cmd R in the chat", () => {
       ),
     ).toBeNull();
     expect(answerToRegenerate([{ id: "hello", role: "assistant" }], false)).toBeNull();
+  });
+});
+
+describe("answerRequested", () => {
+  test("a request naming the last answer regenerates it, one naming an older answer nothing", () => {
+    // GIVEN a thread of two turns
+    const thread = [
+      { id: "u1", role: "user" },
+      { id: "a1", role: "assistant" },
+      { id: "u2", role: "user" },
+      { id: "a2", role: "assistant" },
+    ] as const;
+
+    // WHEN a request names an answer, or none
+    // THEN only the last answer is regenerated
+    expect(answerRequested(thread, false, "a2")).toBe("a2");
+    expect(answerRequested(thread, false, "a1")).toBeNull();
+    expect(answerRequested(thread, false, undefined)).toBe("a2");
+    expect(answerRequested(thread, true, "a2")).toBeNull();
   });
 });

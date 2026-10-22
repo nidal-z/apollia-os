@@ -123,7 +123,7 @@
     <div class="mb-1 flex flex-col gap-0.5" data-testid="reasoning-sequence">
       {#each visibleItems as item (item.id)}
         <div in:fly={{ x: -12, duration: 260 }}>
-          <ReasoningCard {item} {skin} {sessionId} />
+          <ReasoningCard {item} {skin} {sessionId} messageId={message.id} />
         </div>
       {/each}
 

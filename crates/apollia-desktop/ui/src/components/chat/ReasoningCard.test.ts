@@ -1,4 +1,20 @@
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, vi } from "vitest";
+
+// Stores read `localStorage` at import time; the node environment has none.
+vi.hoisted(() => {
+  const memory = new Map<string, string>();
+  globalThis.localStorage = {
+    getItem: (k: string) => memory.get(k) ?? null,
+    setItem: (k: string, v: string) => void memory.set(k, v),
+    removeItem: (k: string) => void memory.delete(k),
+    clear: () => memory.clear(),
+    key: (i: number) => Array.from(memory.keys())[i] ?? null,
+    get length() {
+      return memory.size;
+    },
+  };
+});
+
 import { resolveInitialExpanded } from "./ReasoningCard.svelte";
 
 describe("ReasoningCard - initial state", () => {

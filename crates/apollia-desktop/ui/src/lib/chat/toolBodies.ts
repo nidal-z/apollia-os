@@ -293,7 +293,7 @@ export function dirname(path: string): string {
 }
 
 /** Parse an unknown string as a JSON object, returning `null` on any failure. */
-function parseJsonObject(output: string | null): Record<string, unknown> | null {
+export function parseJsonObject(output: string | null): Record<string, unknown> | null {
   if (!output) return null;
   let parsed: unknown;
   try {
