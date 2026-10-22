@@ -24,13 +24,17 @@ pub mod check;
 pub mod folder_import;
 pub mod folders;
 mod packages;
+pub mod removal;
 mod schema;
 pub mod state;
 
 pub use assemble::{assemble, ConnectionSources, NativeAccounts};
 pub use folders::{folder_connection, folder_connection_id, folder_connections, folder_id_of};
 pub use packages::package_connections;
-pub use state::spawn_state_recorder;
+pub use state::{
+    lift_provider_block, native_provider_connection_id, record_admin_approval_required,
+    spawn_state_recorder,
+};
 
 use apollia_core::{ConnectionReason, ConnectionStatus};
 use apollia_mcp::Provenance;
@@ -153,6 +157,10 @@ pub fn is_remote(transport: &str, url: Option<&str>) -> bool {
 pub fn is_prechecked(family: ActionFamily, provenance: Provenance, official: bool) -> bool {
     family == ActionFamily::Read && (provenance == Provenance::Selection || official)
 }
+
+/// Directory of the data directory holding the files installed for each
+/// connection, one directory per connection (a server's packages).
+pub const INSTALLED_FILES_DIR: &str = "connections";
 
 /// Identifier of the connection of the mailbox at `email`.
 #[must_use]

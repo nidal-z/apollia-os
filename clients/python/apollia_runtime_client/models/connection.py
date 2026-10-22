@@ -34,7 +34,8 @@ class Connection:
         state (ConnectionState): Whether a connection can be used right now, in the detail its kind gives.
 
             What its user reads is [`Connection::status`], one of four states.
-        status (ConnectionStatus): What its user reads: working, needs repair, paused, blocked by the organisation, or not checked yet (nothing has found it in any state).
+        status (ConnectionStatus): What its user reads: working, needs repair, paused, blocked by the organisation, or
+            not checked yet (nothing has found it in any state).
         tools (list[ConnectionTool]): Tools the connection brings.
         account (None | str | Unset): Account the connection acts as, when it has one.
         checked_at (None | str | Unset): When its state was last found, RFC 3339 in UTC; absent when it never
@@ -42,7 +43,7 @@ class Connection:
         package (None | str | Unset): Name of the installed package that brought it, when one did.
         path (None | str | Unset): Folder of this machine the connection opens, for a folder.
         reason (ConnectionReasonType0 | None | Unset): Why it is not working, absent when it works: a key the interface
-            translates, and the technical detail.
+            translates, the technical detail, and the address the repairing action opens when it has one.
     """
 
     id: str

@@ -20,6 +20,19 @@ pub enum AuthError {
     #[error("provider error: {0}")]
     ProviderError(String),
 
+    /// The provider answered that an administrator of the user's organisation
+    /// must approve the application first (see [`crate::admin_approval`]).
+    /// The value is the provider's own words, bounded.
+    #[error("an administrator must approve the application: {0}")]
+    AdminApprovalRequired(String),
+
+    /// A work or school account refused the consent (see
+    /// [`crate::admin_approval::declined_in_organisation`]): an administrator
+    /// approval may be what is missing, and nothing in the answer says so.
+    /// The value is the provider's own words, bounded.
+    #[error("consent refused: {0}")]
+    ConsentDeclinedInOrganisation(String),
+
     /// The token exchange endpoint returned an error or an unexpected response.
     #[error("token exchange failed: {0}")]
     TokenExchangeFailed(String),

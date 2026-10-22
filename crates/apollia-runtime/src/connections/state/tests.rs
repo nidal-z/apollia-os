@@ -400,3 +400,107 @@ fn test_a_state_kept_as_unproven_before_this_version_reads_not_checked() {
     // THEN it reads as not checked yet, not as to repair
     assert_eq!(shown.status, ConnectionStatus::NotChecked);
 }
+
+const APPROVAL: &str =
+    "https://login.microsoftonline.com/organizations/adminconsent?client_id=c4f95bc5";
+
+#[test]
+fn test_an_administrator_approval_is_kept_announced_and_listed_as_blocked_with_its_address() {
+    // GIVEN an empty data directory, and a bus a reader listens on
+    let dir = tempfile::tempdir().unwrap();
+    let (bus, _keep) = tokio::sync::broadcast::channel(8);
+    let mut events = bus.subscribe();
+
+    // WHEN Microsoft answers that an administrator must approve the
+    // application, before any account of it could connect
+    record_admin_approval_required(
+        dir.path(),
+        &bus,
+        ConnectorProvider::Microsoft,
+        Some("consent_required: AADSTS90094".to_owned()),
+        APPROVAL,
+    )
+    .unwrap();
+
+    // THEN the state is announced, blocked, with the approval to send
+    let Ok(RuntimeEvent::ConnectionStateChanged {
+        id, state, reason, ..
+    }) = events.try_recv()
+    else {
+        panic!("no state announced");
+    };
+    assert_eq!(id, "native:microsoft");
+    assert_eq!(state, ConnectionStatus::Blocked);
+    let reason = reason.unwrap();
+    assert_eq!(reason.key, ConnectionReasonKey::AdminApprovalRequired);
+    assert_eq!(reason.address.as_deref(), Some(APPROVAL));
+    // AND the list, read from the file, shows a Microsoft connection blocked
+    // by the organisation, dated, with no account and no tool
+    let list = assemble(&ConnectionSources {
+        states: kept_states(dir.path()),
+        ..ConnectionSources::default()
+    });
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].id, "native:microsoft");
+    assert_eq!(list[0].label, "Microsoft");
+    assert_eq!(list[0].account, None);
+    assert!(list[0].tools.is_empty());
+    assert_eq!(list[0].status, ConnectionStatus::Blocked);
+    assert_eq!(
+        list[0].reason.as_ref().and_then(|r| r.address.as_deref()),
+        Some(APPROVAL)
+    );
+    assert!(list[0].checked_at.is_some());
+}
+
+#[test]
+fn test_an_account_that_connects_lifts_the_block_of_its_provider() {
+    // GIVEN Microsoft kept as blocked until an administrator approves
+    let dir = tempfile::tempdir().unwrap();
+    let (bus, _keep) = tokio::sync::broadcast::channel(8);
+    record_admin_approval_required(
+        dir.path(),
+        &bus,
+        ConnectorProvider::Microsoft,
+        None,
+        APPROVAL,
+    )
+    .unwrap();
+    let mut events = bus.subscribe();
+
+    // WHEN an account of it connects, once the administrator approved: first
+    // listed alongside the kept block, then with the block lifted
+    let accounts = vec![(
+        ConnectorProvider::Microsoft,
+        vec!["ada@example.com".to_owned()],
+    )];
+    let before_lift = assemble(&ConnectionSources {
+        native_accounts: accounts.clone(),
+        states: kept_states(dir.path()),
+        ..ConnectionSources::default()
+    });
+    lift_provider_block(dir.path(), &bus, ConnectorProvider::Microsoft).unwrap();
+    lift_provider_block(dir.path(), &bus, ConnectorProvider::Google).unwrap();
+
+    // THEN the account is the only Microsoft connection listed, and the
+    // provider reads working, announced once, Google untouched
+    assert_eq!(before_lift.len(), 1);
+    assert_eq!(before_lift[0].id, "native:microsoft:ada@example.com");
+    let kept = system_db(&dir).get("native:microsoft").unwrap().unwrap();
+    assert_eq!(kept.state, ConnectionStatus::Working);
+    assert_eq!(kept.reason, None);
+    assert!(matches!(
+        events.try_recv(),
+        Ok(RuntimeEvent::ConnectionStateChanged {
+            state: ConnectionStatus::Working,
+            ..
+        })
+    ));
+    assert!(events.try_recv().is_err());
+    assert!(system_db(&dir).get("native:google").unwrap().is_none());
+    let after = assemble(&ConnectionSources {
+        states: kept_states(dir.path()),
+        ..ConnectionSources::default()
+    });
+    assert!(after.is_empty());
+}

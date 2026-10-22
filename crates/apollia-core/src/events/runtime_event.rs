@@ -183,6 +183,15 @@ pub enum RuntimeEvent {
         checked_at: String,
     },
 
+    /// A connection was removed, and the state kept for it with it.
+    ///
+    /// Emitted by the runtime once a connection of any kind is removed. A
+    /// reader that keeps the state of each connection forgets this one.
+    ConnectionRemoved {
+        /// Identifier of the connection (`mcp:<server>`, `imap:<address>`, ...).
+        id: String,
+    },
+
     /// An LLM backend is loading (before `load()` or HTTP initialization).
     LlmModelLoading {
         /// Logical backend name as configured in `apollia.toml`.

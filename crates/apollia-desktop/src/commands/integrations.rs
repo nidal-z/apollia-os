@@ -48,6 +48,7 @@
 //! client ids, secrets, API keys and Drive folders, and the checks that refuse
 //! a half-resolved credential.
 
+mod admin_approval;
 mod attached;
 pub mod credentials;
 
@@ -161,6 +162,11 @@ pub enum IntegrationsError {
     /// The connection admission refused the account; the detail is its reason.
     #[error("refused by the connection policy: {0}")]
     RefusedByPolicy(String),
+    /// The provider answered that an administrator of the user's
+    /// organisation must approve the application; the detail is the approval
+    /// page to send them.
+    #[error("an administrator must approve the application: {0}")]
+    AdminApprovalRequired(String),
     /// Catch-all internal failure.
     #[error("internal: {0}")]
     Internal(String),
@@ -253,9 +259,14 @@ pub async fn oauth_start_flow(
 ) -> Result<OauthStartFlow, IntegrationsError> {
     use tauri::Emitter;
 
-    if let RuntimeLink::Embedded(runtime) = link.inner() {
-        admit_start(&runtime.connection_governance, &provider)?;
-    }
+    let sink = match link.inner() {
+        RuntimeLink::Embedded(runtime) => {
+            admit_start(&runtime.connection_governance, &provider)?;
+            admin_approval::StateSink::embedded(&runtime.event_sender)
+        }
+        RuntimeLink::Attached(_) => None,
+    };
+    let provider_for_task = ConnectorProvider::from_id(&provider);
     let (listener, port) = apollia_auth::callback::bind_ephemeral_port()
         .await
         .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
@@ -313,10 +324,21 @@ pub async fn oauth_start_flow(
                 );
             }
             Err(err) => {
-                let _ = app_handle.emit(
-                    "oauth://error",
-                    serde_json::json!({ "state": state_for_task, "error": err.to_string() }),
+                // An organisation that requires its administrator's approval
+                // is kept blocked with the approval page; a work account that
+                // refused is offered the same page, unblocked. The dialog
+                // shows it to copy.
+                let outcome = admin_approval::callback_outcome(
+                    &err,
+                    provider_for_task,
+                    apollia_auth::admin_approval::resolved_admin_consent_url(),
                 );
+                if let (true, Some(provider), Some(address)) =
+                    (outcome.blocks(), provider_for_task, outcome.address.clone())
+                {
+                    admin_approval::keep_blocked(sink, provider, err.to_string(), address).await;
+                }
+                let _ = app_handle.emit("oauth://error", outcome.payload(&state_for_task, &err));
             }
         }
     });
@@ -356,14 +378,18 @@ pub async fn oauth_complete_flow(
     };
     admit_account(governance, provider)?;
 
-    let token: StoredToken = apollia_auth::token::exchange_code(&provider_config, &flow, &code)
-        .await
-        .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
+    let sink = admin_approval::StateSink::embedded(&runtime.event_sender);
+    let token: StoredToken =
+        match apollia_auth::token::exchange_code(&provider_config, &flow, &code).await {
+            Ok(token) => token,
+            Err(e) => return Err(exchange_refused(sink, provider, e.to_string()).await),
+        };
 
     let account_id = resolve_account_id(provider, &token.access_token).await?;
     let manager = auth_manager().await?;
     let granted_scopes = token.scopes.clone();
     store_and_record(governance, &manager, provider, &account_id, token).await?;
+    admin_approval::lift_block(sink, provider).await;
     // Publish the tools of the account so it is usable without a restart. A
     // failure is logged: the account is connected, and its tools are
     // published at the next start.
@@ -387,6 +413,28 @@ pub async fn oauth_complete_flow(
         account_id: account_id.0,
         granted_scopes,
     })
+}
+
+/// The error of a token exchange `provider` refused with `text`: an
+/// administrator approval is kept blocked and answered with its approval page,
+/// anything else is an authentication error.
+async fn exchange_refused(
+    sink: Option<admin_approval::StateSink>,
+    provider: ConnectorProvider,
+    text: String,
+) -> IntegrationsError {
+    let address = admin_approval::approval_address(
+        Some(provider),
+        apollia_auth::admin_approval::requires_admin_approval(&text),
+        apollia_auth::admin_approval::resolved_admin_consent_url(),
+    );
+    match address {
+        Some(address) => {
+            admin_approval::keep_blocked(sink, provider, text, address.clone()).await;
+            IntegrationsError::AdminApprovalRequired(address)
+        }
+        None => IntegrationsError::Auth(text),
+    }
 }
 
 /// Store the token of `account_id` in `manager`, then journal the connection.

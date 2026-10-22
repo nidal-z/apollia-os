@@ -104,24 +104,27 @@ impl McpClientManager {
         self.sessions.insert(name, session);
         Ok(status)
     }
-    /// Shutdown the session named `name` and remove it from the managed set.
+    /// Shutdown the session named `name`, remove it from the managed set, and
+    /// take the descriptors it registered out of the tool registry.
     ///
     /// Returns [`McpSessionError::ServerExited`] when the name is not found.
     pub(super) async fn handle_remove_server(&mut self, name: &str) -> Result<(), McpSessionError> {
         match self.sessions.remove(name) {
             Some(session) => {
-                if self.request_servers.remove(name) {
+                self.request_servers.remove(name);
+                // A deferred session registered no descriptor.
+                if self.loading_mode != LoadingMode::Deferred {
                     for tool in registry_names(name, &session) {
                         if let Err(e) = self.tool_registry.unregister(&tool).await {
                             tracing::warn!(
                                 server = %name,
                                 error = %e,
-                                "mcp.request_server.unregister.failed"
+                                "mcp.server.unregister.failed"
                             );
                         }
                     }
-                    self.last_call_at.remove(name);
                 }
+                self.last_call_at.remove(name);
                 session.shutdown().await;
                 tracing::info!(server = %name, "mcp.server.removed");
                 Ok(())

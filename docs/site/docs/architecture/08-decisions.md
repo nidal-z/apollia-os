@@ -552,6 +552,20 @@ read-only probe its connector declares, when it declares one, says whether
 its operations fail. A connection the organisation forbids is not reached.
 What a check finds is kept and announced like any other state.
 
+Whether a user may consent alone to the mail and the calendar depends on the
+consent settings of their organisation. When Microsoft answers that an
+administrator must approve the application, no account could connect, so
+there is none to name: the state is kept under the provider alone
+(`native:microsoft`), blocked, with the reason `admin_approval_required` and
+the address of the approval page (`adminconsent`) to copy. The first account
+of that provider to connect lifts it. A work account whose consent was
+refused (`AADSTS65004`), which Microsoft does not tell apart from an
+administrator's approval left unasked, is offered the same address to copy,
+and its connection is not marked blocked. The Microsoft consent asks for the
+user's own files (`Files.Read`), never for `Files.Read.All`, which reaches
+every file shared with the user and which consent settings more often keep for
+an administrator.
+
 ### A connection in pause {#connection-pause}
 
 A user can put a connection in pause and resume it as it was. The pause is

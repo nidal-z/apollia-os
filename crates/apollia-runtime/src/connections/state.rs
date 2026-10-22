@@ -18,10 +18,15 @@
 //! - A connection with no state kept reads as not checked yet, never as
 //!   needing repair: a 0.3.0 installation, which kept no state, shows nothing
 //!   to repair until something has failed.
+//! - A native provider whose organisation requires an administrator to
+//!   approve the application has no account to name yet: its state is kept
+//!   under the provider alone (`native:microsoft`), blocked, with the address
+//!   of the approval, until an account of that provider connects.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use apollia_auth::ConnectorProvider;
 use apollia_core::{
     ConnectionReason, ConnectionReasonKey, ConnectionStateError, ConnectionStateRecord,
     ConnectionStateStore, ConnectionStatus, EventBusSender, McpHealth, RuntimeEvent,
@@ -235,6 +240,104 @@ fn record_mcp_health(
     };
     store.put(&record)?;
     Ok(Some(record))
+}
+
+/// Identifier under which the state of native provider `provider` is kept
+/// while no account of it could connect.
+#[must_use]
+pub fn native_provider_connection_id(provider: ConnectorProvider) -> String {
+    format!("native:{}", provider.id())
+}
+
+/// The state of `provider` when its organisation requires an administrator
+/// to approve the application, found at `now`: blocked, with the provider's
+/// words as the detail and the approval page `address` to copy.
+#[must_use]
+pub fn admin_approval_record(
+    provider: ConnectorProvider,
+    detail: Option<String>,
+    address: &str,
+    now: &str,
+) -> ConnectionStateRecord {
+    ConnectionStateRecord {
+        id: native_provider_connection_id(provider),
+        state: ConnectionStatus::Blocked,
+        reason: Some(
+            ConnectionReason::new(ConnectionReasonKey::AdminApprovalRequired, detail)
+                .with_address(address),
+        ),
+        checked_at: now.to_owned(),
+    }
+}
+
+/// Keep `record` in `system.db` under `data_dir` and announce it as
+/// [`RuntimeEvent::ConnectionStateChanged`].
+///
+/// # Errors
+/// [`ConnectionStateError`] when the store cannot be opened or written; then
+/// nothing is announced.
+pub fn record_state(
+    data_dir: &std::path::Path,
+    bus: &EventBusSender,
+    record: ConnectionStateRecord,
+) -> Result<(), ConnectionStateError> {
+    let store = ConnectionStateStore::open(&apollia_core::paths::DataFile::System.path(data_dir))?;
+    store.put(&record)?;
+    let _ = bus.send(RuntimeEvent::ConnectionStateChanged {
+        id: record.id,
+        state: record.state,
+        reason: record.reason,
+        checked_at: record.checked_at,
+    });
+    Ok(())
+}
+
+/// Keep that `provider` is blocked until an administrator approves the
+/// application, and announce it.
+///
+/// # Errors
+/// As [`record_state`].
+pub fn record_admin_approval_required(
+    data_dir: &std::path::Path,
+    bus: &EventBusSender,
+    provider: ConnectorProvider,
+    detail: Option<String>,
+    address: &str,
+) -> Result<(), ConnectionStateError> {
+    let now = chrono::Utc::now().to_rfc3339();
+    record_state(
+        data_dir,
+        bus,
+        admin_approval_record(provider, detail, address, &now),
+    )
+}
+
+/// An account of `provider` connected: a block kept under the provider alone
+/// is lifted, as working, and announced. Nothing is written when none was
+/// kept.
+///
+/// # Errors
+/// As [`record_state`].
+pub fn lift_provider_block(
+    data_dir: &std::path::Path,
+    bus: &EventBusSender,
+    provider: ConnectorProvider,
+) -> Result<(), ConnectionStateError> {
+    let id = native_provider_connection_id(provider);
+    let store = ConnectionStateStore::open(&apollia_core::paths::DataFile::System.path(data_dir))?;
+    let blocked = store
+        .get(&id)?
+        .is_some_and(|kept| kept.state == ConnectionStatus::Blocked);
+    if !blocked {
+        return Ok(());
+    }
+    let record = ConnectionStateRecord {
+        id,
+        state: ConnectionStatus::Working,
+        reason: None,
+        checked_at: chrono::Utc::now().to_rfc3339(),
+    };
+    record_state(data_dir, bus, record)
 }
 
 /// Spawn the recorder: it keeps the state each MCP health change says in

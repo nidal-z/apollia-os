@@ -76,6 +76,10 @@ pub enum ConnectionReasonKey {
     Failing,
     /// The organisation policy forbids it.
     ForbiddenByPolicy,
+    /// The provider's organisation requires an administrator to approve the
+    /// application first; the address of that approval is in
+    /// [`ConnectionReason::address`].
+    AdminApprovalRequired,
 }
 
 /// The reason a connection is in its state: a key, and the technical detail
@@ -87,13 +91,28 @@ pub struct ConnectionReason {
     /// Technical detail, already redacted.
     #[serde(default)]
     pub detail: Option<String>,
+    /// The address the repairing action opens, shown to be copied: for an
+    /// administrator approval, the approval page to send the administrator.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
 }
 
 impl ConnectionReason {
     /// A reason with its key and an optional detail.
     #[must_use]
     pub fn new(key: ConnectionReasonKey, detail: Option<String>) -> Self {
-        Self { key, detail }
+        Self {
+            key,
+            detail,
+            address: None,
+        }
+    }
+
+    /// The same reason, with the address its repairing action opens.
+    #[must_use]
+    pub fn with_address(mut self, address: impl Into<String>) -> Self {
+        self.address = Some(address.into());
+        self
     }
 }
 
@@ -231,6 +250,18 @@ impl ConnectionStateStore {
         )?;
         Ok(())
     }
+
+    /// Forget the last state of connection `id`, once the connection is
+    /// removed. Answers whether a state was kept for it.
+    ///
+    /// # Errors
+    /// [`ConnectionStateError::Db`] on any SQLite failure.
+    pub fn delete(&self, id: &str) -> Result<bool, ConnectionStateError> {
+        let removed = self
+            .conn
+            .execute("DELETE FROM connection_states WHERE id = ?1", params![id])?;
+        Ok(removed > 0)
+    }
 }
 
 type RawRow = (String, String, Option<String>, String);
@@ -308,6 +339,72 @@ mod tests {
         assert_eq!(got.reason, Some(reason));
         assert_eq!(got.checked_at, "2026-10-21T09:00:00Z");
         assert_eq!(reopened.list().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_an_approval_address_is_kept_and_a_reason_without_one_still_reads() {
+        // GIVEN a connection blocked until an administrator approves it, and a
+        // reason row written before reasons carried an address
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(&dir);
+        let reason = ConnectionReason::new(
+            ConnectionReasonKey::AdminApprovalRequired,
+            Some("AADSTS90094".to_owned()),
+        )
+        .with_address("https://login.microsoftonline.com/organizations/adminconsent?client_id=c");
+        store
+            .put(&record(
+                "native:microsoft",
+                ConnectionStatus::Blocked,
+                Some(reason.clone()),
+            ))
+            .unwrap();
+        store
+            .conn
+            .execute(
+                "INSERT INTO connection_states (id, state, reason, checked_at)
+                 VALUES ('mcp:old', 'needs_repair', '{\"key\":\"failing\",\"detail\":null}',
+                         '2026-10-21T09:00:00Z')",
+                [],
+            )
+            .unwrap();
+
+        // WHEN both are read back
+        let blocked = store.get("native:microsoft").unwrap().unwrap();
+        let old = store.get("mcp:old").unwrap().unwrap();
+
+        // THEN the key and the address survive, and the older row reads with
+        // no address
+        assert_eq!(blocked.reason, Some(reason));
+        assert_eq!(
+            serde_json::to_value(&blocked.reason).unwrap()["key"],
+            "admin_approval_required"
+        );
+        assert_eq!(old.reason.unwrap().address, None);
+    }
+
+    #[test]
+    fn test_a_deleted_state_is_gone_and_a_second_delete_says_so() {
+        // GIVEN states kept for two connections
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(&dir);
+        store
+            .put(&record("mcp:notion", ConnectionStatus::Working, None))
+            .unwrap();
+        store
+            .put(&record("mcp:other", ConnectionStatus::Working, None))
+            .unwrap();
+
+        // WHEN the state of one is deleted, twice
+        let first = store.delete("mcp:notion").unwrap();
+        let second = store.delete("mcp:notion").unwrap();
+
+        // THEN it is gone, the other is kept, and only the first delete
+        //      found a row
+        assert!(first);
+        assert!(!second);
+        assert!(store.get("mcp:notion").unwrap().is_none());
+        assert_eq!(store.list().unwrap().len(), 1);
     }
 
     #[test]
