@@ -15,18 +15,11 @@
     "connections-kind-filter-native",
     "env-input-BRAVE_API_KEY",
     "env-toggle-BRAVE_API_KEY",
-    "mcp-detail-tab-overview",
-    "mcp-detail-tab-settings",
-    "mcp-detail-tab-tools",
     "native-client-google",
     "native-client-microsoft",
-    "native-detail-tab-accounts",
-    "native-detail-tab-capabilities",
-    "native-detail-tab-settings",
     "native-needs-config-google",
-    "oauth-add-account-google",
-    "oauth-add-account-microsoft",
-    "oauth-configure-google",
+    "oauth-connect-google",
+    "oauth-connect-microsoft",
     "settings-nav-developer",
     "sidebar-connection-folder:automation",
     "sidebar-mcp-automation-stub-mcp",
@@ -153,12 +146,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tabbar",
+      "testid": "connection-detail-title",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
@@ -168,7 +161,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-configure-google",
+      "testid": "native-needs-config-google",
       "timeoutMs": 3000
     },
     {
@@ -176,23 +169,8 @@
       "label": "03-native-google-needs-config (no embedded Google client on a fresh install)"
     },
     {
-      "kind": "click",
-      "testid": "native-detail-tab-capabilities",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "native-capabilities",
-      "timeoutMs": 6000
-    },
-    {
       "kind": "screenshot",
       "label": "04-native-google-capabilities"
-    },
-    {
-      "kind": "click",
-      "testid": "native-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "sleep",
@@ -234,12 +212,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-add-account-microsoft",
+      "testid": "oauth-connect-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -275,16 +253,6 @@
       "kind": "click",
       "testid": "catalogue-card-add",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "native-detail-tab-accounts",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "oauth-configure-google",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -332,32 +300,32 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tabbar",
+      "testid": "connection-card-state",
       "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tab-overview",
+      "testid": "connection-card-state",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-tools-count",
+      "testid": "connection-detail-tools",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-test-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-reconnect-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 2000
     },
     {
       "kind": "click",
-      "testid": "mcp-reconnect-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 3000
     },
     {
@@ -370,7 +338,7 @@
     },
     {
       "kind": "click",
-      "testid": "mcp-test-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 3000
     },
     {
@@ -380,11 +348,6 @@
     {
       "kind": "screenshot",
       "label": "09-mcp-test-ext-boundary-operator"
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-tools",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -410,11 +373,6 @@
     {
       "kind": "screenshot",
       "label": "10-mcp-tools-schema"
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitGone",
@@ -664,17 +622,17 @@
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-btn",
+      "testid": "connection-remove-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-disconnect-confirm",
+      "testid": "connection-remove-confirm",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 3000
     },
     {
@@ -713,7 +671,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
@@ -1057,13 +1015,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tabbar",
+      "testid": "connection-card-state",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -1072,17 +1025,17 @@
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-btn",
+      "testid": "connection-remove-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 3000
     },
     {
@@ -1187,27 +1140,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "native-detail-tab-capabilities",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "native-capabilities",
-      "timeoutMs": 6000
     },
     {
       "kind": "screenshot",
       "label": "20-native-capabilities-builder"
-    },
-    {
-      "kind": "click",
-      "testid": "native-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "sleep",
@@ -1235,17 +1173,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tab-overview",
+      "testid": "connection-card-state",
       "timeoutMs": 6000
     },
     {
-      "kind": "click",
-      "testid": "mcp-detail-tab-overview",
-      "timeoutMs": 4000
-    },
-    {
       "kind": "waitFor",
-      "testid": "mcp-tools-count",
+      "testid": "connection-detail-tools",
       "timeoutMs": 4000
     },
     {
@@ -1254,7 +1187,7 @@
     },
     {
       "kind": "click",
-      "testid": "mcp-test-btn",
+      "testid": "connection-check-btn",
       "timeoutMs": 3000
     },
     {
@@ -1266,11 +1199,6 @@
       "label": "23-mcp-test-builder-technical-detail"
     },
     {
-      "kind": "click",
-      "testid": "mcp-detail-tab-tools",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "waitFor",
       "testid": "mcp-tools-list",
       "timeoutMs": 5000
@@ -1278,11 +1206,6 @@
     {
       "kind": "screenshot",
       "label": "24-mcp-tools-builder"
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -1419,7 +1342,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
@@ -1621,7 +1544,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
@@ -1749,7 +1672,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
@@ -1872,13 +1795,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tabbar",
+      "testid": "connection-card-state",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-detail-tab-settings",
-      "timeoutMs": 3000
     },
     {
       "kind": "waitGone",
@@ -1892,17 +1810,17 @@
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-btn",
+      "testid": "connection-remove-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 3000
     },
     {
@@ -1951,7 +1869,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
@@ -2065,7 +1983,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
@@ -2308,12 +2226,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-add-account-microsoft",
+      "testid": "oauth-connect-microsoft",
       "timeoutMs": 6000
     },
     {
@@ -2327,7 +2245,7 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-add-account-microsoft",
+      "testid": "oauth-connect-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -2403,12 +2321,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-add-account-microsoft",
+      "testid": "oauth-connect-microsoft",
       "timeoutMs": 6000
     },
     {
@@ -2422,7 +2340,7 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-add-account-microsoft",
+      "testid": "oauth-connect-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -2617,12 +2535,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
+      "testid": "connection-detail-title",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "oauth-add-account-google",
+      "testid": "oauth-connect-google",
       "timeoutMs": 6000
     },
     {
@@ -2649,7 +2567,7 @@
     },
     {
       "kind": "click",
-      "testid": "oauth-add-account-google",
+      "testid": "oauth-connect-google",
       "timeoutMs": 3000
     },
     {
@@ -2857,17 +2775,17 @@
     },
     {
       "kind": "click",
-      "testid": "connection-folder-remove",
+      "testid": "connection-remove-btn",
       "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testid": "connection-folder-remove-dialog",
+      "testid": "connection-remove-confirm",
       "timeoutMs": 4000
     },
     {
       "kind": "expect",
-      "testid": "connection-folder-remove-source"
+      "testid": "connection-remove-items"
     },
     {
       "kind": "screenshot",
@@ -2875,22 +2793,22 @@
     },
     {
       "kind": "click",
-      "testid": "connection-folder-remove-cancel",
+      "testid": "connection-remove-confirm-cancel",
       "timeoutMs": 2500
     },
     {
       "kind": "waitGone",
-      "testid": "connection-folder-remove-dialog",
+      "testid": "connection-remove-confirm",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "connection-folder-remove",
+      "testid": "connection-remove-btn",
       "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testid": "connection-folder-remove-dialog",
+      "testid": "connection-remove-confirm",
       "timeoutMs": 4000
     },
     {
@@ -2920,12 +2838,12 @@
     },
     {
       "kind": "click",
-      "testid": "connection-folder-remove-confirm",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 2500
     },
     {
       "kind": "waitGone",
-      "testid": "connection-folder-remove-dialog",
+      "testid": "connection-remove-confirm",
       "timeoutMs": 4000
     },
     {

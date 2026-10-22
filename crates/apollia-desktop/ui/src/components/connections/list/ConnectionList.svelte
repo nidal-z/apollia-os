@@ -29,9 +29,13 @@
     builtinTools: BuiltinToolsCount;
     onselect: (selection: RowSelection) => void;
     onadd: () => void;
+    /** Check the connection `id` now, from the badge of its row. */
+    oncheck?: (id: string) => void;
+    /** The connections being checked. */
+    checking?: ReadonlySet<string>;
   }
 
-  let { rows, query, kind, selection, loading, builtinTools, onselect, onadd }: Props = $props();
+  let { rows, query, kind, selection, loading, builtinTools, onselect, onadd, oncheck, checking }: Props = $props();
 
   const shown = $derived(visibleRows(rows, query, kind));
   const builtinLabel = $derived($t("connections.builtin_name"));
@@ -74,6 +78,8 @@
         {row}
         selected={isSelected(row, selection)}
         onselect={() => onselect({ kind: "connection", id: row.key })}
+        oncheck={oncheck ? () => oncheck(row.key) : undefined}
+        checking={checking?.has(row.key) ?? false}
       />
     {/each}
   {/if}

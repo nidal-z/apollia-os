@@ -203,15 +203,6 @@ pub struct OauthCompletedAccount {
     pub granted_scopes: Vec<String>,
 }
 
-/// Account metadata returned by `oauth_get_status`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OauthAccountInfo {
-    /// Provider id.
-    pub provider: String,
-    /// Account id.
-    pub account_id: String,
-}
-
 // ─── Provider + scope resolution ─────────────────────────────────────────────
 
 fn provider_from_id(id: &str) -> Result<ConnectorProvider, IntegrationsError> {
@@ -457,34 +448,6 @@ async fn store_and_record(
     Ok(())
 }
 
-/// Revoke (forget) the token for `(provider, account_id)`.
-///
-/// The local keyring entry is cleared. The upstream is not notified; call
-/// the provider's revocation endpoint separately if a server-side revoke is
-/// required. The disconnection is journaled.
-#[tauri::command]
-pub async fn oauth_disconnect(
-    link: State<'_, RuntimeLink>,
-    provider: String,
-    account_id: String,
-) -> Result<(), IntegrationsError> {
-    let runtime = match link.inner() {
-        RuntimeLink::Embedded(runtime) => runtime,
-        RuntimeLink::Attached(remote) => {
-            return attached::disconnect(remote, &provider, &account_id).await
-        }
-    };
-    let provider_id = provider_from_id(&provider)?;
-    let manager = auth_manager().await?;
-    revoke_and_record(
-        &runtime.connection_governance,
-        &manager,
-        provider_id,
-        &account_id,
-    )
-    .await
-}
-
 /// Submit an account of `provider` to the connection admission.
 /// Submit the provider a consent is about to start for to the connection
 /// admission, answering the provider it names.
@@ -505,50 +468,6 @@ fn admit_account(
         AdmissionDecision::Admitted => Ok(()),
         AdmissionDecision::Refused { reason } => Err(IntegrationsError::RefusedByPolicy(reason)),
     }
-}
-
-/// Forget the token of `account_id`, then journal the disconnection.
-async fn revoke_and_record(
-    governance: &ConnectionGovernance,
-    manager: &AuthManager,
-    provider: ConnectorProvider,
-    account_id: &str,
-) -> Result<(), IntegrationsError> {
-    manager
-        .revoke(provider, &AccountId::new(account_id))
-        .await
-        .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
-    governance.record_or_warn(&ConnectionEvent::account_disconnected(
-        provider,
-        account_id,
-        DESKTOP_ACTOR,
-    ));
-    Ok(())
-}
-
-/// List connected accounts across all providers.
-#[tauri::command]
-pub async fn oauth_get_status(
-    link: State<'_, RuntimeLink>,
-) -> Result<Vec<OauthAccountInfo>, IntegrationsError> {
-    if let RuntimeLink::Attached(remote) = link.inner() {
-        return attached::accounts(remote).await;
-    }
-    let manager = auth_manager().await?;
-    let mut out = Vec::new();
-    for provider in [ConnectorProvider::Google, ConnectorProvider::Microsoft] {
-        let accounts = manager
-            .list_accounts(provider)
-            .await
-            .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
-        for a in accounts {
-            out.push(OauthAccountInfo {
-                provider: provider.id().to_owned(),
-                account_id: a.0,
-            });
-        }
-    }
-    Ok(out)
 }
 
 // ─── Userinfo probe ──────────────────────────────────────────────────────────
@@ -698,66 +617,6 @@ mod tests {
     }
 
     // Disconnecting from the desktop forgets the token and journals it.
-    #[tokio::test]
-    async fn test_desktop_disconnect_journals_the_account() {
-        // GIVEN a connected Microsoft account in an isolated store, and
-        // governance over a journal
-        let dir = tempfile::TempDir::new().unwrap();
-        let storage = apollia_auth::MultiAccountStorage::with_store(
-            dir.path().join("connectors-index.json"),
-            Box::new(MemoryStore::default()),
-        );
-        let manager = AuthManager::with_storage(storage);
-        manager
-            .put_token(
-                ConnectorProvider::Microsoft,
-                &AccountId::new("ada@contoso.test"),
-                StoredToken {
-                    access_token: "at".into(),
-                    refresh_token: None,
-                    expires_at: None,
-                    scopes: vec![],
-                },
-            )
-            .await
-            .unwrap();
-        let journal = apollia_runtime::audit_journal::AuditJournalHandle::open(
-            &dir.path().join("journal.db"),
-        )
-        .await
-        .unwrap();
-        let governance = ConnectionGovernance::without_policy(Some(journal.clone()));
-
-        // WHEN the account is disconnected
-        revoke_and_record(
-            &governance,
-            &manager,
-            ConnectorProvider::Microsoft,
-            "ada@contoso.test",
-        )
-        .await
-        .unwrap();
-
-        // THEN the token is gone and the disconnection is journaled by the desktop
-        assert!(manager
-            .list_accounts(ConnectorProvider::Microsoft)
-            .await
-            .unwrap()
-            .is_empty());
-        let entries = journal
-            .query_run(&apollia_runtime::governance::connection_run_id(
-                "native:microsoft:ada@contoso.test",
-            ))
-            .await;
-        assert_eq!(entries.len(), 1);
-        assert_eq!(
-            entries[0].kind,
-            apollia_runtime::audit_journal::JournalEntryKind::AccountDisconnected
-        );
-        assert_eq!(entries[0].payload["actor"], "desktop");
-        journal.shutdown().await;
-    }
-
     #[test]
     fn test_provider_from_id_known_returns_ok() {
         // GIVEN the two connector identifiers the settings page offers

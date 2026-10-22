@@ -22,11 +22,6 @@ import type {
 /** Native OAuth provider identifier. */
 export type ProviderId = "google" | "microsoft";
 
-export interface OauthAccountInfo {
-  provider: ProviderId;
-  account_id: string;
-}
-
 export interface OauthStartResult {
   auth_url: string;
   state: string;
@@ -86,13 +81,56 @@ export function addFolderConnection(path: string): Promise<Connection> {
   return invoke<Connection>("add_folder_connection", { path });
 }
 
+/** What a removal erases: its configuration, a token, a secret, installed files, a tool granted to an agent, a source, its state. */
+export type RemovedKind =
+  | "configuration"
+  | "installed_files"
+  | "token"
+  | "secret"
+  | "agent_access"
+  | "source"
+  | "state";
+
+/** One thing a removal erased, or would erase. */
+export interface RemovedItem {
+  kind: RemovedKind;
+  /** The server, the folder of installed files, the secret key, the tool, the source. */
+  name: string;
+  /** The agent the tool is taken from, for an agent access. */
+  agent?: string | null;
+}
+
+/** What a removal erased, or on a dry run would erase. */
+export interface ConnectionRemoval {
+  connection: string;
+  dryRun: boolean;
+  removed: RemovedItem[];
+  /** What could not be erased; empty on a dry run. */
+  left: RemovedItem[];
+}
+
+/** Check the connection `connectionId` now; answers it with the state found. */
+export function checkConnection(connectionId: string): Promise<Connection> {
+  return invoke<Connection>("check_connection", { connectionId });
+}
+
+/** Put the connection `connectionId` in pause; its agents keep their accesses. */
+export function pauseConnection(connectionId: string): Promise<Connection> {
+  return invoke<Connection>("pause_connection", { connectionId });
+}
+
+/** Resume the connection `connectionId`. */
+export function resumeConnection(connectionId: string): Promise<Connection> {
+  return invoke<Connection>("resume_connection", { connectionId });
+}
+
 /**
- * Remove the folder connection `connectionId` (`folder:<id>`); answers the
- * connection it was. Without `confirm`, a folder sources depend on is kept
- * and the call rejects; with it, those sources and their indexes go with it.
+ * Remove the connection `connectionId`, whatever its kind, with what it
+ * leaves behind. With `dryRun` nothing is erased and the answer lists what
+ * would be, for the confirmation.
  */
-export function removeFolderConnection(connectionId: string, confirm: boolean): Promise<Connection> {
-  return invoke<Connection>("remove_folder_connection", { connectionId, confirm });
+export function removeConnection(connectionId: string, dryRun: boolean): Promise<ConnectionRemoval> {
+  return invoke<ConnectionRemoval>("remove_connection", { connectionId, dryRun });
 }
 
 // ── MCP servers ────────────────────────────────────────────────────────────
@@ -113,16 +151,8 @@ export function getMcpServerDetail(name: string): Promise<McpServerDetailView> {
   return invoke<McpServerDetailView>("get_mcp_server_detail", { name });
 }
 
-export function testMcpLiveServer(name: string): Promise<McpConnectionTestResponse> {
-  return invoke<McpConnectionTestResponse>("test_mcp_live_server", { name });
-}
-
 export function restartMcpServer(name: string): Promise<McpServerStatusView> {
   return invoke<McpServerStatusView>("restart_mcp_server", { name });
-}
-
-export function deleteMcpSecret(serverName: string, envVar: string): Promise<void> {
-  return invoke<void>("delete_mcp_secret", { serverName, envVar });
 }
 
 export function removeMcpServer(name: string): Promise<void> {
@@ -151,10 +181,6 @@ export function fetchMcpRegistry(): Promise<RegistryServerView[]> {
 
 // ── Native OAuth connectors ─────────────────────────────────────────────────
 
-export function oauthGetStatus(): Promise<OauthAccountInfo[]> {
-  return invoke<OauthAccountInfo[]>("oauth_get_status");
-}
-
 /**
  * Start a cloud OAuth flow.
  *
@@ -180,13 +206,6 @@ export function oauthSetDriveFolder(
   folderPath: string,
 ): Promise<void> {
   return invoke<void>("oauth_set_drive_folder", { accountId, folderPath });
-}
-
-export function oauthDisconnect(
-  provider: ProviderId,
-  accountId: string,
-): Promise<void> {
-  return invoke<void>("oauth_disconnect", { provider, accountId });
 }
 
 // ── MCP server config editing ───────────────────────────────────────────────

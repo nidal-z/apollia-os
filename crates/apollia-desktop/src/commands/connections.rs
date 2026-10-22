@@ -8,9 +8,16 @@
 //! - `list_connections`: `GET /api/v1/connections`.
 //! - `grant_connection`: `POST /api/v1/connections/{id}/grants`, tools of a
 //!   connection given to agents; an agent on the default access keeps it.
-//! - `add_folder_connection`, `remove_folder_connection`:
-//!   `/api/v1/connections/folders`. A folder is admitted, stored and journaled
-//!   by the runtime; a refusal comes back as its reason.
+//! - `check_connection`: `POST /api/v1/connections/{id}/check`, the state found
+//!   now, kept and announced by the runtime.
+//! - `pause_connection`, `resume_connection`: `POST
+//!   /api/v1/connections/{id}/pause` and `/resume`; the accesses of its agents
+//!   stay as they are.
+//! - `remove_connection`: `DELETE /api/v1/connections/{id}`, whatever its
+//!   kind; with `dry_run` nothing is erased and the answer lists what would be.
+//! - `add_folder_connection`: `POST /api/v1/connections/folders`. A folder is
+//!   admitted, stored and journaled by the runtime; a refusal comes back as its
+//!   reason.
 //! - `list_imap_providers`: `GET /api/v1/connectors/imap/providers`, the
 //!   providers whose server and port the add form fills from the address.
 //! - `add_imap_mailbox`: `POST /api/v1/connectors/imap/accounts`, which logs in
@@ -19,10 +26,14 @@
 use std::time::Duration;
 
 use crate::attached::RuntimeLink;
-use apollia_runtime::connections::{folder_id_of, Connection};
+use apollia_runtime::connections::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::State;
+
+/// Longest wait for a check: an MCP server that had no session is started,
+/// and its handshake may take as long as at its addition.
+const CHECK_DEADLINE: Duration = Duration::from_secs(120);
 
 /// Longest wait for a mailbox addition. The runtime gives the server fifteen
 /// seconds to connect and sixty to answer the login, so the default deadline
@@ -61,6 +72,100 @@ fn grant_path(connection_id: &str) -> String {
         "/api/v1/connections/{}/grants",
         crate::attached::segment(connection_id)
     )
+}
+
+/// The route of `action` on the connection `connection_id`, its identifier one
+/// encoded segment.
+fn connection_path(connection_id: &str, action: &str) -> String {
+    format!(
+        "/api/v1/connections/{}/{action}",
+        crate::attached::segment(connection_id)
+    )
+}
+
+/// The route that removes the connection `connection_id`, or on a dry run
+/// answers what its removal would erase.
+fn remove_path(connection_id: &str, dry_run: bool) -> String {
+    let query = if dry_run { "?dry_run=1" } else { "" };
+    format!(
+        "/api/v1/connections/{}{query}",
+        crate::attached::segment(connection_id)
+    )
+}
+
+/// The body of a check: the read-only probe a server's connector declares, if
+/// any; nothing for another kind.
+fn check_body(probe: Option<apollia_mcp::manager::ProbeSpec>) -> Value {
+    match probe {
+        Some(probe) => json!({ "probe": probe }),
+        None => json!({}),
+    }
+}
+
+fn parse_connection(json: Value) -> Result<Connection, String> {
+    serde_json::from_value(json).map_err(|e| format!("failed to parse the connection: {e}"))
+}
+
+/// Check the connection `connection_id` now, whatever its kind, and answer it
+/// with the state found. A server is probed with the read-only call its
+/// connector declares, when it declares one.
+#[tauri::command]
+pub async fn check_connection(
+    state: State<'_, RuntimeLink>,
+    connection_id: String,
+) -> Result<Connection, String> {
+    let probe = match connection_id.strip_prefix("mcp:") {
+        Some(name) => crate::commands::mcp::resolve_health_probe(&state, name).await,
+        None => None,
+    };
+    let json = state
+        .post_json_within(
+            &connection_path(&connection_id, "check"),
+            &check_body(probe),
+            CHECK_DEADLINE,
+        )
+        .await?;
+    parse_connection(json)
+}
+
+/// Put the connection `connection_id` in pause: none of its tools runs until
+/// it is resumed. Answers the connection as the list now shows it.
+#[tauri::command]
+pub async fn pause_connection(
+    state: State<'_, RuntimeLink>,
+    connection_id: String,
+) -> Result<Connection, String> {
+    let json = state
+        .post_json(&connection_path(&connection_id, "pause"), &json!({}))
+        .await?;
+    parse_connection(json)
+}
+
+/// Resume the connection `connection_id`: its tools run again.
+#[tauri::command]
+pub async fn resume_connection(
+    state: State<'_, RuntimeLink>,
+    connection_id: String,
+) -> Result<Connection, String> {
+    let json = state
+        .post_json(&connection_path(&connection_id, "resume"), &json!({}))
+        .await?;
+    parse_connection(json)
+}
+
+/// Remove the connection `connection_id`, whatever its kind, with what it
+/// leaves behind: its configuration, token or password, installed files, the
+/// sources made on a folder, and the tools granted from it to agents. With
+/// `dry_run` nothing is erased and the answer lists what would be.
+#[tauri::command]
+pub async fn remove_connection(
+    state: State<'_, RuntimeLink>,
+    connection_id: String,
+    dry_run: bool,
+) -> Result<Value, String> {
+    state
+        .delete_json(&remove_path(&connection_id, dry_run))
+        .await
 }
 
 /// The providers whose IMAP server and port are known from the address, and
@@ -130,36 +235,8 @@ pub async fn add_folder_connection(
     serde_json::from_value(json).map_err(|e| format!("failed to parse the folder connection: {e}"))
 }
 
-/// Remove the folder connection `connection_id` (`folder:<id>`).
-///
-/// Sources may be made on the folder. Without `confirm` the runtime removes
-/// nothing while any depends on it and answers why; with it, those sources
-/// and their indexes go with the connection.
-#[tauri::command]
-pub async fn remove_folder_connection(
-    state: State<'_, RuntimeLink>,
-    connection_id: String,
-    confirm: bool,
-) -> Result<Connection, String> {
-    let json = state
-        .delete_json(&remove_folder_path(&connection_id, confirm)?)
-        .await?;
-    serde_json::from_value(json).map_err(|e| format!("failed to parse the folder connection: {e}"))
-}
-
 fn add_folder_body(path: &str) -> serde_json::Value {
     serde_json::json!({ "path": path })
-}
-
-/// The route that removes the folder `connection_id` names.
-fn remove_folder_path(connection_id: &str, confirm: bool) -> Result<String, String> {
-    let id = folder_id_of(connection_id)
-        .ok_or_else(|| format!("'{connection_id}' is not a folder connection"))?;
-    let confirmation = if confirm { "?confirm=true" } else { "" };
-    Ok(format!(
-        "/api/v1/connections/folders/{}{confirmation}",
-        crate::attached::segment(id)
-    ))
 }
 
 #[cfg(test)]
@@ -206,26 +283,46 @@ mod tests {
     }
 
     #[test]
-    fn test_a_folder_connection_is_removed_by_its_stored_identifier() {
-        // GIVEN the identifier of a folder connection, and of an MCP server
-        // WHEN the removal route is built for each
-        let folder = remove_folder_path("folder:4f1c", false);
-        let server = remove_folder_path("mcp:notion", false);
-        // THEN the folder's names its stored identifier, the server is refused
-        assert_eq!(folder.unwrap(), "/api/v1/connections/folders/4f1c");
-        assert!(server.is_err());
+    fn test_each_gesture_names_its_connection_as_one_segment() {
+        // GIVEN the identifier of a native account, which carries colons and an @
+        let id = "native:google:ada@example.com";
+        // WHEN the routes of a check, a pause and a resume are built
+        let check = connection_path(id, "check");
+        let pause = connection_path(id, "pause");
+        let resume = connection_path(id, "resume");
+        // THEN the identifier is one encoded segment before the action
+        assert_eq!(
+            check,
+            "/api/v1/connections/native%3Agoogle%3Aada%40example.com/check"
+        );
+        assert!(pause.ends_with("%40example.com/pause"));
+        assert!(resume.ends_with("%40example.com/resume"));
     }
 
     #[test]
-    fn test_a_confirmed_removal_tells_the_runtime_to_take_the_sources_with_the_folder() {
-        // GIVEN a folder connection sources depend on, and the user's confirmation
-        // WHEN the removal route is built
-        let confirmed = remove_folder_path("folder:4f1c", true);
-        // THEN it carries the confirmation the runtime waits for
-        assert_eq!(
-            confirmed.unwrap(),
-            "/api/v1/connections/folders/4f1c?confirm=true"
-        );
+    fn test_a_dry_run_asks_what_the_removal_would_erase() {
+        // GIVEN a folder connection
+        // WHEN the removal route is built for a dry run, then for the removal
+        let dry = remove_path("folder:4f1c", true);
+        let real = remove_path("folder:4f1c", false);
+        // THEN the dry run carries the query the runtime reads, the removal none
+        assert_eq!(dry, "/api/v1/connections/folder%3A4f1c?dry_run=1");
+        assert_eq!(real, "/api/v1/connections/folder%3A4f1c");
+    }
+
+    #[test]
+    fn test_a_check_sends_the_probe_of_a_server_and_nothing_else() {
+        // GIVEN the probe a connector declares, and no probe
+        let probe = apollia_mcp::manager::ProbeSpec {
+            tool: "list_users".into(),
+            args: Some(serde_json::json!({ "limit": 1 })),
+        };
+        // WHEN the body of a check is built for each
+        let with = check_body(Some(probe));
+        let without = check_body(None);
+        // THEN the server's probe is sent, another kind sends an empty body
+        assert_eq!(with["probe"]["tool"], "list_users");
+        assert_eq!(without, serde_json::json!({}));
     }
 
     #[test]

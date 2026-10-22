@@ -37,9 +37,12 @@ const LABEL_KEY: Record<ConnectionStatusKey, string> = {
 const REASON_KEY: Record<ConnectionReasonKey, string> = {
   not_checked: "connections.state.reason.not_checked",
   sign_in_again: "connections.state.reason.sign_in_again",
+  password_refused: "connections.state.reason.password_refused",
+  folder_not_found: "connections.state.reason.folder_not_found",
   unreachable: "connections.state.reason.unreachable",
   failing: "connections.state.reason.failing",
   forbidden_by_policy: "connections.state.reason.forbidden_by_policy",
+  admin_approval_required: "connections.state.reason.admin_approval_required",
 };
 
 const VARIANT: Record<ConnectionStatusKey, StateBadgeVariant> = {

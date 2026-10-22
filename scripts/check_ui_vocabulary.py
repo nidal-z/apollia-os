@@ -39,7 +39,8 @@ Exemptions, three kinds:
                   does an exempted key the catalogue no longer has.
 
 The call side. A `$t("dev.…")` (or `get(t)("dev.…")`) in a file that never
-reads `developerMode` fails. This is an approximation at the file level: a file
+reads `developerMode`, directly or through the `<DeveloperOnly>` wrapper that
+reads it, fails. This is an approximation at the file level: a file
 that reads the mode once may still render a `dev.` text outside the branch that
 tests it, and the guard cannot tell. It only proves the file knows the mode
 exists.
@@ -188,7 +189,9 @@ def call_findings(files: dict[str, str]) -> list[str]:
     return [
         f"{rel}: renders a dev. text but never reads developerMode"
         for rel, text in sorted(files.items())
-        if DEV_CALL.search(text) and "developerMode" not in text
+        if DEV_CALL.search(text)
+        and "developerMode" not in text
+        and "<DeveloperOnly" not in text
     ]
 
 

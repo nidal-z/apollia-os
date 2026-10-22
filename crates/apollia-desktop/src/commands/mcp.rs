@@ -303,8 +303,8 @@ async fn ensure_node(link: &RuntimeLink) -> Result<(), String> {
 /// remote URL (the case that matters for OAuth connectors like Notion, whose
 /// grant/workspace issues only surface on a real call). Returns `None` when the
 /// server has no matching enrichment or no declared `health_probe`, in which
-/// case the Test reports reachability only.
-async fn resolve_health_probe(link: &RuntimeLink, name: &str) -> Option<ProbeSpec> {
+/// case a check reports reachability only.
+pub(crate) async fn resolve_health_probe(link: &RuntimeLink, name: &str) -> Option<ProbeSpec> {
     let path = format!("/api/v1/mcp/servers/{name}/raw_config");
     let json = link.get_json(&path).await.ok()?;
     let config: McpServerConfig = serde_json::from_value(json).ok()?;
@@ -317,25 +317,6 @@ async fn resolve_health_probe(link: &RuntimeLink, name: &str) -> Option<ProbeSpe
         tool: probe.tool.clone(),
         args: probe.args.clone(),
     })
-}
-
-/// Test an already-installed MCP server.
-///
-/// Delegates to `POST /api/v1/mcp/servers/{name}/test` on the embedded runtime.
-/// Re-handshakes the live session for reachability and, when the connector
-/// declares a read-only `health_probe`, exercises real operational access. The
-/// response `result.live_health` carries the verdict, so the UI can tell
-/// "reachable" apart from "actually working".
-#[tauri::command]
-pub async fn test_mcp_live_server(
-    state: State<'_, RuntimeLink>,
-    name: String,
-) -> Result<McpConnectionTestResponse, String> {
-    let probe = resolve_health_probe(&state, &name).await;
-    let path = format!("/api/v1/mcp/servers/{name}/test");
-    let body = serde_json::json!({ "probe": probe });
-    let json = state.post_json(&path, &body).await?;
-    serde_json::from_value(json).map_err(|e| format!("failed to parse test result: {e}"))
 }
 
 /// Restart an MCP server session.
@@ -370,18 +351,6 @@ pub async fn store_mcp_secret(
     put_mcp_secret(&state, &server_name, &env_var, &value).await
 }
 
-/// Delete the secret of an MCP server environment variable. Idempotent.
-///
-/// Delegates to `DELETE /api/v1/mcp/servers/{name}/secrets/{key}`.
-#[tauri::command]
-pub async fn delete_mcp_secret(
-    state: State<'_, RuntimeLink>,
-    server_name: String,
-    env_var: String,
-) -> Result<(), String> {
-    remove_mcp_secret(&state, &server_name, &env_var).await
-}
-
 /// The route of the secret `env_var` of server `server_name`, each segment
 /// encoded.
 fn mcp_secret_path(server_name: &str, env_var: &str) -> String {
@@ -401,17 +370,6 @@ pub(crate) async fn put_mcp_secret(
 ) -> Result<(), String> {
     let body = serde_json::json!({ "value": value });
     link.put_json(&mcp_secret_path(server_name, env_var), &body)
-        .await
-        .map(|_| ())
-}
-
-/// Removes the secret through the runtime's route.
-pub(crate) async fn remove_mcp_secret(
-    link: &RuntimeLink,
-    server_name: &str,
-    env_var: &str,
-) -> Result<(), String> {
-    link.delete_json(&mcp_secret_path(server_name, env_var))
         .await
         .map(|_| ())
 }
