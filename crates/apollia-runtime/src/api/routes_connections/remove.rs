@@ -30,7 +30,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use apollia_auth::{SecretStore, MCP_OAUTH_SERVICE};
+use apollia_auth::{AuthManager, SecretStore, MCP_OAUTH_SERVICE};
 use apollia_connectors::imap::{ImapAccountStore, IMAP_INDEX_FILE, IMAP_SECRET_SERVICE};
 use apollia_core::{ConnectionStateStore, RuntimeEvent};
 use apollia_mcp::config::{static_secret_user, MCP_STATIC_SECRET_SERVICE};
@@ -43,12 +43,12 @@ use crate::api::server::AppState;
 use crate::connections::removal::{
     access_items, lists_tools, revocations, AgentLists, RemovedItem, RemovedKind, Revocation,
 };
-use crate::connections::{Connection, ConnectionKind, NativeAccounts, INSTALLED_FILES_DIR};
+use crate::connections::{Connection, ConnectionKind, INSTALLED_FILES_DIR};
 use crate::coordinator::ExecutionBackend;
 use crate::governance::{ConnectionEvent, ConnectionGovernance};
 
 use super::agents::{agents_error, find};
-use super::{api_err, collect_connections, native_accounts, ApiError};
+use super::{accounts_of, api_err, auth_manager, collect_connections, ApiError};
 
 /// Who the connection journal names for a removal made here.
 const ROUTE_ACTOR: &str = "api";
@@ -224,24 +224,28 @@ async fn kind_items<B: ExecutionBackend + Clone>(
 }
 
 /// Remove the configuration of `connection`, the session, list entry,
-/// account or folder that makes it a connection, and journal it.
+/// account or folder that makes it a connection, and journal it, with `auth`
+/// holding the native accounts. Answers what it removes with it and could
+/// not: the password of a mailbox.
 async fn remove_configuration<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
+    auth: &AuthManager,
     secrets: Box<dyn SecretStore>,
     connection: &Connection,
-) -> Result<(), ApiError> {
+) -> Result<Vec<RemovedItem>, ApiError> {
     let id = connection.id.as_str();
     match connection.kind {
         ConnectionKind::Mcp => {
             crate::api::routes_mcp::remove_server_from(state, id.trim_start_matches("mcp:"))
                 .await
+                .map(|()| Vec::new())
                 .map_err(|(status, Json(body))| {
                     api_err(status, body["error"].as_str().unwrap_or_default())
                 })
         }
         ConnectionKind::Imap => {
             let store = ImapAccountStore::with_store(state.data_dir.join(IMAP_INDEX_FILE), secrets);
-            store
+            let removed = store
                 .remove(id.trim_start_matches("imap:"))
                 .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
             state
@@ -250,7 +254,11 @@ async fn remove_configuration<B: ExecutionBackend + Clone>(
                     connection_id: id.to_owned(),
                     actor: ROUTE_ACTOR.to_owned(),
                 });
-            Ok(())
+            Ok(if removed.password_deleted {
+                Vec::new()
+            } else {
+                vec![RemovedItem::new(RemovedKind::Secret, removed.account.email)]
+            })
         }
         ConnectionKind::Native => {
             let provider = id
@@ -260,16 +268,14 @@ async fn remove_configuration<B: ExecutionBackend + Clone>(
                 .unwrap_or_default();
             let provider = apollia_auth::connector_consent::provider_from_id(provider)
                 .map_err(|e| api_err(StatusCode::BAD_REQUEST, e))?;
-            let manager = crate::connectors_bridge::get_auth()
-                .await
-                .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
             crate::api::routes_connectors::revoke_and_record(
                 &state.connection_governance,
-                &manager,
+                auth,
                 provider,
                 connection.account.as_deref().unwrap_or_default(),
             )
             .await
+            .map(|()| Vec::new())
         }
         ConnectionKind::Folder => {
             let folder = crate::connections::folder_id_of(id).unwrap_or_default();
@@ -281,7 +287,7 @@ async fn remove_configuration<B: ExecutionBackend + Clone>(
                 true,
             )
             .await
-            .map(|_| ())
+            .map(|_| Vec::new())
             .map_err(|(status, Json(body))| api_err(status, body.error))
         }
     }
@@ -378,15 +384,15 @@ fn has_state(data_dir: &FsPath, id: &str) -> bool {
     crate::connections::state::kept_states(data_dir).contains_key(id)
 }
 
-/// Remove the connection `id`, with `accounts` as the native accounts
-/// connected, or with `dry_run` only say what would go.
+/// Remove the connection `id`, with `auth` holding the native accounts, or
+/// with `dry_run` only say what would go.
 pub(crate) async fn remove<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
-    accounts: Vec<NativeAccounts>,
+    auth: &AuthManager,
     id: &str,
     dry_run: bool,
 ) -> Result<ConnectionRemoval, ApiError> {
-    let connections = collect_connections(state, accounts).await?;
+    let connections = collect_connections(state, accounts_of(auth).await?).await?;
     let connection = find(&connections, id)?.clone();
     let shared = connection.kind == ConnectionKind::Imap
         && connections
@@ -419,9 +425,8 @@ pub(crate) async fn remove<B: ExecutionBackend + Clone>(
     }
 
     revoke(state, &planned)?;
-    remove_configuration(state, open()?, &connection).await?;
+    let mut left = remove_configuration(state, auth, open()?, &connection).await?;
     let name = id.trim_start_matches("mcp:");
-    let mut left = Vec::new();
     if connection.kind == ConnectionKind::Mcp {
         for item in items
             .iter()
@@ -480,10 +485,8 @@ pub(crate) async fn remove_connection<B: ExecutionBackend + Clone>(
     Path(id): Path<String>,
     Query(query): Query<RemoveConnectionQuery>,
 ) -> Result<Json<ConnectionRemoval>, ApiError> {
-    let accounts = native_accounts().await?;
-    remove(&state, accounts, &id, query.dry_run())
-        .await
-        .map(Json)
+    let auth = auth_manager().await?;
+    remove(&state, &auth, &id, query.dry_run()).await.map(Json)
 }
 
 #[cfg(test)]

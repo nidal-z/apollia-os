@@ -86,6 +86,38 @@ async fn runtime() -> (Harness, MemorySecrets) {
     (h, secrets)
 }
 
+/// An auth manager over a store of `dir` holding no account, standing in
+/// for the keychain.
+fn auth_in(dir: &std::path::Path) -> AuthManager {
+    AuthManager::with_storage(apollia_auth::MultiAccountStorage::with_store(
+        dir.join("connectors-index.json"),
+        Box::new(MemorySecrets::default()),
+    ))
+}
+
+fn no_accounts(h: &Harness) -> AuthManager {
+    auth_in(h.dir.path())
+}
+
+/// A secret store whose deletions fail.
+#[derive(Clone)]
+struct Undeletable(MemorySecrets);
+
+impl SecretStore for Undeletable {
+    fn set(&self, service: &str, user: &str, value: &str) -> Result<(), apollia_auth::AuthError> {
+        self.0.set(service, user, value)
+    }
+    fn get(&self, service: &str, user: &str) -> Result<Option<String>, apollia_auth::AuthError> {
+        self.0.get(service, user)
+    }
+    fn delete(&self, _service: &str, _user: &str) -> Result<(), apollia_auth::AuthError> {
+        Err(apollia_auth::AuthError::Keyring("locked".into()))
+    }
+    fn backend_id(&self) -> &'static str {
+        "undeletable"
+    }
+}
+
 fn kinds(removal: &ConnectionRemoval) -> Vec<RemovedKind> {
     removal.removed.iter().map(|i| i.kind).collect()
 }
@@ -107,7 +139,7 @@ async fn test_a_dry_run_lists_everything_and_erases_nothing() {
     let (h, secrets) = runtime().await;
 
     // WHEN
-    let removal = remove(&h.state, Vec::new(), "mcp:notion", true)
+    let removal = remove(&h.state, &no_accounts(&h), "mcp:notion", true)
         .await
         .unwrap();
 
@@ -150,7 +182,7 @@ async fn test_a_removal_erases_what_it_lists_and_revokes_the_agents() {
     let mut events = h.state.event_sender.subscribe();
 
     // WHEN
-    let removal = remove(&h.state, Vec::new(), "mcp:notion", false)
+    let removal = remove(&h.state, &no_accounts(&h), "mcp:notion", false)
         .await
         .unwrap();
     h.state
@@ -205,13 +237,18 @@ async fn test_a_mailbox_is_removed_and_its_tools_go_with_the_last() {
     let (h, secrets) = runtime().await;
 
     // WHEN
-    let first = remove(&h.state, Vec::new(), "imap:ada@example.org", false)
+    let first = remove(&h.state, &no_accounts(&h), "imap:ada@example.org", false)
         .await
         .unwrap();
     let kept = triage_access(&h);
-    let last = remove(&h.state, Vec::new(), "imap:support@example.org", false)
-        .await
-        .unwrap();
+    let last = remove(
+        &h.state,
+        &no_accounts(&h),
+        "imap:support@example.org",
+        false,
+    )
+    .await
+    .unwrap();
 
     // THEN
     assert_eq!(
@@ -249,9 +286,129 @@ async fn test_an_unknown_connection_is_not_found() {
     let (h, _) = runtime().await;
 
     // WHEN
-    let answer = remove(&h.state, Vec::new(), "mcp:absent", false).await;
+    let answer = remove(&h.state, &no_accounts(&h), "mcp:absent", false).await;
 
     // THEN
     assert_eq!(answer.unwrap_err().0, StatusCode::NOT_FOUND);
+    h.manager.shutdown().await;
+}
+
+// GIVEN a connected Google account, and a package agent declaring one of its
+//       operations
+// WHEN its removal is asked as a dry run, then made
+// THEN both list its token and the agent access, the account is gone from the
+//      auth manager, and the agent no longer holds the operation
+#[tokio::test]
+async fn test_a_native_account_is_removed_as_its_dry_run_says() {
+    // GIVEN
+    let (h, _) = runtime().await;
+    let send = "conn:google:ada@example.com/gmail.send";
+    AgentRepository::open(&apollia_core::paths::DataFile::Agents.path(h.dir.path()))
+        .unwrap()
+        .save_definition(&package_agent("mailer", &[send, "file_read"]))
+        .unwrap();
+    let auth = no_accounts(&h);
+    auth.put_token(
+        apollia_auth::ConnectorProvider::Google,
+        &apollia_auth::AccountId::new("ada@example.com"),
+        apollia_auth::StoredToken {
+            access_token: "at".into(),
+            refresh_token: None,
+            expires_at: None,
+            scopes: vec![],
+        },
+    )
+    .await
+    .unwrap();
+    let id = "native:google:ada@example.com";
+
+    // WHEN
+    let dry = remove(&h.state, &auth, id, true).await.unwrap();
+    let real = remove(&h.state, &auth, id, false).await.unwrap();
+
+    // THEN
+    assert_eq!(kinds(&dry), [RemovedKind::Token, RemovedKind::AgentAccess]);
+    assert_eq!(dry.removed, real.removed);
+    assert!(real.left.is_empty());
+    assert!(auth
+        .list_accounts(apollia_auth::ConnectorProvider::Google)
+        .await
+        .unwrap()
+        .is_empty());
+    let repo = definitions::open_agents(&h.state).unwrap();
+    let access = definitions::resolved(&h.state, &repo, "mailer")
+        .unwrap()
+        .access;
+    assert_eq!(access, ["file_read"]);
+    h.manager.shutdown().await;
+}
+
+// GIVEN a folder connection with an indexed source made on it
+// WHEN its removal is asked as a dry run, then made
+// THEN both list the folder and its source, and the folder and the source
+//      are gone
+#[tokio::test]
+async fn test_a_folder_is_removed_as_its_dry_run_says() {
+    // GIVEN
+    let dir = tempfile::TempDir::new().unwrap();
+    let folder = tempfile::TempDir::new().unwrap();
+    let (mut state, folder_id, source_id, index_file) =
+        crate::api::routes_connections::folders::tests::folder_with_source(&dir, &folder).await;
+    state.secret_store = MemorySecrets::default().opener();
+    let auth = auth_in(dir.path());
+    let id = format!("folder:{folder_id}");
+
+    // WHEN
+    let dry = remove(&state, &auth, &id, true).await.unwrap();
+    let real = remove(&state, &auth, &id, false).await.unwrap();
+
+    // THEN
+    assert_eq!(
+        kinds(&dry),
+        [RemovedKind::Configuration, RemovedKind::Source]
+    );
+    assert_eq!(dry.removed[1].name, source_id);
+    assert_eq!(dry.removed, real.removed);
+    assert!(real.left.is_empty());
+    assert!(super::super::folders::store(dir.path())
+        .unwrap()
+        .get(&folder_id)
+        .unwrap()
+        .is_none());
+    let registry = state.source_registry.clone().unwrap();
+    assert!(registry.list().await.unwrap().is_empty());
+    assert!(!index_file.exists());
+}
+
+// GIVEN a mailbox whose password the secret store refuses to delete
+// WHEN it is removed
+// THEN the mailbox leaves the list, and its password is answered under
+//      `left`, not under `removed`
+#[tokio::test]
+async fn test_a_mailbox_password_that_stays_is_answered_left() {
+    // GIVEN
+    let (mut h, secrets) = runtime().await;
+    let store = Undeletable(secrets.clone());
+    h.state.secret_store =
+        Arc::new(move || Ok(Box::new(store.clone()) as Box<dyn apollia_auth::SecretStore>));
+
+    // WHEN
+    let removal = remove(&h.state, &no_accounts(&h), "imap:ada@example.org", false)
+        .await
+        .unwrap();
+
+    // THEN
+    assert_eq!(kinds(&removal), [RemovedKind::Configuration]);
+    assert_eq!(
+        removal.left,
+        [RemovedItem::new(RemovedKind::Secret, "ada@example.org")]
+    );
+    assert!(secrets
+        .value(IMAP_SECRET_SERVICE, "ada@example.org")
+        .is_some());
+    assert_eq!(
+        ImapAccountStore::accounts_in(h.dir.path()).unwrap().len(),
+        1
+    );
     h.manager.shutdown().await;
 }

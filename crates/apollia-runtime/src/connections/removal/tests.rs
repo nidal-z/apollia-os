@@ -111,8 +111,9 @@ fn test_a_mailbox_tool_goes_with_the_last_mailbox_only() {
 
 // GIVEN the fields of an agent definition
 // WHEN each is asked whether it lists tools
-// THEN the access does, and no field that names something else than tools
-//      (examples, sources) does
+// THEN the access and the tools given on top of the default access do, and
+//      no field that names something else than tools (examples, sources)
+//      does
 #[test]
 fn test_only_the_access_fields_list_tools() {
     // GIVEN
@@ -122,8 +123,40 @@ fn test_only_the_access_fields_list_tools() {
     let listing: Vec<OverrideField> = fields.into_iter().filter(|f| lists_tools(*f)).collect();
 
     // THEN
-    assert!(listing.contains(&OverrideField::Access));
-    assert!(!listing.contains(&OverrideField::Examples));
-    assert!(!listing.contains(&OverrideField::Sources));
-    assert!(listing.iter().all(|f| f.as_str().starts_with("access")));
+    assert_eq!(listing, [OverrideField::Access, OverrideField::AccessAdded]);
+}
+
+// GIVEN an agent on the default access given a tool of the server on top of
+//       it
+// WHEN the revocations of the server's removal are planned
+// THEN the tool is taken from the tools given on top, and the default access
+//      itself gets no list
+#[test]
+fn test_a_tool_given_on_top_of_the_default_access_is_revoked() {
+    // GIVEN
+    let all = connections();
+    let notion = find(&all, "mcp:notion");
+    let agent = AgentLists {
+        id: "writer".into(),
+        by_default: true,
+        overrides: vec![(
+            OverrideField::AccessAdded,
+            vec!["mcp:notion/write".into(), "web_fetch".into()],
+        )],
+        declared: Vec::new(),
+    };
+
+    // WHEN
+    let planned = revocations(notion, false, &[agent]);
+
+    // THEN
+    assert_eq!(
+        planned,
+        vec![Revocation {
+            agent: "writer".into(),
+            field: OverrideField::AccessAdded,
+            kept: vec!["web_fetch".into()],
+            revoked: vec!["mcp:notion/write".into()],
+        }]
+    );
 }

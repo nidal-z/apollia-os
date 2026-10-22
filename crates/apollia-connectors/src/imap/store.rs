@@ -47,6 +47,15 @@ struct Index {
     accounts: Vec<ImapAccount>,
 }
 
+/// A mailbox connection removed from the store.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemovedMailbox {
+    /// The connection removed from the list.
+    pub account: ImapAccount,
+    /// Whether its password was deleted from the secret store.
+    pub password_deleted: bool,
+}
+
 /// The mailbox connections of this machine.
 pub struct ImapAccountStore {
     index_path: PathBuf,
@@ -175,16 +184,18 @@ impl ImapAccountStore {
     }
 
     /// Remove the stored connection for `email`: out of the list first, then
-    /// its password out of the secret store. Answers the connection removed.
+    /// its password out of the secret store. Answers the connection removed,
+    /// and whether its password was deleted.
     ///
-    /// A password that cannot be deleted is logged, never an error: the
-    /// mailbox is gone from the list, and nothing reads the password of a
-    /// mailbox the list no longer holds.
+    /// A password that cannot be deleted is not an error: the mailbox is gone
+    /// from the list, and nothing reads the password of a mailbox the list no
+    /// longer holds. It is logged, and answered so the caller can say it was
+    /// left behind.
     ///
     /// # Errors
     /// [`ImapError::NotFound`] when there is none, [`ImapError::Index`] when
     /// the list cannot be read or written.
-    pub fn remove(&self, email: &str) -> Result<ImapAccount, ImapError> {
+    pub fn remove(&self, email: &str) -> Result<RemovedMailbox, ImapError> {
         let mut index = self.read_index()?;
         let position = index
             .accounts
@@ -195,19 +206,26 @@ impl ImapAccountStore {
             })?;
         let account = index.accounts.remove(position);
         self.write_index(&index)?;
-        if let Err(e) = self.secrets.delete(IMAP_SECRET_SERVICE, &account.email) {
-            tracing::event!(
-                tracing::Level::WARN,
-                error = %e,
-                "imap.account.secret_delete_failed"
-            );
-        }
+        let password_deleted = match self.secrets.delete(IMAP_SECRET_SERVICE, &account.email) {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    error = %e,
+                    "imap.account.secret_delete_failed"
+                );
+                false
+            }
+        };
         tracing::event!(
             tracing::Level::INFO,
             host = %account.host,
             "imap.account.removed"
         );
-        Ok(account)
+        Ok(RemovedMailbox {
+            account,
+            password_deleted,
+        })
     }
 
     fn read_index(&self) -> Result<Index, ImapError> {

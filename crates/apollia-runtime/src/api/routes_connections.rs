@@ -83,9 +83,21 @@ pub(crate) async fn list_connections<B: ExecutionBackend + Clone>(
 
 /// Connected accounts of every native provider.
 pub(crate) async fn native_accounts() -> Result<Vec<NativeAccounts>, ApiError> {
-    let manager = crate::connectors_bridge::get_auth()
+    let manager = auth_manager().await?;
+    accounts_of(&manager).await
+}
+
+/// The auth manager the native connectors run with.
+pub(crate) async fn auth_manager() -> Result<std::sync::Arc<apollia_auth::AuthManager>, ApiError> {
+    crate::connectors_bridge::get_auth()
         .await
-        .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))
+}
+
+/// Connected accounts of every native provider in `manager`.
+pub(crate) async fn accounts_of(
+    manager: &apollia_auth::AuthManager,
+) -> Result<Vec<NativeAccounts>, ApiError> {
     let mut out = Vec::new();
     for provider in ConnectorProvider::ALL {
         let accounts = manager
