@@ -7,8 +7,11 @@
 //! exists. A folder is added and removed under `/api/v1/connections/folders`
 //! (see [`folders`]). The agents of a connection are read, and the connection
 //! granted to several agents, under `/api/v1/connections/{id}` (see
-//! [`agents`]). A connection of any kind is removed, with what it leaves
-//! behind, by `DELETE /api/v1/connections/{id}` (see [`remove`]).
+//! [`agents`]). A connection is checked now under
+//! `/api/v1/connections/{id}/check` (see [`check`]), and put in pause and
+//! resumed there too (see [`pause`]). A connection of any kind is removed,
+//! with what it leaves behind, by `DELETE /api/v1/connections/{id}` (see
+//! [`remove`]).
 
 use axum::{
     extract::State,
@@ -60,6 +63,18 @@ pub fn connections_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> 
         .route(
             "/api/v1/connections/:id/grants",
             post(agents::grant_connection::<B>),
+        )
+        .route(
+            "/api/v1/connections/:id/check",
+            post(check::check_connection::<B>),
+        )
+        .route(
+            "/api/v1/connections/:id/pause",
+            post(pause::pause_connection::<B>),
+        )
+        .route(
+            "/api/v1/connections/:id/resume",
+            post(pause::resume_connection::<B>),
         )
 }
 
@@ -159,11 +174,29 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
         forbidden: state.connection_governance.forbidden().ids().clone(),
         folders,
         states: crate::connections::state::kept_states(&state.data_dir),
+        paused: paused_connections(state),
     }))
 }
 
+/// The connections in pause: those governance holds, or, for a runtime
+/// mounted without its actor, those `governance.db` names.
+pub(crate) fn paused_connections<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+) -> std::collections::HashSet<String> {
+    if let Some(governance) = &state.governance {
+        return governance.state().paused.clone();
+    }
+    let db = apollia_core::paths::DataFile::Governance.path(&state.data_dir);
+    apollia_permissions::read_paused_connections(&db).unwrap_or_else(|e| {
+        tracing::event!(tracing::Level::WARN, error = %e, "connections.paused.unreadable");
+        std::collections::HashSet::new()
+    })
+}
+
 pub(crate) mod agents;
+pub(crate) mod check;
 pub(crate) mod folders;
+pub(crate) mod pause;
 pub(crate) mod remove;
 
 #[cfg(test)]

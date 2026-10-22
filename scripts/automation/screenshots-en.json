@@ -9,13 +9,15 @@
   ],
   "stopOnError": false,
   "dynamicTestids": [
+    "agent-sheet-tab-activity",
+    "agent-sheet-tab-sheet",
     "automation-history-seed-trigger-daily-digest",
     "automation-menu-seed-trigger-daily-digest",
     "automation-row-seed-trigger-daily-digest",
     "automation-wizard-next-0",
     "command-item-companion.toggle",
     "command-item-help.onboarding_reset",
-    "connections-sidebar-filter-all",
+    "connections-kind-filter-all",
     "danger-card-factory-reset",
     "global-event-task.completed",
     "mcp-detail-tab-overview",
@@ -30,9 +32,7 @@
     "settings-nav-notifications",
     "settings-nav-profile",
     "settings-nav-stt",
-    "trigger-logs-filter-all",
-    "agent-sheet-tab-activity",
-    "agent-sheet-tab-sheet"
+    "trigger-logs-filter-all"
   ],
   "steps": [
     {
@@ -903,7 +903,7 @@
     },
     {
       "kind": "click",
-      "testid": "connections-sidebar-filter-all",
+      "testid": "connections-kind-filter-all",
       "timeoutMs": 5000
     },
     {

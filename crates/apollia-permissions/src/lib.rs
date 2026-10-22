@@ -31,6 +31,7 @@
 //! in a [`JournalOutbox`], which the runtime empties into the signed journal.
 //! [`read_legacy_chat_config`] reads, once, the settings of the built-in chat
 //! that the runtime carries over to the Apollia agent.
+//! [`PausedConnectionStore`] holds the connections the user put in pause.
 
 pub mod access_upgrade;
 pub mod chat_config_upgrade;
@@ -40,6 +41,7 @@ pub mod family_consent;
 pub mod governance_schema;
 pub mod journal_outbox;
 pub mod org_policy;
+pub mod paused_connections;
 pub mod prefix_rule_engine;
 
 pub use access_upgrade::{
@@ -65,6 +67,7 @@ pub use org_policy::{
     PolicyInvalid, PolicyInvalidReason, PolicyLocation, PolicySchemaError, PolicyVerdict,
     PolicyView, ValidPolicy, REQUIRE_VERIFIED_SETTING,
 };
+pub use paused_connections::{read_paused_connections, PausedConnectionStore};
 pub use prefix_rule_engine::{
     extract_first_arg, rule_matches, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
     ScopeContext,

@@ -60,6 +60,9 @@ pub(in crate::chat::agent_executor) struct GrantedToolProxy {
     message_id: String,
     granted: HashSet<String>,
     described: HashMap<String, Described>,
+    /// The entries of the deferred MCP tool index for the granted tools the
+    /// registry does not describe.
+    mcp_index: Vec<apollia_mcp::tool_search::ToolIndexSnapshot>,
     authorized: Mutex<HashSet<String>>,
     approved_calls: Mutex<HashSet<String>>,
     pending_approvals: PendingChatApprovals,
@@ -93,6 +96,16 @@ impl GrantedToolProxy {
                 );
             }
         }
+        let mcp_index = wiring
+            .deps
+            .mcp_index
+            .iter()
+            .filter(|entry| {
+                let name = entry.full_name();
+                granted.contains(&name) && !described.contains_key(&name)
+            })
+            .cloned()
+            .collect();
         Self {
             invoker: std::sync::Arc::clone(&wiring.deps.tool_invoker),
             event_bus: wiring.deps.event_bus.clone(),
@@ -102,6 +115,7 @@ impl GrantedToolProxy {
             session_id: wiring.session_id.to_string(),
             message_id: wiring.message_id.to_string(),
             granted,
+            mcp_index,
             described,
             authorized: Mutex::new(wiring.authorized.clone()),
             approved_calls: Mutex::new(HashSet::new()),
@@ -134,12 +148,14 @@ impl GrantedToolProxy {
         });
     }
 
-    /// The family of `tool_name` as its descriptor declares it; a tool
-    /// nothing describes is unclassified.
+    /// The family of `tool_name` as its descriptor declares it, else as its
+    /// entry in the deferred MCP tool index carries it; a tool neither
+    /// describes is unclassified.
     fn family_of(&self, tool_name: &str) -> ActionFamily {
-        self.described
-            .get(tool_name)
-            .map_or(ActionFamily::Unclassified, |d| d.family)
+        match self.described.get(tool_name) {
+            Some(described) => described.family,
+            None => apollia_mcp::tool_search::tool_family(tool_name, None, &self.mcp_index),
+        }
     }
 
     /// The governance decision on one call of a step. A grant of the run
@@ -292,7 +308,7 @@ impl GrantedToolProxy {
         }
     }
 
-    /// Records in the journal a call the policy or a rule refused. Neither
+    /// Records in the journal a call the policy, a rule or a pause refused. Neither
     /// the call's argument nor its result is recorded.
     fn journal_refusal(&self, tool_name: &str, family: ActionFamily, reason: &DecisionReason) {
         let event = match reason {
@@ -307,6 +323,12 @@ impl GrantedToolProxy {
                 access_id: tool_name.to_string(),
                 family,
                 rule_id: *rule_id,
+            },
+            DecisionReason::Paused { connection_id } => GovernanceEvent::PausedRefused {
+                agent_id: self.agent_id.clone(),
+                access_id: tool_name.to_string(),
+                family,
+                connection_id: connection_id.clone(),
             },
             _ => return,
         };

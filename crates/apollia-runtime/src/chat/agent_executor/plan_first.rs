@@ -117,6 +117,9 @@ pub(super) struct PlanFirstDeps {
     pub governance: crate::governance::GovernanceHandle,
     /// Nobody watches the run: a call that would ask waits instead.
     pub unattended: bool,
+    /// The deferred MCP tool index, whose entries give the family of a tool
+    /// the registry does not describe; empty in eager loading.
+    pub mcp_index: Vec<apollia_mcp::tool_search::ToolIndexSnapshot>,
 }
 
 /// The run of one task in plan-first mode.

@@ -150,6 +150,7 @@ impl Supervisor {
                     launcher.clone(),
                     self.config.data_dir.clone(),
                     governance.handle.clone(),
+                    core.mcp_handle.clone(),
                 ),
                 core.event_sender.clone(),
             )),
@@ -239,13 +240,20 @@ pub(super) async fn load_agents_after_ready<
 }
 
 /// The item runner of the batch engine, asking governance which accesses
-/// are sensitive.
+/// are sensitive, and the MCP manager's tool index the family of a deferred
+/// MCP tool.
 fn batch_runner<B: crate::coordinator::ExecutionBackend>(
     launcher: crate::agents::task::AgentTaskLauncher<B>,
     data_dir: std::path::PathBuf,
     governance: crate::governance::GovernanceHandle,
+    mcp: Option<apollia_mcp::manager::McpClientManagerHandle>,
 ) -> crate::batch::AgentItemRunner<B> {
-    crate::batch::AgentItemRunner::new(launcher, data_dir).with_governance(Arc::new(governance))
+    let runner = crate::batch::AgentItemRunner::new(launcher, data_dir)
+        .with_governance(Arc::new(governance));
+    match mcp {
+        Some(mcp) => runner.with_mcp(mcp),
+        None => runner,
+    }
 }
 
 /// The batch source kinds this runtime reads.

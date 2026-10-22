@@ -6,6 +6,7 @@
 //! it, in a fixed order, the first line that applies deciding:
 //!
 //! 1. the policy refuses the tool, its connection or its family: refused;
+//!    then the connection that brings the tool is in pause: refused;
 //! 2. a fine rule `deny` matches: refused;
 //! 3. the family reads only, or acts on the conversation alone: allowed;
 //! 4. the family executes code: allowed by a fine rule `allow` on a single
@@ -25,8 +26,16 @@
 //! A run may also hold a grant for one call only ([`once_grant`]): the answer
 //! "once" given to a batch item that stopped on executing code. The next call
 //! of that access that would ask goes through ([`answered_once`]), the one
-//! after asks again; a refusal of lines 1, 2 or of fail-closed governance
-//! stays a refusal.
+//! after asks again; a refusal of lines 1, 2 or of fail-closed
+//! governance stays a refusal.
+//!
+//! `connections.deny` names connections in the vocabulary of the admission
+//! (`native:google`, `selection:<entry>`, `package:npm:<name>`), not in the
+//! one of a call (`conn:google:<account>/<operation>`, `mcp:<server>/<tool>`).
+//! A call is therefore read in both: the kind of connection Apollia brings
+//! itself is named from the call ([`policy_names`]), and an MCP server the
+//! policy names by its entry or its package was found at boot and is held in
+//! [`PolicyRefusals::forbidden_connections`].
 
 use std::collections::HashSet;
 
@@ -89,6 +98,47 @@ pub struct PolicyRefusals {
     pub forbidden_connections: HashSet<String>,
 }
 
+/// Prefix of the tools of a folder connection.
+const FOLDER_TOOL_PREFIX: &str = "conn:folder:";
+
+/// Prefix of the tools shared by every mailbox connected over IMAP.
+const IMAP_TOOL_PREFIX: &str = "imap.";
+
+/// The names `connections.deny` may give the connection of `access_id`, in
+/// the admission vocabulary: `native:<provider>` for a tool of a connected
+/// account, `native:folder` for a tool of a folder, `native:imap` for a
+/// mailbox tool. An MCP server is named by its entry or its package, which
+/// the call does not carry.
+fn policy_names(access_id: &str) -> Vec<String> {
+    if access_id.starts_with(IMAP_TOOL_PREFIX) {
+        return vec!["native:imap".to_owned()];
+    }
+    if access_id.starts_with(FOLDER_TOOL_PREFIX) {
+        return vec!["native:folder".to_owned()];
+    }
+    access_id
+        .strip_prefix("conn:")
+        .and_then(|rest| rest.split_once(':'))
+        .map(|(provider, _)| vec![format!("native:{provider}")])
+        .unwrap_or_default()
+}
+
+/// The connection that brings the tool `access_id`, as the connection list
+/// names it: `mcp:<server>`, `native:<provider>:<account>`, `folder:<id>`;
+/// `None` for a tool Apollia ships, and for a mailbox tool, shared by every
+/// mailbox and refused by its executor.
+#[must_use]
+pub fn listed_connection_of(access_id: &str) -> Option<String> {
+    let connection = connection_of(access_id)?;
+    if let Some(folder) = connection.strip_prefix(FOLDER_TOOL_PREFIX) {
+        return Some(format!("folder:{folder}"));
+    }
+    if let Some(account) = connection.strip_prefix("conn:") {
+        return Some(format!("native:{account}"));
+    }
+    Some(connection.to_owned())
+}
+
 /// Everything a decision reads.
 #[derive(Debug, Clone, Default)]
 pub struct GovernanceState {
@@ -104,6 +154,9 @@ pub struct GovernanceState {
     pub developer_mode: bool,
     /// The tools disabled in `governance.db`, left out of every dispatcher.
     pub disabled_tools: Vec<String>,
+    /// The connections in pause in `governance.db`, as the connection list
+    /// names them: every tool of one is refused.
+    pub paused: HashSet<String>,
     /// Set while governance cannot read what it decides from: every sensitive
     /// call is refused.
     pub fail_closed: Option<FailClosed>,
@@ -121,6 +174,13 @@ pub fn decide(state: &GovernanceState, call: &AccessCall<'_>, now: i64) -> Acces
     if let Some(detail) = policy_refusal(&state.policy, call.access_id, family) {
         return AccessDecision::Denied {
             reason: DecisionReason::Policy { detail },
+        };
+    }
+    if let Some(connection_id) =
+        listed_connection_of(call.access_id).filter(|id| state.paused.contains(id))
+    {
+        return AccessDecision::Denied {
+            reason: DecisionReason::Paused { connection_id },
         };
     }
     let matching: Vec<&PrefixRule> = state
@@ -234,6 +294,14 @@ fn policy_refusal(
     }
     if policy.denied.contains(access_id) {
         return Some("refused by the organisation policy: this tool is not allowed".to_owned());
+    }
+    if policy_names(access_id)
+        .iter()
+        .any(|name| policy.denied.contains(name))
+    {
+        return Some(
+            "refused by the organisation policy: this connection is not allowed".to_owned(),
+        );
     }
     let connection = connection_of(access_id)?;
     if policy.denied.contains(connection) || policy.forbidden_connections.contains(connection) {

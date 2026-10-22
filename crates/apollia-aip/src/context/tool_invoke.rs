@@ -291,6 +291,9 @@ pub(crate) struct ToolCallContext<'a> {
     pub(crate) run_id: Option<&'a str>,
     /// What governance cannot read, when it failed closed as the run started.
     pub(crate) fail_closed: Option<&'a str>,
+    /// The deferred MCP tool index, which gives the family of an `mcp:` tool
+    /// the registry does not describe.
+    pub(crate) mcp_index: &'a [apollia_mcp::tool_search::ToolIndexSnapshot],
 }
 /// Shared tool execution logic used by both the Python `call()` and Rust `call_inner()`.
 pub(crate) async fn execute_tool(
@@ -338,12 +341,12 @@ pub(crate) async fn execute_tool(
         None => return Err(ToolProxyError::ToolNotFound(tool_name.to_string())),
     };
 
-    // 3. Governance that failed closed refuses what is sensitive: a tool
-    //    nothing describes is unclassified, hence sensitive.
+    // 3. Governance that failed closed refuses what is sensitive: a deferred
+    //    MCP tool takes the family of its index entry, and a tool nothing
+    //    describes is unclassified, hence sensitive.
     if let Some(detail) = ctx.fail_closed {
-        let family = descriptor
-            .as_ref()
-            .map_or(apollia_tools::ActionFamily::Unclassified, |d| d.family);
+        let family =
+            apollia_mcp::tool_search::tool_family(tool_name, descriptor.as_ref(), ctx.mcp_index);
         if apollia_runtime::governance::refused_when_fail_closed(family) {
             let refusal = ToolProxyError::FailClosed {
                 tool: tool_name.to_string(),

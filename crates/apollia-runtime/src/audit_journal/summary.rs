@@ -140,6 +140,7 @@ pub fn nature_of(kind: &JournalEntryKind) -> JournalNature {
         | K::ConsentAnswered
         | K::PolicyRefused
         | K::RuleRefused
+        | K::PausedRefused
         | K::ServerCall => JournalNature::Action,
         K::AccessChanged
         | K::AgentInstalled
@@ -305,6 +306,7 @@ pub fn summarize(entry: &JournalEntry) -> JournalSummary {
         | K::AlwaysWithdrawn
         | K::PolicyRefused
         | K::RuleRefused
+        | K::PausedRefused
         | K::RuleAdded
         | K::RuleRemoved
         | K::BatchAccessGranted
@@ -486,6 +488,19 @@ fn governance_summary(summary: &mut JournalSummary, event: &GovernanceEvent) {
             summary.family = Some(family.as_str().to_owned());
             summary.outcome = Some(JournalOutcome::Refused);
             "Call refused by a rule"
+        }
+        GovernanceEvent::PausedRefused {
+            agent_id,
+            access_id,
+            family,
+            connection_id,
+        } => {
+            summary.agent = Some(agent_id.clone());
+            summary.tool = Some(access_id.clone());
+            summary.family = Some(family.as_str().to_owned());
+            summary.target = Some(connection_id.clone());
+            summary.outcome = Some(JournalOutcome::Refused);
+            "Call refused: its connection is in pause"
         }
         GovernanceEvent::RuleAdded(rule) => {
             summary.agent = rule.agent_id.clone();

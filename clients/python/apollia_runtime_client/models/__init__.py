@@ -82,6 +82,8 @@ from .chat_request import ChatRequest
 from .chat_request_schema_type_0 import ChatRequestSchemaType0
 from .chat_response import ChatResponse
 from .chat_response_value_type_0 import ChatResponseValueType0
+from .check_connection_body import CheckConnectionBody
+from .check_connection_body_probe_type_0 import CheckConnectionBodyProbeType0
 from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
 from .clear_memory_body import ClearMemoryBody
@@ -711,6 +713,8 @@ __all__ = (
     "ChatRequestSchemaType0",
     "ChatResponse",
     "ChatResponseValueType0",
+    "CheckConnectionBody",
+    "CheckConnectionBodyProbeType0",
     "ClearAgentModelResponse",
     "ClearCacheResponse",
     "ClearedServerLogs",

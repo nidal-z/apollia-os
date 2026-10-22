@@ -591,8 +591,6 @@
     },
     "native_google_description": "Gmail (send + drafts), Calendar, Drive Workspace",
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
-    "forbidden_by_policy": "Forbidden by the policy",
-    "sidebar_forbidden_section": "Forbidden by the policy ({count})",
     "error_refused_by_policy": "Refused by your organisation's policy.",
     "error_oauth_client_missing": "Missing OAuth client ID - enter it on this connection's page, in Connections.",
     "error_oauth_client_secret_missing": "Missing OAuth client secret - add it on this connection's page, in Connections.",
@@ -606,20 +604,10 @@
     "custom_error_url_required": "Enter the address of the connection.",
     "custom_test_tools_detected": "{count} tool(s) detected.",
     "custom_error_oauth_required": "This server requires OAuth authentication. Install it from the catalogue rather than via the custom form.",
-    "sidebar_my_connectors": "Connections · {count}",
-    "sidebar_filter_placeholder": "Filter…",
-    "status_chip_all": "All",
-    "status_chip_active": "Active",
-    "status_chip_attention": "Attention",
-    "status_chip_error": "Error",
-    "status_chip_idle": "Idle",
-    "status_filter_label": "Status filter",
-    "sidebar_accounts_active": "{count} active account(s)",
     "not_connected": "Not connected",
     "needs_configuration": "Setup required",
     "sidebar_no_servers": "No connection yet.",
     "sidebar_no_results": "No results.",
-    "sidebar_no_servers_status": "No connection in this status.",
     "tools_count_label": "{count} tool(s)",
     "badge_active_count": "{count} active",
     "add_account": "Add an account",
@@ -740,7 +728,6 @@
       "hint_postgres": "PostgreSQL connection URI (`postgres://user:pass@host:5432/db`) as the first argument.",
       "hint_sqlite": "Absolute path to the `.sqlite` file to expose."
     },
-    "ctx_configure": "Configure",
     "tool_schema": "Schema",
     "oauth_client": {
       "title": {
@@ -908,6 +895,41 @@
       "add": "Add",
       "open": "Open its page",
       "back": "Back to the search"
+    },
+    "list": {
+      "search_placeholder": "Search a connection…",
+      "kind_filter_label": "Kind of connection",
+      "kind_all": "All",
+      "kind_native": "Accounts",
+      "kind_imap": "Mailboxes",
+      "kind_mcp": "Services",
+      "kind_folder": "Folders",
+      "no_connection_of_kind": "No connection of this kind.",
+      "brought_by": "Brought by the package {package}",
+      "close_card": "Close the card",
+      "source_failed": {
+        "connections": "The list of connections could not be read: {error}",
+        "services": "The state of the services could not be read: {error}",
+        "descriptions": "The descriptions of the catalogue could not be read: {error}",
+        "agents": "The list of agents could not be read: {error}"
+      }
+    },
+    "state": {
+      "working": "Working",
+      "needs_repair": "Needs repair",
+      "paused": "Paused",
+      "blocked": "Blocked by your organisation",
+      "reason": {
+        "not_checked": "not checked yet",
+        "sign_in_again": "the account must sign in again",
+        "unreachable": "unreachable",
+        "failing": "its operations fail",
+        "forbidden_by_policy": "forbidden by the policy"
+      },
+      "checked_just_now": "checked just now",
+      "checked_minutes_ago": "checked {mins} min ago",
+      "checked_hours_ago": "checked {hours} h ago",
+      "checked_days_ago": "checked {days} d ago"
     }
   },
   "integrations": {
@@ -917,13 +939,6 @@
       "data": "What your agents read or send through this connection goes through {name}, under its own terms.",
       "responsibility": "Apollia tests the connections of its selection; it does not answer for the service itself, which you can remove at any time from Connections.",
       "journal": "Your agreement is recorded in the Activity log."
-    },
-    "status": {
-      "connected": "Connected",
-      "unverified": "Reachable",
-      "degraded": "Degraded",
-      "needs_reauth": "Reconnection needed",
-      "unavailable": "Unavailable"
     },
     "connectors": {
       "figma": {
@@ -6519,6 +6534,7 @@
       "always_withdrawn": "An \"always\" was withdrawn from {agent}",
       "policy_refused": "The organization policy blocked an action of {agent}",
       "rule_refused": "A rule refused an action of {agent}",
+      "paused_refused": "An action of {agent} was refused: its connection is paused",
       "rule_added": "A fine rule was added",
       "rule_removed": "A fine rule was removed",
       "batch_access_granted": "An access was granted to {agent} for one batch",

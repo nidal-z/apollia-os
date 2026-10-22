@@ -35,6 +35,9 @@ pub struct AgentItemRunner<B: ExecutionBackend> {
     data_dir: PathBuf,
     governance: Option<Arc<dyn GovernanceContract>>,
     tools: Arc<HashMap<String, KnownTool>>,
+    /// The MCP manager, whose tool index gives the family of an MCP tool no
+    /// descriptor above describes.
+    mcp: Option<apollia_mcp::manager::McpClientManagerHandle>,
 }
 
 impl<B: ExecutionBackend> AgentItemRunner<B> {
@@ -46,6 +49,23 @@ impl<B: ExecutionBackend> AgentItemRunner<B> {
             data_dir,
             governance: None,
             tools: Arc::new(known_tools()),
+            mcp: None,
+        }
+    }
+
+    /// The same runner, reading the family of an MCP tool from the tool
+    /// index of `mcp`.
+    #[must_use]
+    pub fn with_mcp(mut self, mcp: apollia_mcp::manager::McpClientManagerHandle) -> Self {
+        self.mcp = Some(mcp);
+        self
+    }
+
+    /// The MCP tool index as it stands now; empty without a manager.
+    async fn mcp_index(&self) -> Vec<apollia_mcp::tool_search::ToolIndexSnapshot> {
+        match &self.mcp {
+            Some(mcp) => mcp.get_tool_index().await,
+            None => Vec::new(),
         }
     }
 
@@ -78,7 +98,8 @@ impl<B: ExecutionBackend> AgentItemRunner<B> {
         agent: &ResolvedAgent,
         batch_id: &str,
     ) -> Result<Vec<String>, String> {
-        let classified = classify(agent, &self.tools, self.governance.as_deref());
+        let index = self.mcp_index().await;
+        let classified = classify(agent, &self.tools, &index, self.governance.as_deref());
         let mut authorized = Vec::new();
         let mut to_check = Vec::new();
         for (access, is_sensitive) in classified {
@@ -118,9 +139,11 @@ impl<B: ExecutionBackend> AgentItemRunner<B> {
 impl<B: ExecutionBackend> ItemRunner for AgentItemRunner<B> {
     async fn check(&self, agent: &str) -> Result<Vec<BatchAccess>, String> {
         let resolved = self.resolve(agent).await?;
+        let index = self.mcp_index().await;
         Ok(sensitive(&classify(
             &resolved,
             &self.tools,
+            &index,
             self.governance.as_deref(),
         )))
     }
@@ -306,6 +329,9 @@ pub(crate) fn decide_original_write(
             }
             DecisionReason::Rule { rule_id } => {
                 format!("writing into the original file is refused by rule {rule_id}")
+            }
+            DecisionReason::Paused { connection_id } => {
+                format!("writing into the original file is refused: {connection_id} is paused")
             }
             DecisionReason::FailClosed
             | DecisionReason::Consent

@@ -4,7 +4,9 @@
 
 use super::*;
 use crate::audit_journal::{AuditJournalHandle, JournalEntry, JournalEntryKind};
-use crate::governance::{governance_run_id, GovernanceHandle, GovernanceState, PolicyRefusals};
+use crate::governance::{
+    governance_run_id, DecisionReason, GovernanceHandle, GovernanceState, PolicyRefusals,
+};
 use crate::test_support::poll_until;
 use apollia_llm::types::{
     CompletionModel, CompletionRequest, CompletionResponse, StreamChunk as LlmStreamChunk,
@@ -22,6 +24,7 @@ const PROMPT_WAIT: Duration = Duration::from_secs(5);
 /// Streams one call to [`TOOL`] carrying [`ARGUMENT`], then final text.
 struct OneCallThenText {
     iteration: AtomicU32,
+    tool: &'static str,
 }
 
 #[async_trait::async_trait]
@@ -50,7 +53,7 @@ impl CompletionModel for OneCallThenText {
         let chunk = if self.iteration.fetch_add(1, Ordering::SeqCst) == 0 {
             LlmStreamChunk::ToolCall(LlmToolCall {
                 id: "c0".into(),
-                name: TOOL.into(),
+                name: self.tool.into(),
                 arguments: serde_json::json!({ "path": ARGUMENT, "content": ARGUMENT }),
             })
         } else {
@@ -96,6 +99,17 @@ async fn run_exchange(state: GovernanceState, answer: Option<ToolDecision>) -> V
     entries
 }
 
+/// Runs the same exchange, the model calling `tool` instead of [`TOOL`].
+async fn run_exchange_with(tool: &'static str, state: GovernanceState) -> Vec<JournalEntry> {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let journal = AuditJournalHandle::open(&dir.path().join("audit_journal.db"))
+        .await
+        .expect("journal");
+    let entries = run_exchange_calling(&journal, tool, state, None).await;
+    journal.shutdown().await;
+    entries
+}
+
 /// Runs the same exchange against `journal`, which stays open so the caller
 /// can verify it.
 async fn run_exchange_into(
@@ -103,16 +117,27 @@ async fn run_exchange_into(
     state: GovernanceState,
     answer: Option<ToolDecision>,
 ) -> Vec<JournalEntry> {
+    run_exchange_calling(journal, TOOL, state, answer).await
+}
+
+/// Runs the exchange against `journal`, the model calling `tool`.
+async fn run_exchange_calling(
+    journal: &AuditJournalHandle,
+    tool: &'static str,
+    state: GovernanceState,
+    answer: Option<ToolDecision>,
+) -> Vec<JournalEntry> {
     let governance = GovernanceHandle::detached(state, Some(journal.clone()));
     let model: Arc<dyn CompletionModel> = Arc::new(OneCallThenText {
         iteration: AtomicU32::new(0),
+        tool,
     });
     let mut backends = std::collections::HashMap::new();
     backends.insert("default".to_string(), model);
     let router = Arc::new(LlmRouter::with_backends(backends, "default"));
     let (event_bus, _events) = tokio::sync::broadcast::channel(128);
     let tool_registry = ToolRegistryHandle::start();
-    super::governed_test_support::register_writing(&tool_registry, TOOL).await;
+    super::governed_test_support::register_writing(&tool_registry, tool).await;
     let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
         llm_router: router,
         tool_registry: tool_registry.clone(),
@@ -144,7 +169,7 @@ async fn run_exchange_into(
             "write it",
             &[],
             "assistant",
-            &[TOOL.to_string()],
+            &[tool.to_string()],
             &HashSet::new(),
             &approvals,
             &budget,
@@ -307,4 +332,42 @@ async fn test_each_answer_reaches_the_signed_journal_and_the_chain_holds() {
     assert!(report.head_matches_state, "{report:?}");
     assert!(report.entries_checked >= 3, "{report:?}");
     journal.shutdown().await;
+}
+
+// A call of a tool of a connection in pause is refused, the model told why,
+// and journaled as refused by the pause.
+#[tokio::test]
+async fn test_paused_refusal_is_journaled_without_content() {
+    // GIVEN the MCP server that brings the tool, in pause
+    const PAUSED_TOOL: &str = "mcp:notion/create_page";
+    let state = GovernanceState {
+        paused: ["mcp:notion".to_string()].into_iter().collect(),
+        ..GovernanceState::default()
+    };
+
+    // WHEN the model calls it
+    let entries = run_exchange_with(PAUSED_TOOL, state).await;
+
+    // THEN the journal records the refusal by the pause, naming the
+    // connection, and nothing else
+    let kinds: Vec<JournalEntryKind> = entries.iter().map(|e| e.kind.clone()).collect();
+    assert_eq!(kinds, vec![JournalEntryKind::PausedRefused]);
+    assert_eq!(entries[0].payload["access_id"], PAUSED_TOOL);
+    assert_eq!(entries[0].payload["connection_id"], "mcp:notion");
+    assert_no_content(&entries);
+}
+
+// What the model is told of a refusal by the pause names the connection and
+// says it is paused.
+#[test]
+fn test_the_model_is_told_the_connection_is_paused() {
+    // GIVEN a refusal by the pause of a server
+    let reason = DecisionReason::Paused {
+        connection_id: "mcp:notion".into(),
+    };
+    // WHEN it is put in words for the model
+    let text = super::governed::refusal_text(&reason);
+    // THEN it names the connection and the pause
+    assert!(text.contains("mcp:notion"), "{text}");
+    assert!(text.contains("paused"), "{text}");
 }

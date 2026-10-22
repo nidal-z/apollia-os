@@ -4,7 +4,6 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 import { invoke } from "@tauri-apps/api/core";
 import {
-  forbiddenConnections,
   loadConnections,
   precheckedToolIds,
   sortConnections,
@@ -21,6 +20,10 @@ function connection(over: Partial<Connection> = {}): Connection {
     remote: false,
     official: false,
     state: "connected",
+    status: "working",
+    reason: null,
+    checkedAt: null,
+    package: null,
     tools: [],
     ...over,
   };
@@ -101,28 +104,5 @@ describe("precheckedToolIds", () => {
     // WHEN the prechecked tools are read
     // THEN only the read is listed
     expect(precheckedToolIds(c)).toEqual(["mcp:files/read"]);
-  });
-});
-
-describe("forbiddenConnections", () => {
-  it("keeps only the connections the policy forbade, in list order", () => {
-    // GIVEN a running server, a forbidden server and a forbidden account
-    const list = [
-      connection({ id: "mcp:files" }),
-      connection({ id: "mcp:fetch", label: "fetch", state: "forbidden_by_policy" }),
-      connection({
-        id: "native:google:ada@example.com",
-        kind: "native",
-        label: "Google",
-        account: "ada@example.com",
-        state: "forbidden_by_policy",
-      }),
-    ];
-
-    // WHEN the forbidden ones are picked
-    const forbidden = forbiddenConnections(list);
-
-    // THEN both forbidden connections remain, the account first
-    expect(forbidden.map((c) => c.id)).toEqual(["native:google:ada@example.com", "mcp:fetch"]);
   });
 });

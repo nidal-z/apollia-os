@@ -18,27 +18,42 @@ use crate::session::{McpSession, McpSessionError};
 use crate::tool_search::ToolIndexSnapshot;
 
 impl McpClientManager {
-    /// Aggregate the lightweight tool index across every session.
+    /// Aggregate the lightweight tool index across every session, then the
+    /// tools kept for the servers that have none.
     ///
-    /// Each [`ToolIndexEntry`] is enriched with its owning server name and the
-    /// server's configured tags, producing a [`ToolIndexSnapshot`] usable by the
-    /// synthetic `tool_search` tool. Sessions running in [`LoadingMode::Eager`]
-    /// contribute nothing, since their index is empty.
+    /// Each [`ToolIndexEntry`] is enriched with its owning server name, the
+    /// server's configured tags and the family the tool is classified in,
+    /// producing a [`ToolIndexSnapshot`] usable by the synthetic `tool_search`
+    /// tool. Sessions running in [`LoadingMode::Eager`] contribute nothing,
+    /// since their index is empty, and nothing is kept for them.
     ///
     /// [`ToolIndexEntry`]: crate::session::ToolIndexEntry
+    /// [`LoadingMode::Eager`]: crate::session::LoadingMode::Eager
     pub(super) fn collect_tool_index(&self) -> Vec<ToolIndexSnapshot> {
         let mut index = Vec::new();
         for session in self.sessions.values() {
-            let server_name = session.server_name().to_string();
-            let tags = session.config().tags.clone();
+            let server_name = session.server_name();
+            let hints = if self.request_servers.contains(server_name) {
+                ServerHints::Ignored
+            } else {
+                ServerHints::Read
+            };
             for entry in session.tool_index() {
-                index.push(ToolIndexSnapshot {
-                    server_name: server_name.clone(),
-                    tool_name: entry.name.clone(),
-                    description: entry.description.clone(),
-                    tags: tags.clone(),
-                    input_schema: session.cached_tool_schema(&entry.name).cloned(),
-                });
+                index.push(index_snapshot(
+                    session.config(),
+                    hints,
+                    IndexedTool {
+                        name: &entry.name,
+                        description: entry.description.clone(),
+                        annotations: entry.annotations,
+                        input_schema: session.cached_tool_schema(&entry.name).cloned(),
+                    },
+                ));
+            }
+        }
+        for (server_name, kept) in &self.kept_index {
+            if !self.sessions.contains_key(server_name) {
+                index.extend(kept.iter().cloned());
             }
         }
         index
@@ -62,6 +77,42 @@ pub(super) enum ServerHints {
     Read,
     /// A server nobody added as a connection: nothing it declares classifies.
     Ignored,
+}
+
+/// One tool of a server's index, before it is classified.
+pub(super) struct IndexedTool<'a> {
+    pub(super) name: &'a str,
+    pub(super) description: Option<String>,
+    pub(super) annotations: Option<crate::protocol::McpToolAnnotations>,
+    pub(super) input_schema: Option<serde_json::Value>,
+}
+
+/// The index entry of `tool` on the server `config` describes, classified as
+/// the registry would classify it: the selection entry, then the server's
+/// hints when `hints` lets them count, else unclassified.
+pub(super) fn index_snapshot(
+    config: &McpServerConfig,
+    hints: ServerHints,
+    tool: IndexedTool<'_>,
+) -> ToolIndexSnapshot {
+    let (family, family_source) = match hints {
+        ServerHints::Read => classify_mcp_tool(
+            config.tool_families.get(tool.name).copied(),
+            tool.annotations.as_ref(),
+            config.has_account(),
+        ),
+        ServerHints::Ignored => classify_mcp_tool(None, None, config.has_account()),
+    };
+    ToolIndexSnapshot {
+        server_name: config.name.clone(),
+        tool_name: tool.name.to_string(),
+        description: tool.description,
+        tags: config.tags.clone(),
+        input_schema: tool.input_schema,
+        annotations: tool.annotations,
+        family,
+        family_source,
+    }
 }
 
 /// The registry names of the tools `session` exposes, `mcp:<server>/<tool>`.

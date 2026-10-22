@@ -223,6 +223,9 @@ pub struct ToolProxy {
     /// tool call is refused, reading continues. Holds what governance cannot
     /// read.
     pub(crate) fail_closed: Option<String>,
+    /// The deferred MCP tool index of the run: the family of an `mcp:` tool
+    /// the registry does not describe is read from its entry.
+    pub(crate) mcp_index: Arc<Vec<apollia_mcp::tool_search::ToolIndexSnapshot>>,
 }
 #[pymethods]
 impl ToolProxy {
@@ -373,6 +376,7 @@ impl ToolProxy {
         let task_id = self.task_id.clone();
         let run_id = self.run_id.clone();
         let fail_closed = self.fail_closed.clone();
+        let mcp_index = Arc::clone(&self.mcp_index);
         let bus_for_async = self.event_bus.clone();
         let started_event_id_clone = started_event_id.clone();
         let tool_name_for_async = tool_name.clone();
@@ -382,7 +386,11 @@ impl ToolProxy {
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let descriptor = registry.describe(&tool_name).await;
-            let family = descriptor.as_ref().map(|d| d.family.as_str().to_owned());
+            let family = (descriptor.is_some() || tool_name.starts_with("mcp:")).then(|| {
+                apollia_mcp::tool_search::tool_family(&tool_name, descriptor.as_ref(), &mcp_index)
+                    .as_str()
+                    .to_owned()
+            });
             let target = descriptor
                 .as_ref()
                 .and_then(|d| d.call_target(&input_value));
@@ -404,6 +412,7 @@ impl ToolProxy {
                     task_id: &task_id,
                     run_id: run_id.as_ref().map(|r| r.as_str()),
                     fail_closed: fail_closed.as_deref(),
+                    mcp_index: &mcp_index,
                 },
                 &tool_name,
                 input_value,
@@ -569,7 +578,18 @@ impl ToolProxy {
             event_bus: None,
             budget: None,
             fail_closed: None,
+            mcp_index: Arc::new(Vec::new()),
         }
+    }
+
+    /// Reads the family of a deferred MCP tool, which the registry does not
+    /// describe, from its entry in `index`, the MCP manager's tool index.
+    pub fn with_mcp_index(
+        mut self,
+        index: Vec<apollia_mcp::tool_search::ToolIndexSnapshot>,
+    ) -> Self {
+        self.mcp_index = Arc::new(index);
+        self
     }
 
     /// Refuses every sensitive tool call of the run while `fail_closed` is
@@ -701,6 +721,7 @@ impl ToolProxy {
                 task_id: &self.task_id,
                 run_id: self.run_id.as_ref().map(|r| r.as_str()),
                 fail_closed: self.fail_closed.as_deref(),
+                mcp_index: &self.mcp_index,
             },
             tool_name,
             input,

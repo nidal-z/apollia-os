@@ -36,7 +36,7 @@ pub mod secret_storage;
 pub mod storage;
 pub mod token;
 
-pub use auth_manager::AuthManager;
+pub use auth_manager::{AuthManager, HttpTokenRefresh, TokenRefresh};
 pub use connector_consent::{
     ConnectedAccount, ConsentError, ConsentStart, PendingConsent, PendingConsents,
 };
