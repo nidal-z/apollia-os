@@ -294,7 +294,7 @@ pub(in crate::supervisor) async fn start_mcp_manager(
             let total_tools: usize = status.iter().map(|s| s.tools_count).sum();
             info!(
                 servers = server_count,
-                connected = status.len(),
+                connected = status.iter().filter(|s| s.connected).count(),
                 tools = total_tools,
                 "mcp.bootstrap.completed"
             );

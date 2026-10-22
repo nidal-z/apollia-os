@@ -107,10 +107,14 @@ async fn the_mcp_manager_of_the_boot_answers_before_any_handshake() {
     let index = handle.get_tool_index().await;
     let elapsed = begun.elapsed();
 
-    // THEN it answered in under two seconds, no server was started, and the
-    //      ten kept tools are listed
+    // THEN it answered in under two seconds, no server was started, each of
+    //      the ten is listed dormant, and the ten kept tools are indexed
     assert!(elapsed < Duration::from_secs(2), "took {elapsed:?}");
-    assert!(statuses.is_empty(), "{statuses:?}");
+    assert_eq!(statuses.len(), 10, "{statuses:?}");
+    assert!(
+        statuses.iter().all(|s| s.dormant && !s.connected),
+        "{statuses:?}"
+    );
     assert_eq!(index.len(), 10);
     handle.shutdown().await;
 }

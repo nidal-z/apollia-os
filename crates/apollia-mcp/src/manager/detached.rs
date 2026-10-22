@@ -140,9 +140,10 @@ impl McpClientManager {
     /// Test an installed server in a task of its own: a fresh handshake for
     /// reachability, then the optional read-only probe on the live session.
     /// A probe whose tool the server does not expose is skipped, and the
-    /// verdict is then reachability only.
+    /// verdict is then reachability only. A test counts as a call in flight:
+    /// its server does not stop for idleness while it runs.
     pub(super) fn spawn_test_live_server(
-        &self,
+        &mut self,
         server_name: String,
         probe: Option<ProbeSpec>,
         reply: TestReply,
@@ -172,6 +173,8 @@ impl McpClientManager {
             }
             available
         });
+        *self.in_flight.entry(server_name.clone()).or_insert(0) += 1;
+        self.mark_used(&server_name);
         tokio::spawn(async move {
             let test = Self::handle_test_connection(config).await;
             let probe_result = match (&test, probe) {
@@ -200,6 +203,12 @@ impl McpClientManager {
         probe_result: Option<Result<ToolCallResult, McpSessionError>>,
         reply: TestReply,
     ) {
+        if let Some(count) = self.in_flight.get_mut(server_name) {
+            *count = count.saturating_sub(1);
+        }
+        if self.sessions.contains_key(server_name) {
+            self.mark_used(server_name);
+        }
         if let Some(probe_result) = probe_result {
             self.record_call_outcome(server_name, &probe_result);
             self.publish();

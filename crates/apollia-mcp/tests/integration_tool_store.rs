@@ -162,7 +162,7 @@ async fn test_after_a_restart_without_a_live_session_the_kept_tools_are_indexed(
 
     // THEN no session is live, and the tool index still serves the three
     //      tools with their descriptions, tags and families
-    assert!(manager.status().await.is_empty());
+    assert!(manager.status().await.iter().all(|s| !s.connected));
     let index = by_name(&manager.get_tool_index().await);
     assert_eq!(index.len(), 3);
     assert_eq!(

@@ -152,8 +152,18 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
         }
         None => Default::default(),
     };
+    // A dormant server runs no session: its state is the one last found,
+    // kept, not a health read from a session.
     let (mcp_statuses, mut mcp_index) = match &state.mcp_handle {
-        Some(handle) => (handle.status().await, handle.get_tool_index().await),
+        Some(handle) => (
+            handle
+                .status()
+                .await
+                .into_iter()
+                .filter(|s| s.connected)
+                .collect(),
+            handle.get_tool_index().await,
+        ),
         None => (Vec::new(), Vec::new()),
     };
     let kept = kept_tool_index(&mcp_configs, &mcp_statuses, &mcp_index, &stored_tools);

@@ -149,8 +149,13 @@ pub struct McpServerStatus {
     pub server_info: String,
     /// Number of tools discovered on this server.
     pub tools_count: usize,
-    /// `true` when the session is alive; always `true` for sessions tracked by the manager.
+    /// `true` when the session is alive; `false` for a dormant server.
     pub connected: bool,
+    /// `true` for a server the manager knows but runs no session of: it
+    /// starts at the next call of one of its tools. Neither stopped nor
+    /// failing; its tools are the ones it last published.
+    #[serde(default)]
+    pub dormant: bool,
     /// OS process ID of the server subprocess, if still running.
     pub pid: Option<u32>,
     /// Seconds elapsed since the session was started.
@@ -610,6 +615,7 @@ mod tests {
             server_info: "notion-mcp-server".to_string(),
             tools_count: 5,
             connected: true,
+            dormant: false,
             pid: Some(1234),
             uptime_secs: Some(60),
             last_call_at: None,
@@ -644,6 +650,7 @@ mod tests {
             server_info: String::new(),
             tools_count: 0,
             connected: false,
+            dormant: false,
             pid: None,
             uptime_secs: None,
             last_call_at: None,
@@ -681,6 +688,7 @@ mod tests {
                 server_info: "notion-mcp-server".to_string(),
                 tools_count: 5,
                 connected: true,
+                dormant: false,
                 pid: None,
                 uptime_secs: Some(30),
                 last_call_at: None,
@@ -694,6 +702,7 @@ mod tests {
                 server_info: "mcp-server-sqlite".to_string(),
                 tools_count: 3,
                 connected: true,
+                dormant: false,
                 pid: None,
                 uptime_secs: Some(30),
                 last_call_at: None,
@@ -720,6 +729,7 @@ mod tests {
                 server_info: "notion-mcp-server".to_string(),
                 tools_count: 1,
                 connected: true,
+                dormant: false,
                 pid: Some(42),
                 uptime_secs: Some(10),
                 last_call_at: None,
@@ -827,6 +837,7 @@ mod tests {
                 server_info: "notion-mcp".to_string(),
                 tools_count: 2,
                 connected: true,
+                dormant: false,
                 pid: Some(1234),
                 uptime_secs: Some(60),
                 last_call_at: None,

@@ -11,12 +11,14 @@ use std::path::Path;
 use std::time::Duration;
 
 use apollia_mcp::config::McpServerConfig;
-use apollia_mcp::manager::{McpClientManagerHandle, OnDemand};
+use apollia_mcp::executor::build_agent_tool_executors;
+use apollia_mcp::manager::{McpClientManagerHandle, OnDemand, ProbeSpec};
 use apollia_mcp::protocol::{ToolCallContent, ToolCallResult};
 use apollia_mcp::session::LoadingMode;
 use apollia_mcp::tool_store::ToolIndexStore;
 use apollia_mcp::McpServerRepository;
-use apollia_tools::ToolRegistryHandle;
+use apollia_tools::executor::ToolDispatcher;
+use apollia_tools::{ActionFamily, FamilySource, ToolRegistryHandle};
 use tempfile::TempDir;
 
 fn calc_config() -> McpServerConfig {
@@ -78,6 +80,19 @@ fn text_of(result: &ToolCallResult) -> String {
     }
 }
 
+/// The servers that run a session, sorted; a dormant server runs none.
+async fn running(manager: &McpClientManagerHandle) -> Vec<String> {
+    let mut names: Vec<String> = manager
+        .status()
+        .await
+        .into_iter()
+        .filter(|s| s.connected)
+        .map(|s| s.name)
+        .collect();
+    names.sort();
+    names
+}
+
 fn indexed_tools(index: &[apollia_mcp::tool_search::ToolIndexSnapshot]) -> Vec<String> {
     let mut names: Vec<String> = index.iter().map(|e| e.tool_name.clone()).collect();
     names.sort();
@@ -103,7 +118,7 @@ async fn test_a_manager_with_a_store_starts_no_server_and_serves_the_kept_tools(
     .await;
 
     // THEN no session runs, and the kept tools are indexed
-    assert!(manager.status().await.is_empty());
+    assert!(running(&manager).await.is_empty());
     assert_eq!(
         indexed_tools(&manager.get_tool_index().await),
         vec!["add", "echo"]
@@ -112,6 +127,212 @@ async fn test_a_manager_with_a_store_starts_no_server_and_serves_the_kept_tools(
     let detail = manager.server_detail("calc").await.expect("detail");
     assert!(!detail.status.connected);
     assert_eq!(detail.tools.len(), 2);
+    manager.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_a_dormant_server_is_listed_as_starting_on_demand_with_its_tools() {
+    // GIVEN a manager over a server whose tools an earlier launch kept
+    let dir = TempDir::new().unwrap();
+    let db = dir.path().join("mcp.db");
+    keep_calc_tools(&db, LoadingMode::Deferred).await;
+    let registry = ToolRegistryHandle::start();
+    let manager = start(
+        vec![calc_config()],
+        &db,
+        &registry,
+        LoadingMode::Deferred,
+        Some(Duration::ZERO),
+    )
+    .await;
+
+    // WHEN the servers are listed before any call
+    let listed = manager.status().await;
+
+    // THEN the server is listed, dormant and not connected, with the tools
+    //      it last published, its transport, and a health that is neither
+    //      stopped nor failing
+    assert_eq!(listed.len(), 1);
+    let calc = &listed[0];
+    assert_eq!(calc.name, "calc");
+    assert!(calc.dormant);
+    assert!(!calc.connected);
+    assert_eq!(calc.tools_count, 2);
+    assert_eq!(calc.transport, "stdio");
+    assert_eq!(calc.uptime_secs, None);
+    assert!(calc.health.is_ok());
+    assert!(calc.error.is_none());
+    // AND once a call ran it and its idle delay stopped it, it is listed
+    //      dormant again, not gone
+    manager
+        .call_tool("calc", "echo", Some(serde_json::json!({"message": "x"})))
+        .await
+        .expect("call");
+    let _ = manager.server_detail("calc").await;
+    let listed = manager.status().await;
+    assert_eq!(listed.len(), 1);
+    assert!(listed[0].dormant && !listed[0].connected);
+    assert_eq!(listed[0].tools_count, 2);
+    manager.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_a_restart_of_a_dormant_server_starts_it() {
+    // GIVEN a manager over a dormant server
+    let dir = TempDir::new().unwrap();
+    let db = dir.path().join("mcp.db");
+    keep_calc_tools(&db, LoadingMode::Deferred).await;
+    let registry = ToolRegistryHandle::start();
+    let manager = start(
+        vec![calc_config()],
+        &db,
+        &registry,
+        LoadingMode::Deferred,
+        None,
+    )
+    .await;
+
+    // WHEN the operator restarts it
+    let restarted = manager.restart_server("calc").await;
+
+    // THEN its session runs, listed connected and no longer dormant
+    let restarted = restarted.expect("restarted");
+    assert!(restarted.connected);
+    assert_eq!(running(&manager).await, vec!["calc".to_string()]);
+    assert!(manager.status().await.iter().all(|s| !s.dormant));
+    manager.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_a_family_given_to_a_dormant_server_s_tool_holds_once_it_starts() {
+    // GIVEN a manager over a dormant server
+    let dir = TempDir::new().unwrap();
+    let db = dir.path().join("mcp.db");
+    keep_calc_tools(&db, LoadingMode::Deferred).await;
+    let registry = ToolRegistryHandle::start();
+    let manager = start(
+        vec![calc_config()],
+        &db,
+        &registry,
+        LoadingMode::Deferred,
+        None,
+    )
+    .await;
+
+    // WHEN the operator classifies one of its tools while it sleeps, then a
+    //      call starts it
+    manager
+        .set_operator_family("calc", "echo", ActionFamily::SendExternal)
+        .await
+        .expect("classified");
+    manager
+        .call_tool("calc", "add", Some(serde_json::json!({"a": 1, "b": 1})))
+        .await
+        .expect("call");
+
+    // THEN the session it started classifies that tool as the operator did
+    assert_eq!(running(&manager).await, vec!["calc".to_string()]);
+    let index = manager.get_tool_index().await;
+    let echo = index
+        .iter()
+        .find(|e| e.tool_name == "echo")
+        .expect("echo indexed");
+    assert_eq!(echo.family, ActionFamily::SendExternal);
+    assert_eq!(echo.family_source, FamilySource::Operator);
+    manager.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_a_live_test_counts_as_a_call_in_flight_for_the_idle_stop() {
+    // GIVEN a dormant server whose idle delay is spent as soon as nothing
+    //      runs on it
+    let dir = TempDir::new().unwrap();
+    let db = dir.path().join("mcp.db");
+    keep_calc_tools(&db, LoadingMode::Deferred).await;
+    let registry = ToolRegistryHandle::start();
+    let manager = start(
+        vec![calc_config()],
+        &db,
+        &registry,
+        LoadingMode::Deferred,
+        Some(Duration::ZERO),
+    )
+    .await;
+
+    // WHEN a live test is sent, and the actor is asked again before the
+    //      test can have answered: the test is queued first, so the actor
+    //      starts the server and begins the test before reading the question
+    let probe = ProbeSpec {
+        tool: "echo".to_string(),
+        args: Some(serde_json::json!({"message": "probe"})),
+    };
+    let mut test = Box::pin(manager.test_live_server("calc", Some(probe)));
+    assert!(futures::poll!(&mut test).is_pending());
+    let during = manager.server_detail("calc").await.expect("detail");
+
+    // THEN the server was not stopped for idleness while its test ran, and
+    //      the test succeeded on it
+    assert!(during.status.connected);
+    let tested = test.await.expect("tested");
+    assert_eq!(tested.tools.len(), 2);
+    // AND once the test is over, the idle delay stops it
+    let after = manager.server_detail("calc").await.expect("detail");
+    assert!(!after.status.connected);
+    manager.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_an_agent_dispatcher_built_over_a_dormant_server_runs_its_tools() {
+    // GIVEN a manager over a dormant server, and the agent executors
+    //      assembled from it as a chat turn assembles them
+    let dir = TempDir::new().unwrap();
+    let db = dir.path().join("mcp.db");
+    keep_calc_tools(&db, LoadingMode::Deferred).await;
+    let registry = ToolRegistryHandle::start();
+    let manager = start(
+        vec![calc_config()],
+        &db,
+        &registry,
+        LoadingMode::Deferred,
+        None,
+    )
+    .await;
+    let dispatcher = ToolDispatcher::new(build_agent_tool_executors(&manager).await);
+
+    // WHEN the agent calls one of its tools by its qualified name
+    let out = dispatcher
+        .dispatch("mcp:calc/echo", serde_json::json!({"message": "asleep"}))
+        .await
+        .expect("dispatched");
+
+    // THEN the call started the server and came back with its answer
+    assert_eq!(out, serde_json::json!({"content": "asleep"}));
+    assert_eq!(running(&manager).await, vec!["calc".to_string()]);
+    manager.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_listing_resources_does_not_start_a_dormant_server() {
+    // GIVEN a manager over a dormant server
+    let dir = TempDir::new().unwrap();
+    let db = dir.path().join("mcp.db");
+    keep_calc_tools(&db, LoadingMode::Deferred).await;
+    let registry = ToolRegistryHandle::start();
+    let manager = start(
+        vec![calc_config()],
+        &db,
+        &registry,
+        LoadingMode::Deferred,
+        None,
+    )
+    .await;
+
+    // WHEN the resources are listed, as the @ picker lists them
+    let resources = manager.list_resources().await;
+
+    // THEN it offers none, and nothing started
+    assert!(resources.is_empty());
+    assert!(running(&manager).await.is_empty());
     manager.shutdown().await;
 }
 
@@ -130,7 +351,7 @@ async fn test_the_first_call_starts_its_server_and_the_calls_succeed() {
         None,
     )
     .await;
-    assert!(manager.status().await.is_empty());
+    assert!(running(&manager).await.is_empty());
 
     // WHEN two calls of its tools arrive together
     let echo = serde_json::json!({"message": "on demand"});
@@ -176,7 +397,7 @@ async fn test_a_server_idle_for_the_delay_stops_and_its_index_stays_readable() {
     //      indexed and kept
     assert_eq!(text_of(&answer), "once");
     assert!(!detail.status.connected);
-    assert!(manager.status().await.is_empty());
+    assert!(running(&manager).await.is_empty());
     assert_eq!(
         indexed_tools(&manager.get_tool_index().await),
         vec!["add", "echo"]
@@ -251,7 +472,7 @@ async fn test_a_paused_dormant_server_never_starts_at_a_call() {
     // THEN the call is refused, no session starts, its tools leave the
     //      index and stay kept in mcp.db
     assert!(call.is_err());
-    assert!(manager.status().await.is_empty());
+    assert!(running(&manager).await.is_empty());
     assert!(manager.get_tool_index().await.is_empty());
     let stored = McpServerRepository::open(&db)
         .unwrap()
@@ -280,7 +501,7 @@ async fn test_in_eager_loading_a_dormant_server_s_tools_are_registered_and_calla
     .await;
 
     // THEN its descriptors are registered before any session runs
-    assert!(manager.status().await.is_empty());
+    assert!(running(&manager).await.is_empty());
     assert!(registry.get("mcp:calc/echo").await.unwrap().is_some());
     // AND a call starts it, its descriptors registered once
     let answer = manager
@@ -331,8 +552,7 @@ async fn test_a_server_with_nothing_kept_starts_without_holding_the_manager() {
         .await
         .expect("call");
     assert_eq!(text_of(&answer), "meanwhile");
-    let names: Vec<String> = manager.status().await.into_iter().map(|s| s.name).collect();
-    assert_eq!(names, vec!["calc".to_string()]);
+    assert_eq!(running(&manager).await, vec!["calc".to_string()]);
     manager.shutdown().await;
 }
 

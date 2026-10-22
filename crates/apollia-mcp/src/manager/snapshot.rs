@@ -3,7 +3,8 @@
 //! The actor stays the only writer of its sessions. After every command that
 //! changes them, and after every detached call whose outcome it recorded, it
 //! publishes a [`McpSnapshot`] on a `watch` channel: the status of every
-//! server, its health included, and the tool index. The handle reads the
+//! server, its health included, a dormant one as well as a running one, and
+//! the tool index. The handle reads the
 //! latest one without sending the actor anything, so a list of the
 //! connections or the tool index of a chat turn never waits behind a slow
 //! tool call.
@@ -22,11 +23,12 @@ pub(crate) struct McpSnapshot {
 }
 
 /// One server's status as of the last publication, and the instant its
-/// session started, from which the uptime is read at each look.
+/// session started, from which the uptime is read at each look; a dormant
+/// server has no session, and no uptime.
 #[derive(Debug, Clone)]
 struct ServerEntry {
     status: McpServerStatus,
-    started_at: Instant,
+    started_at: Option<Instant>,
 }
 
 impl McpSnapshot {
@@ -36,7 +38,7 @@ impl McpSnapshot {
             .iter()
             .map(|entry| {
                 let mut status = entry.status.clone();
-                status.uptime_secs = Some(entry.started_at.elapsed().as_secs());
+                status.uptime_secs = entry.started_at.map(|at| at.elapsed().as_secs());
                 status
             })
             .collect()
@@ -49,9 +51,11 @@ impl McpSnapshot {
 }
 
 impl McpClientManager {
-    /// The state of every session, as the handle reads it.
+    /// The state of every server, as the handle reads it: each session, then
+    /// each dormant server, which the list shows as known and starting at
+    /// its next call rather than as gone.
     fn snapshot(&self) -> McpSnapshot {
-        let servers = self
+        let mut servers: Vec<ServerEntry> = self
             .sessions
             .iter()
             .map(|(name, session)| ServerEntry {
@@ -60,9 +64,19 @@ impl McpClientManager {
                     session,
                     self.last_call_at.get(name).map(String::as_str),
                 ),
-                started_at: session.started_at(),
+                started_at: Some(session.started_at()),
             })
             .collect();
+        servers.extend(
+            self.dormant
+                .keys()
+                .filter(|name| !self.sessions.contains_key(*name))
+                .filter_map(|name| self.dormant_status(name))
+                .map(|status| ServerEntry {
+                    status,
+                    started_at: None,
+                }),
+        );
         McpSnapshot {
             servers,
             tool_index: self.collect_tool_index(),
@@ -95,6 +109,7 @@ mod tests {
             server_info: "srv".to_string(),
             tools_count: 1,
             connected: true,
+            dormant: false,
             pid: None,
             uptime_secs: None,
             last_call_at: None,
@@ -113,7 +128,7 @@ mod tests {
         let published = McpSnapshot {
             servers: vec![ServerEntry {
                 status: status("notion"),
-                started_at: Instant::now(),
+                started_at: Some(Instant::now()),
             }],
             tool_index: vec![ToolIndexSnapshot {
                 server_name: "notion".to_string(),
@@ -155,7 +170,7 @@ mod tests {
         sender.send_replace(McpSnapshot {
             servers: vec![ServerEntry {
                 status: status("github"),
-                started_at: Instant::now(),
+                started_at: Some(Instant::now()),
             }],
             tool_index: Vec::new(),
         });

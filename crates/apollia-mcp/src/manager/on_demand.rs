@@ -339,15 +339,36 @@ impl McpClientManager {
         self.publish();
     }
 
+    /// The status of the dormant `name`, as the list of servers shows it:
+    /// known, not connected, starting at its next call, with the tools it
+    /// last published and the health its last session ended with.
+    pub(super) fn dormant_status(&self, name: &str) -> Option<McpServerStatus> {
+        let dormant = self.dormant.get(name)?;
+        Some(McpServerStatus {
+            name: name.to_string(),
+            server_info: String::new(),
+            tools_count: dormant.tools.len(),
+            connected: false,
+            dormant: true,
+            pid: None,
+            uptime_secs: None,
+            last_call_at: self.last_call_at.get(name).cloned(),
+            error: None,
+            package: None,
+            transport: dormant.config.transport.clone(),
+            health: dormant
+                .health
+                .clone()
+                .unwrap_or(McpHealth::Healthy { verified: false }),
+        })
+    }
+
     /// The detail of the dormant `name`: its configuration and the tools it
     /// last published, with no session.
     pub(super) fn dormant_detail(&self, name: &str) -> Option<McpServerDetail> {
+        let status = self.dormant_status(name)?;
         let dormant = self.dormant.get(name)?;
         let config = &dormant.config;
-        let health = dormant
-            .health
-            .clone()
-            .unwrap_or(McpHealth::Healthy { verified: false });
         let tools: Vec<McpToolSummary> = dormant
             .tools
             .iter()
@@ -359,19 +380,7 @@ impl McpClientManager {
             })
             .collect();
         Some(McpServerDetail {
-            status: McpServerStatus {
-                name: name.to_string(),
-                server_info: String::new(),
-                tools_count: tools.len(),
-                connected: false,
-                pid: None,
-                uptime_secs: None,
-                last_call_at: self.last_call_at.get(name).cloned(),
-                error: None,
-                package: None,
-                transport: config.transport.clone(),
-                health,
-            },
+            status,
             tools,
             config: McpServerConfigView {
                 name: config.name.clone(),

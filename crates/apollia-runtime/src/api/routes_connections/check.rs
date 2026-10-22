@@ -17,7 +17,7 @@ use serde::Deserialize;
 
 use apollia_auth::{AuthManager, ConnectorProvider};
 use apollia_connectors::imap::{ConnectionProbe, ImapAccountStore, ImapClient};
-use apollia_core::ConnectionStateRecord;
+use apollia_core::{ConnectionStateRecord, ConnectionStatus};
 use apollia_mcp::manager::ProbeSpec;
 
 use crate::api::openapi::ApiErrorBody;
@@ -147,6 +147,10 @@ async fn check_one<B: ExecutionBackend + Clone, P: ConnectionProbe>(
 
 /// Check the connection `id`, keep and announce what was found, and answer
 /// the connection as the list now reads it.
+///
+/// A connection in pause is not reached: an MCP server in pause is not
+/// started for a check, nor any other service called. It is answered paused,
+/// as the list reads it, and nothing is kept.
 pub(crate) async fn check_connection_with<B: ExecutionBackend + Clone, P: ConnectionProbe>(
     state: &AppState<B>,
     accounts: Vec<NativeAccounts>,
@@ -155,6 +159,14 @@ pub(crate) async fn check_connection_with<B: ExecutionBackend + Clone, P: Connec
     body: CheckConnectionBody,
 ) -> Result<Connection, ApiError> {
     let connection = find(collect_connections(state, accounts.clone()).await?, id)?;
+    if connection.status == ConnectionStatus::Paused {
+        tracing::event!(
+            tracing::Level::INFO,
+            connection = %id,
+            "connections.check.paused"
+        );
+        return Ok(connection);
+    }
     let found = check_one(state, &connection, reach, body.probe).await?;
     let dir = state.data_dir.clone();
     let bus = state.event_sender.clone();

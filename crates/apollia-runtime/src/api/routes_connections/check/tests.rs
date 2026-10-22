@@ -379,3 +379,28 @@ async fn test_a_forbidden_connection_reads_blocked_and_is_not_reached() {
     );
     h.manager.shutdown().await;
 }
+
+#[tokio::test]
+async fn test_a_paused_mcp_server_is_answered_paused_and_never_started() {
+    // GIVEN a server declared in mcp.db with no live session, put in pause
+    let h = harness(&[mock_server("mock")]).await;
+    apollia_permissions::PausedConnectionStore::new(
+        &apollia_core::paths::DataFile::Governance.path(h.dir.path()),
+    )
+    .unwrap()
+    .pause("mcp:mock", 0)
+    .unwrap();
+
+    // WHEN it is checked, as "Test" on its card checks it
+    let connection = check(&h, "mcp:mock").await.unwrap();
+
+    // THEN it is answered paused, no session started for the check, and no
+    // state was kept for it
+    assert_eq!(connection.status, ConnectionStatus::Paused);
+    assert!(h.manager.status().await.iter().all(|s| !s.connected));
+    let store =
+        ConnectionStateStore::open(&apollia_core::paths::DataFile::System.path(h.dir.path()))
+            .unwrap();
+    assert!(store.get("mcp:mock").unwrap().is_none());
+    h.manager.shutdown().await;
+}

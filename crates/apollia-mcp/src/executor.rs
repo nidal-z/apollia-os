@@ -165,7 +165,8 @@ pub async fn build_agent_tool_executors(
     let mut execs: Vec<Box<dyn ToolExecutor>> =
         crate::mcp_resources::build_mcp_resource_executors(&Some(handle.clone()));
     for status in handle.status().await {
-        if !status.connected {
+        // A dormant server's tools are served too: their call starts it.
+        if !status.connected && !status.dormant {
             continue;
         }
         let Some(detail) = handle.server_detail(&status.name).await else {
