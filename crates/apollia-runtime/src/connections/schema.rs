@@ -17,7 +17,7 @@ pub(super) const STATUSES: [ConnectionStatus; 4] = [
 ];
 
 /// Every reason key, in its wire name.
-pub(super) const REASON_KEYS: [ConnectionReasonKey; 7] = [
+pub(super) const REASON_KEYS: [ConnectionReasonKey; 8] = [
     ConnectionReasonKey::NotChecked,
     ConnectionReasonKey::SignInAgain,
     ConnectionReasonKey::PasswordRefused,
@@ -25,6 +25,7 @@ pub(super) const REASON_KEYS: [ConnectionReasonKey; 7] = [
     ConnectionReasonKey::Unreachable,
     ConnectionReasonKey::Failing,
     ConnectionReasonKey::ForbiddenByPolicy,
+    ConnectionReasonKey::AdminApprovalRequired,
 ];
 
 /// The serde name of `value`, a unit variant.
@@ -57,7 +58,7 @@ pub(super) fn reason_schema() -> impl Into<RefOr<Schema>> {
             Type::Null,
         ]))
         .description(Some(
-            "Why it is not working, absent when it works: a key the interface translates, and the technical detail.",
+            "Why it is not working, absent when it works: a key the interface translates, the technical detail, and the address the repairing action opens when it has one.",
         ))
         .property(
             "key",
@@ -72,6 +73,14 @@ pub(super) fn reason_schema() -> impl Into<RefOr<Schema>> {
                 Type::String,
                 Type::Null,
             ])),
+        )
+        .property(
+            "address",
+            ObjectBuilder::new()
+                .schema_type(Type::String)
+                .description(Some(
+                    "The address the repairing action opens, to be copied: for an administrator approval, the approval page.",
+                )),
         )
 }
 
@@ -96,7 +105,8 @@ mod tests {
             | ConnectionReasonKey::FolderNotFound
             | ConnectionReasonKey::Unreachable
             | ConnectionReasonKey::Failing
-            | ConnectionReasonKey::ForbiddenByPolicy => REASON_KEYS.contains(&k),
+            | ConnectionReasonKey::ForbiddenByPolicy
+            | ConnectionReasonKey::AdminApprovalRequired => REASON_KEYS.contains(&k),
         };
 
         // WHEN the schemas are built
