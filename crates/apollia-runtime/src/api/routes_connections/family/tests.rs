@@ -56,7 +56,10 @@ async fn harness_in(servers: Vec<McpServerConfig>, mode: LoadingMode) -> Harness
         &registry,
         None,
         mode,
-        apollia_mcp::tool_store::ToolIndexStore::new(dir.path().join("mcp.db")),
+        apollia_mcp::manager::OnDemand {
+            tool_store: apollia_mcp::tool_store::ToolIndexStore::new(dir.path().join("mcp.db")),
+            idle_stop: None,
+        },
     )
     .await
     .unwrap();

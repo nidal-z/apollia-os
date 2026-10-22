@@ -157,7 +157,7 @@ async fn the_tools_section_saved_by_the_route_reaches_the_dispatcher_of_the_next
 }
 
 #[tokio::test]
-async fn the_mcp_section_saved_by_the_route_applies_to_the_next_exchange() {
+async fn the_mcp_section_saved_by_the_route_applies_to_the_next_exchange_but_its_loading_mode() {
     // GIVEN a chat actor following its runtime, loading MCP tools deferred
     let dir = tempfile::tempdir().unwrap();
     let rig = Rig::on("");
@@ -169,8 +169,9 @@ async fn the_mcp_section_saved_by_the_route_applies_to_the_next_exchange() {
         .await;
     manager.apply_config_changes();
 
-    // THEN the next exchange uses both
-    assert_eq!(manager.mcp_loading, LoadingMode::Eager);
+    // THEN the next exchange uses the new limit, and keeps the loading mode
+    // the MCP manager started with, which waits for a restart
+    assert_eq!(manager.mcp_loading, LoadingMode::Deferred);
     assert_eq!(manager.tool_search_limit, 5);
 }
 

@@ -164,8 +164,13 @@ pub(super) fn read_configured_servers() -> Vec<apollia_mcp::config::McpServerCon
 ///
 /// `state` is the serde tag of `apollia_core::McpHealth`. An unknown state is
 /// rendered verbatim rather than folded into `connected`: a state this build
-/// does not know is not evidence that the server is usable.
+/// does not know is not evidence that the server is usable. A dormant server
+/// runs no session yet and starts at its next call, so it reads as such
+/// rather than as connected or stopped.
 fn status_from_health(server: &serde_json::Value, connected: bool) -> String {
+    if server.get("dormant").and_then(|v| v.as_bool()) == Some(true) {
+        return "dormant (starts on demand)".to_string();
+    }
     let state = server
         .get("health")
         .and_then(|h| h.get("state"))
@@ -456,6 +461,23 @@ mod tests {
         let rows = merge_runtime_and_configured(&live, &[]);
         // THEN it still reads as connected, so a constant pessimism would fail here
         assert_eq!(rows[0].status, "connected");
+    }
+
+    #[test]
+    fn dormant_server_is_listed_as_starting_on_demand() {
+        // GIVEN a server the runtime knows but runs no session of yet
+        let mut dormant = live_server(
+            "notion",
+            Some(serde_json::json!({ "state": "healthy", "verified": false })),
+        );
+        dormant["connected"] = serde_json::Value::Bool(false);
+        dormant["dormant"] = serde_json::Value::Bool(true);
+        // WHEN the listing rows are built
+        let rows = merge_runtime_and_configured(&[dormant], &[]);
+        // THEN it reads as starting at its next call, neither connected nor
+        // stopped, with the tools it last published
+        assert_eq!(rows[0].status, "dormant (starts on demand)");
+        assert_eq!(rows[0].tools, "3");
     }
 
     #[test]

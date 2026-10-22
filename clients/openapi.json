@@ -9617,12 +9617,12 @@
         "tags": [
           "mcp"
         ],
-        "summary": "`GET /api/v1/mcp/servers`, List all connected MCP servers with their status.",
-        "description": "Returns an empty array when no MCP configuration is active.",
+        "summary": "`GET /api/v1/mcp/servers`, List every MCP server the runtime runs or knows, with its status.",
+        "description": "A server that runs no session yet is listed with `connected: false` and\n`dormant: true`: it starts at the next call of one of its tools, and its\ntool count is what it last published.\nReturns an empty array when no MCP configuration is active.",
         "operationId": "list_servers",
         "responses": {
           "200": {
-            "description": "Connected MCP servers with their status"
+            "description": "MCP servers with their status, dormant ones included"
           }
         }
       },

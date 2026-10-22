@@ -533,6 +533,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         package_repository: None,
         tools_config: tools_config.clone(),
         mcp_loading,
+        mcp_idle_stop: std::time::Duration::from_secs(config.mcp_config.idle_stop_secs),
         tool_search_limit,
         hooks_config: config.hooks_config,
         plan_mode_default: config.chat_config.plan_mode_default,

@@ -3040,8 +3040,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * `GET /api/v1/mcp/servers`, List all connected MCP servers with their status.
-         * @description Returns an empty array when no MCP configuration is active.
+         * `GET /api/v1/mcp/servers`, List every MCP server the runtime runs or knows, with its status.
+         * @description A server that runs no session yet is listed with `connected: false` and
+         *     `dormant: true`: it starts at the next call of one of its tools, and its
+         *     tool count is what it last published.
+         *     Returns an empty array when no MCP configuration is active.
          */
         get: operations["list_servers"];
         put?: never;
@@ -20372,7 +20375,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Connected MCP servers with their status */
+            /** @description MCP servers with their status, dormant ones included */
             200: {
                 headers: {
                     [name: string]: unknown;

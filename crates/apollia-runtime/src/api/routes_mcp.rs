@@ -95,15 +95,18 @@ fn require_mcp_repo<B: ExecutionBackend + Clone>(
 
 // ─── read routes ─────────────────────────────────────────────────────────────
 
-/// `GET /api/v1/mcp/servers`, List all connected MCP servers with their status.
+/// `GET /api/v1/mcp/servers`, List every MCP server the runtime runs or knows, with its status.
 ///
+/// A server that runs no session yet is listed with `connected: false` and
+/// `dormant: true`: it starts at the next call of one of its tools, and its
+/// tool count is what it last published.
 /// Returns an empty array when no MCP configuration is active.
 #[utoipa::path(
     get,
     path = "/api/v1/mcp/servers",
     tag = "mcp",
     responses(
-        (status = 200, description = "Connected MCP servers with their status"),
+        (status = 200, description = "MCP servers with their status, dormant ones included"),
     )
 )]
 pub(crate) async fn list_servers<B: ExecutionBackend + Clone>(
@@ -757,6 +760,8 @@ fn merge_server_config_patch(
 #[cfg(test)]
 pub(crate) mod governance_tests;
 #[cfg(test)]
+mod on_demand_tests;
+#[cfg(test)]
 mod removal_tests;
 #[cfg(test)]
 mod secret_tests;
@@ -869,6 +874,7 @@ mod tests {
                 server_info: "notion-mcp".to_string(),
                 tools_count: 2,
                 connected: true,
+                dormant: false,
                 pid: Some(1234),
                 uptime_secs: Some(60),
                 last_call_at: None,
@@ -903,6 +909,7 @@ mod tests {
                 server_info: "notion-mcp".to_string(),
                 tools_count: 2,
                 connected: true,
+                dormant: false,
                 pid: None,
                 uptime_secs: Some(120),
                 last_call_at: None,
@@ -951,6 +958,7 @@ mod tests {
                 server_info: "notion-mcp-server".to_string(),
                 tools_count: 5,
                 connected: true,
+                dormant: false,
                 pid: None,
                 uptime_secs: Some(120),
                 last_call_at: None,
@@ -964,6 +972,7 @@ mod tests {
                 server_info: "mcp-server-sqlite".to_string(),
                 tools_count: 3,
                 connected: true,
+                dormant: false,
                 pid: None,
                 uptime_secs: Some(90),
                 last_call_at: None,

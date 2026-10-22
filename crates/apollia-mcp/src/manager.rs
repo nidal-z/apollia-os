@@ -1,7 +1,9 @@
 //! MCP client manager: actor owning all MCP server sessions and registering their tools.
 //!
-//! [`McpClientManagerHandle`] is the only public entry point. It starts N sessions in
-//! sequence, registers discovered tools in the [`ToolRegistryHandle`], and routes
+//! [`McpClientManagerHandle`] is the only public entry point. Started without
+//! a tool store, it starts N sessions in sequence; started with one, it starts
+//! none, and each server starts at its first call (see `on_demand`). It
+//! registers discovered tools in the [`ToolRegistryHandle`], and routes
 //! `call_tool` requests to the correct session. A server that fails to start is
 //! logged and skipped; it is never fatal to the rest.
 
@@ -10,6 +12,7 @@ mod detached;
 mod handle;
 mod kept;
 mod lifecycle;
+mod on_demand;
 mod reclassify;
 mod snapshot;
 mod views;
@@ -45,6 +48,11 @@ enum McpCommand {
         listed: Option<Vec<crate::protocol::McpToolDefinition>>,
         result: Result<ToolCallResult, McpSessionError>,
         reply: oneshot::Sender<Result<ToolCallResult, McpSessionError>>,
+    },
+    /// A session a call asked for started, or failed to.
+    Started {
+        server_name: String,
+        result: Result<Box<McpSession>, McpSessionError>,
     },
     /// Return detailed info (status + tools + redacted config) for a single server.
     GetDetail {
@@ -141,8 +149,13 @@ pub struct McpServerStatus {
     pub server_info: String,
     /// Number of tools discovered on this server.
     pub tools_count: usize,
-    /// `true` when the session is alive; always `true` for sessions tracked by the manager.
+    /// `true` when the session is alive; `false` for a dormant server.
     pub connected: bool,
+    /// `true` for a server the manager knows but runs no session of: it
+    /// starts at the next call of one of its tools. Neither stopped nor
+    /// failing; its tools are the ones it last published.
+    #[serde(default)]
+    pub dormant: bool,
     /// OS process ID of the server subprocess, if still running.
     pub pid: Option<u32>,
     /// Seconds elapsed since the session was started.
@@ -271,6 +284,17 @@ pub struct McpResourcePayload {
     pub text: String,
 }
 
+/// How a manager started with [`McpClientManagerHandle::start_keeping_tools`]
+/// keeps the tools of its servers and stops the ones nobody calls.
+#[derive(Debug, Clone)]
+pub struct OnDemand {
+    /// Where the tools each server publishes are kept between launches.
+    pub tool_store: crate::tool_store::ToolIndexStore,
+    /// How long a session may go without a call before it is stopped;
+    /// `None` never stops one.
+    pub idle_stop: Option<std::time::Duration>,
+}
+
 /// Clonable handle to the [`McpClientManager`] actor.
 ///
 /// Obtain one via [`McpClientManagerHandle::start`]. Commands reach the actor
@@ -325,6 +349,15 @@ struct McpClientManager {
     /// The tools kept for the servers that have no session, by server, as
     /// the tool index serves them in deferred loading.
     kept_index: HashMap<String, Vec<crate::tool_search::ToolIndexSnapshot>>,
+    /// The servers known but not running, each started at its first call.
+    dormant: HashMap<String, on_demand::Dormant>,
+    /// How long a server may go without a call before it is stopped; `None`
+    /// never stops one.
+    idle_stop: Option<std::time::Duration>,
+    /// When each session last started or answered a call.
+    last_used: HashMap<String, tokio::time::Instant>,
+    /// The calls running on each session.
+    in_flight: HashMap<String, usize>,
 }
 
 // ─── handle impl ─────────────────────────────────────────────────────────────
@@ -334,142 +367,212 @@ impl McpClientManagerHandle {}
 // ─── actor impl ──────────────────────────────────────────────────────────────
 
 impl McpClientManager {
+    /// An actor with no session yet, and the handle that reaches it once it
+    /// runs.
+    fn new(
+        tool_registry: &ToolRegistryHandle,
+        event_bus: Option<EventBusSender>,
+        loading_mode: LoadingMode,
+        tool_store: Option<crate::tool_store::ToolIndexStore>,
+    ) -> (Self, McpClientManagerHandle) {
+        let (tx, rx) = mpsc::channel(32);
+        let (published, snapshot) = watch::channel(McpSnapshot::default());
+        let actor = Self {
+            sessions: HashMap::new(),
+            rx,
+            commands: tx.downgrade(),
+            published,
+            tool_registry: tool_registry.clone(),
+            reloading: HashSet::new(),
+            request_servers: HashSet::new(),
+            event_bus,
+            last_call_at: HashMap::new(),
+            loading_mode,
+            tool_store,
+            kept_index: HashMap::new(),
+            dormant: HashMap::new(),
+            idle_stop: None,
+            last_used: HashMap::new(),
+            in_flight: HashMap::new(),
+        };
+        (actor, McpClientManagerHandle { tx, snapshot })
+    }
+
     /// Main actor loop: process commands until a [`McpCommand::Shutdown`] is received
     /// or all senders are dropped.
     ///
     /// A command that changes a session publishes the new state before it
     /// answers, so a caller that reads the handle after its answer sees it.
     async fn run(mut self) {
-        while let Some(cmd) = self.rx.recv().await {
-            match cmd {
-                McpCommand::CallTool {
-                    server_name,
-                    tool_name,
-                    arguments,
-                    reply,
-                } => self.spawn_call_tool(server_name, tool_name, arguments, reply),
-
-                McpCommand::CallFinished {
-                    server_name,
-                    listed,
-                    result,
-                    reply,
-                } => {
-                    self.finish_call_tool(&server_name, listed, result, reply)
-                        .await;
+        loop {
+            // A server idle past its delay stops before the next command is
+            // read, so a command that follows sees it stopped.
+            self.stop_idle_servers().await;
+            let deadline = self.next_idle_deadline();
+            let idle = async move {
+                match deadline {
+                    Some(at) => tokio::time::sleep_until(at).await,
+                    None => std::future::pending().await,
                 }
-
-                McpCommand::GetDetail { server_name, reply } => {
-                    let _ = reply.send(self.server_detail(&server_name));
-                }
-
-                McpCommand::AddServer { config, reply } => {
-                    let name = config.name.clone();
-                    let before = self.index_of(&name);
-                    let result = self.handle_add_server(config).await;
-                    self.settle_kept(&name, before).await;
-                    self.announce_start(&name, &result);
-                    self.publish();
-                    let _ = reply.send(result);
-                }
-
-                McpCommand::AddRequestServer {
-                    config,
-                    transport,
-                    reply,
-                } => {
-                    let result = self.handle_add_request_server(config, transport).await;
-                    self.publish();
-                    let _ = reply.send(result);
-                }
-
-                McpCommand::RemoveServer {
-                    server_name,
-                    keep_tools,
-                    reply,
-                } => {
-                    let result = self.handle_remove_server(&server_name).await;
-                    if keep_tools {
-                        self.kept_index.remove(&server_name);
-                    } else if result.is_ok() || self.kept_index.contains_key(&server_name) {
-                        self.forget_kept(&server_name).await;
-                    }
-                    self.publish();
-                    let _ = reply.send(result);
-                }
-
-                McpCommand::RestartServer { server_name, reply } => {
-                    let name = server_name.clone();
-                    let before = self.index_of(&name);
-                    let result = self.handle_restart_server(server_name).await;
-                    self.settle_kept(&name, before).await;
-                    self.announce_start(&name, &result);
-                    self.publish();
-                    let _ = reply.send(result);
-                }
-
-                McpCommand::TestConnection { config, reply } => {
-                    Self::spawn_test_connection(config, reply);
-                }
-
-                McpCommand::TestLiveServer {
-                    server_name,
-                    probe,
-                    reply,
-                } => self.spawn_test_live_server(server_name, probe, reply),
-
-                McpCommand::LiveTestFinished {
-                    server_name,
-                    test,
-                    probe_result,
-                    reply,
-                } => self.finish_test_live_server(&server_name, test, probe_result, reply),
-
-                McpCommand::ReloadServer { server_name, reply } => {
-                    let before = self.index_of(&server_name);
-                    let result = self.handle_reload_server(&server_name).await;
-                    self.settle_kept(&server_name, before).await;
-                    self.announce_start(&server_name, &result);
-                    self.publish();
-                    let _ = reply.send(result);
-                }
-
-                McpCommand::SessionEnded {
-                    server_name,
-                    started_at,
-                } => self.session_ended(&server_name, started_at),
-
-                McpCommand::ListResources { reply } => {
-                    let _ = reply.send(self.handle_list_resources().await);
-                }
-
-                McpCommand::ReadResource {
-                    server_name,
-                    uri,
-                    reply,
-                } => {
-                    let _ = reply.send(self.handle_read_resource(server_name, &uri).await);
-                }
-
-                McpCommand::SetOperatorFamily {
-                    server_name,
-                    tool,
-                    family,
-                    reply,
-                } => {
-                    self.handle_set_operator_family(&server_name, &tool, family)
-                        .await;
-                    self.publish();
-                    let _ = reply.send(());
-                }
-
-                McpCommand::Shutdown => {
-                    self.shutdown_all().await;
-                    break;
-                }
+            };
+            let cmd = tokio::select! {
+                biased;
+                () = idle => continue,
+                cmd = self.rx.recv() => cmd,
+            };
+            let Some(cmd) = cmd else {
+                break;
+            };
+            if !self.handle(cmd).await {
+                break;
             }
         }
         self.publish_empty();
+    }
+
+    /// Process one command; `false` once the actor is to stop.
+    async fn handle(&mut self, cmd: McpCommand) -> bool {
+        match cmd {
+            McpCommand::CallTool {
+                server_name,
+                tool_name,
+                arguments,
+                reply,
+            } => self.spawn_call_tool(server_name, tool_name, arguments, reply),
+
+            McpCommand::Started {
+                server_name,
+                result,
+            } => self.finish_start(&server_name, result).await,
+
+            McpCommand::CallFinished {
+                server_name,
+                listed,
+                result,
+                reply,
+            } => {
+                self.finish_call_tool(&server_name, listed, result, reply)
+                    .await;
+            }
+
+            McpCommand::GetDetail { server_name, reply } => {
+                let detail = self
+                    .server_detail(&server_name)
+                    .or_else(|| self.dormant_detail(&server_name));
+                let _ = reply.send(detail);
+            }
+
+            McpCommand::AddServer { config, reply } => {
+                let name = config.name.clone();
+                let before = self.index_of(&name);
+                let result = self.handle_add_server(config).await;
+                self.settle_kept(&name, before).await;
+                self.announce_start(&name, &result);
+                self.publish();
+                let _ = reply.send(result);
+            }
+
+            McpCommand::AddRequestServer {
+                config,
+                transport,
+                reply,
+            } => {
+                let result = self.handle_add_request_server(config, transport).await;
+                self.publish();
+                let _ = reply.send(result);
+            }
+
+            McpCommand::RemoveServer {
+                server_name,
+                keep_tools,
+                reply,
+            } => {
+                let result = self.handle_remove_server(&server_name).await;
+                if keep_tools {
+                    self.kept_index.remove(&server_name);
+                } else if result.is_ok() || self.kept_index.contains_key(&server_name) {
+                    self.forget_kept(&server_name).await;
+                }
+                self.publish();
+                let _ = reply.send(result);
+            }
+
+            McpCommand::RestartServer { server_name, reply } => {
+                let name = server_name.clone();
+                let before = self.index_of(&name);
+                let result = self.handle_restart_server(server_name).await;
+                self.settle_kept(&name, before).await;
+                self.announce_start(&name, &result);
+                self.publish();
+                let _ = reply.send(result);
+            }
+
+            McpCommand::TestConnection { config, reply } => {
+                Self::spawn_test_connection(config, reply);
+            }
+
+            McpCommand::TestLiveServer {
+                server_name,
+                probe,
+                reply,
+            } => match self.start_dormant_now(&server_name).await {
+                Ok(()) => self.spawn_test_live_server(server_name, probe, reply),
+                Err(e) => {
+                    let _ = reply.send(Err(e));
+                }
+            },
+
+            McpCommand::LiveTestFinished {
+                server_name,
+                test,
+                probe_result,
+                reply,
+            } => self.finish_test_live_server(&server_name, test, probe_result, reply),
+
+            McpCommand::ReloadServer { server_name, reply } => {
+                let before = self.index_of(&server_name);
+                let result = self.handle_reload_server(&server_name).await;
+                self.settle_kept(&server_name, before).await;
+                self.announce_start(&server_name, &result);
+                self.publish();
+                let _ = reply.send(result);
+            }
+
+            McpCommand::SessionEnded {
+                server_name,
+                started_at,
+            } => self.session_ended(&server_name, started_at),
+
+            McpCommand::ListResources { reply } => {
+                let _ = reply.send(self.handle_list_resources().await);
+            }
+
+            McpCommand::ReadResource {
+                server_name,
+                uri,
+                reply,
+            } => {
+                let _ = reply.send(self.handle_read_resource(server_name, &uri).await);
+            }
+
+            McpCommand::SetOperatorFamily {
+                server_name,
+                tool,
+                family,
+                reply,
+            } => {
+                self.handle_set_operator_family(&server_name, &tool, family)
+                    .await;
+                self.publish();
+                let _ = reply.send(());
+            }
+
+            McpCommand::Shutdown => {
+                self.shutdown_all().await;
+                return false;
+            }
+        }
+        true
     }
 
     /// Shut down every live session and clear the session map.
@@ -512,6 +615,7 @@ mod tests {
             server_info: "notion-mcp-server".to_string(),
             tools_count: 5,
             connected: true,
+            dormant: false,
             pid: Some(1234),
             uptime_secs: Some(60),
             last_call_at: None,
@@ -546,6 +650,7 @@ mod tests {
             server_info: String::new(),
             tools_count: 0,
             connected: false,
+            dormant: false,
             pid: None,
             uptime_secs: None,
             last_call_at: None,
@@ -583,6 +688,7 @@ mod tests {
                 server_info: "notion-mcp-server".to_string(),
                 tools_count: 5,
                 connected: true,
+                dormant: false,
                 pid: None,
                 uptime_secs: Some(30),
                 last_call_at: None,
@@ -596,6 +702,7 @@ mod tests {
                 server_info: "mcp-server-sqlite".to_string(),
                 tools_count: 3,
                 connected: true,
+                dormant: false,
                 pid: None,
                 uptime_secs: Some(30),
                 last_call_at: None,
@@ -622,6 +729,7 @@ mod tests {
                 server_info: "notion-mcp-server".to_string(),
                 tools_count: 1,
                 connected: true,
+                dormant: false,
                 pid: Some(42),
                 uptime_secs: Some(10),
                 last_call_at: None,
@@ -729,6 +837,7 @@ mod tests {
                 server_info: "notion-mcp".to_string(),
                 tools_count: 2,
                 connected: true,
+                dormant: false,
                 pid: Some(1234),
                 uptime_secs: Some(60),
                 last_call_at: None,

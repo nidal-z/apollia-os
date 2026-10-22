@@ -294,6 +294,7 @@ pub(super) fn build_status(
         server_info: session.server_info().name.clone(),
         tools_count: session_tool_count(session),
         connected: true,
+        dormant: false,
         pid: session.pid(),
         uptime_secs: Some(session.uptime_secs()),
         last_call_at: last_call_at.map(str::to_string),

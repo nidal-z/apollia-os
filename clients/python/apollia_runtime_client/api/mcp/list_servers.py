@@ -45,9 +45,12 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[Any]:
-    """`GET /api/v1/mcp/servers`, List all connected MCP servers with their status.
+    """`GET /api/v1/mcp/servers`, List every MCP server the runtime runs or knows, with its status.
 
-     Returns an empty array when no MCP configuration is active.
+     A server that runs no session yet is listed with `connected: false` and
+    `dormant: true`: it starts at the next call of one of its tools, and its
+    tool count is what it last published.
+    Returns an empty array when no MCP configuration is active.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -70,9 +73,12 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[Any]:
-    """`GET /api/v1/mcp/servers`, List all connected MCP servers with their status.
+    """`GET /api/v1/mcp/servers`, List every MCP server the runtime runs or knows, with its status.
 
-     Returns an empty array when no MCP configuration is active.
+     A server that runs no session yet is listed with `connected: false` and
+    `dormant: true`: it starts at the next call of one of its tools, and its
+    tool count is what it last published.
+    Returns an empty array when no MCP configuration is active.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

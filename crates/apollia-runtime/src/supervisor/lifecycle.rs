@@ -99,7 +99,7 @@ impl Supervisor {
             tool_registry_handle,
             event_sender,
             &self.config.data_dir,
-            self.config.mcp_loading,
+            (self.config.mcp_loading, self.config.mcp_idle_stop),
         )
         .await;
 

@@ -167,7 +167,8 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("tools.new_agent.access", StringArray, Some("[]"), Reloadable, "Tools an agent created without code is granted by name, on top of tools.new_agent.families.")),
     // [mcp]
     withdrawn("mcp.approval_ttl_hours", "an MCP tool is decided on its action family, and a standing consent lasts until it is withdrawn; remove the key"),
-    locked(key("mcp.tool_loading", Enum(&["eager", "deferred"]), Some("\"deferred\""), Reloadable, "Load every MCP tool schema up front, or on first use.")),
+    locked(key("mcp.tool_loading", Enum(&["eager", "deferred"]), Some("\"deferred\""), Restart, "Load every MCP tool schema up front, or on first use.")),
+    locked(key("mcp.idle_stop_secs", Integer, Some("900"), Restart, "Seconds without a call after which an MCP server is stopped, started again at its next call (60 to 86400).")),
     locked(key("mcp.tool_search_limit", Integer, Some("20"), Reloadable, "Results returned by the tool_search tool (1 to 500).")),
     locked(key("mcp.server_enabled", Boolean, Some("false"), Reloadable, "Let an MCP client reach the agents and workflows marked exposed, through apollia-os mcp server.")),
     locked(key("mcp.catalogue_url", KeyType::String, Some("\"https://registry.apollia.fr/mcp/stable/index.json\""), Reloadable, "Address of the signed index of the connection catalogue.")),

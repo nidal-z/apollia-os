@@ -30,8 +30,10 @@ impl ChatSessionManager {
             self.plan_mode_default_tx
                 .send_replace(chat.plan_mode_default);
         }
+        // `tool_loading` is read once, at start, by the MCP manager as by the
+        // chat: following it here alone would ask the manager for an index
+        // its sessions do not keep.
         if let Some(mcp) = mcp {
-            self.mcp_loading = LoadingMode::from(mcp.tool_loading);
             self.tool_search_limit = mcp.tool_search_limit;
         }
         if tools.is_some() || chat.is_some() {

@@ -245,6 +245,7 @@ Client MCP : approbations, chargement des outils, et le pont qui sert les agents
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
 | `mcp.tool_loading` | l'une de eager, deferred | `"deferred"` | Charger tous les schémas d'outils MCP d'emblée, ou au premier usage. La politique de l'organisation peut l'imposer. |
+| `mcp.idle_stop_secs` | entier | `900` | Secondes sans appel après lesquelles un serveur MCP est arrêté, puis redémarré à son appel suivant (60 à 86400). La politique de l'organisation peut l'imposer. |
 | `mcp.tool_search_limit` | entier | `20` | Résultats rendus par l'outil tool_search (1 à 500). La politique de l'organisation peut l'imposer. |
 | `mcp.server_enabled` | booléen | `false` | Laisser un client MCP atteindre les agents et workflows marqués exposés, par apollia-os mcp server. La politique de l'organisation peut l'imposer. |
 | `mcp.catalogue_url` | chaîne | `"https://registry.apollia.fr/mcp/stable/index.json"` | Adresse de l'index signé du catalogue des connexions. La politique de l'organisation peut l'imposer. |

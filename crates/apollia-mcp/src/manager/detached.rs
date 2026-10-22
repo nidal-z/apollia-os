@@ -31,9 +31,10 @@ impl McpClientManager {
 
     /// Start a tool call in a task of its own. In deferred mode, a tool the
     /// session's schema cache does not hold has its schema fetched first, on
-    /// a best-effort basis: the call does not need it to run.
+    /// a best-effort basis: the call does not need it to run. A call for a
+    /// dormant server waits for the session it starts.
     pub(super) fn spawn_call_tool(
-        &self,
+        &mut self,
         server_name: String,
         tool_name: String,
         arguments: Option<serde_json::Value>,
@@ -46,19 +47,23 @@ impl McpClientManager {
             return;
         }
         let Some(session) = self.sessions.get(&server_name) else {
-            let _ = reply.send(Err(McpSessionError::ServerExited {
-                server: server_name,
-            }));
+            if let Err(reply) = self.call_dormant(&server_name, tool_name, arguments, reply) {
+                let _ = reply.send(Err(McpSessionError::ServerExited {
+                    server: server_name,
+                }));
+            }
             return;
         };
+        let caller = session.caller();
+        let fetch_schema = session.needs_schema_fetch(&tool_name);
         let Some(report) = self.report_sender() else {
             let _ = reply.send(Err(McpSessionError::ServerExited {
                 server: server_name,
             }));
             return;
         };
-        let caller = session.caller();
-        let fetch_schema = session.needs_schema_fetch(&tool_name);
+        *self.in_flight.entry(server_name.clone()).or_insert(0) += 1;
+        self.mark_used(&server_name);
         tokio::spawn(async move {
             let listed = if fetch_schema {
                 match caller.list_tools(&tool_name).await {
@@ -101,6 +106,12 @@ impl McpClientManager {
         result: Result<ToolCallResult, McpSessionError>,
         reply: CallReply,
     ) {
+        if let Some(count) = self.in_flight.get_mut(server_name) {
+            *count = count.saturating_sub(1);
+        }
+        if self.sessions.contains_key(server_name) {
+            self.mark_used(server_name);
+        }
         let relisted = match (listed, self.sessions.get_mut(server_name)) {
             (Some(tools), Some(session)) => {
                 session.absorb_tools_list(tools);
@@ -129,9 +140,10 @@ impl McpClientManager {
     /// Test an installed server in a task of its own: a fresh handshake for
     /// reachability, then the optional read-only probe on the live session.
     /// A probe whose tool the server does not expose is skipped, and the
-    /// verdict is then reachability only.
+    /// verdict is then reachability only. A test counts as a call in flight:
+    /// its server does not stop for idleness while it runs.
     pub(super) fn spawn_test_live_server(
-        &self,
+        &mut self,
         server_name: String,
         probe: Option<ProbeSpec>,
         reply: TestReply,
@@ -161,6 +173,8 @@ impl McpClientManager {
             }
             available
         });
+        *self.in_flight.entry(server_name.clone()).or_insert(0) += 1;
+        self.mark_used(&server_name);
         tokio::spawn(async move {
             let test = Self::handle_test_connection(config).await;
             let probe_result = match (&test, probe) {
@@ -189,6 +203,12 @@ impl McpClientManager {
         probe_result: Option<Result<ToolCallResult, McpSessionError>>,
         reply: TestReply,
     ) {
+        if let Some(count) = self.in_flight.get_mut(server_name) {
+            *count = count.saturating_sub(1);
+        }
+        if self.sessions.contains_key(server_name) {
+            self.mark_used(server_name);
+        }
         if let Some(probe_result) = probe_result {
             self.record_call_outcome(server_name, &probe_result);
             self.publish();

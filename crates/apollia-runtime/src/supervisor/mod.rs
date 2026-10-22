@@ -120,6 +120,10 @@ pub struct SupervisorConfig {
     /// lightweight index and exposes the synthetic `tool_search` tool instead.
     pub mcp_loading: LoadingMode,
 
+    /// How long an MCP server may go without a call before it is stopped (the
+    /// `[mcp] idle_stop_secs` key of `apollia.toml`). Default: 900 seconds.
+    pub mcp_idle_stop: std::time::Duration,
+
     /// Maximum `limit` accepted by the synthetic `tool_search` tool (the
     /// `[mcp] tool_search_limit` key of `apollia.toml`). Default: 20.
     pub tool_search_limit: usize,

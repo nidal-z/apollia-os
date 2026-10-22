@@ -43,7 +43,7 @@ Redémarrez Apollia après modification.
 
 ## Vérification
 
-Observez les logs du daemon au démarrage. Chaque serveur connecté émet une ligne portant un compte d'outils, et le nom d'événement dit quel mode a tourné : `mcp.tools.index.discovered` en mode `deferred`, `mcp.tools.discovered` en mode `eager`. Il n'y a de listing outil par outil dans aucun des deux modes, et aucun message ne nomme un serveur pendant son chargement.
+Observez les logs du daemon. Apollia ne démarre aucun serveur à son lancement : chacun démarre au premier appel d'un de ses outils, et s'arrête après `[mcp] idle_stop_secs` (900 secondes par défaut) sans appel. Chaque serveur qui démarre émet une ligne portant un compte d'outils, et le nom d'événement dit quel mode a tourné : `mcp.tools.index.discovered` en mode `deferred`, `mcp.tools.discovered` en mode `eager`. Il n'y a de listing outil par outil dans aucun des deux modes, et aucun message ne nomme un serveur pendant son chargement.
 
 En mode `deferred`, une ligne de plus est écrite quand la liste d'outils de l'assistant est construite : `mcp.deferred.index_advertised` si l'index entier tenait dans `tool_search_limit` et a été déclaré d'emblée, `mcp.deferred.index_reachable_through_search_only` sinon, `tool_search` étant alors le seul chemin. Les deux portent le nombre indexé et la borne, ce qui vous dit de quel côté du seuil vous êtes.
 

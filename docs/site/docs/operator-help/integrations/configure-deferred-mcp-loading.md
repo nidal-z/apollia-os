@@ -43,7 +43,7 @@ Restart Apollia after changing it.
 
 ## Verification
 
-Watch the daemon logs at startup. Each connected server emits one line carrying a tool count, and the event name tells you which mode ran: `mcp.tools.index.discovered` in `deferred` mode, `mcp.tools.discovered` in `eager` mode. There is no per-tool listing in either mode, and no message naming a server as it loads.
+Watch the daemon logs. Apollia starts no server at startup: each one starts at the first call of one of its tools, and stops after `[mcp] idle_stop_secs` (900 seconds by default) without a call. Each server that starts emits one line carrying a tool count, and the event name tells you which mode ran: `mcp.tools.index.discovered` in `deferred` mode, `mcp.tools.discovered` in `eager` mode. There is no per-tool listing in either mode, and no message naming a server as it loads.
 
 In `deferred` mode, one more line is written when the assistant's tool list is built: `mcp.deferred.index_advertised` if the whole index fitted inside `tool_search_limit` and was declared up front, `mcp.deferred.index_reachable_through_search_only` if it did not and `tool_search` is the only way in. Both carry the indexed count and the limit, which is what tells you which side of the bound you are on.
 

@@ -242,8 +242,12 @@ async fn an_invalid_file_changed_outside_keeps_the_last_valid_configuration() {
 
 #[test]
 fn every_live_section_has_reloadable_keys_and_no_restart_key() {
-    // GIVEN the sections broadcast on a channel
+    // GIVEN the sections broadcast on a channel, and the keys of those
+    // sections read once at start, whose readers of the channel leave the
+    // value aside: the MCP manager keeps its loading mode and idle delay for
+    // its lifetime, and the chat follows its loading mode, not the channel's
     let sections = super::LIVE_SECTIONS;
+    let read_at_start = ["mcp.tool_loading", "mcp.idle_stop_secs"];
 
     // WHEN the key registry is read for each of them
     let restart: Vec<&str> = apollia_core::config::keys::KEYS
@@ -252,9 +256,10 @@ fn every_live_section_has_reloadable_keys_and_no_restart_key() {
         .filter(|k| sections.contains(&super::diff::section_of(k.path)))
         .filter(|k| k.reload != apollia_core::config::keys::ReloadClass::Reloadable)
         .map(|k| k.path)
+        .filter(|path| !read_at_start.contains(path))
         .collect();
 
-    // THEN none of their keys waits for a restart: a channel is never sent a
-    // value the engine cannot apply
+    // THEN none of their other keys waits for a restart: a channel is never
+    // sent a value the engine cannot apply
     assert!(restart.is_empty(), "{restart:?}");
 }
