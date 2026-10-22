@@ -944,6 +944,20 @@
       "checked_minutes_ago": "vérifiée il y a {mins} min",
       "checked_hours_ago": "vérifiée il y a {hours} h",
       "checked_days_ago": "vérifiée il y a {days} j"
+    },
+    "onedrive_choices": {
+      "title": "Fichiers OneDrive qu'Apollia peut lire",
+      "intro": "Vos agents ne lisent que dans les dossiers et fichiers choisis ici. L'autorisation de Microsoft couvre tout votre OneDrive ; c'est Apollia qui tient cette limite, sur votre ordinateur.",
+      "none": "Rien de choisi pour l'instant : vos agents ne peuvent lire aucun fichier OneDrive.",
+      "browse": "Choisir des dossiers et fichiers",
+      "root": "OneDrive",
+      "up": "Retour",
+      "done": "Terminé",
+      "open": "Ouvrir",
+      "choose": "Choisir",
+      "chosen": "Choisi",
+      "forget": "Retirer",
+      "empty_folder": "Ce dossier est vide."
     }
   },
   "integrations": {

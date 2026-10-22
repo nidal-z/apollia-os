@@ -1,7 +1,7 @@
 {
   "operation": "onedrive.get_metadata",
   "origin": "example",
-  "note": "Hand-written from the Microsoft Graph reference for Get a DriveItem resource (GET /me/drive/items/{item-id}), which returns one driveItem rather than a value collection. A file item with the facets the reference shows on a file: file with mimeType and hashes, fileSystemInfo, parentReference, createdBy and lastModifiedBy identity sets. Everything but id, name, size, file, webUrl and lastModifiedDateTime is what the client ignores, and folder reads as absent. Not a recording.",
+  "note": "Hand-written from the Microsoft Graph reference for Get a DriveItem resource (GET /me/drive/items/{item-id}), which returns one driveItem rather than a value collection. A file item with the facets the reference shows on a file: file with mimeType and hashes, fileSystemInfo, parentReference, createdBy and lastModifiedBy identity sets. Everything but id, name, size, file, webUrl, lastModifiedDateTime and the id, driveId and path of parentReference is what the client ignores, and folder reads as absent. Not a recording.",
   "response": {
     "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/drive/items/$entity",
     "@microsoft.graph.downloadUrl": "https://example-my.sharepoint.com/personal/alice/_layouts/15/download.aspx?UniqueId=replay",
@@ -46,6 +46,11 @@
     },
     "folder": null,
     "webUrl": "https://example-my.sharepoint.com/personal/alice/Documents/replay-report.docx",
-    "lastModifiedDateTime": "2026-09-05T14:02:10Z"
+    "lastModifiedDateTime": "2026-09-05T14:02:10Z",
+    "parentReference": {
+      "id": "01REPLAYPARENT",
+      "driveId": "b!replayDriveId",
+      "path": "/drive/root:/Documents"
+    }
   }
 }
