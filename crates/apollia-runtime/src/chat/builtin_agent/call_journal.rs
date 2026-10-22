@@ -34,9 +34,13 @@ impl BuiltInChatAgent {
             tool_call_id: call.id.clone(),
             tool_name: call.name.clone(),
             family: Some(
-                super::governed::family_of(&call.name, descriptor.as_ref())
-                    .as_str()
-                    .to_owned(),
+                super::governed::family_of(
+                    &call.name,
+                    descriptor.as_ref(),
+                    self.mcp_index.as_deref(),
+                )
+                .as_str()
+                .to_owned(),
             ),
             target: descriptor
                 .as_ref()

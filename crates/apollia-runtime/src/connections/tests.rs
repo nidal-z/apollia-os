@@ -433,6 +433,60 @@ fn test_a_forbidden_connection_is_marked_forbidden_by_policy() {
 }
 
 #[test]
+fn a_tool_its_server_declares_read_only_is_listed_read_in_deferred_loading() {
+    // GIVEN a custom server with no selection entry and no live session,
+    //       whose kept index holds a tool declared read-only, a tool declared
+    //       destructive and a tool with no hint
+    let index = |tool: &str, read_only: Option<bool>, destructive: Option<bool>| {
+        apollia_mcp::tool_search::ToolIndexSnapshot {
+            server_name: "navigateur".to_owned(),
+            tool_name: tool.to_owned(),
+            annotations: Some(apollia_mcp::protocol::McpToolAnnotations {
+                read_only_hint: read_only,
+                destructive_hint: destructive,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    };
+    let sources = ConnectionSources {
+        mcp_configs: vec![server(
+            "navigateur",
+            "http",
+            Some("http://localhost:8931/mcp"),
+        )],
+        mcp_index: vec![
+            index("browser_snapshot", Some(true), None),
+            index("browser_close", None, Some(true)),
+            index("browser_click", None, None),
+        ],
+        ..ConnectionSources::default()
+    };
+
+    // WHEN the connections are listed
+    let list = assemble(&sources);
+
+    // THEN each tool is classified by the hints its server declared
+    let tools = &by_id(&list, "mcp:navigateur").tools;
+    let family = |id: &str| {
+        let tool = tools.iter().find(|t| t.id == id).unwrap();
+        (tool.family, tool.family_source)
+    };
+    assert_eq!(
+        family("mcp:navigateur/browser_snapshot"),
+        (ActionFamily::Read, FamilySource::Server)
+    );
+    assert_eq!(
+        family("mcp:navigateur/browser_close"),
+        (ActionFamily::WriteOrDelete, FamilySource::Server)
+    );
+    assert_eq!(
+        family("mcp:navigateur/browser_click"),
+        (ActionFamily::Unclassified, FamilySource::Unsourced)
+    );
+}
+
+#[test]
 fn a_custom_server_in_deferred_loading_offers_every_tool_its_session_indexed() {
     // GIVEN a custom server with no selection entry, whose live session
     // indexed two tools and registered none, as deferred loading does
@@ -442,6 +496,7 @@ fn a_custom_server_in_deferred_loading_offers_every_tool_its_session_indexed() {
         description: None,
         tags: Vec::new(),
         input_schema: None,
+        ..Default::default()
     };
     let sources = ConnectionSources {
         mcp_configs: vec![server(

@@ -195,8 +195,13 @@ impl From<apollia_core::McpToolLoading> for LoadingMode {
 pub struct ToolIndexEntry {
     /// Tool name within the server (e.g. `"search_pages"`).
     pub name: String,
+    /// Display name, when the server declared one.
+    pub title: Option<String>,
     /// Human-readable description, when provided by the server.
     pub description: Option<String>,
+    /// Behaviour hints the server declared, which classify the tool where no
+    /// selection entry does. Untrusted, like every hint.
+    pub annotations: Option<crate::protocol::McpToolAnnotations>,
 }
 
 impl ToolIndexEntry {

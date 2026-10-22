@@ -94,7 +94,11 @@ impl BuiltInChatAgent {
         for call in effective_calls.iter() {
             let descriptor = self.tool_registry.describe(&call.name).await;
             read_only.push(descriptor.as_ref().is_some_and(|d| d.is_read_only));
-            families.push(family_of(&call.name, descriptor.as_ref()));
+            families.push(family_of(
+                &call.name,
+                descriptor.as_ref(),
+                self.mcp_index.as_deref(),
+            ));
             // A call repeated verbatim past the allowance is answered the same
             // way, with a reminder in place of a result it has already seen.
             let repeated = super::tool_guide::repeated_call_reminder(

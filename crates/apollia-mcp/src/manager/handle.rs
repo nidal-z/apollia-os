@@ -11,6 +11,7 @@ use apollia_core::{EventBusSender, RuntimeEvent};
 use apollia_tools::registry::ToolRegistryHandle;
 
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
+use crate::manager::kept::{keep_session_tools, kept_snapshots};
 use crate::manager::snapshot::McpSnapshot;
 use crate::manager::views::{
     log_session_start_error, register_session_tools_in_registry, ServerHints,
@@ -22,6 +23,7 @@ use crate::manager::{
 use crate::protocol::ToolCallResult;
 use crate::session::{LoadingMode, McpSession, McpSessionError};
 use crate::tool_search::ToolIndexSnapshot;
+use crate::tool_store::ToolIndexStore;
 
 impl McpClientManagerHandle {
     /// Start the MCP client manager.
@@ -51,12 +53,57 @@ impl McpClientManagerHandle {
         event_bus: Option<EventBusSender>,
         loading_mode: LoadingMode,
     ) -> Result<Self, McpSessionError> {
+        Self::start_inner(configs, tool_registry, event_bus, loading_mode, None).await
+    }
+
+    /// Start the MCP client manager as [`McpClientManagerHandle::start`] does,
+    /// keeping the tools each server publishes in `tool_store`.
+    ///
+    /// Every `tools/list` a session answers when it starts (at boot, or when
+    /// it is added, restarted or reloaded) is kept. In
+    /// [`LoadingMode::Deferred`], a server of `configs` whose session does
+    /// not start still contributes the tools it last published to
+    /// [`McpClientManagerHandle::get_tool_index`], with their descriptions,
+    /// hints and family, until a session of it starts or it is removed.
+    pub async fn start_keeping_tools(
+        configs: Vec<McpServerConfig>,
+        tool_registry: &ToolRegistryHandle,
+        event_bus: Option<EventBusSender>,
+        loading_mode: LoadingMode,
+        tool_store: ToolIndexStore,
+    ) -> Result<Self, McpSessionError> {
+        Self::start_inner(
+            configs,
+            tool_registry,
+            event_bus,
+            loading_mode,
+            Some(tool_store),
+        )
+        .await
+    }
+
+    async fn start_inner(
+        configs: Vec<McpServerConfig>,
+        tool_registry: &ToolRegistryHandle,
+        event_bus: Option<EventBusSender>,
+        loading_mode: LoadingMode,
+        tool_store: Option<ToolIndexStore>,
+    ) -> Result<Self, McpSessionError> {
         let (tx, rx) = mpsc::channel(32);
         let mut sessions: HashMap<String, McpSession> = HashMap::new();
+        let mut stored = match &tool_store {
+            Some(store) => store.load().await,
+            None => HashMap::new(),
+        };
+        let mut kept_index = HashMap::new();
 
         for config in configs {
             let server_name = config.name.clone();
             let tags = config.tags.clone();
+            let kept = stored
+                .remove(&server_name)
+                .filter(|_| loading_mode == LoadingMode::Deferred)
+                .map(|tools| kept_snapshots(&config, &tools));
 
             match McpSession::start_with_mode(config, Some(&DefaultMcpSecretResolver), loading_mode)
                 .await
@@ -88,6 +135,7 @@ impl McpClientManagerHandle {
                             health: session.health().clone(),
                         });
                     }
+                    keep_session_tools(tool_store.as_ref(), &server_name, &session).await;
                     sessions.insert(server_name, session);
                 }
                 Err(e) => {
@@ -100,6 +148,15 @@ impl McpClientManagerHandle {
                             name: server_name.clone(),
                             health: crate::health::from_start_error(&e),
                         });
+                    }
+                    if let Some(kept) = kept.filter(|kept| !kept.is_empty()) {
+                        tracing::event!(
+                            tracing::Level::INFO,
+                            server = %server_name,
+                            tools_count = kept.len(),
+                            "mcp.tools.kept_served"
+                        );
+                        kept_index.insert(server_name, kept);
                     }
                 }
             }
@@ -117,6 +174,8 @@ impl McpClientManagerHandle {
             event_bus,
             last_call_at: HashMap::new(),
             loading_mode,
+            tool_store,
+            kept_index,
         };
         for (name, session) in &actor.sessions {
             actor.watch_session_end(name, session);

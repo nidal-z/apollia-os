@@ -56,6 +56,7 @@ mod tests {
             description: None,
             tags: Vec::new(),
             input_schema: None,
+            ..Default::default()
         }
     }
 

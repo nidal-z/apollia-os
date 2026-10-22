@@ -39,6 +39,7 @@ fn indexed(server: &str, tool: &str) -> ToolIndexSnapshot {
         description: None,
         tags: vec![],
         input_schema: None,
+        ..Default::default()
     }
 }
 
@@ -264,7 +265,33 @@ async fn test_catalog_offers_the_connection_lookup_only_when_the_conversation_do
     assert_eq!(names(&not_offered), vec!["file_read"]);
     assert!(!not_offered.callable.contains(lookup));
     assert_eq!(
-        super::super::governed::family_of(lookup, None),
+        super::super::governed::family_of(lookup, None, None),
         apollia_tools::ActionFamily::Read
+    );
+}
+
+#[test]
+fn a_deferred_mcp_tool_is_decided_on_the_family_its_index_entry_carries() {
+    // GIVEN a deferred tool with no descriptor, whose index entry the MCP
+    //       manager classified read on its server's hint
+    let mut entry = indexed("notion", "search");
+    entry.family = apollia_tools::ActionFamily::Read;
+    let index = vec![entry, indexed("notion", "write")];
+    let family_of = super::super::governed::family_of;
+
+    // WHEN the family of a call is resolved
+    // THEN the indexed family is used, an unclassified entry stays
+    //      unclassified, and a tool outside the index is unclassified
+    assert_eq!(
+        family_of("mcp:notion/search", None, Some(&index)),
+        apollia_tools::ActionFamily::Read
+    );
+    assert_eq!(
+        family_of("mcp:notion/write", None, Some(&index)),
+        apollia_tools::ActionFamily::Unclassified
+    );
+    assert_eq!(
+        family_of("mcp:notion/search", None, None),
+        apollia_tools::ActionFamily::Unclassified
     );
 }
