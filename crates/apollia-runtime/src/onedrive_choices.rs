@@ -240,6 +240,18 @@ pub fn forget(
     list(path, account_id)
 }
 
+/// Forget every choice of `account_id`, as the removal of the account does, so
+/// a reconnection of the same account starts with nothing chosen. An account
+/// with no choice leaves the file untouched.
+pub fn forget_account(path: &Path, account_id: &str) -> Result<(), OneDriveChoiceError> {
+    let account_id = checked_account(account_id)?;
+    let mut file = load(path)?;
+    if file.accounts.remove(account_id).is_some() {
+        save(path, &file)?;
+    }
+    Ok(())
+}
+
 /// The entries of `children`, each marked chosen or not against `choices`.
 pub fn entries(children: Vec<DriveItem>, choices: &[OneDriveChoice]) -> Vec<OneDriveEntry> {
     children

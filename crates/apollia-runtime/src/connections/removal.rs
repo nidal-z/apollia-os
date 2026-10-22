@@ -30,7 +30,7 @@ pub struct RemovedItem {
     /// What it is.
     pub kind: RemovedKind,
     /// Its name: the server, the folder of installed files, the secret key,
-    /// the tool taken away, the source.
+    /// the tool taken away, the source, the path of a OneDrive choice.
     pub name: String,
     /// The agent the tool is taken from, for an agent access.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -55,6 +55,9 @@ pub enum RemovedKind {
     Source,
     /// The state last found for the connection.
     State,
+    /// A OneDrive folder or file chosen for a Microsoft account to read.
+    #[serde(rename = "onedrive_choice")]
+    OneDriveChoice,
 }
 
 impl RemovedItem {

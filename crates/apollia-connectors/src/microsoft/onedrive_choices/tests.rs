@@ -233,6 +233,38 @@ async fn test_recent_items_are_kept_only_inside_the_choices() {
 }
 
 #[tokio::test]
+async fn test_an_item_without_a_path_read_again_outside_the_choices_is_refused() {
+    // GIVEN a recent item Graph gave no path for, and that Graph, asked again by
+    // id, places under HR, outside every choice
+    let server = MockServer::start().await;
+    answer(
+        &server,
+        "/recent",
+        json!({ "value": [item("nopath-out", "salaries.txt", None)] }),
+    )
+    .await;
+    Mock::given(method("GET"))
+        .and(path("/items/nopath-out"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(
+            "nopath-out",
+            "salaries.txt",
+            Some("/drive/root:/HR"),
+        )))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = client(&server);
+    let choices = choices();
+    let drive = ChosenOneDrive::new(&client, &choices);
+
+    // WHEN an agent lists the recent items
+    let recent = drive.list_recent(10, TOKEN, &mut refresh()).await.unwrap();
+
+    // THEN the item is read again by id once, found outside, and left out
+    assert!(recent.is_empty(), "{recent:?}");
+}
+
+#[tokio::test]
 async fn test_nothing_chosen_refuses_every_read_without_asking_graph() {
     // GIVEN an account with no choice, and a Graph that would answer anything
     let server = MockServer::start().await;

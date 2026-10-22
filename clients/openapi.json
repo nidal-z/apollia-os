@@ -33500,7 +33500,7 @@
           },
           "name": {
             "type": "string",
-            "description": "Its name: the server, the folder of installed files, the secret key,\nthe tool taken away, the source."
+            "description": "Its name: the server, the folder of installed files, the secret key,\nthe tool taken away, the source, the path of a OneDrive choice."
           }
         }
       },
@@ -33514,7 +33514,8 @@
           "secret",
           "agent_access",
           "source",
-          "state"
+          "state",
+          "onedrive_choice"
         ]
       }
     },

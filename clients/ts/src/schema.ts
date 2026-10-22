@@ -12619,7 +12619,7 @@ export interface components {
             kind: components["schemas"]["RemovedKind"];
             /**
              * @description Its name: the server, the folder of installed files, the secret key,
-             *     the tool taken away, the source.
+             *     the tool taken away, the source, the path of a OneDrive choice.
              */
             name: string;
         };
@@ -12627,7 +12627,7 @@ export interface components {
          * @description The kinds of things a removal erases.
          * @enum {string}
          */
-        RemovedKind: "configuration" | "installed_files" | "token" | "secret" | "agent_access" | "source" | "state";
+        RemovedKind: "configuration" | "installed_files" | "token" | "secret" | "agent_access" | "source" | "state" | "onedrive_choice";
     };
     responses: never;
     parameters: never;
