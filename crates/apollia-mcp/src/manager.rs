@@ -10,6 +10,7 @@ mod detached;
 mod handle;
 mod kept;
 mod lifecycle;
+mod reclassify;
 mod snapshot;
 mod views;
 
@@ -114,6 +115,13 @@ enum McpCommand {
         server_name: Option<String>,
         uri: String,
         reply: oneshot::Sender<Result<McpResourcePayload, McpSessionError>>,
+    },
+    /// Classify a tool in the family the operator gave it.
+    SetOperatorFamily {
+        server_name: String,
+        tool: String,
+        family: apollia_tools::ActionFamily,
+        reply: oneshot::Sender<()>,
     },
     /// Gracefully shut down all sessions and stop the actor loop.
     Shutdown,
@@ -432,6 +440,18 @@ impl McpClientManager {
                     reply,
                 } => {
                     let _ = reply.send(self.handle_read_resource(server_name, &uri).await);
+                }
+
+                McpCommand::SetOperatorFamily {
+                    server_name,
+                    tool,
+                    family,
+                    reply,
+                } => {
+                    self.handle_set_operator_family(&server_name, &tool, family)
+                        .await;
+                    self.publish();
+                    let _ = reply.send(());
                 }
 
                 McpCommand::Shutdown => {

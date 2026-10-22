@@ -102,6 +102,9 @@ pub enum JournalEntryKind {
     /// A folder of this machine was added as a connection. The payload is a
     /// [`crate::governance::ConnectionRecord`].
     FolderAdded,
+    /// The operator gave a tool of a connection another action family. The
+    /// payload is a [`crate::governance::ConnectionRecord`].
+    ToolReclassified,
     /// The user answered a consent prompt: once, always, or refuse. The payload is a
     /// [`crate::governance::GovernanceRecord`]; it never carries the call's argument.
     ConsentAnswered,
@@ -213,6 +216,7 @@ impl JournalEntryKind {
             JournalEntryKind::AccountConnected => "account_connected",
             JournalEntryKind::AccountDisconnected => "account_disconnected",
             JournalEntryKind::FolderAdded => "folder_added",
+            JournalEntryKind::ToolReclassified => "tool_reclassified",
             JournalEntryKind::ConsentAnswered => "consent_answered",
             JournalEntryKind::AlwaysWithdrawn => "always_withdrawn",
             JournalEntryKind::PolicyRefused => "policy_refused",
@@ -272,6 +276,7 @@ impl JournalEntryKind {
             "account_connected" => JournalEntryKind::AccountConnected,
             "account_disconnected" => JournalEntryKind::AccountDisconnected,
             "folder_added" => JournalEntryKind::FolderAdded,
+            "tool_reclassified" => JournalEntryKind::ToolReclassified,
             "consent_answered" => JournalEntryKind::ConsentAnswered,
             "always_withdrawn" => JournalEntryKind::AlwaysWithdrawn,
             "policy_refused" => JournalEntryKind::PolicyRefused,
@@ -500,6 +505,7 @@ mod tests {
                 "account_disconnected",
             ),
             (JournalEntryKind::FolderAdded, "folder_added"),
+            (JournalEntryKind::ToolReclassified, "tool_reclassified"),
         ];
         for (kind, expected) in cases {
             // WHEN converting to its tag and back

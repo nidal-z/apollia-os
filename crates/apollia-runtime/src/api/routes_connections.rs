@@ -9,12 +9,14 @@
 //! granted to several agents, under `/api/v1/connections/{id}` (see
 //! [`agents`]). A connection is checked now under
 //! `/api/v1/connections/{id}/check` (see [`check`]), and put in pause and
-//! resumed there too (see [`pause`]).
+//! resumed there too (see [`pause`]). A tool of a connection the selection
+//! does not classify is given another family under
+//! `/api/v1/connections/{id}/tools/{tool}/family` (see [`family`]).
 
 use axum::{
     extract::State,
     http::StatusCode,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 
@@ -69,6 +71,10 @@ pub fn connections_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> 
         .route(
             "/api/v1/connections/:id/resume",
             post(pause::resume_connection::<B>),
+        )
+        .route(
+            "/api/v1/connections/:id/tools/:tool/family",
+            put(family::set_tool_family::<B>),
         )
 }
 
@@ -177,6 +183,7 @@ pub(crate) fn paused_connections<B: ExecutionBackend + Clone>(
 
 pub(crate) mod agents;
 pub(crate) mod check;
+pub(crate) mod family;
 pub(crate) mod folders;
 pub(crate) mod pause;
 

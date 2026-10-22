@@ -284,6 +284,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         }
     }

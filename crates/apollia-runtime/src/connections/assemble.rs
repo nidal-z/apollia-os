@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use apollia_auth::ConnectorProvider;
 use apollia_connectors::imap::{providers::provider_for_email, ImapAccount};
 use apollia_core::{ConnectionStateRecord, ConnectionStatus, FolderConnection, McpHealth};
-use apollia_mcp::classify::classify_mcp_tool;
+use apollia_mcp::classify::classify_configured_tool;
 use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::manager::McpServerStatus;
 use apollia_mcp::tool_search::ToolIndexSnapshot;
@@ -212,8 +212,9 @@ fn state_of(health: &McpHealth) -> ConnectionState {
 /// The tools a server published, as registered; otherwise the tools its
 /// selection entry classified, then every other tool its index holds (a live
 /// session's, or the one kept from its last `tools/list`), classified by the
-/// hints the server declared. In deferred loading nothing is registered, so a
-/// server with no selection entry would otherwise offer no tool to grant.
+/// family the operator gave it, else by the hints the server declared. In
+/// deferred loading nothing is registered, so a server with no selection
+/// entry would otherwise offer no tool to grant.
 fn mcp_tools(
     config: &McpServerConfig,
     sources: &ConnectionSources,
@@ -251,7 +252,7 @@ fn mcp_tools(
     indexed.dedup_by(|a, b| a.tool_name == b.tool_name);
     tools.extend(indexed.into_iter().map(|entry| {
         let (family, family_source) =
-            classify_mcp_tool(None, entry.annotations.as_ref(), config.has_account());
+            classify_configured_tool(config, &entry.tool_name, entry.annotations.as_ref());
         ConnectionTool {
             id: format!("{prefix}{}", entry.tool_name),
             family,

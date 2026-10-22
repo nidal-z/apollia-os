@@ -4010,6 +4010,107 @@
         }
       }
     },
+    "/api/v1/connections/{id}/tools/{tool}/family": {
+      "put": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`PUT /api/v1/connections/{id}/tools/{tool}/family`: give a tool of a\nconnection the selection does not classify another action family.",
+        "operationId": "set_tool_family",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Connection identifier, as `GET /api/v1/connections` lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool",
+            "in": "path",
+            "description": "Name of the tool on its server",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolFamilyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reclassified and journaled; the connection as the list now shows it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A family the operator cannot give; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection or tool not found; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The selection, or Apollia's code, classifies this tool; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store could not be read or written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The MCP repository is not available; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/accounts": {
       "get": {
         "tags": [
@@ -31359,6 +31460,19 @@
           "enabled": {
             "type": "boolean",
             "description": "`true` to enable the tool, `false` to disable it."
+          }
+        }
+      },
+      "ToolFamilyBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/connections/{id}/tools/{tool}/family`.",
+        "required": [
+          "family"
+        ],
+        "properties": {
+          "family": {
+            "type": "string",
+            "description": "The family the tool takes: `read`, `read_personal`,\n`write_or_delete`, `send_external`, `execute_code` or `unclassified`."
           }
         }
       },

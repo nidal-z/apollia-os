@@ -561,6 +561,7 @@ from .tool_call_detail_output_type_0 import ToolCallDetailOutputType0
 from .tool_config_body import ToolConfigBody
 from .tool_config_body_config_type_0 import ToolConfigBodyConfigType0
 from .tool_enabled_body import ToolEnabledBody
+from .tool_family_body import ToolFamilyBody
 from .tool_list_response import ToolListResponse
 from .tool_list_response_tools_item import ToolListResponseToolsItem
 from .tool_stat_entry import ToolStatEntry
@@ -1185,6 +1186,7 @@ __all__ = (
     "ToolConfigBody",
     "ToolConfigBodyConfigType0",
     "ToolEnabledBody",
+    "ToolFamilyBody",
     "ToolListResponse",
     "ToolListResponseToolsItem",
     "ToolStatEntry",

@@ -197,6 +197,16 @@ pub struct McpServerConfig {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tool_families: BTreeMap<String, apollia_tools::ActionFamily>,
 
+    /// Action family the operator gave each tool, keyed by the tool's name on
+    /// this server.
+    ///
+    /// Kept in `mcp.db` apart from the server row: saving a configuration
+    /// never writes it, so a connection added again keeps it, and reading one
+    /// fills it (see `McpServerRepository::set_operator_family`). It wins over
+    /// the hints the server declares, never over [`Self::tool_families`].
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub operator_families: BTreeMap<String, apollia_tools::ActionFamily>,
+
     /// Where the connection comes from, written by the caller that adds it.
     ///
     /// `None` keeps the origin already stored for this name, and a connection
@@ -785,6 +795,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -814,6 +825,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN
@@ -845,6 +857,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -871,6 +884,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -903,6 +917,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN
@@ -932,6 +947,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -958,6 +974,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -985,6 +1002,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN validation rejects with a guidance-bearing error.
@@ -1013,6 +1031,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -1047,6 +1066,7 @@ mod tests {
                 max_tools: 256,
                 tags: vec![],
                 tool_families: Default::default(),
+                operator_families: Default::default(),
                 origin: None,
             };
             // WHEN / THEN: must accept all of these.
@@ -1110,6 +1130,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         }
     }
@@ -1282,6 +1303,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -1308,6 +1330,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -1334,6 +1357,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -1360,6 +1384,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -1386,6 +1411,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -1409,6 +1435,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -1432,6 +1459,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
@@ -1458,6 +1486,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            operator_families: Default::default(),
             origin: None,
         };
         // WHEN / THEN
