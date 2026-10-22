@@ -3735,6 +3735,85 @@
         }
       }
     },
+    "/api/v1/connections/{id}/check": {
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`POST /api/v1/connections/{id}/check`: check one connection now, and\nanswer it with the state found, dated.",
+        "operationId": "check_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Connection identifier, as `GET /api/v1/connections` lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional; the read-only probe of an MCP server",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CheckConnectionBody"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checked; the connection with the state found, kept and announced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store could not be read or written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "MCP not configured, for an MCP server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connections/{id}/grants": {
       "post": {
         "tags": [
@@ -21155,6 +21234,19 @@
           }
         }
       },
+      "CheckConnectionBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/connections/{id}/check`, which may be left out.",
+        "properties": {
+          "probe": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Read-only tool call an MCP server is probed with after its handshake,\nwhen its connector declares one; ignored for any other kind."
+          }
+        }
+      },
       "ClearAgentModelResponse": {
         "type": "object",
         "description": "Body of `DELETE /api/v1/llm/agents/{agent}/model`.",
@@ -21692,6 +21784,8 @@
                 "enum": [
                   "not_checked",
                   "sign_in_again",
+                  "password_refused",
+                  "folder_not_found",
                   "unreachable",
                   "failing",
                   "forbidden_by_policy"
@@ -28680,7 +28774,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`,\n`planning`, `profile`."
+            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `access_added`, `sources`,\n`autonomy`, `planning`, `profile`. `access_added` names the tools\ngiven on top of the default access, which `access` lists after it."
           },
           "package": {
             "type": [

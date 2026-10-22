@@ -585,15 +585,6 @@
       },
       "expert_mode_hint": "Mode Expert (pour étendre les autorisations) : 1) Sur console.cloud.google.com, créez un projet et une app OAuth de type « Desktop app ». 2) Dans l'écran de consentement, ajoutez les autorisations avancées voulues (lecture Gmail, Drive complet, etc.). 3) Restez en mode « Testing » et ajoutez-vous comme testeur. 4) Collez le Client ID + secret dans la section du client Google de sa fiche, dans Connexions. Apollia bascule sur votre app et vos agents reçoivent les autorisations étendues."
     },
-    "filters": {
-      "clear_all": "Tout effacer"
-    },
-    "empty": {
-      "no_results_title": "Aucun résultat pour « {query} »",
-      "no_results_description": "Essayez d'autres mots-clés ou effacez les filtres actifs.",
-      "no_suggestions_title": "Pas de suggestions pour le moment",
-      "no_suggestions_description": "Installez des agents pour recevoir des recommandations adaptées."
-    },
     "native_section_tag": "curés · OAuth managé",
     "custom_mcp": {
       "code_placeholder": "Code d'autorisation (4/0A…)"
@@ -696,28 +687,15 @@
     "saving": "Enregistrement…",
     "save": "Enregistrer",
     "configure_credentials": "Configurer les identifiants",
-    "catalogue_subtitle": "Choisissez une connexion dans la sélection d'Apollia ou le catalogue public, ou ajoutez une connexion personnalisée.",
-    "catalogue_tab_discover": "Catalogue des connexions",
-    "catalogue_tab_custom": "Connexion personnalisée",
-    "mcp_chip_all": "Tous",
-    "mcp_chip_installed": "Installés",
-    "mcp_chip_official": "Officiels",
-    "mcp_chip_community": "Communauté",
-    "mcp_filter_label": "Filtre type",
     "catalogue_loading": "Chargement du catalogue…",
     "badge_official": "Officiel",
     "badge_community": "Communauté",
     "badge_rule": "Officiel : publiée par l'éditeur du service, sous un domaine vérifié par le catalogue public, ou marquée ainsi dans la sélection d'Apollia. Tout le reste est communauté.",
     "catalogue_search_placeholder": "Rechercher une connexion…",
-    "catalogue_explore_note": "Le catalogue public n'est interrogé que si vous le demandez.",
     "catalogue_explore_all": "Explorer tout",
     "catalogue_back_to_selection": "Revenir à la sélection",
     "badge_installed": "Installé",
     "catalogue_by": "par",
-    "catalogue_manage": "Gérer →",
-    "catalogue_loading_public": "Chargement du catalogue public… ({count} entrées)",
-    "catalogue_more_hint": "{count} entrées restantes - continuez à scroller",
-    "catalogue_end": "Fin du catalogue · {count} entrées",
     "custom_intro": "Pour brancher un service à vous, joint à son adresse : un outil interne, un service communautaire, un service en développement. Pour un service du catalogue, utilisez plutôt sa carte.",
     "custom_name_label": "Nom (interne, unique)",
     "custom_name_placeholder": "ex. acme-internal",
@@ -897,6 +875,39 @@
       "label": "Laisser Apollia s'en servir dans le Chat",
       "hint": "Apollia reçoit tous les outils de cette connexion. Ceux qui écrivent, envoient ou exécutent du code, et ceux qui ne sont pas classés, demandent votre accord avant de s'exécuter. Les autres agents la reçoivent sur leur fiche.",
       "failed": "La connexion est ajoutée, mais Apollia n'a pas pu la recevoir : {error}. Accordez-la depuis la fiche d'Apollia."
+    },
+    "add_window": {
+      "subtitle": "Cherchez ce que vous voulez brancher, puis ouvrez sa fiche pour l'ajouter.",
+      "groups": {
+        "apollia": "Proposés par Apollia",
+        "computer": "Sur cet ordinateur",
+        "public": "Catalogue public",
+        "address": "Brancher un service par son adresse"
+      },
+      "public_unverified": "Non vérifié",
+      "public_note": "Tout le monde peut publier dans le catalogue public. Apollia n'a pas vérifié ces entrées.",
+      "public_ask": "Le catalogue public n'est interrogé que si vous le demandez.",
+      "address_name": "Un service par son adresse",
+      "address_description": "L'adresse qu'un service vous donne pour le brancher à Apollia",
+      "no_results": "Rien ne répond à « {query} » ici. Cherchez dans le catalogue public, ou branchez un service par son adresse.",
+      "show_more": "Afficher {count} de plus",
+      "failed_selection": "La sélection d'Apollia n'a pas pu être lue. Ce qui est sur cet ordinateur reste disponible.",
+      "failed_public": "Le catalogue public n'a pas répondu. Vérifiez la connexion à internet, puis réessayez.",
+      "needs_title": "Ce qu'elle demande",
+      "needs": {
+        "sign_in": "Une connexion à votre compte, dans votre navigateur",
+        "folder": "Un dossier que vous choisissez sur cet ordinateur",
+        "mailbox": "Votre adresse et un mot de passe d'application de votre messagerie",
+        "key": "Une clé ou un mot de passe que le service vous donne",
+        "values": "Quelques réglages à remplir",
+        "download": "Un téléchargement sur cet ordinateur, fait par Apollia",
+        "online": "Le service est joint par internet : ce que les agents lui demandent y part",
+        "address": "L'adresse que le service vous a donnée",
+        "nothing": "Rien de plus : elle marche dès l'ajout"
+      },
+      "add": "Ajouter",
+      "open": "Ouvrir sa page",
+      "back": "Retour à la recherche"
     }
   },
   "integrations": {
@@ -4946,7 +4957,6 @@
     },
     "connections": {
       "catalogue_subtitle": "Découvrez le catalogue MCP public ou enregistrez un serveur personnalisé.",
-      "catalogue_tab_discover": "Catalogue MCP",
       "catalogue_tab_custom": "MCP personnalisé",
       "catalogue_loading": "Chargement du catalogue MCP…",
       "custom_intro": "Pour brancher un serveur MCP interne, communautaire ou en cours de développement. Pour un service de la sélection (Notion, Linear, Brave Search…), utilisez plutôt une carte du catalogue.",

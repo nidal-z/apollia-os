@@ -51,6 +51,36 @@ export function listConnections(): Promise<Connection[]> {
   return invoke<Connection[]>("list_connections");
 }
 
+/** One agent holding tools of a connection, as the grant route answers it. */
+export interface ConnectionAgent {
+  id: string;
+  name: string;
+  enabled: boolean;
+  /** Whether it holds these tools through the default access. */
+  byDefault: boolean;
+  tools: string[];
+}
+
+/** The agents holding the tools of one connection. */
+export interface ConnectionAgents {
+  connection: string;
+  agents: ConnectionAgent[];
+  sharedWith: string[];
+}
+
+/**
+ * Give `tools` of the connection `connectionId` to every agent of `agents`.
+ * The runtime gives each agent what it does not hold yet and journals it; an
+ * agent on the default access keeps it, the tools held on top of it.
+ */
+export function grantConnection(
+  connectionId: string,
+  agents: string[],
+  tools: string[],
+): Promise<ConnectionAgents> {
+  return invoke<ConnectionAgents>("grant_connection", { connectionId, agents, tools });
+}
+
 /** Add the folder at `path`, chosen with the system picker, as a connection. */
 export function addFolderConnection(path: string): Promise<Connection> {
   return invoke<Connection>("add_folder_connection", { path });

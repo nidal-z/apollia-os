@@ -6,6 +6,8 @@
 //! connections:
 //!
 //! - `list_connections`: `GET /api/v1/connections`.
+//! - `grant_connection`: `POST /api/v1/connections/{id}/grants`, tools of a
+//!   connection given to agents; an agent on the default access keeps it.
 //! - `add_folder_connection`, `remove_folder_connection`:
 //!   `/api/v1/connections/folders`. A folder is admitted, stored and journaled
 //!   by the runtime; a refusal comes back as its reason.
@@ -32,6 +34,33 @@ const MAILBOX_ADD_DEADLINE: Duration = Duration::from_secs(90);
 pub async fn list_connections(state: State<'_, RuntimeLink>) -> Result<Vec<Connection>, String> {
     let json = state.get_json("/api/v1/connections").await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse connection list: {e}"))
+}
+
+/// Give `tools` of the connection `connection_id` to every agent of `agents`.
+/// The runtime gives each agent what it does not hold yet and journals it; an
+/// agent on the default access keeps it and holds the tools on top of it.
+/// Answers the agents of the connection after the grant.
+#[tauri::command]
+pub async fn grant_connection(
+    state: State<'_, RuntimeLink>,
+    connection_id: String,
+    agents: Vec<String>,
+    tools: Vec<String>,
+) -> Result<Value, String> {
+    state
+        .post_json(
+            &grant_path(&connection_id),
+            &json!({ "agents": agents, "tools": tools }),
+        )
+        .await
+}
+
+/// The route that grants tools of the connection `connection_id`.
+fn grant_path(connection_id: &str) -> String {
+    format!(
+        "/api/v1/connections/{}/grants",
+        crate::attached::segment(connection_id)
+    )
 }
 
 /// The providers whose IMAP server and port are known from the address, and
@@ -196,6 +225,18 @@ mod tests {
         assert_eq!(
             confirmed.unwrap(),
             "/api/v1/connections/folders/4f1c?confirm=true"
+        );
+    }
+
+    #[test]
+    fn test_a_grant_names_its_connection_as_one_segment() {
+        // GIVEN the identifier of a native account, which carries colons and an @
+        // WHEN the grant route is built
+        let path = grant_path("native:google:ada@example.com");
+        // THEN the identifier is one segment of the route, encoded
+        assert_eq!(
+            path,
+            "/api/v1/connections/native%3Agoogle%3Aada%40example.com/grants"
         );
     }
 

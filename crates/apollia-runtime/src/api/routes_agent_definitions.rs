@@ -90,8 +90,9 @@ pub struct ResolvedAgentResponse {
     /// it runs with the default profile.
     pub profile: Option<String>,
     /// Fields whose value is the user's rather than the package's:
-    /// `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
-    /// `planning`, `profile`.
+    /// `name`, `mission`, `examples`, `access`, `access_added`, `sources`,
+    /// `autonomy`, `planning`, `profile`. `access_added` names the tools
+    /// given on top of the default access, which `access` lists after it.
     pub overridden: Vec<String>,
     /// The definition as the package declares it, before any override.
     #[schema(value_type = Object)]
@@ -255,6 +256,35 @@ fn default_access_setting<B: ExecutionBackend + Clone>(
     }
 }
 
+/// The tools switched off on this machine: the `[tools] disabled` list of
+/// the configuration file read now, and the tools governance disables.
+fn disabled_tools<B: ExecutionBackend + Clone>(state: &AppState<B>) -> Vec<String> {
+    use apollia_core::config::{resolve_setting, PolicySettings};
+    let configured: Vec<String> = state
+        .config_path
+        .as_ref()
+        .and_then(|path| {
+            resolve_setting(path, TOOLS_DISABLED_KEY, &PolicySettings::none())
+                .inspect_err(|error| {
+                    tracing::event!(
+                        tracing::Level::WARN,
+                        key = TOOLS_DISABLED_KEY,
+                        error = %error,
+                        detail = "only the tools governance disables are left out",
+                        "agents.disabled_tools.setting_unreadable"
+                    );
+                })
+                .ok()
+        })
+        .and_then(|setting| serde_json::from_value(setting.value).ok())
+        .unwrap_or_default();
+    crate::governance::tool_gate(state.governance.as_ref(), &state.data_dir, &configured)
+        .disabled_tools
+}
+
+/// Key of the operator's list of tools switched off.
+const TOOLS_DISABLED_KEY: &str = "tools.disabled";
+
 /// `agent` as its card shows it: an agent created without code nobody chose
 /// an access for lists the default access, read against the machine.
 async fn shown<B: ExecutionBackend + Clone>(
@@ -264,16 +294,22 @@ async fn shown<B: ExecutionBackend + Clone>(
     in_force(state, agent).await.into()
 }
 
-/// `agent` with its default access written in when nobody chose one, read
-/// against the tools of the machine.
+/// `agent` with its default access written in when nobody chose one, and the
+/// tools given on top of it, read against the tools of the machine; a tool
+/// switched off is left out.
 pub(crate) async fn in_force<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     agent: ResolvedAgent,
 ) -> ResolvedAgent {
     match state.tool_registry_handle.as_ref() {
         Some(registry) => {
-            apollia_tools::with_default_access(agent, registry, &default_access_setting(state))
-                .await
+            apollia_tools::with_default_access(
+                agent,
+                registry,
+                &default_access_setting(state),
+                &disabled_tools(state),
+            )
+            .await
         }
         None => agent,
     }

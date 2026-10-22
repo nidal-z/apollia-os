@@ -13,8 +13,6 @@
     "automation-menu-seed-trigger-daily-digest",
     "automation-row-seed-trigger-daily-digest",
     "automation-wizard-next-0",
-    "catalogue-tab-custom",
-    "catalogue-tab-discover",
     "command-item-companion.toggle",
     "command-item-help.onboarding_reset",
     "connections-sidebar-filter-all",
@@ -510,10 +508,6 @@
       "timeoutMs": 5000
     },
     {
-      "kind": "click",
-      "testid": "catalogue-tab-discover"
-    },
-    {
       "kind": "sleep",
       "ms": 700
     },
@@ -523,7 +517,7 @@
     },
     {
       "kind": "click",
-      "testid": "catalogue-tab-custom"
+      "testid": "catalogue-address"
     },
     {
       "kind": "waitFor",

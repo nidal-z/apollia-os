@@ -203,30 +203,29 @@ impl AgentRepository {
         Ok(previous)
     }
 
-    /// Sets the user's value of `field` for several agents at once, each
-    /// `(name, value)` of `values`: every value is written, or none is.
+    /// Sets several user's values at once, each `(name, field, value)` of
+    /// `values`: every value is written, or none is.
     ///
     /// Every agent and every value is checked before anything is written, and
     /// the writes share one transaction.
     ///
     /// # Errors
     ///
-    /// As [`AgentRepository::set_override`], for the first pair that fails;
+    /// As [`AgentRepository::set_override`], for the first entry that fails;
     /// nothing is stored then.
     pub fn set_overrides(
         &self,
-        field: OverrideField,
-        values: &[(String, Value)],
+        values: &[(String, OverrideField, Value)],
     ) -> Result<(), AgentRepositoryError> {
-        for (_, value) in values {
+        for (_, field, value) in values {
             field.check(value)?;
         }
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        for (name, _) in values {
+        for (name, _, _) in values {
             require_agent(&conn, name)?;
         }
         let tx = conn.unchecked_transaction()?;
-        for (name, value) in values {
+        for (name, field, value) in values {
             tx.execute(
                 "INSERT INTO agent_overrides (agent, field, value_json, updated_at) \
                  VALUES (?1, ?2, ?3, datetime('now')) \

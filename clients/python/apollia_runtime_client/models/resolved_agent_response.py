@@ -34,8 +34,9 @@ class ResolvedAgentResponse:
         name (str): Display name.
         origin (AgentOriginDto): Where an agent comes from.
         overridden (list[str]): Fields whose value is the user's rather than the package's:
-            `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
-            `planning`, `profile`.
+            `name`, `mission`, `examples`, `access`, `access_added`, `sources`,
+            `autonomy`, `planning`, `profile`. `access_added` names the tools
+            given on top of the default access, which `access` lists after it.
         planning (str): Whether the agent plans a task before acting on it: `never`, `auto` or
             `always`. The user's, else the package's, else `auto`.
         sources (list[str]): Sources checked.

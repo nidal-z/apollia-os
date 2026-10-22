@@ -17,9 +17,11 @@ pub(super) const STATUSES: [ConnectionStatus; 4] = [
 ];
 
 /// Every reason key, in its wire name.
-pub(super) const REASON_KEYS: [ConnectionReasonKey; 5] = [
+pub(super) const REASON_KEYS: [ConnectionReasonKey; 7] = [
     ConnectionReasonKey::NotChecked,
     ConnectionReasonKey::SignInAgain,
+    ConnectionReasonKey::PasswordRefused,
+    ConnectionReasonKey::FolderNotFound,
     ConnectionReasonKey::Unreachable,
     ConnectionReasonKey::Failing,
     ConnectionReasonKey::ForbiddenByPolicy,
@@ -90,6 +92,8 @@ mod tests {
         let listed_key = |k: ConnectionReasonKey| match k {
             ConnectionReasonKey::NotChecked
             | ConnectionReasonKey::SignInAgain
+            | ConnectionReasonKey::PasswordRefused
+            | ConnectionReasonKey::FolderNotFound
             | ConnectionReasonKey::Unreachable
             | ConnectionReasonKey::Failing
             | ConnectionReasonKey::ForbiddenByPolicy => REASON_KEYS.contains(&k),

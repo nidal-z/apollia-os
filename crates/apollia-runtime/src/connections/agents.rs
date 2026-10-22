@@ -33,6 +33,8 @@ pub struct AgentAccessView {
     pub by_default: bool,
     /// The tools granted.
     pub access: Vec<String>,
+    /// Of those, the tools given on top of the default access.
+    pub added: Vec<String>,
 }
 
 /// One agent that holds at least one tool of a connection.
@@ -112,11 +114,13 @@ pub fn holders(
                 .filter(|access| belongs_to(access, connection))
                 .cloned()
                 .collect();
+            let by_default =
+                agent.by_default && tools.iter().all(|tool| !agent.added.contains(tool));
             (!tools.is_empty()).then(|| ConnectionAgent {
                 id: agent.id.clone(),
                 name: agent.name.clone(),
                 enabled: agent.enabled,
-                by_default: agent.by_default,
+                by_default,
                 tools,
             })
         })
@@ -148,6 +152,18 @@ pub fn foreign_tools<'a>(connection: &Connection, tools: &'a [String]) -> Vec<&'
         .filter(|tool| !belongs_to(tool, connection))
         .map(String::as_str)
         .collect()
+}
+
+/// The tools of `tools` that `access` does not hold, in order, each once.
+#[must_use]
+pub fn missing_from(access: &[String], tools: &[String]) -> Vec<String> {
+    let mut missing: Vec<String> = Vec::new();
+    for tool in tools {
+        if !access.contains(tool) && !missing.contains(tool) {
+            missing.push(tool.clone());
+        }
+    }
+    missing
 }
 
 /// `access` with every tool of `tools` it lacks appended, in order; `None`

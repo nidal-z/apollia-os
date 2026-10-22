@@ -577,6 +577,19 @@ son API publique, parce que l'événement les porte. Une annonce envoyée avant
 qu'un lecteur s'abonne n'est pas perdue pour lui : il retrouve le même état
 dans la liste.
 
+Une connexion se vérifie à la demande, de la façon que son genre permet, et
+ne joint que son propre service. Un compte natif obtient un jeton valide,
+rafraîchi auprès du point de jeton de son fournisseur quand il a expiré ; un
+rafraîchissement refusé demande de se reconnecter. Une boîte se connecte à
+son propre serveur ; une identification refusée se lit comme un mot de passe
+refusé. Un dossier se cherche sur cette machine ; un dossier disparu se lit
+introuvable. Un serveur MCP sans session est démarré, puis testé : une
+poignée de main neuve qui liste ses outils fait sa preuve, et la sonde en
+lecture seule que déclare son connecteur, quand il en déclare une, dit si ses
+opérations échouent. Une connexion que l'organisation interdit n'est pas
+jointe. Ce qu'une vérification constate est gardé et annoncé comme tout autre
+état.
+
 ### Une connexion en pause {#connection-pause}
 
 L'utilisateur peut mettre une connexion en pause et la reprendre telle

@@ -20,6 +20,7 @@
 
 pub mod agents;
 mod assemble;
+pub mod check;
 pub mod folder_import;
 pub mod folders;
 mod packages;

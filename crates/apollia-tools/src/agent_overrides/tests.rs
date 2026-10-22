@@ -257,14 +257,14 @@ fn test_set_overrides_writes_every_value_or_none() {
     let repo = repo_with_agent();
     let value = json!(["file_read", "mcp:notion/search"]);
     let with_unknown = vec![
-        ("invoices".to_owned(), value.clone()),
-        ("ghost".to_owned(), value.clone()),
+        ("invoices".to_owned(), OverrideField::Access, value.clone()),
+        ("ghost".to_owned(), OverrideField::Access, value.clone()),
     ];
 
     // WHEN
-    let refused = repo.set_overrides(OverrideField::Access, &with_unknown);
+    let refused = repo.set_overrides(&with_unknown);
     let after_refusal = repo.overrides("invoices").unwrap();
-    let stored = repo.set_overrides(OverrideField::Access, &with_unknown[..1]);
+    let stored = repo.set_overrides(&with_unknown[..1]);
 
     // THEN
     assert!(matches!(refused, Err(AgentRepositoryError::NotFound(name)) if name == "ghost"));
@@ -283,12 +283,20 @@ fn test_set_overrides_checks_every_value_first() {
     // GIVEN
     let repo = repo_with_agent();
     let values = vec![
-        ("invoices".to_owned(), json!(["file_read"])),
-        ("invoices".to_owned(), json!("not a list")),
+        (
+            "invoices".to_owned(),
+            OverrideField::Access,
+            json!(["file_read"]),
+        ),
+        (
+            "invoices".to_owned(),
+            OverrideField::AccessAdded,
+            json!("not a list"),
+        ),
     ];
 
     // WHEN
-    let refused = repo.set_overrides(OverrideField::Access, &values);
+    let refused = repo.set_overrides(&values);
 
     // THEN
     assert!(matches!(
@@ -296,4 +304,55 @@ fn test_set_overrides_checks_every_value_first() {
         Err(AgentRepositoryError::InvalidOverride(_))
     ));
     assert!(repo.overrides("invoices").unwrap().is_empty());
+}
+
+// GIVEN an `agents.db` as version 0.3.0 left it (schema v7), holding an agent
+//   created in the interface whose access was given as a list, as every grant
+//   of that version stored it
+// WHEN the file is opened by this binary and the agent resolved
+// THEN the file is brought to the current schema, and the agent holds that
+//   list and nothing else: it is not taken back to the default
+#[test]
+fn test_a_list_stored_by_version_0_3_0_is_read_as_it_was() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("agents.db");
+    {
+        let at_v7 = Connection::open(&path).unwrap();
+        for step in &crate::agents_db::AGENTS_DB_MIGRATIONS[..7] {
+            step(&at_v7).unwrap();
+        }
+        at_v7.pragma_update(None, "user_version", 7).unwrap();
+        at_v7
+            .execute_batch(
+                r#"INSERT INTO agents (name, origin, package, version, definition_json,
+                                      enabled, installed_at, updated_at)
+                   VALUES ('helper', 'interface', NULL, '1',
+                           '{"id":"helper","name":"Helper","mission":"","defaults":{}}',
+                           1, '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z');
+                   INSERT INTO agent_overrides (agent, field, value_json)
+                   VALUES ('helper', 'access',
+                           '["file_read","mcp:notion/search","mcp:notion/create_page"]');"#,
+            )
+            .unwrap();
+    }
+
+    // WHEN
+    let repo = AgentRepository::open(&path).unwrap();
+    let agent = repo
+        .resolved("helper", None, apollia_core::AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
+
+    // THEN
+    assert!(!crate::reads_by_default(&agent));
+    assert!(agent.access_added.is_empty());
+    assert_eq!(
+        crate::AgentAccess::of(&agent),
+        crate::AgentAccess::Listed(vec![
+            "file_read".into(),
+            "mcp:notion/search".into(),
+            "mcp:notion/create_page".into(),
+        ])
+    );
 }
