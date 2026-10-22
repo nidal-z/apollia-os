@@ -10795,6 +10795,36 @@
     },
     {
       "kind": "waitFor",
+      "testid": "add-flow-who",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-flow-who-agent",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-who-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-success",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-done-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "sidebar-mcp-automation-stub-mcp",
       "timeoutMs": 3000
     },
@@ -11330,6 +11360,26 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 3000
@@ -11405,6 +11455,26 @@
     {
       "kind": "waitGone",
       "testid": "connector-wizard",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 3000
     },
     {
@@ -12048,8 +12118,13 @@
     },
     {
       "kind": "waitFor",
-      "testid": "auth-oauth-scopes",
+      "testid": "auth-oauth-permissions",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "auth-oauth-permissions",
+      "contains": "Read pages and databases"
     },
     {
       "kind": "screenshot",
@@ -12165,6 +12240,26 @@
     {
       "kind": "waitGone",
       "testid": "connector-wizard",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 3000
     },
     {
