@@ -47,7 +47,12 @@ struct CallbackParams {
     code: Option<String>,
     state: Option<String>,
     error: Option<String>,
+    #[serde(default)]
+    error_description: Option<String>,
 }
+
+/// Longest provider error description carried into an error, in characters.
+const MAX_ERROR_DESCRIPTION_CHARS: usize = 512;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -138,7 +143,21 @@ pub async fn wait_for_callback(
 /// Extract and validate the authorization code from the callback parameters.
 fn resolve_callback(params: &CallbackParams, expected_state: &str) -> Result<String, AuthError> {
     if let Some(err) = &params.error {
-        return Err(AuthError::ProviderError(err.clone()));
+        let text = match params.error_description.as_deref() {
+            Some(desc) if !desc.is_empty() => {
+                let desc: String = desc.chars().take(MAX_ERROR_DESCRIPTION_CHARS).collect();
+                format!("{err}: {desc}")
+            }
+            _ => err.clone(),
+        };
+        // Only an answer to the consent this listener waits for may say an
+        // administrator must approve: a page that forged the redirect without
+        // the state would otherwise mark the connection blocked.
+        let ours = params.state.as_deref() == Some(expected_state);
+        if ours && crate::admin_approval::requires_admin_approval(&text) {
+            return Err(AuthError::AdminApprovalRequired(text));
+        }
+        return Err(AuthError::ProviderError(text));
     }
     if params.state.as_deref() != Some(expected_state) {
         return Err(AuthError::StateMismatch);
@@ -159,6 +178,7 @@ mod tests {
             code: Some("mycode".into()),
             state: Some("xyz789".into()),
             error: None,
+            error_description: None,
         };
         // WHEN resolved against "abc123"
         let result = resolve_callback(&params, "abc123");
@@ -173,6 +193,7 @@ mod tests {
             code: None,
             state: Some("abc123".into()),
             error: None,
+            error_description: None,
         };
         // WHEN the callback is resolved against the expected state
         let result = resolve_callback(&params, "abc123");
@@ -187,11 +208,82 @@ mod tests {
             code: None,
             state: Some("abc123".into()),
             error: Some("access_denied".into()),
+            error_description: None,
         };
         // WHEN the callback is resolved against the expected state
         let result = resolve_callback(&params, "abc123");
         // THEN the provider error is surfaced as such, not as a missing code
         assert!(matches!(result, Err(AuthError::ProviderError(_))));
+    }
+
+    #[test]
+    fn test_an_administrator_approval_on_the_redirect_is_named_with_its_description() {
+        // GIVEN the redirect Microsoft sends when an administrator must approve
+        let params = CallbackParams {
+            code: None,
+            state: Some("abc123".into()),
+            error: Some("consent_required".into()),
+            error_description: Some("AADSTS90094: The grant requires admin permission.".into()),
+        };
+        // WHEN the callback is resolved
+        let result = resolve_callback(&params, "abc123");
+        // THEN it is an approval answer, carrying the provider's words
+        match result {
+            Err(AuthError::AdminApprovalRequired(text)) => {
+                assert!(text.starts_with("consent_required: AADSTS90094"), "{text}");
+            }
+            other => panic!("expected an approval answer, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_a_personal_account_that_declines_is_a_provider_error_not_an_approval() {
+        // GIVEN an Outlook.com user who declined the consent page
+        let params = CallbackParams {
+            code: None,
+            state: Some("abc123".into()),
+            error: Some("access_denied".into()),
+            error_description: Some("AADSTS65004: User declined to consent.".into()),
+        };
+        // WHEN the callback is resolved
+        let result = resolve_callback(&params, "abc123");
+        // THEN it stays a provider error the user can retry
+        assert!(matches!(result, Err(AuthError::ProviderError(t)) if t.contains("AADSTS65004")));
+    }
+
+    #[test]
+    fn test_an_approval_answer_without_the_state_is_not_believed() {
+        // GIVEN an approval answer that does not carry the state of the consent
+        let params = CallbackParams {
+            code: None,
+            state: Some("forged".into()),
+            error: Some("consent_required".into()),
+            error_description: Some("AADSTS90094: The grant requires admin permission.".into()),
+        };
+        // WHEN the callback is resolved
+        let result = resolve_callback(&params, "abc123");
+        // THEN it is a plain provider error, never an approval answer
+        assert!(matches!(result, Err(AuthError::ProviderError(_))));
+    }
+
+    #[tokio::test]
+    async fn test_the_callback_server_reads_the_error_description_of_the_redirect() {
+        // GIVEN a callback server expecting state "abc123"
+        let (listener, port) = bind_ephemeral_port().await.expect("bind should succeed");
+        let server_task = tokio::spawn(wait_for_callback(listener, "abc123"));
+
+        // WHEN the loopback receives an approval answer, as a browser would
+        // bring it back from the provider; the listener is bound already, so
+        // the request waits in its backlog
+        let url = format!(
+            "http://127.0.0.1:{port}/callback?state=abc123&error=consent_required\
+             &error_description=AADSTS90094%3A+The+grant+requires+admin+permission."
+        );
+        let _ = reqwest::get(&url).await;
+
+        // THEN the waiter answers that an administrator must approve
+        let result = server_task.await.expect("task should not panic");
+        assert!(matches!(result, Err(AuthError::AdminApprovalRequired(_))));
     }
 
     #[test]
@@ -201,6 +293,7 @@ mod tests {
             code: Some("auth_code_value".into()),
             state: Some("abc123".into()),
             error: None,
+            error_description: None,
         };
         // WHEN the callback is resolved against the expected state
         let result = resolve_callback(&params, "abc123");

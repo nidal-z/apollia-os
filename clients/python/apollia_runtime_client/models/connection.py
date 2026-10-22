@@ -42,7 +42,7 @@ class Connection:
         package (None | str | Unset): Name of the installed package that brought it, when one did.
         path (None | str | Unset): Folder of this machine the connection opens, for a folder.
         reason (ConnectionReasonType0 | None | Unset): Why it is not working, absent when it works: a key the interface
-            translates, and the technical detail.
+            translates, the technical detail, and the address the repairing action opens when it has one.
     """
 
     id: str

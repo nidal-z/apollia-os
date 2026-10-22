@@ -14,19 +14,25 @@ T = TypeVar("T", bound="ConnectionReasonType0")
 
 @_attrs_define
 class ConnectionReasonType0:
-    """Why it is not working, absent when it works: a key the interface translates, and the technical detail.
+    """Why it is not working, absent when it works: a key the interface translates, the technical detail, and the address
+    the repairing action opens when it has one.
 
-    Attributes:
-        key (ConnectionReasonType0Key):
-        detail (None | str | Unset):
+        Attributes:
+            key (ConnectionReasonType0Key):
+            address (str | Unset): The address the repairing action opens, to be copied: for an administrator approval, the
+                approval page.
+            detail (None | str | Unset):
     """
 
     key: ConnectionReasonType0Key
+    address: str | Unset = UNSET
     detail: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         key = self.key.value
+
+        address = self.address
 
         detail: None | str | Unset
         if isinstance(self.detail, Unset):
@@ -41,6 +47,8 @@ class ConnectionReasonType0:
                 "key": key,
             }
         )
+        if address is not UNSET:
+            field_dict["address"] = address
         if detail is not UNSET:
             field_dict["detail"] = detail
 
@@ -50,6 +58,8 @@ class ConnectionReasonType0:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
         key = ConnectionReasonType0Key(d.pop("key"))
+
+        address = d.pop("address", UNSET)
 
         def _parse_detail(data: object) -> None | str | Unset:
             if data is None:
@@ -62,6 +72,7 @@ class ConnectionReasonType0:
 
         connection_reason_type_0 = cls(
             key=key,
+            address=address,
             detail=detail,
         )
 

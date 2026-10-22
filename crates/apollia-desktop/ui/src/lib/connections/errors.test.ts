@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  adminApprovalAddress,
   formatTauriError,
   isMissingClientError,
   isMissingSecretError,
@@ -158,5 +159,35 @@ describe("a refusal of the organisation policy relayed as text", () => {
     const text = formatTauriError(relayed, from(en));
     // THEN it says the policy refused it, in English
     expect(text).toBe(en.connections.error_refused_by_policy);
+  });
+});
+
+describe("adminApprovalAddress", () => {
+  const address = "https://login.microsoftonline.com/organizations/adminconsent?client_id=c4f95bc5";
+
+  it("reads the approval page of an administrator approval answer", () => {
+    // GIVEN the error the desktop raises when Microsoft requires an administrator
+    const raw = { kind: "admin_approval_required", detail: address };
+
+    // WHEN the dialog reads it
+    const got = adminApprovalAddress(raw);
+
+    // THEN it is the approval page to copy
+    expect(got).toBe(address);
+  });
+
+  it("reads nothing from any other error", () => {
+    // GIVEN a plain authentication error, a policy refusal and a bare string
+    const others = [
+      { kind: "auth", detail: "access_denied: AADSTS65004" },
+      { kind: "refused_by_policy", detail: address },
+      "admin_approval_required",
+    ];
+
+    // WHEN the dialog reads each
+    const got = others.map(adminApprovalAddress);
+
+    // THEN none of them carries an approval page
+    expect(got).toEqual([null, null, null]);
   });
 });

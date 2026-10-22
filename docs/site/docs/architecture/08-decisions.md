@@ -535,6 +535,15 @@ variant and its state types live in `apollia-core`, part of its public API,
 because the event carries them. An announcement sent before a reader
 subscribed is not lost to it: the reader finds the same state in the list.
 
+When Microsoft answers that an administrator of the organisation must approve
+the application, no account could connect, so there is none to name: the
+state is kept under the provider alone (`native:microsoft`), blocked, with the
+reason `admin_approval_required` and the address of the approval page
+(`adminconsent`) to copy. The first account of that provider to connect lifts
+it. The Microsoft consent asks for the user's own files (`Files.Read`), never
+for `Files.Read.All`, which a user of such an organisation can never grant
+alone.
+
 ## Connectors {#connectors}
 
 Google and Microsoft connectors authenticate through OAuth2 with PKCE. No

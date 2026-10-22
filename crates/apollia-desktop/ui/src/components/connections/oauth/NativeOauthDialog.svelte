@@ -17,7 +17,9 @@
   import OauthAuthStep from "./OauthAuthStep.svelte";
   import OauthDriveFolderStep from "./OauthDriveFolderStep.svelte";
   import OauthPolicyRefusal from "./OauthPolicyRefusal.svelte";
+  import OauthAdminApproval from "./OauthAdminApproval.svelte";
   import {
+    adminApprovalAddress,
     formatTauriError,
     isMissingClientError,
     isMissingSecretError,
@@ -53,6 +55,10 @@
   // as an error: retrying cannot change it, only the policy can.
   let errorIsPolicyRefusal = $state(false);
   let errorIsMissingSecret = $state(false);
+  // The provider answered that an administrator of the organisation must
+  // approve the application: the approval page to copy, kept by the runtime
+  // as the blocked state of the connection.
+  let adminConsentUrl = $state<string | null>(null);
   let busy = $state(false);
   let awaitingCallback = $state(false);
   let step = $state<"auth" | "drive_folder" | "done">("auth");
@@ -110,6 +116,7 @@
     errorIsMissingClient = false;
     errorIsPolicyRefusal = false;
     errorIsMissingSecret = false;
+    adminConsentUrl = null;
     busy = true;
     awaitingCallback = false;
     step = "auth";
@@ -157,14 +164,16 @@
           void completeFlow();
         },
       );
-      const errUnlisten = await listen<{ state: string; error: string }>(
-        "oauth://error",
-        (event) => {
-          if (event.payload?.state !== expectedState) return;
-          awaitingCallback = false;
-          error = event.payload.error;
-        },
-      );
+      const errUnlisten = await listen<{
+        state: string;
+        error: string;
+        admin_consent_url?: string | null;
+      }>("oauth://error", (event) => {
+        if (event.payload?.state !== expectedState) return;
+        awaitingCallback = false;
+        adminConsentUrl = event.payload.admin_consent_url ?? null;
+        error = event.payload.error;
+      });
       unlistenFns = [codeUnlisten, errUnlisten];
     } catch (e) {
       error = formatTauriError(e, $t);
@@ -191,6 +200,7 @@
         finish();
       }
     } catch (e) {
+      adminConsentUrl = adminApprovalAddress(e);
       error = formatTauriError(e, $t);
     } finally {
       busy = false;
@@ -287,6 +297,13 @@
         data-testid="oauth-open-settings-btn"
       >
         {$t("connections.open_connection_client")}
+      </Button>
+    </div>
+  {:else if adminConsentUrl}
+    <OauthAdminApproval {providerShort} address={adminConsentUrl} />
+    <div class="mt-4 flex justify-end gap-2">
+      <Button variant="primary-solid" size="sm" onclick={close} data-testid="oauth-admin-approval-close-btn">
+        {$t("common.close")}
       </Button>
     </div>
   {:else if errorIsPolicyRefusal}

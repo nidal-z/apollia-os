@@ -1,7 +1,8 @@
 //! OneDrive client (Microsoft Graph `/me/drive`).
 //!
 //! Surface in v0.1.0: search across the user's drive, get item metadata,
-//! download item content, list recent items. Free-tier (Files.Read.All).
+//! download item content, list recent items. Every call reads `/me/drive`,
+//! which `Files.Read` covers.
 
 use reqwest::Method;
 use serde::{Deserialize, Serialize};

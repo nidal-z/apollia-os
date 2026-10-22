@@ -65,6 +65,7 @@ pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
                 .map(|account| native_connection(*provider, account)),
         );
     }
+    out.extend(blocked_providers(sources));
     out.extend(sources.imap_accounts.iter().map(imap_connection));
     out.extend(
         sources
@@ -116,6 +117,43 @@ fn native_connection(provider: ConnectorProvider, account: &str) -> Connection {
             .map(|d| tool_from_descriptor(d, provenance, official))
             .collect(),
     }
+}
+
+/// The native providers no account of which could connect because their
+/// organisation requires an administrator's approval: one connection each,
+/// with no account and no tool, shown blocked with the approval to send.
+fn blocked_providers(sources: &ConnectionSources) -> Vec<Connection> {
+    ConnectorProvider::ALL
+        .into_iter()
+        .filter(|provider| {
+            !sources
+                .native_accounts
+                .iter()
+                .any(|(p, accounts)| p == provider && !accounts.is_empty())
+        })
+        .filter(|provider| {
+            sources
+                .states
+                .get(&super::state::native_provider_connection_id(*provider))
+                .is_some_and(|kept| kept.state == ConnectionStatus::Blocked)
+        })
+        .map(|provider| Connection {
+            id: super::state::native_provider_connection_id(provider),
+            kind: ConnectionKind::Native,
+            label: provider_label(provider).to_owned(),
+            account: None,
+            path: None,
+            provenance: Provenance::Selection,
+            remote: true,
+            official: false,
+            state: ConnectionState::Stopped,
+            status: ConnectionStatus::Blocked,
+            reason: None,
+            checked_at: None,
+            package: None,
+            tools: Vec::new(),
+        })
+        .collect()
 }
 
 fn imap_connection(account: &ImapAccount) -> Connection {

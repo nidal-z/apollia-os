@@ -157,7 +157,11 @@ pub enum MicrosoftScope {
     CalendarRead,
     /// Create / update / delete calendar events (`Calendars.ReadWrite`).
     CalendarWrite,
-    /// Read all files the user can access in OneDrive / SharePoint (`Files.Read.All`).
+    /// Read the user's own OneDrive files (`Files.Read`).
+    ///
+    /// Never `Files.Read.All`: that one reaches every file shared with the
+    /// user and needs an administrator in an organisation at its default
+    /// setting, while the OneDrive operations read `/me/drive` only.
     FilesRead,
     /// Read / write files (`Files.ReadWrite`).
     FilesWrite,
@@ -176,7 +180,7 @@ impl MicrosoftScope {
             Self::MailReadWrite => "Mail.ReadWrite",
             Self::CalendarRead => "Calendars.Read",
             Self::CalendarWrite => "Calendars.ReadWrite",
-            Self::FilesRead => "Files.Read.All",
+            Self::FilesRead => "Files.Read",
             Self::FilesWrite => "Files.ReadWrite",
             Self::Profile => "User.Read",
             Self::Offline => "offline_access",
@@ -622,6 +626,118 @@ mod tests {
         assert!(cfg.scopes.contains(&"User.Read"));
         assert!(cfg.scopes.contains(&"offline_access"));
         assert!(cfg.scopes.contains(&"Mail.Read"));
+    }
+
+    /// The scope names the desktop's Microsoft connection asks for.
+    const DESKTOP_MICROSOFT_SCOPES: [&str; 6] = [
+        "mail.read",
+        "mail.readwrite",
+        "mail.send",
+        "calendar.read",
+        "calendar.write",
+        "files.read",
+    ];
+
+    #[test]
+    fn test_the_microsoft_consent_asks_for_the_users_own_files_only() {
+        // GIVEN the scope names the desktop sends for a Microsoft connection
+        let names: Vec<String> = DESKTOP_MICROSOFT_SCOPES
+            .iter()
+            .map(|n| (*n).to_owned())
+            .collect();
+
+        // WHEN the consent request is built from them
+        let cfg =
+            crate::connector_consent::provider_config_for(ConnectorProvider::Microsoft, &names)
+                .unwrap();
+        let flow = crate::pkce::OAuth2PkceFlow::new(53_682);
+        let url = crate::pkce::build_auth_url(&cfg, &flow);
+        let scope = reqwest::Url::parse(&url)
+            .unwrap()
+            .query_pairs()
+            .find(|(k, _)| k == "scope")
+            .map(|(_, v)| v.into_owned())
+            .unwrap();
+        let asked: Vec<&str> = scope.split(' ').collect();
+
+        // THEN no permission over every file shared with the user is asked,
+        // only the user's own files, the mail, the calendar, the profile and
+        // the refresh
+        assert!(!scope.contains(".All"), "{scope}");
+        for wanted in [
+            "Files.Read",
+            "Mail.Read",
+            "Mail.ReadWrite",
+            "Mail.Send",
+            "Calendars.Read",
+            "Calendars.ReadWrite",
+            "User.Read",
+            "offline_access",
+        ] {
+            assert!(asked.contains(&wanted), "{wanted} missing from {scope}");
+        }
+    }
+
+    #[test]
+    fn test_no_microsoft_scope_group_reaches_beyond_the_user() {
+        // GIVEN every Microsoft scope group, through an exhaustive match that
+        // stops compiling when one is added and not listed
+        let all = |s: MicrosoftScope| match s {
+            MicrosoftScope::MailRead
+            | MicrosoftScope::MailSend
+            | MicrosoftScope::MailReadWrite
+            | MicrosoftScope::CalendarRead
+            | MicrosoftScope::CalendarWrite
+            | MicrosoftScope::FilesRead
+            | MicrosoftScope::FilesWrite
+            | MicrosoftScope::Profile
+            | MicrosoftScope::Offline => s.oauth_scope(),
+        };
+        let groups = [
+            MicrosoftScope::MailRead,
+            MicrosoftScope::MailSend,
+            MicrosoftScope::MailReadWrite,
+            MicrosoftScope::CalendarRead,
+            MicrosoftScope::CalendarWrite,
+            MicrosoftScope::FilesRead,
+            MicrosoftScope::FilesWrite,
+            MicrosoftScope::Profile,
+            MicrosoftScope::Offline,
+        ];
+
+        // WHEN each is resolved to its Graph permission
+        // THEN none is an `.All` permission, which reaches what others shared
+        // and needs an administrator in an organisation
+        for group in groups {
+            assert!(!all(group).ends_with(".All"), "{}", all(group));
+        }
+        assert_eq!(MicrosoftScope::FilesRead.oauth_scope(), "Files.Read");
+    }
+
+    #[test]
+    fn test_a_personal_account_signs_in_through_the_common_authority_with_no_approval() {
+        // GIVEN the consent request of the desktop's Microsoft connection
+        let names: Vec<String> = DESKTOP_MICROSOFT_SCOPES
+            .iter()
+            .map(|n| (*n).to_owned())
+            .collect();
+        let cfg =
+            crate::connector_consent::provider_config_for(ConnectorProvider::Microsoft, &names)
+                .unwrap();
+
+        // WHEN it is sent, and an Outlook.com account declines then retries
+        let declined = "access_denied: AADSTS65004: User declined to consent to access the app.";
+
+        // THEN it goes through `common`, which takes personal accounts and
+        // lets them consent for themselves, and the refusal of a personal
+        // account never reads as an administrator approval
+        assert!(cfg
+            .auth_url
+            .starts_with("https://login.microsoftonline.com/common/"));
+        assert!(cfg
+            .token_url
+            .starts_with("https://login.microsoftonline.com/common/"));
+        assert!(!crate::admin_approval::requires_admin_approval(declined));
     }
 
     #[test]

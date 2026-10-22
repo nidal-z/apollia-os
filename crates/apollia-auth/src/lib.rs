@@ -18,6 +18,7 @@
 //! 7. KeyringStorage::store(name, &token)      → persisted
 //! ```
 
+pub mod admin_approval;
 pub mod auth_manager;
 pub mod callback;
 pub mod connector_consent;

@@ -577,6 +577,15 @@ son API publique, parce que l'événement les porte. Une annonce envoyée avant
 qu'un lecteur s'abonne n'est pas perdue pour lui : il retrouve le même état
 dans la liste.
 
+Quand Microsoft répond qu'un administrateur de l'organisation doit approuver
+l'application, aucun compte n'a pu se connecter, il n'y en a donc aucun à
+nommer : l'état est gardé sous le seul fournisseur (`native:microsoft`),
+bloqué, avec la raison `admin_approval_required` et l'adresse de la page
+d'accord (`adminconsent`) à copier. Le premier compte de ce fournisseur qui se
+connecte le lève. Le consentement Microsoft demande les propres fichiers de
+l'utilisateur (`Files.Read`), jamais `Files.Read.All`, qu'un utilisateur d'une
+telle organisation ne peut jamais accorder seul.
+
 ## Connecteurs {#connectors}
 
 Les connecteurs Google et Microsoft s'authentifient en OAuth2 avec PKCE. Aucun

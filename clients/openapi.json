@@ -21532,11 +21532,15 @@
               "object",
               "null"
             ],
-            "description": "Why it is not working, absent when it works: a key the interface translates, and the technical detail.",
+            "description": "Why it is not working, absent when it works: a key the interface translates, the technical detail, and the address the repairing action opens when it has one.",
             "required": [
               "key"
             ],
             "properties": {
+              "address": {
+                "type": "string",
+                "description": "The address the repairing action opens, to be copied: for an administrator approval, the approval page."
+              },
               "detail": {
                 "type": [
                   "string",
@@ -21550,7 +21554,8 @@
                   "sign_in_again",
                   "unreachable",
                   "failing",
-                  "forbidden_by_policy"
+                  "forbidden_by_policy",
+                  "admin_approval_required"
                 ]
               }
             }
