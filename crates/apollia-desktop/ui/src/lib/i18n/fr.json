@@ -4117,7 +4117,8 @@
       "grant": "Autoriser Apollia",
       "grant_body": "{name} est branché, mais Apollia ne peut pas encore s'en servir. Autorisez-le, et la demande est relancée.",
       "grant_failed": "Apollia n'a pas pu être autorisé à s'en servir. Réessayez depuis l'écran Connexions.",
-      "done": "Fait, la demande est relancée"
+      "done": "Fait, la demande est relancée",
+      "settled": "Fait. Renvoyez votre demande pour vous en servir"
     }
   },
   "transcriptions": {

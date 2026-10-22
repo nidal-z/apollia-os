@@ -54,15 +54,15 @@ export function connectionOffers(output: string | null): ConnectionOffer[] {
 /**
  * The settings of the conversation with `tools` proposed in it: the model may
  * call them in this conversation, and each call asks for consent when the
- * agent does not hold them. Every other setting is carried over.
+ * agent does not hold them. A tool the operator switched off in this
+ * conversation stays off and is not proposed. Every other setting is carried
+ * over.
  */
 export function withProposedTools(settings: SessionSettings, tools: readonly string[]): SessionSettings {
+  const disabled = settings.disabled_accesses ?? [];
   const proposed = [...(settings.proposed_accesses ?? [])];
-  for (const tool of tools) if (!proposed.includes(tool)) proposed.push(tool);
-  const disabled = (settings.disabled_accesses ?? []).filter((id) => !tools.includes(id));
+  for (const tool of tools) if (!proposed.includes(tool) && !disabled.includes(tool)) proposed.push(tool);
   const next: SessionSettings = { ...settings, proposed_accesses: proposed };
-  if (disabled.length > 0) next.disabled_accesses = disabled;
-  else delete next.disabled_accesses;
   if (proposed.length === 0) delete next.proposed_accesses;
   return next;
 }

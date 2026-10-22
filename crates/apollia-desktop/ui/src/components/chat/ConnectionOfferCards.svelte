@@ -7,13 +7,19 @@
    * is added, its tools are proposed to this conversation and the request is
    * played again. A service connected but not granted to Apollia offers to
    * grant it, with no addition, then plays the request again.
+   *
+   * Playing the request again regenerates the last answer of the
+   * conversation, so the offers stand only under that answer: under an older
+   * one, another turn has followed, and an offer shows nothing until it is
+   * taken. Once taken, the card says the request is played again only when it
+   * was.
    */
   import { onMount } from "svelte";
   import { locale, t } from "svelte-i18n";
   import { CircleCheck, Plug } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Dialog } from "$lib/components/ui/dialog";
-  import type AddFlowComponent from "../connections/add/AddFlow.svelte";
+  import AddFlow from "../connections/add/AddFlow.svelte";
   import { APOLLIA_AGENT_ID } from "$lib/chat/chatTargets";
   import { connectionOffers, proposeConnection, type ConnectionOffer } from "$lib/chat/connectionOffer";
   import { catalogueKey } from "$lib/connections/addWindow";
@@ -21,7 +27,7 @@
   import { entryLabel } from "$lib/connections/catalogueText";
   import { fetchMcpCurated } from "$lib/ipc/connections";
   import { findSelectionEntry } from "$lib/stores/connectionAdd";
-  import { requestRegenerateLast } from "$lib/stores/chatRegenerate";
+  import { regenerableAnswers, requestRegenerateLast } from "$lib/stores/chatRegenerate";
   import type { RegistryServerView } from "$lib/types";
 
   interface Props {
@@ -29,19 +35,26 @@
     output: string | null;
     /** The conversation the request is played again in. */
     sessionId: string;
+    /** The answer the step belongs to: the offers stand only under the last one. */
+    messageId?: string;
   }
 
-  const { output, sessionId }: Props = $props();
+  const { output, sessionId, messageId }: Props = $props();
 
-  type OfferState = "idle" | "working" | "done" | "failed";
+  // `done` once the request is played again, `settled` when nothing was.
+  type OfferState = "idle" | "working" | "done" | "settled" | "failed";
 
-  const offers = $derived(connectionOffers(output));
   let selection = $state<RegistryServerView[]>([]);
   let states = $state<Record<string, OfferState>>({});
+  const lastTurn = $derived(messageId !== undefined && $regenerableAnswers[sessionId] === messageId);
+  const offers = $derived(
+    connectionOffers(output).filter((offer) => {
+      if (lastTurn) return true;
+      const state = states[offer.entry] ?? "idle";
+      return state === "done" || state === "settled";
+    }),
+  );
   let adding = $state<{ offer: ConnectionOffer; entry: RegistryServerView } | null>(null);
-  // The add flow is loaded once it is asked for: a conversation that never
-  // offers a connection does not carry it.
-  let AddFlow = $state<typeof AddFlowComponent | null>(null);
   // The connection the open flow added, so that closing the dialog once it
   // exists still plays the request again.
   let addedId: string | null = null;
@@ -72,14 +85,7 @@
       }
     }
     const entry = findSelectionEntry(entries, offer.entry);
-    if (entry && AddFlow === null) {
-      try {
-        AddFlow = (await import("../connections/add/AddFlow.svelte")).default;
-      } catch {
-        AddFlow = null;
-      }
-    }
-    if (!entry || AddFlow === null) {
+    if (!entry) {
       set(offer, "failed");
       return;
     }
@@ -101,8 +107,13 @@
       // The tools could not be proposed: the connection exists, and the
       // request is played again with what the agent holds.
     }
-    set(offer, "done");
-    requestRegenerateLast(sessionId);
+    playAgain(offer);
+  }
+
+  /** Plays the request again from this answer, if it is still the last one. */
+  function playAgain(offer: ConnectionOffer): void {
+    const started = messageId !== undefined && requestRegenerateLast(sessionId, messageId);
+    set(offer, started ? "done" : "settled");
   }
 
   async function grant(offer: ConnectionOffer & { kind: "grant" }): Promise<void> {
@@ -117,8 +128,7 @@
       set(offer, "failed");
       return;
     }
-    set(offer, "done");
-    requestRegenerateLast(sessionId);
+    playAgain(offer);
   }
 </script>
 
@@ -153,14 +163,14 @@
             </span>
           {/if}
         </span>
-        {#if state === "done"}
+        {#if state === "done" || state === "settled"}
           <span
             class="flex shrink-0 items-center gap-1.5 text-caption text-success"
             role="status"
             data-testid="connection-offer-done"
           >
             <CircleCheck size={14} strokeWidth={2} aria-hidden="true" />
-            {$t("chat.connection_offer.done")}
+            {$t(state === "done" ? "chat.connection_offer.done" : "chat.connection_offer.settled")}
           </span>
         {:else if offer.kind === "add"}
           <Button
@@ -189,7 +199,7 @@
   </ul>
 {/if}
 
-{#if adding !== null && AddFlow !== null}
+{#if adding !== null}
   {@const current = adding}
   {@const name = entryLabel(current.entry, $locale)}
   <Dialog open={true} onclose={() => void added(current.offer, addedId)} size="lg" bodyClass="p-0" label={name}>

@@ -99,3 +99,18 @@ export function answerToRegenerate(
   }
   return null;
 }
+
+/**
+ * The answer a request regenerates: the one `answerToRegenerate` names, and
+ * only when it is `answerId`, if the request names one. A request made from
+ * an answer another turn has followed regenerates nothing.
+ */
+export function answerRequested(
+  messages: readonly Pick<ChatMessageView, "id" | "role">[],
+  busy: boolean,
+  answerId: string | undefined,
+): string | null {
+  const id = answerToRegenerate(messages, busy);
+  if (answerId !== undefined && id !== answerId) return null;
+  return id;
+}

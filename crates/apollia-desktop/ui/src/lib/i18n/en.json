@@ -4117,7 +4117,8 @@
       "grant": "Allow Apollia",
       "grant_body": "{name} is connected, but Apollia may not use it yet. Allow it, and the request is played again.",
       "grant_failed": "Apollia could not be allowed to use it. Try again from the Connections screen.",
-      "done": "Done, the request is played again"
+      "done": "Done, the request is played again",
+      "settled": "Done. Send your request again to use it"
     }
   },
   "transcriptions": {

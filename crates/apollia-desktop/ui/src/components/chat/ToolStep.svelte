@@ -45,9 +45,11 @@
     ontoggle: () => void;
     /** Forwarded to the file bodies, so a relative path can be revealed. */
     sessionId?: string;
+    /** The answer the step belongs to: an offer under it stands only under the last one. */
+    messageId?: string;
   }
 
-  let { item, skin, expanded, ontoggle, sessionId }: Props = $props();
+  let { item, skin, expanded, ontoggle, sessionId, messageId }: Props = $props();
 
   const phase = $derived(stepState(item.status));
   const Icon = $derived(stepIcon(item));
@@ -134,7 +136,7 @@
 
   <!-- What Apollia found missing is offered folded or not: it is what to do next. -->
   {#if item.tool === CONNECTION_LOOKUP_TOOL && phase === "success" && sessionId}
-    <ConnectionOfferCards output={item.output} {sessionId} />
+    <ConnectionOfferCards output={item.output} {sessionId} {messageId} />
   {/if}
 
   {#if expanded}

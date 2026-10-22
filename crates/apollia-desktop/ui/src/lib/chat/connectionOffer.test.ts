@@ -38,19 +38,29 @@ describe("connectionOffers", () => {
 });
 
 describe("withProposedTools", () => {
-  test("the tools are added to what the conversation proposes, and switched back on", () => {
-    // GIVEN settings proposing one access and switching off a tool of the connection
-    const settings = {
-      temperature: 0.4,
-      proposed_accesses: ["file_write"],
-      disabled_accesses: ["mcp:notion/search"],
-    };
+  test("the new tools are added to what the conversation proposes, each once", () => {
+    // GIVEN settings proposing one access
+    const settings = { temperature: 0.4, proposed_accesses: ["file_write"] };
 
-    // WHEN the tools of the connection are proposed
+    // WHEN the tools of the connection are proposed, one of them already proposed
     const next = withProposedTools(settings, ["mcp:notion/search", "file_write"]);
 
-    // THEN each is proposed once, none is switched off, and the rest is kept
+    // THEN each is proposed once, and the rest is kept
     expect(next).toEqual({ temperature: 0.4, proposed_accesses: ["file_write", "mcp:notion/search"] });
+  });
+
+  test("a tool the operator switched off in the conversation stays off, and is not proposed", () => {
+    // GIVEN settings where the operator switched off a tool of the connection
+    const settings = { disabled_accesses: ["mcp:notion/create_page"] };
+
+    // WHEN the tools of the connection are proposed
+    const next = withProposedTools(settings, ["mcp:notion/search", "mcp:notion/create_page"]);
+
+    // THEN only the new tool is proposed, and the one switched off stays off
+    expect(next).toEqual({
+      disabled_accesses: ["mcp:notion/create_page"],
+      proposed_accesses: ["mcp:notion/search"],
+    });
   });
 });
 

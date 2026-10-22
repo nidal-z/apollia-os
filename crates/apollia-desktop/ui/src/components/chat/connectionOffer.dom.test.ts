@@ -11,9 +11,10 @@ import "$lib/i18n";
 import { developerMode } from "$lib/stores/developerMode";
 import { currentRoute } from "$lib/stores/navigation";
 import { pendingConnectionAdd } from "$lib/stores/connectionAdd";
-import { onRegenerateLast } from "$lib/stores/chatRegenerate";
+import { forgetRegenerableAnswer, onRegenerateLast, setRegenerableAnswer } from "$lib/stores/chatRegenerate";
+import { answerRequested } from "$lib/chat/chatBehaviours";
 import type { ReasoningItem } from "$lib/chat/reasoning";
-import type { Connection, RegistryServerView } from "$lib/types";
+import type { ChatMessageView, Connection, RegistryServerView } from "$lib/types";
 import ToolStep from "./ToolStep.svelte";
 
 // The dialogs run Svelte transitions, which jsdom cannot play: an animation
@@ -101,6 +102,16 @@ let target: HTMLElement;
 let mounted: ReturnType<typeof mount> | null = null;
 let stopListening: (() => void) | null = null;
 let regenerated: string[] = [];
+// The thread of the conversation the step is in: its last answer, `m`, holds
+// the step. The conversation regenerates as `ChatConversation` does.
+let thread: Pick<ChatMessageView, "id" | "role">[] = [];
+
+/** A message of the operator follows the answer of the step. */
+function operatorWrites(): void {
+  thread = [...thread, { id: "u-2", role: "user" }];
+  setRegenerableAnswer("session-1", null);
+  flushSync();
+}
 
 async function settle(rounds = 20): Promise<void> {
   for (let i = 0; i < rounds; i++) {
@@ -143,7 +154,7 @@ function calls(command: string): Record<string, unknown>[] {
 async function mountStep(item: ToolCallItem): Promise<void> {
   mounted = mount(ToolStep, {
     target,
-    props: { item, skin: "operator", expanded: false, ontoggle: () => {}, sessionId: "session-1" },
+    props: { item, skin: "operator", expanded: false, ontoggle: () => {}, sessionId: "session-1", messageId: "m" },
   });
   await settle();
 }
@@ -163,9 +174,19 @@ beforeEach(async () => {
     return null;
   });
   regenerated = [];
+  thread = [
+    { id: "u-1", role: "user" },
+    { id: "m", role: "assistant" },
+  ];
+  setRegenerableAnswer("session-1", "m");
   stopListening = onRegenerateLast(
     () => "session-1",
-    () => regenerated.push("session-1"),
+    (answerId) => {
+      const id = answerRequested(thread, false, answerId);
+      if (!id) return false;
+      regenerated.push(id);
+      return true;
+    },
   );
   target = document.createElement("div");
   document.body.appendChild(target);
@@ -175,6 +196,7 @@ afterEach(() => {
   if (mounted) unmount(mounted);
   mounted = null;
   stopListening?.();
+  forgetRegenerableAnswer("session-1");
   target.remove();
 });
 
@@ -232,9 +254,69 @@ describe("a service Apollia lacks", () => {
         proposed_accesses: ["file_write", `mcp:${added}/search`, `mcp:${added}/create_page`],
       },
     });
-    expect(regenerated).toEqual(["session-1"]);
+    expect(regenerated).toEqual(["m"]);
     expect(byTestid("connector-wizard")).toBeNull();
-    expect(byTestid("connection-offer-done")).not.toBeNull();
+    expect(byTestid("connection-offer-done")?.textContent).toContain("Done, the request is played again");
+  });
+
+  test("once added after the operator wrote again, nothing is played again and the card says so", async () => {
+    // GIVEN the add flow open on Notion from the step, a service that answers
+    let added = "";
+    answers.test_mcp_connection = () => ({ kind: "success" });
+    answers.add_mcp_server = (args) => {
+      added = String((args.config as { name: string }).name);
+      return null;
+    };
+    answers.list_connections = () => (added ? [connection(`mcp:${added}`, [`mcp:${added}/search`])] : []);
+    answers.get_chat_session_settings = () => ({});
+    answers.set_chat_session_settings = (args) => args.settings;
+    answers.test_mcp_live_server = () => ({ kind: "success", tools: [{}], live_health: null });
+    await mountStep(lookup([NOT_CONNECTED]));
+    await openFlow();
+
+    // WHEN the operator writes a new message meanwhile, then the addition ends
+    operatorWrites();
+    await click("wizard-warning-accept");
+    await click("add-flow-who-continue");
+    await click("wizard-done-btn");
+
+    // THEN the tools are proposed, nothing is played again, and the card does
+    // not say the request is
+    expect(calls("set_chat_session_settings")).toHaveLength(1);
+    expect(regenerated).toEqual([]);
+    const done = byTestid("connection-offer-done")?.textContent ?? "";
+    expect(done).toContain("Done. Send your request again to use it");
+    expect(done).not.toContain("played again");
+  });
+
+  test("a flow closed before anything is added plays nothing again", async () => {
+    // GIVEN the add flow open on Notion from the step
+    await mountStep(lookup([NOT_CONNECTED]));
+    await openFlow();
+
+    // WHEN the dialog is closed on its warning
+    await click("dialog-close");
+
+    // THEN the step offers Notion again, idle, and nothing was written or played
+    expect(byTestid("connector-wizard")).toBeNull();
+    expect(byTestid("connection-offer")?.dataset.state).toBe("idle");
+    expect(byTestid("connection-offer-add")).not.toBeNull();
+    expect(calls("set_chat_session_settings")).toHaveLength(0);
+    expect(regenerated).toEqual([]);
+  });
+
+  test("under an answer another turn has followed, the step offers nothing", async () => {
+    // GIVEN a step where Apollia found Notion not connected, then the operator wrote again
+    await mountStep(lookup([NOT_CONNECTED]));
+    expect(byTestid("connection-offer-add")).not.toBeNull();
+
+    // WHEN the answer of the step is no longer the last one
+    operatorWrites();
+
+    // THEN neither "Connect" nor "Allow Apollia" stands under it
+    expect(byTestid("connection-offers")).toBeNull();
+    expect(byTestid("connection-offer-add")).toBeNull();
+    expect(byTestid("connection-offer-grant")).toBeNull();
   });
 
   test("a flow cancelled before anything is added plays nothing again", async () => {
@@ -270,8 +352,23 @@ describe("a service connected but not granted to Apollia", () => {
     ]);
     expect(byTestid("connector-wizard")).toBeNull();
     expect(calls("add_mcp_server")).toHaveLength(0);
-    expect(regenerated).toEqual(["session-1"]);
+    expect(regenerated).toEqual(["m"]);
     expect(byTestid("connection-offer-done")).not.toBeNull();
+  });
+
+  test("under an older answer, the step does not offer to grant it", async () => {
+    // GIVEN a step where Notion is connected but not granted, under an answer
+    // another turn has followed
+    setRegenerableAnswer("session-1", "m-later");
+    await mountStep(lookup([NOT_GRANTED]));
+
+    // WHEN the step is shown
+    const offers = byTestid("connection-offers");
+
+    // THEN no offer stands under it, and nothing was granted
+    expect(offers).toBeNull();
+    expect(byTestid("connection-offer-grant")).toBeNull();
+    expect(calls("grant_connection")).toHaveLength(0);
   });
 
   test("a service already granted offers nothing", async () => {

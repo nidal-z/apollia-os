@@ -64,8 +64,8 @@
   import { classifySessionError } from "$lib/stores/runtimeHealth";
   import { triggerAutoName } from "$lib/chat/autoName";
   import { noteSessionActivity } from "$lib/stores/chatSessions";
-  import { answerToRegenerate } from "$lib/chat/chatBehaviours";
-  import { onRegenerateLast } from "$lib/stores/chatRegenerate";
+  import { answerRequested, answerToRegenerate } from "$lib/chat/chatBehaviours";
+  import { forgetRegenerableAnswer, onRegenerateLast, setRegenerableAnswer } from "$lib/stores/chatRegenerate";
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentPresenceNotice from "./AgentPresenceNotice.svelte";
   import ModelLoadingNotice from "./ModelLoadingNotice.svelte";
@@ -575,15 +575,24 @@
   // or reloads the local thread; a turn played again streams as a new one.
   // Cmd R (Ctrl R outside the Mac) regenerates the last answer when
   // Settings > Chat asks for it; the chat route makes the request.
+  // A step of the thread may ask for the request again (an offer to connect
+  // a service): it names its answer, and only the last one is played again.
   onMount(() =>
     onRegenerateLast(
       () => sessionId,
-      () => {
-        const id = answerToRegenerate(messages ?? [], isProcessing || isStreaming);
-        if (id) void answers.regenerate(id);
+      (answerId) => {
+        const id = answerRequested(messages ?? [], isProcessing || isStreaming, answerId);
+        if (!id) return false;
+        void answers.regenerate(id);
+        return true;
       },
     ),
   );
+  $effect(() => {
+    const id = sessionId;
+    setRegenerableAnswer(id, answerToRegenerate(messages ?? [], false));
+    return () => forgetRegenerableAnswer(id);
+  });
 
   const answers = createAnswerActions(
     {
