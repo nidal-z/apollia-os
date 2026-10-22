@@ -361,3 +361,81 @@ async fn test_the_card_shows_the_default_access() {
     assert_eq!(invoices["access"], json!(["file_read"]));
     registry.shutdown().await;
 }
+
+// GIVEN an agent created in the interface on the default access, given
+//       `file_write` and a tool switched off on top of it, and
+//       the package agent `invoices`, which lists its own and still keeps a
+//       tool given on top in the store
+// WHEN both cards are read
+// THEN the first says it holds the default access and names only the tool
+//      given on top that it holds, the second holds neither
+#[tokio::test]
+async fn test_the_card_says_the_default_access_and_what_is_given_on_top() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let (mut state, _) = state(&dir, false).await;
+    let agents =
+        AgentRepository::open(&apollia_core::paths::DataFile::Agents.path(dir.path())).unwrap();
+    agents
+        .save_definition(&StoredAgent {
+            name: "writer".into(),
+            origin: AgentOrigin::Interface,
+            package: None,
+            version: "1.0.0".into(),
+            definition: json!({"id": "writer", "name": "Writer", "mission": "Write."}),
+            enabled: true,
+            installed_at: "2026-10-01T00:00:00Z".into(),
+            updated_at: "2026-10-01T00:00:00Z".into(),
+        })
+        .unwrap();
+    agents
+        .set_override(
+            "writer",
+            OverrideField::AccessAdded,
+            &json!(["file_write", "mcp:notion/search"]),
+        )
+        .unwrap();
+    agents
+        .set_override(
+            "invoices",
+            OverrideField::AccessAdded,
+            &json!(["file_write"]),
+        )
+        .unwrap();
+    let registry = apollia_tools::ToolRegistryHandle::start();
+    for descriptor in [
+        apollia_tools::tools::file_read::FileRead::descriptor(),
+        apollia_tools::tools::file_write::FileWrite::descriptor(),
+    ] {
+        registry.register(descriptor).await.unwrap();
+    }
+    state.tool_registry_handle = Some(registry.clone());
+    state.governance = Some(crate::governance::GovernanceHandle::detached(
+        crate::governance::GovernanceState {
+            disabled_tools: vec!["mcp:notion/search".to_owned()],
+            ..Default::default()
+        },
+        None,
+    ));
+
+    // WHEN
+    let (_, writer) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/agent-definitions/writer",
+        None,
+    )
+    .await;
+    let (_, invoices) = call(state, "GET", "/api/v1/agent-definitions/invoices", None).await;
+
+    // THEN
+    assert_eq!(writer["access_by_default"], json!(true));
+    assert!(!writer["access"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("mcp:notion/search")));
+    assert_eq!(writer["access_added"], json!(["file_write"]));
+    assert_eq!(invoices["access_by_default"], json!(false));
+    assert_eq!(invoices["access_added"], json!([]));
+    registry.shutdown().await;
+}

@@ -4010,6 +4010,107 @@
         }
       }
     },
+    "/api/v1/connections/{id}/tools/{tool}/family": {
+      "put": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`PUT /api/v1/connections/{id}/tools/{tool}/family`: give a tool of a\nconnection the selection does not classify another action family.",
+        "operationId": "set_tool_family",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Connection identifier, as `GET /api/v1/connections` lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool",
+            "in": "path",
+            "description": "Name of the tool on its server",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolFamilyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reclassified and journaled; the connection as the list now shows it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A family the operator cannot give; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection or tool not found; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The selection, or Apollia's code, classifies this tool; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store could not be read or written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The MCP repository is not available; nothing written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/accounts": {
       "get": {
         "tags": [
@@ -9716,7 +9817,7 @@
           "mcp"
         ],
         "summary": "`GET /api/v1/mcp/servers/:name/raw_config`, Return the persisted launch\nconfiguration of a server (command, args, env, transport, …) as stored in\n`mcp.db`.",
-        "description": "The `env` map contains either literal values for non-secret variables or\n`${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret\nmaterial is never returned. Used by the desktop \"Modifier les arguments\"\nflow to fetch the current config, patch `args`, and PUT the result back\nwithout losing the rest of the configuration.\n\nReturns `404 Not Found` when no server with `name` is persisted.\nReturns `503 Service Unavailable` when the MCP repository is unavailable.",
+        "description": "The `env` map contains either literal values for non-secret variables or\n`${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret\nmaterial is never returned: a secret still kept in clear (a header of a\nremote server, a variable whose name marks it secret) is shown as the\nplaceholder of its variable, and a configuration sent back with that\nplaceholder keeps the stored value. Used by the desktop \"Modifier les arguments\"\nflow to fetch the current config, patch `args`, and PUT the result back\nwithout losing the rest of the configuration.\n\nReturns `404 Not Found` when no server with `name` is persisted.\nReturns `503 Service Unavailable` when the MCP repository is unavailable.",
         "operationId": "get_server_raw_config",
         "parameters": [
           {
@@ -29127,6 +29228,8 @@
           "mission",
           "examples",
           "access",
+          "access_by_default",
+          "access_added",
           "sources",
           "autonomy",
           "planning",
@@ -29140,6 +29243,17 @@
               "type": "string"
             },
             "description": "Tools granted."
+          },
+          "access_added": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The tools of `access` given on top of the default access; empty for\nan agent that does not hold it."
+          },
+          "access_by_default": {
+            "type": "boolean",
+            "description": "Whether the agent holds the default access, read again at every run,\nrather than a list chosen for it."
           },
           "autonomy": {
             "type": "string",
@@ -31777,6 +31891,19 @@
           "enabled": {
             "type": "boolean",
             "description": "`true` to enable the tool, `false` to disable it."
+          }
+        }
+      },
+      "ToolFamilyBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/connections/{id}/tools/{tool}/family`.",
+        "required": [
+          "family"
+        ],
+        "properties": {
+          "family": {
+            "type": "string",
+            "description": "The family the tool takes: `read`, `read_personal`,\n`write_or_delete`, `send_external`, `execute_code` or `unclassified`."
           }
         }
       },

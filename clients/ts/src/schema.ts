@@ -1260,6 +1260,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections/{id}/tools/{tool}/family": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/connections/{id}/tools/{tool}/family`: give a tool of a
+         *     connection the selection does not classify another action family.
+         */
+        put: operations["set_tool_family"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/accounts": {
         parameters: {
             query?: never;
@@ -3137,7 +3157,10 @@ export interface paths {
          *     `mcp.db`.
          * @description The `env` map contains either literal values for non-secret variables or
          *     `${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret
-         *     material is never returned. Used by the desktop "Modifier les arguments"
+         *     material is never returned: a secret still kept in clear (a header of a
+         *     remote server, a variable whose name marks it secret) is shown as the
+         *     placeholder of its variable, and a configuration sent back with that
+         *     placeholder keeps the stored value. Used by the desktop "Modifier les arguments"
          *     flow to fetch the current config, patch `args`, and PUT the result back
          *     without losing the rest of the configuration.
          *
@@ -10634,6 +10657,16 @@ export interface components {
             /** @description Tools granted. */
             access: string[];
             /**
+             * @description The tools of `access` given on top of the default access; empty for
+             *     an agent that does not hold it.
+             */
+            access_added: string[];
+            /**
+             * @description Whether the agent holds the default access, read again at every run,
+             *     rather than a list chosen for it.
+             */
+            access_by_default: boolean;
+            /**
              * @description Autonomy tier the agent runs at: `assisted`, `supervised`,
              *     `bounded_autonomous` or `long_autonomous`. The user's, else the
              *     package's, else the global default.
@@ -11893,6 +11926,14 @@ export interface components {
         ToolEnabledBody: {
             /** @description `true` to enable the tool, `false` to disable it. */
             enabled: boolean;
+        };
+        /** @description Body of `PUT /api/v1/connections/{id}/tools/{tool}/family`. */
+        ToolFamilyBody: {
+            /**
+             * @description The family the tool takes: `read`, `read_personal`,
+             *     `write_or_delete`, `send_external`, `execute_code` or `unclassified`.
+             */
+            family: string;
         };
         /** @description Response body for `GET /api/v1/tools`. */
         ToolListResponse: {
@@ -15722,6 +15763,80 @@ export interface operations {
                 };
             };
             /** @description Governance not available; nothing written */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_tool_family: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Connection identifier, as `GET /api/v1/connections` lists it */
+                id: string;
+                /** @description Name of the tool on its server */
+                tool: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToolFamilyBody"];
+            };
+        };
+        responses: {
+            /** @description Reclassified and journaled; the connection as the list now shows it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"];
+                };
+            };
+            /** @description A family the operator cannot give; nothing written */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Connection or tool not found; nothing written */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The selection, or Apollia's code, classifies this tool; nothing written */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A store could not be read or written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The MCP repository is not available; nothing written */
             503: {
                 headers: {
                     [name: string]: unknown;

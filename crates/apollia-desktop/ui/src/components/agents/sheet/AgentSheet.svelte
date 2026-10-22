@@ -51,7 +51,7 @@
   import AdjustSources from "./AdjustSources.svelte";
   import type { AgentAdjust } from "./useAgentAdjust.svelte";
   import { createAgentSources } from "./useAgentSources.svelte";
-  import { awaitsIndex, sourceRows } from "./agentSources";
+  import { awaitsIndex, pausedSources, sourceRows } from "./agentSources";
   import {
     grantCandidates,
     isOverridden,
@@ -61,8 +61,9 @@
     type MarkedField,
     type PresetOffer,
   } from "./agentAdjust";
-  import { connectionToolFamily, remoteAccesses, type ConnectionOffer } from "./connectionGrant";
+  import { connectionToolFamily, pausedAccesses, remoteAccesses, type ConnectionOffer } from "./connectionGrant";
   import {
+    accessOrigin,
     accessView,
     changeViews,
     fallbackNotice,
@@ -295,6 +296,13 @@
     remoteAccesses([...accesses, ...extraAccesses].map((a) => a.id), connections),
   );
 
+  const paused = $derived(
+    pausedAccesses([...accesses, ...extraAccesses].map((a) => a.id), connections),
+  );
+  const pausedRows = $derived(pausedSources(sources, connections));
+  const origin = $derived(accessOrigin(resolved));
+  const adjustOrigin = $derived(accessOrigin(adjust?.base ?? null));
+
   function accessLabel(accessId: string): string {
     const known = accesses.find((a) => a.id === accessId);
     return known ? (known.permits ?? known.label) : readableName(accessId);
@@ -339,16 +347,18 @@
           agentName={resolved?.name ?? agent?.name ?? definitionId}
           {loadConnectionOffer}
           {remote}
+          {paused}
+          origin={adjustOrigin}
         />
-        <AdjustSources draft={adjust.draft} sources={registry} modified={marked("sources")} />
+        <AdjustSources draft={adjust.draft} sources={registry} modified={marked("sources")} known={connections} />
       {:else}
         <div class="min-w-0 space-y-5">
           <SheetMission view={mission} modified={marked("mission") || marked("examples")} />
           <SheetModel view={model} fallback={notice} modified={marked("model")} />
         </div>
         <div class="min-w-0 space-y-5">
-          <SheetAccess {groups} loading={accessLoading} modified={marked("access")} {remote} />
-          <SheetSources rows={sources} modified={marked("sources")} />
+          <SheetAccess {groups} loading={accessLoading} modified={marked("access")} {remote} {paused} {origin} />
+          <SheetSources rows={sources} modified={marked("sources")} paused={pausedRows} />
         </div>
       {/if}
     </div>

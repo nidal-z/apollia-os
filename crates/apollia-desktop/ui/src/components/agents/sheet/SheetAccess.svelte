@@ -4,7 +4,9 @@
    * family whatever their provenance, each with what it lets the agent do.
    * Every family is listed, an empty one says so. The raw identifier and the
    * provenance of an access appear in developer mode only. An access that
-   * comes from a remote connection carries the "Remote" badge.
+   * comes from a remote connection carries the "Remote" badge, one from a
+   * connection its user paused the "Paused" badge. An agent on the default
+   * access says so, and each access given on top of it carries "On top".
    */
   import { t } from "svelte-i18n";
   import { Badge } from "$lib/components/ui/badge";
@@ -15,6 +17,7 @@
     ACCESS_GROUP_RULE,
     PROVENANCE_LABEL,
     type AccessGroup,
+    type AccessOrigin,
   } from "./agentSheet";
 
   interface Props {
@@ -24,9 +27,20 @@
     modified?: boolean;
     /** The accesses that come from a remote connection. */
     remote?: Set<string>;
+    /** The accesses that come from a connection its user paused. */
+    paused?: Set<string>;
+    /** Whether the agent holds the default access, and what it was given on top. */
+    origin?: AccessOrigin;
   }
 
-  let { groups, loading, modified = false, remote = new Set<string>() }: Props = $props();
+  let {
+    groups,
+    loading,
+    modified = false,
+    remote = new Set<string>(),
+    paused = new Set<string>(),
+    origin = { byDefault: false, added: new Set<string>() },
+  }: Props = $props();
 </script>
 
 <SheetSection
@@ -38,7 +52,13 @@
   {#if loading}
     <p class="m-0 text-body-xs text-muted-foreground">{$t("common.loading")}</p>
   {:else}
-    <div class="space-y-3">
+    <div class="space-y-3" data-access-mode={origin.byDefault ? "default" : "listed"}>
+      {#if origin.byDefault}
+        <p class="m-0 flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground">
+          <Badge size="sm" variant="neutral">{$t("agent_sheet.access_default")}</Badge>
+          {$t("agent_sheet.access_default_hint", { values: { count: origin.added.size } })}
+        </p>
+      {/if}
       {#each groups as group (group.key)}
         <div data-testid="agent-sheet-access-group" data-family={group.key}>
           <div class="flex items-baseline justify-between gap-2">
@@ -59,6 +79,8 @@
                 <li
                   class="flex items-start gap-2 border-b border-border/40 py-1.5 last:border-b-0"
                   data-testid="agent-sheet-access-row"
+                  data-paused={paused.has(access.id) ? "true" : undefined}
+                  data-added={origin.added.has(access.id) ? "true" : undefined}
                 >
                   <div class="min-w-0 flex-1">
                     <div class="text-body-xs text-foreground/85">
@@ -75,10 +97,16 @@
                       </div>
                     </DeveloperOnly>
                   </div>
+                  {#if origin.added.has(access.id)}
+                    <Badge size="sm" variant="primary">{$t("agent_sheet.access_added")}</Badge>
+                  {/if}
                   {#if remote.has(access.id)}
                     <Badge size="sm" variant="info" data-testid="agent-sheet-access-remote">
                       {$t("agent_sheet.remote")}
                     </Badge>
+                  {/if}
+                  {#if paused.has(access.id)}
+                    <Badge size="sm" variant="warning">{$t("agent_sheet.paused")}</Badge>
                   {/if}
                   {#if access.sensitive}
                     <Badge size="sm" variant="warning">{$t("agent_sheet.access_sensitive")}</Badge>

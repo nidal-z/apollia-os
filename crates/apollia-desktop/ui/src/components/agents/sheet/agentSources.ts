@@ -348,3 +348,24 @@ export function folderToConnect(row: SourceRow, connections: Connection[]): stri
   if (connectionOf(row, connections) !== null) return null;
   return parentFolder(row.reference);
 }
+
+/** The mailbox connection a mail source reads: the IMAP mailbox it names, or the Outlook account. */
+function mailboxOf(row: SourceRow, connections: Connection[]): Connection | null {
+  if (row.kind !== "mail" || row.reference === null) return null;
+  const reference = row.reference;
+  const id = reference.startsWith("outlook:") ? `${MICROSOFT_PREFIX}${reference.slice("outlook:".length)}` : reference;
+  return connections.find((c) => c.id === id) ?? null;
+}
+
+/**
+ * The rows read through a connection its user paused: a mailbox, a folder,
+ * or a file a folder connection holds. By row identifier.
+ */
+export function pausedSources(rows: SourceRow[], connections: Connection[]): Set<string> {
+  const paused = new Set<string>();
+  for (const row of rows) {
+    const connection = mailboxOf(row, connections) ?? connectionOf(row, connections);
+    if (connection?.status === "paused") paused.add(row.id);
+  }
+  return paused;
+}
