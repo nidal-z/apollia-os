@@ -74,7 +74,13 @@
 {#if tool}
   <span class="inline-flex flex-wrap items-center gap-1.5">
     {#if editing}
-      <Select size="sm" bind:value={choice} disabled={busy} data-testid="tool-family-select-{local}">
+      <Select
+        size="sm"
+        bind:value={choice}
+        disabled={busy}
+        aria-label={$t("connections.card.tools.family")}
+        data-testid="tool-family-select-{local}"
+      >
         {#each RECLASSIFY_FAMILIES as family (family)}
           <option value={family}>{$t(familyLabel(family))}</option>
         {/each}

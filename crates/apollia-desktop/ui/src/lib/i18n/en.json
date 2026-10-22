@@ -879,7 +879,8 @@
       },
       "tools": {
         "change": "Change",
-        "apply": "Apply"
+        "apply": "Apply",
+        "family": "Family of the tool"
       }
     },
     "onedrive_choices": {
