@@ -307,6 +307,9 @@ pub(crate) fn decide_original_write(
             DecisionReason::Rule { rule_id } => {
                 format!("writing into the original file is refused by rule {rule_id}")
             }
+            DecisionReason::Paused { connection_id } => {
+                format!("writing into the original file is refused: {connection_id} is paused")
+            }
             DecisionReason::FailClosed
             | DecisionReason::Consent
             | DecisionReason::NoConsentNeeded => {

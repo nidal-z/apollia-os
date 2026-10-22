@@ -70,7 +70,8 @@ impl Supervisor {
     }
 
     /// Phase 3b, second half: start the MCP client manager (always, even with
-    /// no servers) on every declared server the policy did not forbid.
+    /// no servers) on every declared server the policy did not forbid and the
+    /// user did not pause.
     pub(in crate::supervisor) async fn start_mcp(
         &self,
         tool_registry_handle: &ToolRegistryHandle,
@@ -87,10 +88,11 @@ impl Supervisor {
         let Some((repo, server_configs)) = store else {
             return (None, None);
         };
-        let server_configs = server_configs
-            .into_iter()
-            .filter(|config| !forbidden.contains_mcp_server(&config.name))
-            .collect();
+        let paused = repo.disabled_names().unwrap_or_else(|e| {
+            warn!(error = %e, "mcp.servers.enabled.unreadable");
+            std::collections::HashSet::new()
+        });
+        let server_configs = servers_to_start(server_configs, forbidden, &paused);
 
         let handle = start_mcp_manager(
             server_configs,
@@ -449,5 +451,48 @@ impl Supervisor {
                 warn!(name = %agent.name, error = %e, "agent.register.failed");
             }
         }
+    }
+}
+
+/// The servers of `configs` to start: neither forbidden by the policy nor in
+/// pause (their `enabled` flag off, named in `paused`).
+pub(in crate::supervisor) fn servers_to_start(
+    configs: Vec<apollia_mcp::config::McpServerConfig>,
+    forbidden: &crate::governance::ForbiddenConnections,
+    paused: &std::collections::HashSet<String>,
+) -> Vec<apollia_mcp::config::McpServerConfig> {
+    configs
+        .into_iter()
+        .filter(|config| {
+            !forbidden.contains_mcp_server(&config.name) && !paused.contains(&config.name)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod start_tests {
+    use super::*;
+
+    fn named(name: &str) -> apollia_mcp::config::McpServerConfig {
+        serde_json::from_value(serde_json::json!({ "name": name, "command": "npx" }))
+            .expect("config")
+    }
+
+    // GIVEN three declared servers, one of them in pause
+    // WHEN the servers to start at boot are chosen
+    // THEN the paused one is left out and the others start
+    #[test]
+    fn test_a_paused_server_is_not_started_at_boot() {
+        let configs = vec![named("files"), named("notion"), named("sqlite")];
+        let paused = std::collections::HashSet::from(["notion".to_owned()]);
+
+        let started = servers_to_start(
+            configs,
+            &crate::governance::ForbiddenConnections::default(),
+            &paused,
+        );
+
+        let names: Vec<&str> = started.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["files", "sqlite"]);
     }
 }

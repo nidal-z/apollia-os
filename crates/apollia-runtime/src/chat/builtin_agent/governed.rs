@@ -57,6 +57,10 @@ pub(in crate::chat) fn refusal_text(reason: &DecisionReason) -> String {
     match reason {
         DecisionReason::Policy { detail } => format!("Tool {detail}"),
         DecisionReason::Rule { .. } => "Tool refused by a permission rule".to_string(),
+        DecisionReason::Paused { connection_id } => format!(
+            "Tool refused: the connection {connection_id} is paused; \
+             the user can resume it from the connections"
+        ),
         DecisionReason::FailClosed => {
             "Tool refused: governance cannot read what it decides from".to_string()
         }
@@ -140,7 +144,7 @@ impl BuiltInChatAgent {
     }
 
     /// Records in the journal a call governance refused because of the
-    /// policy or a rule. Neither the call's argument nor its result is
+    /// policy, a rule, or its connection in pause. Neither the call's argument nor its result is
     /// recorded.
     pub(super) fn journal_refusal(
         &self,
@@ -160,6 +164,12 @@ impl BuiltInChatAgent {
                 access_id: call.name.clone(),
                 family,
                 rule_id: *rule_id,
+            },
+            DecisionReason::Paused { connection_id } => GovernanceEvent::PausedRefused {
+                agent_id: self.agent_id.clone(),
+                access_id: call.name.clone(),
+                family,
+                connection_id: connection_id.clone(),
             },
             _ => return,
         };

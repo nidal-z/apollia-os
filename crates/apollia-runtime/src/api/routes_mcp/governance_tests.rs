@@ -372,3 +372,36 @@ async fn test_add_modify_remove_are_journaled() {
     assert!(report.ok);
     h.manager.shutdown().await;
 }
+
+// A server in pause is not started on request, by a restart or by a change
+// of its configuration.
+#[tokio::test]
+async fn test_a_paused_server_is_not_started_on_request() {
+    // GIVEN a stored server the user put in pause
+    let h = harness(Arc::new(crate::governance::NoPolicyAdmission)).await;
+    {
+        let repo = h.state.mcp_server_repo.as_ref().unwrap().lock().unwrap();
+        repo.save(&mock_server("calc")).unwrap();
+        repo.set_enabled("calc", false).unwrap();
+    }
+
+    // WHEN it is restarted, then its configuration changed, through the routes
+    let (restart, Json(body)) = restart_server(State(h.state.clone()), Path("calc".to_string()))
+        .await
+        .unwrap_err();
+    let (update, _) = update_server_config(
+        State(h.state.clone()),
+        Path("calc".to_string()),
+        Json(serde_json::json!({"tags": ["x"]})),
+    )
+    .await
+    .unwrap_err();
+
+    // THEN both are refused as paused, no session starts, and it is kept
+    assert_eq!(restart, StatusCode::CONFLICT);
+    assert_eq!(body["error"], super::PAUSED_SERVER_REASON);
+    assert_eq!(update, StatusCode::CONFLICT);
+    assert!(h.manager.status().await.is_empty());
+    assert_eq!(persisted(&h).len(), 1);
+    h.manager.shutdown().await;
+}

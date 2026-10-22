@@ -27,6 +27,8 @@ use utoipa::{Modify, OpenApi};
         crate::api::routes_connections::agents::get_connection_agents,
         crate::api::routes_connections::agents::grant_connection,
         crate::api::routes_connections::check::check_connection,
+        crate::api::routes_connections::pause::pause_connection,
+        crate::api::routes_connections::pause::resume_connection,
     ),
     components(schemas(
         crate::api::routes_audit::AuditJournalResponse,
