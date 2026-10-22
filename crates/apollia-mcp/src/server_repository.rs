@@ -343,7 +343,7 @@ impl McpServerRepository {
 
     /// Whether the server with `name` is enabled; `None` when no server has
     /// that name.
-    pub fn is_enabled(&self, name: &str) -> Result<Option<bool>, McpRepoError> {
+    pub fn is_server_enabled(&self, name: &str) -> Result<Option<bool>, McpRepoError> {
         let mut stmt = self
             .conn
             .prepare("SELECT enabled FROM mcp_servers WHERE name = ?1")?;
@@ -586,9 +586,9 @@ mod tests {
             disabled,
             std::collections::HashSet::from(["notion".to_owned()])
         );
-        assert_eq!(repo.is_enabled("notion").unwrap(), Some(false));
-        assert_eq!(repo.is_enabled("sqlite").unwrap(), Some(true));
-        assert_eq!(repo.is_enabled("ghost").unwrap(), None);
+        assert_eq!(repo.is_server_enabled("notion").unwrap(), Some(false));
+        assert_eq!(repo.is_server_enabled("sqlite").unwrap(), Some(true));
+        assert_eq!(repo.is_server_enabled("ghost").unwrap(), None);
         assert_eq!(
             repo.disabled_names().unwrap(),
             std::collections::HashSet::from(["notion".to_owned()])

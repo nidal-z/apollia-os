@@ -79,7 +79,7 @@ fn enabled(state: &AppState<MockBackend>) -> Option<bool> {
         .unwrap()
         .lock()
         .unwrap()
-        .is_enabled("notion")
+        .is_server_enabled("notion")
         .unwrap()
 }
 

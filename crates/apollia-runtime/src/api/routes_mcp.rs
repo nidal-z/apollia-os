@@ -673,7 +673,7 @@ fn refuse_forbidden<B: ExecutionBackend + Clone>(
     let paused = state
         .mcp_server_repo
         .as_ref()
-        .and_then(|repo| repo.lock().ok()?.is_enabled(name).ok().flatten())
+        .and_then(|repo| repo.lock().ok()?.is_server_enabled(name).ok().flatten())
         == Some(false);
     if paused {
         return Err(json_err(StatusCode::CONFLICT, PAUSED_SERVER_REASON));
