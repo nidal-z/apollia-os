@@ -39,6 +39,18 @@ export function isRefusedByPolicy(e: unknown): boolean {
 }
 
 /**
+ * The approval page to send an administrator when the provider answered that
+ * the organisation must approve the application first, `null` for any other
+ * error. The desktop carries it as the detail of its
+ * `admin_approval_required` kind.
+ */
+export function adminApprovalAddress(e: unknown): string | null {
+  const err = e as TauriErrorShape | null;
+  if (err?.kind !== "admin_approval_required") return null;
+  return typeof err.detail === "string" && err.detail.length > 0 ? err.detail : null;
+}
+
+/**
  * What every refusal of the organisation policy starts with, as the runtime
  * words it. A command that relays the runtime's refusal as text (adding an
  * MCP server) is recognised by it.

@@ -31,7 +31,10 @@ pub mod state;
 pub use assemble::{assemble, ConnectionSources, NativeAccounts};
 pub use folders::{folder_connection, folder_connection_id, folder_connections, folder_id_of};
 pub use packages::package_connections;
-pub use state::spawn_state_recorder;
+pub use state::{
+    lift_provider_block, native_provider_connection_id, record_admin_approval_required,
+    spawn_state_recorder,
+};
 
 use apollia_core::{ConnectionReason, ConnectionStatus};
 use apollia_mcp::Provenance;

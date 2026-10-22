@@ -1,7 +1,8 @@
 /**
  * The state badge of a connection: one of the four states the runtime finds
  * (working, needs repair, paused, blocked), why it needs repair, and how long
- * ago it was found.
+ * ago it was found; or, before anything found it, not checked yet: neutral,
+ * undated, with Check as its action.
  *
  * Pure and i18n-agnostic: it returns keys and values, the component resolves
  * them with the live formatter.
@@ -21,6 +22,8 @@ export interface StateBadge {
   reasonKey: string | null;
   /** How long ago the state was found; null when it never was. */
   when: I18nDescriptor | null;
+  /** Key of the one action the state offers on the badge; null when it offers none there. */
+  actionKey: string | null;
 }
 
 const LABEL_KEY: Record<ConnectionStatusKey, string> = {
@@ -28,6 +31,7 @@ const LABEL_KEY: Record<ConnectionStatusKey, string> = {
   needs_repair: "connections.state.needs_repair",
   paused: "connections.state.paused",
   blocked: "connections.state.blocked",
+  not_checked: "connections.state.not_checked",
 };
 
 const REASON_KEY: Record<ConnectionReasonKey, string> = {
@@ -43,6 +47,7 @@ const VARIANT: Record<ConnectionStatusKey, StateBadgeVariant> = {
   needs_repair: "warning",
   paused: "neutral",
   blocked: "danger",
+  not_checked: "neutral",
 };
 
 /** How long ago `checkedAt` was, at `now`; null when absent, unreadable or ahead of `now`. */
@@ -69,6 +74,7 @@ export function stateBadge(
     variant: VARIANT[status],
     labelKey: LABEL_KEY[status],
     reasonKey: status === "needs_repair" && reason ? REASON_KEY[reason.key] : null,
-    when: checkedDescriptor(checkedAt, now),
+    when: status === "not_checked" ? null : checkedDescriptor(checkedAt, now),
+    actionKey: status === "not_checked" ? "connections.state.action.check" : null,
   };
 }

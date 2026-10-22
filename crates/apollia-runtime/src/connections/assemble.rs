@@ -58,7 +58,8 @@ pub struct ConnectionSources {
 /// marked so, whatever else its state would be. A connection in pause reads
 /// paused, whatever state was kept for it before, and stopped in the detail
 /// its kind gives. Each other one reads in the state it was last found in,
-/// dated; one never found yet needs a check.
+/// dated; one never found yet reads as not checked yet, not as needing
+/// repair.
 #[must_use]
 pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
     let mut out = Vec::new();
@@ -69,6 +70,7 @@ pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
                 .map(|account| native_connection(*provider, account)),
         );
     }
+    out.extend(blocked_providers(sources));
     out.extend(sources.imap_accounts.iter().map(imap_connection));
     out.extend(
         sources
@@ -120,7 +122,7 @@ fn native_connection(provider: ConnectorProvider, account: &str) -> Connection {
         remote: true,
         official,
         state: ConnectionState::Connected,
-        status: ConnectionStatus::NeedsRepair,
+        status: ConnectionStatus::NotChecked,
         reason: Some(super::state::not_checked()),
         checked_at: None,
         package: None,
@@ -129,6 +131,43 @@ fn native_connection(provider: ConnectorProvider, account: &str) -> Connection {
             .map(|d| tool_from_descriptor(d, provenance, official))
             .collect(),
     }
+}
+
+/// The native providers no account of which could connect because their
+/// organisation requires an administrator's approval: one connection each,
+/// with no account and no tool, shown blocked with the approval to send.
+fn blocked_providers(sources: &ConnectionSources) -> Vec<Connection> {
+    ConnectorProvider::ALL
+        .into_iter()
+        .filter(|provider| {
+            !sources
+                .native_accounts
+                .iter()
+                .any(|(p, accounts)| p == provider && !accounts.is_empty())
+        })
+        .filter(|provider| {
+            sources
+                .states
+                .get(&super::state::native_provider_connection_id(*provider))
+                .is_some_and(|kept| kept.state == ConnectionStatus::Blocked)
+        })
+        .map(|provider| Connection {
+            id: super::state::native_provider_connection_id(provider),
+            kind: ConnectionKind::Native,
+            label: provider_label(provider).to_owned(),
+            account: None,
+            path: None,
+            provenance: Provenance::Selection,
+            remote: true,
+            official: false,
+            state: ConnectionState::Stopped,
+            status: ConnectionStatus::Blocked,
+            reason: None,
+            checked_at: None,
+            package: None,
+            tools: Vec::new(),
+        })
+        .collect()
 }
 
 fn imap_connection(account: &ImapAccount) -> Connection {
@@ -147,7 +186,7 @@ fn imap_connection(account: &ImapAccount) -> Connection {
         remote: is_remote_host(&account.host),
         official,
         state: ConnectionState::Connected,
-        status: ConnectionStatus::NeedsRepair,
+        status: ConnectionStatus::NotChecked,
         reason: Some(super::state::not_checked()),
         checked_at: None,
         package: None,
@@ -192,7 +231,7 @@ fn mcp_connection(config: &McpServerConfig, sources: &ConnectionSources) -> Conn
         remote: is_remote(&config.transport, config.url.as_deref()),
         official,
         state,
-        status: ConnectionStatus::NeedsRepair,
+        status: ConnectionStatus::NotChecked,
         reason: Some(super::state::not_checked()),
         checked_at: None,
         package,

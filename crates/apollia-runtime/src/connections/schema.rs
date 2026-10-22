@@ -9,15 +9,16 @@ use utoipa::openapi::schema::{ObjectBuilder, Schema, Type};
 use utoipa::openapi::RefOr;
 
 /// Every state, in its wire name.
-pub(super) const STATUSES: [ConnectionStatus; 4] = [
+pub(super) const STATUSES: [ConnectionStatus; 5] = [
     ConnectionStatus::Working,
     ConnectionStatus::NeedsRepair,
     ConnectionStatus::Paused,
     ConnectionStatus::Blocked,
+    ConnectionStatus::NotChecked,
 ];
 
 /// Every reason key, in its wire name.
-pub(super) const REASON_KEYS: [ConnectionReasonKey; 7] = [
+pub(super) const REASON_KEYS: [ConnectionReasonKey; 8] = [
     ConnectionReasonKey::NotChecked,
     ConnectionReasonKey::SignInAgain,
     ConnectionReasonKey::PasswordRefused,
@@ -25,6 +26,7 @@ pub(super) const REASON_KEYS: [ConnectionReasonKey; 7] = [
     ConnectionReasonKey::Unreachable,
     ConnectionReasonKey::Failing,
     ConnectionReasonKey::ForbiddenByPolicy,
+    ConnectionReasonKey::AdminApprovalRequired,
 ];
 
 /// The serde name of `value`, a unit variant.
@@ -45,7 +47,7 @@ pub(super) fn status_schema() -> impl Into<RefOr<Schema>> {
         .schema_type(Type::String)
         .enum_values(Some(names(&STATUSES)))
         .description(Some(
-            "What its user reads: working, needs repair, paused, or blocked by the organisation.",
+            "What its user reads: working, needs repair, paused, blocked by the organisation, or not checked yet (nothing has found it in any state).",
         ))
 }
 
@@ -57,7 +59,7 @@ pub(super) fn reason_schema() -> impl Into<RefOr<Schema>> {
             Type::Null,
         ]))
         .description(Some(
-            "Why it is not working, absent when it works: a key the interface translates, and the technical detail.",
+            "Why it is not working, absent when it works: a key the interface translates, the technical detail, and the address the repairing action opens when it has one.",
         ))
         .property(
             "key",
@@ -73,6 +75,14 @@ pub(super) fn reason_schema() -> impl Into<RefOr<Schema>> {
                 Type::Null,
             ])),
         )
+        .property(
+            "address",
+            ObjectBuilder::new()
+                .schema_type(Type::String)
+                .description(Some(
+                    "The address the repairing action opens, to be copied: for an administrator approval, the approval page.",
+                )),
+        )
 }
 
 #[cfg(test)]
@@ -87,7 +97,8 @@ mod tests {
             ConnectionStatus::Working
             | ConnectionStatus::NeedsRepair
             | ConnectionStatus::Paused
-            | ConnectionStatus::Blocked => STATUSES.contains(&s),
+            | ConnectionStatus::Blocked
+            | ConnectionStatus::NotChecked => STATUSES.contains(&s),
         };
         let listed_key = |k: ConnectionReasonKey| match k {
             ConnectionReasonKey::NotChecked
@@ -96,7 +107,8 @@ mod tests {
             | ConnectionReasonKey::FolderNotFound
             | ConnectionReasonKey::Unreachable
             | ConnectionReasonKey::Failing
-            | ConnectionReasonKey::ForbiddenByPolicy => REASON_KEYS.contains(&k),
+            | ConnectionReasonKey::ForbiddenByPolicy
+            | ConnectionReasonKey::AdminApprovalRequired => REASON_KEYS.contains(&k),
         };
 
         // WHEN the schemas are built
@@ -108,7 +120,13 @@ mod tests {
         assert!(REASON_KEYS.iter().all(|k| listed_key(*k)));
         assert_eq!(
             status["enum"],
-            serde_json::json!(["working", "needs_repair", "paused", "blocked"])
+            serde_json::json!([
+                "working",
+                "needs_repair",
+                "paused",
+                "blocked",
+                "not_checked"
+            ])
         );
         assert_eq!(
             reason["properties"]["key"]["enum"],

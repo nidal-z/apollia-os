@@ -1,23 +1,32 @@
 //! The state a connection reads in: found, dated, kept, and announced.
 //!
 //! Four states, never six: working, needs repair (with its reason), paused,
-//! blocked by the organisation. A state is found, never declared:
+//! blocked by the organisation; and, before any of them was found, not
+//! checked yet, which is neither working nor broken. A state is found, never
+//! declared:
 //!
 //! - An MCP server's state follows its health. A session whose handshake
 //!   passed but whose operations nothing has yet proven is not working: it
-//!   keeps the working state it was last found in, and otherwise needs a
-//!   check.
+//!   keeps the working state it was last found in, and otherwise reads as
+//!   not checked yet.
 //! - Every state found is kept in `connection_states` of `system.db` by the
 //!   recorder ([`spawn_state_recorder`]) and announced as
 //!   [`RuntimeEvent::ConnectionStateChanged`]. The list reads the kept state,
 //!   so it shows what was last found, dated, even for a connection nothing
 //!   has run since the start, and even when the event was sent before its
 //!   reader subscribed.
-//! - A connection with no state kept needs a check.
+//! - A connection with no state kept reads as not checked yet, never as
+//!   needing repair: a 0.3.0 installation, which kept no state, shows nothing
+//!   to repair until something has failed.
+//! - A native provider whose organisation requires an administrator to
+//!   approve the application has no account to name yet: its state is kept
+//!   under the provider alone (`native:microsoft`), blocked, with the address
+//!   of the approval, until an account of that provider connects.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use apollia_auth::ConnectorProvider;
 use apollia_core::{
     ConnectionReason, ConnectionReasonKey, ConnectionStateError, ConnectionStateRecord,
     ConnectionStateStore, ConnectionStatus, EventBusSender, McpHealth, RuntimeEvent,
@@ -49,7 +58,7 @@ pub fn mcp_record(
                 return None;
             }
             (
-                ConnectionStatus::NeedsRepair,
+                ConnectionStatus::NotChecked,
                 Some(ConnectionReason::new(
                     ConnectionReasonKey::NotChecked,
                     Some(NOT_VERIFIED.to_owned()),
@@ -112,7 +121,8 @@ pub(crate) fn shown_state(
     forbidden: bool,
     live: Option<&McpHealth>,
 ) -> ShownState {
-    let stored = states.get(id);
+    let stored = states.get(id).map(read_as_today);
+    let stored = stored.as_ref();
     if forbidden {
         return ShownState {
             status: ConnectionStatus::Blocked,
@@ -140,11 +150,26 @@ pub(crate) fn shown_state(
             checked_at: Some(kept.checked_at.clone()),
         },
         (None, None) => ShownState {
-            status: ConnectionStatus::NeedsRepair,
+            status: ConnectionStatus::NotChecked,
             reason: Some(not_checked()),
             checked_at: None,
         },
     }
+}
+
+/// A kept state as it reads today: a record written before the state
+/// `not_checked` existed said "needs repair, not checked", which reads as
+/// not checked yet.
+fn read_as_today(kept: &ConnectionStateRecord) -> ConnectionStateRecord {
+    let mut record = kept.clone();
+    let unproven = record
+        .reason
+        .as_ref()
+        .is_some_and(|r| r.key == ConnectionReasonKey::NotChecked);
+    if record.state == ConnectionStatus::NeedsRepair && unproven {
+        record.state = ConnectionStatus::NotChecked;
+    }
+    record
 }
 
 /// The detailed state of an MCP server with no live session, read from the
@@ -185,7 +210,7 @@ pub(crate) fn kept_detail(stored: Option<&ConnectionStateRecord>) -> ConnectionS
 /// The state kept for every connection, by identifier.
 ///
 /// Never an error: a store that cannot be read is logged and answers no
-/// state, so every connection then reads as needing a check and the list
+/// state, so every connection then reads as not checked yet and the list
 /// still loads.
 pub(crate) fn kept_states(data_dir: &std::path::Path) -> HashMap<String, ConnectionStateRecord> {
     let path = apollia_core::paths::DataFile::System.path(data_dir);
@@ -215,6 +240,104 @@ fn record_mcp_health(
     };
     store.put(&record)?;
     Ok(Some(record))
+}
+
+/// Identifier under which the state of native provider `provider` is kept
+/// while no account of it could connect.
+#[must_use]
+pub fn native_provider_connection_id(provider: ConnectorProvider) -> String {
+    format!("native:{}", provider.id())
+}
+
+/// The state of `provider` when its organisation requires an administrator
+/// to approve the application, found at `now`: blocked, with the provider's
+/// words as the detail and the approval page `address` to copy.
+#[must_use]
+pub fn admin_approval_record(
+    provider: ConnectorProvider,
+    detail: Option<String>,
+    address: &str,
+    now: &str,
+) -> ConnectionStateRecord {
+    ConnectionStateRecord {
+        id: native_provider_connection_id(provider),
+        state: ConnectionStatus::Blocked,
+        reason: Some(
+            ConnectionReason::new(ConnectionReasonKey::AdminApprovalRequired, detail)
+                .with_address(address),
+        ),
+        checked_at: now.to_owned(),
+    }
+}
+
+/// Keep `record` in `system.db` under `data_dir` and announce it as
+/// [`RuntimeEvent::ConnectionStateChanged`].
+///
+/// # Errors
+/// [`ConnectionStateError`] when the store cannot be opened or written; then
+/// nothing is announced.
+pub fn record_state(
+    data_dir: &std::path::Path,
+    bus: &EventBusSender,
+    record: ConnectionStateRecord,
+) -> Result<(), ConnectionStateError> {
+    let store = ConnectionStateStore::open(&apollia_core::paths::DataFile::System.path(data_dir))?;
+    store.put(&record)?;
+    let _ = bus.send(RuntimeEvent::ConnectionStateChanged {
+        id: record.id,
+        state: record.state,
+        reason: record.reason,
+        checked_at: record.checked_at,
+    });
+    Ok(())
+}
+
+/// Keep that `provider` is blocked until an administrator approves the
+/// application, and announce it.
+///
+/// # Errors
+/// As [`record_state`].
+pub fn record_admin_approval_required(
+    data_dir: &std::path::Path,
+    bus: &EventBusSender,
+    provider: ConnectorProvider,
+    detail: Option<String>,
+    address: &str,
+) -> Result<(), ConnectionStateError> {
+    let now = chrono::Utc::now().to_rfc3339();
+    record_state(
+        data_dir,
+        bus,
+        admin_approval_record(provider, detail, address, &now),
+    )
+}
+
+/// An account of `provider` connected: a block kept under the provider alone
+/// is lifted, as working, and announced. Nothing is written when none was
+/// kept.
+///
+/// # Errors
+/// As [`record_state`].
+pub fn lift_provider_block(
+    data_dir: &std::path::Path,
+    bus: &EventBusSender,
+    provider: ConnectorProvider,
+) -> Result<(), ConnectionStateError> {
+    let id = native_provider_connection_id(provider);
+    let store = ConnectionStateStore::open(&apollia_core::paths::DataFile::System.path(data_dir))?;
+    let blocked = store
+        .get(&id)?
+        .is_some_and(|kept| kept.state == ConnectionStatus::Blocked);
+    if !blocked {
+        return Ok(());
+    }
+    let record = ConnectionStateRecord {
+        id,
+        state: ConnectionStatus::Working,
+        reason: None,
+        checked_at: chrono::Utc::now().to_rfc3339(),
+    };
+    record_state(data_dir, bus, record)
 }
 
 /// Spawn the recorder: it keeps the state each MCP health change says in

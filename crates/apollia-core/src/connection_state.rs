@@ -3,7 +3,9 @@
 //!
 //! A connection reads in one of four states: it works, it needs repair (with
 //! the reason and the one action that repairs it), it is paused, or the
-//! organisation blocked it. The state is found by the runtime, never entered
+//! organisation blocked it. Until something has found it in one of them, it
+//! reads as not checked yet, which says neither that it works nor that it is
+//! broken. The state is found by the runtime, never entered
 //! by anyone, and each record carries the moment it was found. The last
 //! record of each connection is kept in the table `connection_states`
 //! (created by `system_db::migrate_v13`), so a list opened after a restart
@@ -49,6 +51,9 @@ pub enum ConnectionStatus {
     Paused,
     /// The organisation policy forbids it.
     Blocked,
+    /// Nothing has found it in any state yet: no check, no use, no failure.
+    /// The action is to check it.
+    NotChecked,
 }
 
 /// Why a connection is not working, as a key the interface translates.
@@ -71,6 +76,10 @@ pub enum ConnectionReasonKey {
     Failing,
     /// The organisation policy forbids it.
     ForbiddenByPolicy,
+    /// The provider's organisation requires an administrator to approve the
+    /// application first; the address of that approval is in
+    /// [`ConnectionReason::address`].
+    AdminApprovalRequired,
 }
 
 /// The reason a connection is in its state: a key, and the technical detail
@@ -82,13 +91,28 @@ pub struct ConnectionReason {
     /// Technical detail, already redacted.
     #[serde(default)]
     pub detail: Option<String>,
+    /// The address the repairing action opens, shown to be copied: for an
+    /// administrator approval, the approval page to send the administrator.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
 }
 
 impl ConnectionReason {
     /// A reason with its key and an optional detail.
     #[must_use]
     pub fn new(key: ConnectionReasonKey, detail: Option<String>) -> Self {
-        Self { key, detail }
+        Self {
+            key,
+            detail,
+            address: None,
+        }
+    }
+
+    /// The same reason, with the address its repairing action opens.
+    #[must_use]
+    pub fn with_address(mut self, address: impl Into<String>) -> Self {
+        self.address = Some(address.into());
+        self
     }
 }
 
@@ -113,6 +137,7 @@ impl ConnectionStatus {
             Self::NeedsRepair => "needs_repair",
             Self::Paused => "paused",
             Self::Blocked => "blocked",
+            Self::NotChecked => "not_checked",
         }
     }
 
@@ -122,6 +147,7 @@ impl ConnectionStatus {
             Self::NeedsRepair,
             Self::Paused,
             Self::Blocked,
+            Self::NotChecked,
         ]
         .into_iter()
         .find(|s| s.as_str() == text)
@@ -316,6 +342,48 @@ mod tests {
     }
 
     #[test]
+    fn test_an_approval_address_is_kept_and_a_reason_without_one_still_reads() {
+        // GIVEN a connection blocked until an administrator approves it, and a
+        // reason row written before reasons carried an address
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(&dir);
+        let reason = ConnectionReason::new(
+            ConnectionReasonKey::AdminApprovalRequired,
+            Some("AADSTS90094".to_owned()),
+        )
+        .with_address("https://login.microsoftonline.com/organizations/adminconsent?client_id=c");
+        store
+            .put(&record(
+                "native:microsoft",
+                ConnectionStatus::Blocked,
+                Some(reason.clone()),
+            ))
+            .unwrap();
+        store
+            .conn
+            .execute(
+                "INSERT INTO connection_states (id, state, reason, checked_at)
+                 VALUES ('mcp:old', 'needs_repair', '{\"key\":\"failing\",\"detail\":null}',
+                         '2026-10-21T09:00:00Z')",
+                [],
+            )
+            .unwrap();
+
+        // WHEN both are read back
+        let blocked = store.get("native:microsoft").unwrap().unwrap();
+        let old = store.get("mcp:old").unwrap().unwrap();
+
+        // THEN the key and the address survive, and the older row reads with
+        // no address
+        assert_eq!(blocked.reason, Some(reason));
+        assert_eq!(
+            serde_json::to_value(&blocked.reason).unwrap()["key"],
+            "admin_approval_required"
+        );
+        assert_eq!(old.reason.unwrap().address, None);
+    }
+
+    #[test]
     fn test_a_deleted_state_is_gone_and_a_second_delete_says_so() {
         // GIVEN states kept for two connections
         let dir = tempfile::tempdir().unwrap();
@@ -403,6 +471,7 @@ mod tests {
             ConnectionStatus::NeedsRepair,
             ConnectionStatus::Paused,
             ConnectionStatus::Blocked,
+            ConnectionStatus::NotChecked,
         ];
         for status in all {
             // WHEN it is serialized and written as text

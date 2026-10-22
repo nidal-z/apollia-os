@@ -74,7 +74,7 @@ pub fn folder_connection(folder: &FolderConnection) -> Connection {
         remote: false,
         official,
         state: ConnectionState::Connected,
-        status: ConnectionStatus::NeedsRepair,
+        status: ConnectionStatus::NotChecked,
         reason: Some(super::state::not_checked()),
         checked_at: None,
         package: None,

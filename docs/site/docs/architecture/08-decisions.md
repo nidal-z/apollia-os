@@ -518,10 +518,16 @@ state, the others read a copy it publishes, never the state itself.
 
 A connection reads in one of four states: working, needs repair (with the
 reason and the one action that repairs it), paused, or blocked by the
-organisation. The runtime finds the state; nobody enters it. An MCP server's
-state follows its health, and a session whose handshake passed but whose
-operations nothing has proven yet does not read as working: it keeps the
-working state found before, and otherwise needs a check. A token that cannot
+organisation. Until something has found it in one of them, it reads as not
+checked yet: a neutral state, undated, whose one action is to check it, listed
+with the rest and never with what needs repair. It is neither working nor
+broken, so an installation updated from a version that kept no state shows
+nothing to repair until something has failed. The runtime finds the state;
+nobody enters it. An MCP server's state follows its health, and a session
+whose handshake passed but whose operations nothing has proven yet does not
+read as working: it keeps the working state found before, and otherwise reads
+as not checked yet. A check, a use or a failure at start replaces it with the
+state found. A token that cannot
 be obtained at start asks the user to sign in again; a session whose
 transport closes on its own is marked unreachable when it closes, not at the
 next call.
@@ -545,6 +551,20 @@ then tested: a fresh handshake that lists its tools proves it, and the
 read-only probe its connector declares, when it declares one, says whether
 its operations fail. A connection the organisation forbids is not reached.
 What a check finds is kept and announced like any other state.
+
+Whether a user may consent alone to the mail and the calendar depends on the
+consent settings of their organisation. When Microsoft answers that an
+administrator must approve the application, no account could connect, so
+there is none to name: the state is kept under the provider alone
+(`native:microsoft`), blocked, with the reason `admin_approval_required` and
+the address of the approval page (`adminconsent`) to copy. The first account
+of that provider to connect lifts it. A work account whose consent was
+refused (`AADSTS65004`), which Microsoft does not tell apart from an
+administrator's approval left unasked, is offered the same address to copy,
+and its connection is not marked blocked. The Microsoft consent asks for the
+user's own files (`Files.Read`), never for `Files.Read.All`, which reaches
+every file shared with the user and which consent settings more often keep for
+an administrator.
 
 ### A connection in pause {#connection-pause}
 

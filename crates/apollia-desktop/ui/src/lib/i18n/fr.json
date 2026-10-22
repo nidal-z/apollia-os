@@ -658,6 +658,16 @@
     "oauth_policy_refused_title": "Refusé par la politique de l'organisation",
     "oauth_policy_refused_body": "Votre organisation n'autorise pas les connexions à des services en ligne sur ce poste. Rien n'a été envoyé à {provider}.",
     "oauth_policy_refused_contact": "Pour une exception, adressez-vous à la personne qui gère la politique de votre organisation.",
+    "oauth_admin_approval_title": "Bloquée par votre organisation",
+    "oauth_admin_approval_body": "Votre organisation demande qu'un administrateur approuve Apollia avant qu'un compte professionnel se connecte à {provider}.",
+    "oauth_admin_approval_address": "Envoyez cette adresse à votre administrateur. Une fois son accord donné, connectez-vous à nouveau.",
+    "oauth_admin_approval_copy": "Copier l'adresse",
+    "oauth_admin_approval_copied": "Adresse copiée",
+    "oauth_admin_approval_copy_failed": "L'adresse n'a pas pu être copiée. Sélectionnez-la et copiez-la à la main.",
+    "oauth_admin_approval_personal": "Un compte personnel (Outlook.com, Hotmail) n'a pas besoin de cet accord.",
+    "oauth_admin_approval_declined_title": "L'accès n'a pas été accordé",
+    "oauth_admin_approval_declined_body": "{provider} n'a pas accordé à Apollia l'accès à ce compte. Vous pouvez réessayer.",
+    "oauth_admin_approval_possible": "Si votre organisation demande l'accord d'un administrateur, envoyez-lui cette adresse.",
     "oauth_missing_client_title": "Identifiant OAuth manquant",
     "oauth_missing_client_body_html": "Aucun client OAuth n'est configuré pour {provider}, Apollia s'est donc arrêté plutôt que d'ouvrir un écran de consentement qui n'aboutirait pas. Créez-le dans la console {console}, puis ouvrez sa fiche dans Connexions pour l'ajouter. Aucune variable d'environnement n'est nécessaire.",
     "oauth_missing_secret_title": "Secret client OAuth manquant",
@@ -919,6 +929,10 @@
       "needs_repair": "À réparer",
       "paused": "En pause",
       "blocked": "Bloquée par l'organisation",
+      "not_checked": "Pas encore vérifiée",
+      "action": {
+        "check": "Vérifier"
+      },
       "reason": {
         "not_checked": "pas encore vérifiée",
         "sign_in_again": "le compte doit se reconnecter",

@@ -7452,21 +7452,23 @@ export interface components {
             path?: string | null;
             /** @description Where the connection was found before it was added. */
             provenance: string;
-            /** @description Why it is not working, absent when it works: a key the interface translates, and the technical detail. */
+            /** @description Why it is not working, absent when it works: a key the interface translates, the technical detail, and the address the repairing action opens when it has one. */
             reason?: {
+                /** @description The address the repairing action opens, to be copied: for an administrator approval, the approval page. */
+                address?: string;
                 detail?: string | null;
                 /** @enum {string} */
-                key: "not_checked" | "sign_in_again" | "password_refused" | "folder_not_found" | "unreachable" | "failing" | "forbidden_by_policy";
+                key: "not_checked" | "sign_in_again" | "password_refused" | "folder_not_found" | "unreachable" | "failing" | "forbidden_by_policy" | "admin_approval_required";
             } | null;
             /** @description Sends data off this machine. Computed, see [`is_remote`]. */
             remote: boolean;
             /** @description Whether it can be used right now, in the detail its kind gives. */
             state: components["schemas"]["ConnectionState"];
             /**
-             * @description What its user reads: working, needs repair, paused, or blocked by the organisation.
+             * @description What its user reads: working, needs repair, paused, blocked by the organisation, or not checked yet (nothing has found it in any state).
              * @enum {string}
              */
-            status: "working" | "needs_repair" | "paused" | "blocked";
+            status: "working" | "needs_repair" | "paused" | "blocked" | "not_checked";
             /** @description Tools the connection brings. */
             tools: components["schemas"]["ConnectionTool"][];
         };
