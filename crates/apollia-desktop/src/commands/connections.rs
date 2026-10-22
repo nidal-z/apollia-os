@@ -18,6 +18,8 @@
 //! - `add_folder_connection`: `POST /api/v1/connections/folders`. A folder is
 //!   admitted, stored and journaled by the runtime; a refusal comes back as its
 //!   reason.
+//! - `repoint_folder_connection`: `PUT /api/v1/connections/folders/{id}`, the
+//!   folder of a connection chosen again, its identifier and accesses kept.
 //! - `list_imap_providers`: `GET /api/v1/connectors/imap/providers`, the
 //!   providers whose server and port the add form fills from the address.
 //! - `add_imap_mailbox`: `POST /api/v1/connectors/imap/accounts`, which logs in
@@ -239,9 +241,50 @@ fn add_folder_body(path: &str) -> serde_json::Value {
     serde_json::json!({ "path": path })
 }
 
+/// Point the folder connection `connection_id` at the folder at `path`, chosen
+/// again with the system picker; the connection keeps its identifier, so its
+/// agents keep their accesses.
+#[tauri::command]
+pub async fn repoint_folder_connection(
+    state: State<'_, RuntimeLink>,
+    connection_id: String,
+    path: String,
+) -> Result<Connection, String> {
+    let json = state
+        .put_json(
+            &repoint_folder_path(&connection_id),
+            &add_folder_body(&path),
+        )
+        .await?;
+    parse_connection(json)
+}
+
+/// The route of the stored folder behind the connection `connection_id`.
+fn repoint_folder_path(connection_id: &str) -> String {
+    let stored = connection_id
+        .strip_prefix("folder:")
+        .unwrap_or(connection_id);
+    format!(
+        "/api/v1/connections/folders/{}",
+        crate::attached::segment(stored)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_a_folder_chosen_again_reaches_the_route_of_its_stored_folder() {
+        // GIVEN the identifier of a folder connection as the list names it
+        let connection_id = "folder:6f1c2a/b";
+
+        // WHEN the route that points it at another folder is built
+        let path = repoint_folder_path(connection_id);
+
+        // THEN it names the stored folder, one encoded segment, without the prefix
+        assert_eq!(path, "/api/v1/connections/folders/6f1c2a%2Fb");
+    }
 
     #[test]
     fn test_mailbox_body_trims_and_leaves_an_empty_server_to_the_runtime() {

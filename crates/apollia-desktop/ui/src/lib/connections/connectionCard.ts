@@ -11,8 +11,8 @@ import type { ConnectionRemoval, RemovedItem } from "$lib/ipc/connections";
 import type { Connection } from "$lib/types";
 
 /**
- * What repairs a connection: sign in again (a native account, or a service
- * that asks for it), enter the password again (a mailbox), choose the folder
+ * What repairs a connection: sign in again (a native account, or a remote
+ * service that asks for it), enter the password again (a mailbox), choose the folder
  * again (a folder), see the rule that blocks it, or start a service again.
  */
 export type RepairKind = "sign_in" | "password" | "folder" | "rule" | "restart";
@@ -39,7 +39,9 @@ function action(kind: RepairKind): RepairAction {
  * The one action that repairs `connection`, or null when it works, is paused,
  * was never checked, or when checking it again is all there is to do.
  */
-export function repairAction(connection: Pick<Connection, "kind" | "status" | "reason">): RepairAction | null {
+export function repairAction(
+  connection: Pick<Connection, "kind" | "status" | "reason" | "remote">,
+): RepairAction | null {
   if (connection.status === "blocked") return action("rule");
   if (connection.status !== "needs_repair") return null;
   switch (connection.reason?.key) {
@@ -52,7 +54,10 @@ export function repairAction(connection: Pick<Connection, "kind" | "status" | "r
     case "sign_in_again":
     case "admin_approval_required":
       if (connection.kind === "native") return action("sign_in");
-      return connection.kind === "mcp" ? action("restart") : null;
+      // A remote service signs in through its own OAuth; a local one has no
+      // sign-in, so starting it again is what is left.
+      if (connection.kind === "mcp") return action(connection.remote ? "sign_in" : "restart");
+      return null;
     case "unreachable":
     case "failing":
       return connection.kind === "mcp" ? action("restart") : null;

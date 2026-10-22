@@ -828,6 +828,7 @@
       "check": "Check",
       "pause": "Pause",
       "resume": "Resume",
+      "add_account": "Add another account",
       "paused_note": "Paused: its agents keep their accesses, but none of its tools runs until it is resumed.",
       "repair": {
         "sign_in": "Sign in again",

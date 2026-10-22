@@ -47,6 +47,17 @@ describe("repairAction", () => {
     expect(repairAction(blocked)).toEqual({ kind: "rule", labelKey: "connections.card.repair.rule" });
   });
 
+  test("a remote service that asks to sign in again is signed in again, not started again", () => {
+    // GIVEN a remote service whose sign-in expired, and a local service in the same state
+    const remote = connection({ status: "needs_repair", reason: { key: "sign_in_again" } });
+    const local = connection({ remote: false, status: "needs_repair", reason: { key: "sign_in_again" } });
+
+    // WHEN the action that repairs each is asked
+    // THEN the remote one signs in again; the local one, which has no sign-in, starts again
+    expect(repairAction(remote)).toEqual({ kind: "sign_in", labelKey: "connections.card.repair.sign_in" });
+    expect(repairAction(local)?.kind).toBe("restart");
+  });
+
   test("a working, paused or never checked connection offers no repair", () => {
     // GIVEN a connection in each of those states, and a mailbox that cannot be reached
     const states = [

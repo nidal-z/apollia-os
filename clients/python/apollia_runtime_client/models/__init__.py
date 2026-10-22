@@ -442,6 +442,7 @@ from .reload_router_response_backends_item import ReloadRouterResponseBackendsIt
 from .removed_item import RemovedItem
 from .removed_kind import RemovedKind
 from .rename_session_body import RenameSessionBody
+from .repoint_folder_body import RepointFolderBody
 from .required_connection_preview import RequiredConnectionPreview
 from .resend_message_request import ResendMessageRequest
 from .reset_response import ResetResponse
@@ -1071,6 +1072,7 @@ __all__ = (
     "RemovedItem",
     "RemovedKind",
     "RenameSessionBody",
+    "RepointFolderBody",
     "RequiredConnectionPreview",
     "ResendMessageRequest",
     "ResetResponse",

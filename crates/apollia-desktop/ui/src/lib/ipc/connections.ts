@@ -133,6 +133,14 @@ export function removeConnection(connectionId: string, dryRun: boolean): Promise
   return invoke<ConnectionRemoval>("remove_connection", { connectionId, dryRun });
 }
 
+/**
+ * Point the folder connection `connectionId` at the folder at `path`, chosen
+ * again; it keeps its identifier, so its agents keep their accesses.
+ */
+export function repointFolderConnection(connectionId: string, path: string): Promise<Connection> {
+  return invoke<Connection>("repoint_folder_connection", { connectionId, path });
+}
+
 // ── MCP servers ────────────────────────────────────────────────────────────
 
 export function listMcpServers(): Promise<McpServerStatusView[]> {

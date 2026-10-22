@@ -8,7 +8,7 @@
  * failure by the reason the runtime gives, as for any other connection.
  */
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { addFolderConnection } from "$lib/ipc/connections";
+import { addFolderConnection, checkConnection, repointFolderConnection } from "$lib/ipc/connections";
 import { refusalOf, type Refusal } from "$lib/integrations/addConnection";
 import type { Connection } from "$lib/types";
 
@@ -53,6 +53,51 @@ export async function chooseAndAddFolder(
   if (path === null) return { kind: "cancelled" };
   try {
     return { kind: "added", connection: await add(path) };
+  } catch (err: unknown) {
+    const message = messageOf(err);
+    const refusal = refusalOf(message);
+    return refusal ? { kind: "refused", refusal } : { kind: "failed", message };
+  }
+}
+
+export type RepointOutcome =
+  | { kind: "cancelled" }
+  | { kind: "repaired"; connection: Connection }
+  | { kind: "refused"; refusal: Refusal }
+  | { kind: "failed"; message: string };
+
+export interface RepointDeps {
+  /** Open the system folder picker; `null` when the person cancels. */
+  pick?: (title: string) => Promise<string | null>;
+  /** Point a folder connection at a path; the Tauri command by default. */
+  repoint?: (connectionId: string, path: string) => Promise<Connection>;
+  /** Check a connection now; the Tauri command by default. */
+  check?: (connectionId: string) => Promise<Connection>;
+}
+
+/**
+ * Open the picker, then point the folder connection `connectionId` at the
+ * folder picked, and check it: the same connection, the accesses of its
+ * agents kept, answered with the state found.
+ */
+export async function chooseFolderAgain(
+  connectionId: string,
+  pickerTitle: string,
+  deps: RepointDeps = {},
+): Promise<RepointOutcome> {
+  const pick = deps.pick ?? pickFolder;
+  const repoint = deps.repoint ?? repointFolderConnection;
+  const check = deps.check ?? checkConnection;
+  let path: string | null;
+  try {
+    path = await pick(pickerTitle);
+  } catch (err: unknown) {
+    return { kind: "failed", message: messageOf(err) };
+  }
+  if (path === null) return { kind: "cancelled" };
+  try {
+    await repoint(connectionId, path);
+    return { kind: "repaired", connection: await check(connectionId) };
   } catch (err: unknown) {
     const message = messageOf(err);
     const refusal = refusalOf(message);

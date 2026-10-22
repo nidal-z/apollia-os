@@ -28,7 +28,7 @@
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
   import MailboxDialog from "../components/integrations/MailboxDialog.svelte";
   import FolderConnectionDialog from "../components/connections/catalogue/FolderConnectionDialog.svelte";
-  import { chooseAndAddFolder, type FolderOutcome } from "$lib/connections/folderConnection";
+  import { chooseAndAddFolder, chooseFolderAgain, type FolderOutcome } from "$lib/connections/folderConnection";
   import {
     listConnections,
     listMcpServers,
@@ -413,10 +413,32 @@
         mailboxOpen = true;
         return;
       case "folder":
-        void addFolder();
+        void repairFolder(connection.id);
         return;
       case "rule":
         navigateTo("authorizations");
+        return;
+    }
+  }
+
+  /**
+   * "Choose the folder" on a folder that cannot be found: the folder picked
+   * becomes the folder of the same connection, so its agents keep their
+   * accesses, and the state found replaces its row.
+   */
+  async function repairFolder(id: string): Promise<void> {
+    const outcome = await chooseFolderAgain(id, $t("connections.folder.picker_title"));
+    switch (outcome.kind) {
+      case "repaired":
+        connections = replaceConnection(connections, outcome.connection);
+        return;
+      case "refused":
+        reportError(new Error(outcome.refusal.reason), { surface: "toast", testid: "connection-repair-error" });
+        return;
+      case "failed":
+        reportError(new Error(outcome.message), { surface: "toast", testid: "connection-repair-error" });
+        return;
+      case "cancelled":
         return;
     }
   }
@@ -590,6 +612,7 @@
                 onreload={() => void loadAll()}
                 onrepair={(kind) => repairConnection(selectedConnection, kind)}
                 ontry={() => openTry(selectedConnection.id, selectedLabel)}
+                onaddaccount={selectedProvider ? () => startNativeConnect(selectedProvider) : undefined}
               />
             {/key}
           {:else}

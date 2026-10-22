@@ -12206,18 +12206,32 @@
     },
     {
       "kind": "stubInvoke",
-      "command": "list_sources",
-      "resolve": [
-        {
-          "id": "src-automation",
-          "kind": "folder",
-          "label": "Automation documents",
-          "group": null,
-          "reference": "folder:automation",
-          "indexState": "ready",
-          "addedAt": "2026-10-01T08:00:00.000Z"
-        }
-      ]
+      "command": "remove_connection",
+      "argsMatch": {
+        "connectionId": "folder:automation",
+        "dryRun": true
+      },
+      "resolve": {
+        "connection": "folder:automation",
+        "dryRun": true,
+        "removed": [
+          {
+            "kind": "source",
+            "name": "Automation documents"
+          },
+          {
+            "kind": "agent_access",
+            "name": "read_file",
+            "agent": "Automation agent"
+          }
+        ],
+        "left": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_connection",
+      "reject": "automation: remove_connection was not called with the dry run first, then the confirmation"
     },
     {
       "kind": "click",
@@ -12231,7 +12245,13 @@
     },
     {
       "kind": "expect",
-      "testid": "connection-remove-items"
+      "testid": "connection-remove-items",
+      "contains": "Automation documents"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-remove-items",
+      "contains": "Automation agent"
     },
     {
       "kind": "screenshot",
@@ -12248,6 +12268,63 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "clearStubs",
+      "command": "remove_connection"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_connection",
+      "argsMatch": {
+        "connectionId": "folder:automation",
+        "dryRun": true
+      },
+      "resolve": {
+        "connection": "folder:automation",
+        "dryRun": true,
+        "removed": [
+          {
+            "kind": "source",
+            "name": "Automation documents"
+          },
+          {
+            "kind": "agent_access",
+            "name": "read_file",
+            "agent": "Automation agent"
+          }
+        ],
+        "left": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_connection",
+      "argsMatch": {
+        "connectionId": "folder:automation",
+        "dryRun": false
+      },
+      "resolve": {
+        "connection": "folder:automation",
+        "dryRun": false,
+        "removed": [
+          {
+            "kind": "source",
+            "name": "Automation documents"
+          }
+        ],
+        "left": [
+          {
+            "kind": "source",
+            "name": "Automation leftover"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_connection",
+      "reject": "automation: remove_connection was not called with the dry run first, then the confirmation"
+    },
+    {
       "kind": "click",
       "testid": "connection-remove-btn",
       "timeoutMs": 2500
@@ -12258,29 +12335,9 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "stubInvoke",
-      "command": "remove_folder_connection",
-      "resolve": {
-        "id": "folder:automation",
-        "kind": "folder",
-        "label": "Automation folder",
-        "account": null,
-        "path": "/automation/folder",
-        "provenance": "custom",
-        "remote": false,
-        "official": false,
-        "state": "connected",
-        "tools": []
-      },
-      "argsMatch": {
-        "connectionId": "folder:automation",
-        "confirm": true
-      }
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "remove_folder_connection",
-      "reject": "automation: remove_folder_connection was not called with the confirmation the dialog gave"
+      "kind": "expect",
+      "testid": "connection-remove-items",
+      "contains": "Automation documents"
     },
     {
       "kind": "click",
@@ -12293,12 +12350,17 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "clearStubs",
-      "command": "remove_folder_connection"
+      "kind": "waitFor",
+      "testid": "connection-remove-left",
+      "contains": "Automation leftover",
+      "timeoutMs": 4000
     },
     {
       "kind": "clearStubs",
-      "command": "list_sources"
+      "command": "remove_connection"
+    },
+    {
+      "kind": "clearToasts"
     },
     {
       "kind": "clearStubs",

@@ -5,11 +5,11 @@
    * Pause or Resume, and Remove, confirmed in the page after the list of what
    * goes with it; the tools it brings; for a Google account, the Drive folder
    * its agents work in. The technical detail is a section of the developer
-   * mode, the settings of a service and the OAuth client of an account with
-   * it.
+   * mode, the OAuth client of an account with it; the settings of a service
+   * stay on the card, their launch and transport for the developer mode.
    */
   import { t } from "svelte-i18n";
-  import { Folder, Link as LinkIcon, Mail, Pause, Play, RefreshCw, Trash2, UserRound, Wrench } from "lucide-svelte";
+  import { Folder, Link as LinkIcon, Mail, Pause, Play, Plus, RefreshCw, Trash2, UserRound, Wrench } from "lucide-svelte";
   import { DetailHeader } from "$lib/components/operator";
   import { DeveloperOnly } from "$lib/components/shared";
   import { Badge } from "$lib/components/ui/badge";
@@ -30,6 +30,8 @@
   import {
     checkConnection,
     getMcpServerDetail,
+    getMcpServerRawConfig,
+    mcpOauthLogin,
     pauseConnection,
     removeConnection,
     restartMcpServer,
@@ -62,10 +64,16 @@
     onremoved: () => void;
     /** Something changed the runtime holds beyond the connection: read the page again. */
     onreload: () => void;
-    /** The repair that leaves this card: sign in again, the password, the folder, the rule. */
+    /**
+     * The repair that leaves this card: sign in again to an account, the
+     * password, the folder, the rule. A service is started or signed in again
+     * on the card itself.
+     */
     onrepair: (kind: Exclude<RepairKind, "restart">) => void;
     /** "Try": a conversation limited to the tools of this connection. */
     ontry?: () => void;
+    /** Connect another account of the same provider, for an account. */
+    onaddaccount?: () => void;
   }
 
   let {
@@ -80,6 +88,7 @@
     onreload,
     onrepair,
     ontry,
+    onaddaccount,
   }: Props = $props();
 
   let busy = $state<"check" | "pause" | "repair" | "remove" | null>(null);
@@ -170,11 +179,19 @@
   function doRepair(): void {
     const kind = repair?.kind;
     if (!kind) return;
+    const name = serverName;
+    if (name !== null && kind === "sign_in") {
+      void run("repair", async () => {
+        const config = await getMcpServerRawConfig(name);
+        await mcpOauthLogin({ serverName: config.name, serverUrl: config.url ?? "", wwwAuthenticate: null, scopes: [] });
+        onupdated(await checkConnection(connection.id));
+      });
+      return;
+    }
     if (kind !== "restart") {
       onrepair(kind);
       return;
     }
-    const name = serverName;
     if (name === null) return;
     void run("repair", async () => {
       await restartMcpServer(name);
@@ -234,6 +251,12 @@
       {#snippet icon()}<RefreshCw size={12} />{/snippet}
       {$t("connections.card.check")}
     </Button>
+    {#if provider !== null && onaddaccount}
+      <Button variant="outline" size="sm" onclick={onaddaccount} data-testid="oauth-add-account-{provider}">
+        {#snippet icon()}<Plus size={12} />{/snippet}
+        {$t("connections.card.add_account")}
+      </Button>
+    {/if}
     {#if ontry}
       <Button variant="primary-solid" size="sm" onclick={ontry} data-testid="connection-try-btn">
         {#snippet icon()}<Play size={12} />{/snippet}
@@ -363,6 +386,15 @@
   {/if}
   </div>
 
+  {#if serverName !== null}
+    <!-- The editor keeps the launch and the transport for the developer mode
+         itself; the arguments, the address, the secrets and the sign-in are
+         the user's. -->
+    <div class="max-w-3xl">
+      <McpServerSettingsEditor {serverName} onSaved={onreload} />
+    </div>
+  {/if}
+
   <DeveloperOnly>
     <section class="max-w-3xl space-y-3" data-testid="connection-technical">
       <h3 class="text-overline text-muted-foreground/60">{$t("dev.connections.card.technical_title")}</h3>
@@ -379,9 +411,6 @@
           <p data-testid="connection-tool-provenance">{tool.id} · {tool.family} ({tool.familySource})</p>
         {/each}
       </Card>
-      {#if serverName !== null}
-        <McpServerSettingsEditor {serverName} onSaved={onreload} />
-      {/if}
       {#if provider !== null}
         <NativeClientSection
           {provider}

@@ -143,6 +143,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "remove_mcp_server",
     "restart_mcp_server",
     "test_mcp_connection",
+    "test_mcp_live_server",
     "node_runtime_state",
     "update_mcp_server_config",
     // The installed packages, over `/api/v1/agent-packages/`.
@@ -150,9 +151,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_packages",
     "uninstall_agent_package",
     // Connections, their grant to agents, their check, pause, resume and
-    // removal, the folders added as connections, and the mailbox connection: the providers known from the address, and
-    // the addition, which logs in before it stores.
+    // removal, the folders added as connections or chosen again, and the
+    // mailbox connection: the providers known from the address, and the
+    // addition, which logs in before it stores.
     "add_folder_connection",
+    "repoint_folder_connection",
     "add_imap_mailbox",
     "check_connection",
     "grant_connection",

@@ -828,6 +828,7 @@
       "check": "Vérifier",
       "pause": "Mettre en pause",
       "resume": "Reprendre",
+      "add_account": "Ajouter un autre compte",
       "paused_note": "En pause : ses agents gardent leurs accès, mais aucun de ses outils ne s'exécute avant la reprise.",
       "repair": {
         "sign_in": "Se reconnecter",

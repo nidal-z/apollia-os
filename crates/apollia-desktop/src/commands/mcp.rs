@@ -303,7 +303,7 @@ async fn ensure_node(link: &RuntimeLink) -> Result<(), String> {
 /// remote URL (the case that matters for OAuth connectors like Notion, whose
 /// grant/workspace issues only surface on a real call). Returns `None` when the
 /// server has no matching enrichment or no declared `health_probe`, in which
-/// case a check reports reachability only.
+/// case the test or the check reports reachability only.
 pub(crate) async fn resolve_health_probe(link: &RuntimeLink, name: &str) -> Option<ProbeSpec> {
     let path = format!("/api/v1/mcp/servers/{name}/raw_config");
     let json = link.get_json(&path).await.ok()?;
@@ -317,6 +317,25 @@ pub(crate) async fn resolve_health_probe(link: &RuntimeLink, name: &str) -> Opti
         tool: probe.tool.clone(),
         args: probe.args.clone(),
     })
+}
+
+/// Test an already-installed MCP server.
+///
+/// Delegates to `POST /api/v1/mcp/servers/{name}/test` on the embedded runtime.
+/// Re-handshakes the live session for reachability and, when the connector
+/// declares a read-only `health_probe`, exercises real operational access. The
+/// response `result.live_health` carries the verdict and `tools` the tools the
+/// session lists, which the trial after an addition reports.
+#[tauri::command]
+pub async fn test_mcp_live_server(
+    state: State<'_, RuntimeLink>,
+    name: String,
+) -> Result<McpConnectionTestResponse, String> {
+    let probe = resolve_health_probe(&state, &name).await;
+    let path = format!("/api/v1/mcp/servers/{name}/test");
+    let body = serde_json::json!({ "probe": probe });
+    let json = state.post_json(&path, &body).await?;
+    serde_json::from_value(json).map_err(|e| format!("failed to parse test result: {e}"))
 }
 
 /// Restart an MCP server session.

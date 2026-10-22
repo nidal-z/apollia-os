@@ -1151,7 +1151,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * `PUT /api/v1/connections/folders/{id}`: point a folder connection at
+         *     another folder, its identifier, label and accesses kept.
+         */
+        put: operations["repoint_folder_connection"];
         post?: never;
         /** `DELETE /api/v1/connections/folders/{id}`: remove a folder connection. */
         delete: operations["remove_folder_connection"];
@@ -10520,6 +10524,11 @@ export interface components {
             /** @description The title, trimmed and capped at 100 characters. */
             title: string;
         };
+        /** @description Body of `PUT /api/v1/connections/folders/{id}`. */
+        RepointFolderBody: {
+            /** @description Absolute path of the folder, as the system picker answered it. */
+            path: string;
+        };
         /** @description A connection the package requires. */
         RequiredConnectionPreview: {
             /** @description The package itself brings an MCP server of that name. */
@@ -15334,6 +15343,78 @@ export interface operations {
                 };
             };
             /** @description The folder is already a connection */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description system.db could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+        };
+    };
+    repoint_folder_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifier of the stored folder, the part of the connection identifier after `folder:` */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepointFolderBody"];
+            };
+        };
+        responses: {
+            /** @description The connection now points at the folder; the connection it is */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"];
+                };
+            };
+            /** @description The path is not a folder of this machine */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description Refused by the connection admission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description No folder connection has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description Another connection already holds the folder */
             409: {
                 headers: {
                     [name: string]: unknown;
