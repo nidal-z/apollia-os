@@ -4,7 +4,8 @@
    * it works, since when, why not and the one action that repairs it; Check,
    * Pause or Resume, and Remove, confirmed in the page after the list of what
    * goes with it; the tools it brings; for a Google account, the Drive folder
-   * its agents work in. The technical detail is a section of the developer
+   * its agents work in, for a Microsoft account, the OneDrive folders and
+   * files Apollia may read. The technical detail is a section of the developer
    * mode, the OAuth client of an account with it; the settings of a service
    * stay on the card, their launch and transport for the developer mode.
    */
