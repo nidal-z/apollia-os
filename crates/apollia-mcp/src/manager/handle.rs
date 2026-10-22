@@ -386,10 +386,24 @@ impl McpClientManagerHandle {
     ///
     /// Returns [`McpSessionError::ServerExited`] when no session with `name` exists.
     pub async fn remove_server(&self, name: &str) -> Result<(), McpSessionError> {
+        self.send_remove(name, false).await
+    }
+
+    /// Stop an MCP server without forgetting it: its session ends and its
+    /// descriptors leave the registry, but the tools it last published stay
+    /// kept in `mcp.db`, out of the tool index, until it starts again.
+    ///
+    /// Returns [`McpSessionError::ServerExited`] when no session with `name` exists.
+    pub async fn stop_server(&self, name: &str) -> Result<(), McpSessionError> {
+        self.send_remove(name, true).await
+    }
+
+    async fn send_remove(&self, name: &str, keep_tools: bool) -> Result<(), McpSessionError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(McpCommand::RemoveServer {
                 server_name: name.to_string(),
+                keep_tools,
                 reply: reply_tx,
             })
             .await

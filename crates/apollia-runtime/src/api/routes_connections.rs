@@ -27,7 +27,7 @@ use apollia_auth::ConnectorProvider;
 use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
 use crate::connections::{
-    assemble, package_connections, Connection, ConnectionSources, NativeAccounts,
+    assemble, kept_tool_index, package_connections, Connection, ConnectionSources, NativeAccounts,
 };
 use crate::coordinator::ExecutionBackend;
 
@@ -135,23 +135,28 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     native_accounts: Vec<NativeAccounts>,
 ) -> Result<Vec<Connection>, ApiError> {
-    let mcp_configs = match &state.mcp_server_repo {
-        Some(repo) => repo
-            .lock()
-            .map_err(|_| {
+    let (mcp_configs, stored_tools) = match &state.mcp_server_repo {
+        Some(repo) => {
+            let repo = repo.lock().map_err(|_| {
                 api_err(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "repository lock poisoned",
                 )
-            })?
-            .list()
-            .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?,
-        None => Vec::new(),
+            })?;
+            let read = |e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e);
+            (
+                repo.list().map_err(read)?,
+                repo.stored_tools().map_err(read)?,
+            )
+        }
+        None => Default::default(),
     };
-    let (mcp_statuses, mcp_index) = match &state.mcp_handle {
+    let (mcp_statuses, mut mcp_index) = match &state.mcp_handle {
         Some(handle) => (handle.status().await, handle.get_tool_index().await),
         None => (Vec::new(), Vec::new()),
     };
+    let kept = kept_tool_index(&mcp_configs, &mcp_statuses, &mcp_index, &stored_tools);
+    mcp_index.extend(kept);
     let descriptors = match &state.tool_registry_handle {
         Some(registry) => registry
             .list()

@@ -63,8 +63,11 @@ enum McpCommand {
         reply: oneshot::Sender<Result<McpServerStatus, McpSessionError>>,
     },
     /// Remove a server: shutdown the session and unregister from the session map.
+    /// With `keep_tools`, what it last published stays kept in the store,
+    /// out of the tool index, for the list to show and its next start.
     RemoveServer {
         server_name: String,
+        keep_tools: bool,
         reply: oneshot::Sender<Result<(), McpSessionError>>,
     },
     /// Restart a specific server session (stop + re-spawn).
@@ -380,9 +383,15 @@ impl McpClientManager {
                     let _ = reply.send(result);
                 }
 
-                McpCommand::RemoveServer { server_name, reply } => {
+                McpCommand::RemoveServer {
+                    server_name,
+                    keep_tools,
+                    reply,
+                } => {
                     let result = self.handle_remove_server(&server_name).await;
-                    if result.is_ok() || self.kept_index.contains_key(&server_name) {
+                    if keep_tools {
+                        self.kept_index.remove(&server_name);
+                    } else if result.is_ok() || self.kept_index.contains_key(&server_name) {
                         self.forget_kept(&server_name).await;
                     }
                     self.publish();

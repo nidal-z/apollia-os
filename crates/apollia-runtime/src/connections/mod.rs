@@ -28,7 +28,7 @@ pub mod removal;
 mod schema;
 pub mod state;
 
-pub use assemble::{assemble, ConnectionSources, NativeAccounts};
+pub use assemble::{assemble, kept_tool_index, ConnectionSources, NativeAccounts};
 pub use folders::{folder_connection, folder_connection_id, folder_connections, folder_id_of};
 pub use packages::package_connections;
 pub use state::spawn_state_recorder;

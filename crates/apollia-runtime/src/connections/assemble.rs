@@ -11,6 +11,7 @@ use apollia_core::{ConnectionStateRecord, ConnectionStatus, FolderConnection, Mc
 use apollia_mcp::classify::classify_configured_tool;
 use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::manager::McpServerStatus;
+use apollia_mcp::server_repository::StoredTool;
 use apollia_mcp::tool_search::ToolIndexSnapshot;
 use apollia_mcp::Provenance;
 use apollia_tools::{FamilySource, ToolDescriptor};
@@ -261,6 +262,42 @@ fn mcp_tools(
         }
     }));
     tools
+}
+
+/// The index entries of the tools kept in `mcp.db` for each server of
+/// `configs` that has no live session and no entry in `index`, such as a
+/// server in pause: the list still shows what it last published, classified
+/// as its next start will classify it.
+#[must_use]
+pub fn kept_tool_index(
+    configs: &[McpServerConfig],
+    statuses: &[McpServerStatus],
+    index: &[ToolIndexSnapshot],
+    stored: &HashMap<String, Vec<StoredTool>>,
+) -> Vec<ToolIndexSnapshot> {
+    let mut out = Vec::new();
+    for config in configs {
+        let live = statuses.iter().any(|s| s.name == config.name)
+            || index.iter().any(|e| e.server_name == config.name);
+        let Some(tools) = stored.get(&config.name).filter(|_| !live) else {
+            continue;
+        };
+        out.extend(tools.iter().map(|tool| {
+            let (family, family_source) =
+                classify_configured_tool(config, &tool.name, tool.annotations.as_ref());
+            ToolIndexSnapshot {
+                server_name: config.name.clone(),
+                tool_name: tool.name.clone(),
+                description: tool.description.clone(),
+                tags: config.tags.clone(),
+                input_schema: Some(tool.input_schema.clone()),
+                annotations: tool.annotations,
+                family,
+                family_source,
+            }
+        }));
+    }
+    out
 }
 
 fn tool_from_descriptor(

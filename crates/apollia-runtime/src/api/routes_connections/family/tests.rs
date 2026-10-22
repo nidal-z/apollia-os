@@ -40,7 +40,8 @@ struct Harness {
 }
 
 /// A runtime whose live manager runs `servers` in eager loading, each saved
-/// in `mcp.db`, with connection governance over a journal.
+/// in `mcp.db` with the tools it published, with connection governance over
+/// a journal.
 async fn harness(servers: Vec<McpServerConfig>) -> Harness {
     harness_in(servers, LoadingMode::Eager).await
 }
@@ -50,9 +51,15 @@ async fn harness_in(servers: Vec<McpServerConfig>, mode: LoadingMode) -> Harness
     let dir = tempfile::TempDir::new().unwrap();
     let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
     let registry = ToolRegistryHandle::start();
-    let manager = McpClientManagerHandle::start(vec![], &registry, None, mode)
-        .await
-        .unwrap();
+    let manager = McpClientManagerHandle::start_keeping_tools(
+        vec![],
+        &registry,
+        None,
+        mode,
+        apollia_mcp::tool_store::ToolIndexStore::new(dir.path().join("mcp.db")),
+    )
+    .await
+    .unwrap();
     for server in servers {
         repo.save(&server).unwrap();
         manager.add_server(server).await.unwrap();
@@ -66,6 +73,16 @@ async fn harness_in(servers: Vec<McpServerConfig>, mode: LoadingMode) -> Harness
     state.mcp_handle = Some(manager.clone());
     state.mcp_server_repo = Some(Arc::new(Mutex::new(repo)));
     state.connection_governance = ConnectionGovernance::without_policy(Some(journal.clone()));
+    state.governance = Some(crate::governance::GovernanceHandle::spawn(
+        crate::governance::GovernanceSources {
+            governance_db: Some(apollia_core::paths::DataFile::Governance.path(dir.path())),
+            config_path: None,
+            policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
+            journal: None,
+            events: None,
+            forbidden_connections: Default::default(),
+        },
+    ));
     Harness {
         _dir: dir,
         state,
@@ -255,6 +272,143 @@ async fn test_an_exempt_family_an_unknown_tool_and_an_unknown_connection_are_ref
     assert_eq!(unknown_tool.0, StatusCode::NOT_FOUND);
     assert_eq!(unknown_connection.0, StatusCode::NOT_FOUND);
     assert!(stored(&h, "files").is_empty());
+
+    h.manager.shutdown().await;
+    h.journal.shutdown().await;
+}
+
+// In eager loading, a connection in pause has no live session: the operator's
+// family given then is the one the list answers, the registry holds no stale
+// family from the hints, and the resumed session registers the operator's.
+#[tokio::test]
+async fn test_a_tool_reclassified_in_pause_takes_the_operator_family_at_once_and_on_resume() {
+    // GIVEN a custom server whose `lookup` its hints classify as reading,
+    //       put in pause
+    let h = harness(vec![annotated("files")]).await;
+    crate::api::routes_connections::pause::set_paused(&h.state, Vec::new(), "mcp:files", true)
+        .await
+        .unwrap();
+
+    // WHEN the operator gives `lookup` the family of a write
+    let connection = reclassify(
+        &h.state,
+        Vec::new(),
+        "mcp:files",
+        "lookup",
+        ActionFamily::WriteOrDelete,
+    )
+    .await
+    .unwrap();
+
+    // THEN the route answers the operator's family, from the operator
+    let listed = tool(&connection, "mcp:files/lookup");
+    assert_eq!(listed.family, ActionFamily::WriteOrDelete);
+    assert_eq!(listed.family_source, FamilySource::Operator);
+    // AND the registry holds no descriptor still classified by the hints
+    if let Some(stale) = h.registry.get("mcp:files/lookup").await.unwrap() {
+        assert_eq!(stale.family, ActionFamily::WriteOrDelete);
+        assert_eq!(stale.family_source, FamilySource::Operator);
+    }
+
+    // WHEN the connection is resumed
+    let resumed =
+        crate::api::routes_connections::pause::set_paused(&h.state, Vec::new(), "mcp:files", false)
+            .await
+            .unwrap();
+
+    // THEN the calls are decided on the operator's family, without a restart
+    let after = h.registry.get("mcp:files/lookup").await.unwrap().unwrap();
+    assert_eq!(after.family, ActionFamily::WriteOrDelete);
+    assert_eq!(after.family_source, FamilySource::Operator);
+    // AND the list after the resume shows it too
+    let listed = tool(&resumed, "mcp:files/lookup");
+    assert_eq!(listed.family, ActionFamily::WriteOrDelete);
+    assert_eq!(listed.family_source, FamilySource::Operator);
+
+    h.manager.shutdown().await;
+    h.journal.shutdown().await;
+}
+
+// A tool the selection classifies keeps its family, even on a connection the
+// operator added: refused, nothing stored, nothing journaled.
+#[tokio::test]
+async fn test_a_tool_the_selection_classifies_is_refused() {
+    // GIVEN a custom server whose `lookup` the selection classifies
+    let mut files = annotated("files");
+    files
+        .tool_families
+        .insert("lookup".to_owned(), ActionFamily::Read);
+    let h = harness(vec![files]).await;
+
+    // WHEN the operator tries to reclassify it
+    let (status, _) = reclassify(
+        &h.state,
+        Vec::new(),
+        "mcp:files",
+        "lookup",
+        ActionFamily::WriteOrDelete,
+    )
+    .await
+    .unwrap_err();
+
+    // THEN it is refused, the registry keeps the selection's family, and
+    //      nothing is stored or journaled
+    assert_eq!(status, StatusCode::CONFLICT);
+    let lookup = h.registry.get("mcp:files/lookup").await.unwrap().unwrap();
+    assert_eq!(lookup.family_source, FamilySource::Selection);
+    assert!(stored(&h, "files").is_empty());
+    assert!(h
+        .journal
+        .query_run(&connection_run_id("mcp:files"))
+        .await
+        .is_empty());
+
+    h.manager.shutdown().await;
+    h.journal.shutdown().await;
+}
+
+// A connection that is not an MCP server keeps the family Apollia's code
+// gives its tools: refused before anything is written.
+#[tokio::test]
+async fn test_a_connection_that_is_not_mcp_is_refused() {
+    // GIVEN a runtime with one mailbox connected over IMAP
+    let h = harness(Vec::new()).await;
+    std::fs::write(
+        h.state
+            .data_dir
+            .join(apollia_connectors::imap::IMAP_INDEX_FILE),
+        json!({"accounts": [
+            {"email": "ada@example.org", "host": "imap.example.org", "port": 993, "username": "ada@example.org"},
+        ]})
+        .to_string(),
+    )
+    .unwrap();
+
+    // WHEN the operator tries to reclassify one of its tools
+    let (status, Json(body)) = reclassify(
+        &h.state,
+        Vec::new(),
+        "imap:ada@example.org",
+        "imap_search",
+        ActionFamily::WriteOrDelete,
+    )
+    .await
+    .unwrap_err();
+
+    // THEN it is refused for its kind, before its provenance is read (every
+    //      connection that is not MCP also counts as the selection), and
+    //      nothing is journaled
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(
+        body.error.contains("keep the family Apollia gives them"),
+        "{}",
+        body.error
+    );
+    assert!(h
+        .journal
+        .query_run(&connection_run_id("imap:ada@example.org"))
+        .await
+        .is_empty());
 
     h.manager.shutdown().await;
     h.journal.shutdown().await;
