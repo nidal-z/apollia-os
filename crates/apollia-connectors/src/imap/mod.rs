@@ -22,7 +22,9 @@ pub use error::ImapError;
 pub use mail::{
     FolderCount, FolderUids, MailFolder, MailMessage, MailQuery, MailSummary, DEFAULT_FOLDER,
 };
-pub use store::{ConnectionProbe, ImapAccountStore, IMAP_INDEX_FILE, IMAP_SECRET_SERVICE};
+pub use store::{
+    ConnectionProbe, ImapAccountStore, RemovedMailbox, IMAP_INDEX_FILE, IMAP_SECRET_SERVICE,
+};
 
 #[cfg(test)]
 mod client_tests;

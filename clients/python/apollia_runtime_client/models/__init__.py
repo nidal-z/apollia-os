@@ -111,6 +111,7 @@ from .connection_agents import ConnectionAgents
 from .connection_kind import ConnectionKind
 from .connection_reason_type_0 import ConnectionReasonType0
 from .connection_reason_type_0_key import ConnectionReasonType0Key
+from .connection_removal import ConnectionRemoval
 from .connection_state import ConnectionState
 from .connection_status import ConnectionStatus
 from .connection_tool import ConnectionTool
@@ -438,6 +439,8 @@ from .reload_last_request import ReloadLastRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
+from .removed_item import RemovedItem
+from .removed_kind import RemovedKind
 from .rename_session_body import RenameSessionBody
 from .required_connection_preview import RequiredConnectionPreview
 from .resend_message_request import ResendMessageRequest
@@ -740,6 +743,7 @@ __all__ = (
     "ConnectionKind",
     "ConnectionReasonType0",
     "ConnectionReasonType0Key",
+    "ConnectionRemoval",
     "ConnectionState",
     "ConnectionStatus",
     "ConnectionTool",
@@ -1065,6 +1069,8 @@ __all__ = (
     "ReloadResponse",
     "ReloadRouterResponse",
     "ReloadRouterResponseBackendsItem",
+    "RemovedItem",
+    "RemovedKind",
     "RenameSessionBody",
     "RequiredConnectionPreview",
     "ResendMessageRequest",

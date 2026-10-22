@@ -99,47 +99,24 @@ pub async fn add_mcp_server(
     serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 
-/// Remove an MCP server, delete its configuration from `mcp.db`, and purge
-/// the associated OAuth token from the keychain.
+/// Remove an MCP server and everything it leaves behind.
 ///
-/// Delegates to `DELETE /api/v1/mcp/servers/{name}` on the embedded runtime
-/// for the DB cleanup, then **idempotently** deletes the keychain entry at
-/// `(apollia-mcp-oauth, <server_name>)` so a future reinstall doesn't
-/// inherit a stale token that would silently fail with `invalid_grant`.
-///
-/// Keychain deletion errors are logged but not propagated: leaving an
-/// orphan keychain entry is preferable to blocking the user from removing
-/// a server they no longer want.
+/// Delegates to `DELETE /api/v1/connections/mcp:{name}`, which stops its
+/// session when there is one, deletes its configuration from `mcp.db`, the
+/// files installed for it, its sign-in token and the secrets its
+/// configuration names, and revokes the tools agents were granted from it.
+/// A server that never started is removed all the same.
 #[tauri::command]
 pub async fn remove_mcp_server(state: State<'_, RuntimeLink>, name: String) -> Result<(), String> {
-    let path = format!("/api/v1/mcp/servers/{name}");
-    state.delete_json(&path).await.map(|_| ())?;
+    state
+        .delete_json(&remove_connection_path(&name))
+        .await
+        .map(|_| ())
+}
 
-    // The connection's own directory (a Python server's venv, an npm
-    // server's packages) goes with it.
-    if let Err(e) = python_server::remove_connection_dir(&python_server::connections_dir(), &name) {
-        tracing::warn!(
-            server = %name,
-            error = %e,
-            detail = "the connection directory may be orphaned",
-            "mcp.connection_dir.purge.failed"
-        );
-    }
-
-    // Best-effort OAuth token cleanup. We don't know at this layer whether
-    // the server used OAuth, so we always attempt the delete - it's a no-op
-    // when no entry exists.
-    if let Ok(store) = apollia_auth::select_secret_store() {
-        if let Err(e) = apollia_auth::delete_mcp_token(&*store, &name) {
-            tracing::warn!(
-                server = %name,
-                error = %e,
-                detail = "the keychain entry may be orphaned",
-                "mcp.oauth.token.purge.failed"
-            );
-        }
-    }
-    Ok(())
+/// The route that removes the connection of MCP server `name`.
+fn remove_connection_path(name: &str) -> String {
+    format!("/api/v1/connections/mcp:{name}")
 }
 
 /// Return the raw persisted launch configuration of a server.
@@ -442,6 +419,18 @@ pub(crate) async fn remove_mcp_secret(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Removing a server goes through the removal of its connection, which
+    // erases what the server leaves behind.
+    #[test]
+    fn test_removing_a_server_removes_its_connection() {
+        // GIVEN the MCP server `notion`
+        let name = "notion";
+        // WHEN the route its removal calls is built
+        let path = remove_connection_path(name);
+        // THEN it is the removal of the connection `mcp:notion`
+        assert_eq!(path, "/api/v1/connections/mcp:notion");
+    }
 
     // Accepting the warning before an addition is journaled on the connection.
     #[tokio::test]

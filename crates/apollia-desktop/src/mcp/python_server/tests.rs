@@ -373,20 +373,6 @@ async fn a_registry_entry_keeps_the_version_resolved_at_addition_and_never_rerun
     assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "ok");
 }
 
-#[test]
-fn removing_a_connection_deletes_its_directory() {
-    // GIVEN a connection directory holding a venv, and one never created
-    let data = tempfile::tempdir().expect("data");
-    let venv = data.path().join("echo").join("venv").join("bin");
-    std::fs::create_dir_all(&venv).expect("venv");
-    std::fs::write(venv.join("python"), b"").expect("file");
-    // WHEN both are removed
-    remove_connection_dir(data.path(), "echo").expect("remove");
-    remove_connection_dir(data.path(), "never-added").expect("absent");
-    // THEN the first is gone and the second is not an error
-    assert!(!data.path().join("echo").exists());
-}
-
 // ─── The shipped catalogue, against the real package index ─────────────────
 
 #[tokio::test]

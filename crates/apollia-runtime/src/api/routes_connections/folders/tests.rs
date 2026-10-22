@@ -187,7 +187,7 @@ async fn test_removing_a_folder_connection_removes_its_row_and_is_journaled() {
 
 /// A runtime on `dir` with its source registry, one folder connection and,
 /// on it, one indexed folder source whose index file exists.
-async fn folder_with_source(
+pub(crate) async fn folder_with_source(
     dir: &tempfile::TempDir,
     folder: &tempfile::TempDir,
 ) -> (

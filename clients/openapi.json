@@ -9390,7 +9390,7 @@
           "mcp"
         ],
         "summary": "`DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.",
-        "description": "Shuts down the session, unregisters the server, removes its database entry,\nthen journals the removal.\nReturns `200 OK` with `{\"removed\": \"<name>\"}` on success.\nReturns `404 Not Found` when no server with the given name is managed.\nReturns `503 Service Unavailable` when MCP is not configured.",
+        "description": "Shuts down the session when there is one, unregisters the server, removes\nits database entry, then journals the removal. A server that never started\nis removed all the same. `DELETE /api/v1/connections/{id}` removes what\nelse the server leaves behind.\nReturns `200 OK` with `{\"removed\": \"<name>\"}` on success.\nReturns `404 Not Found` when the server is neither running nor stored.\nReturns `503 Service Unavailable` when MCP is not configured.",
         "operationId": "remove_server",
         "parameters": [
           {
@@ -9408,7 +9408,7 @@
             "description": "Server removed"
           },
           "404": {
-            "description": "Server not found",
+            "description": "Server neither running nor stored",
             "content": {
               "application/json": {
                 "schema": {
@@ -19441,6 +19441,77 @@
           },
           "503": {
             "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connections/{id}": {
+      "delete": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`DELETE /api/v1/connections/{id}`: remove a connection of any kind, and\nanswer what was erased; with `?dry_run=1`, erase nothing and answer what\nwould be.",
+        "operationId": "remove_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Connection identifier, as `GET /api/v1/connections` lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "description": "`1` (or `true`) to erase nothing and answer what the removal would\nerase.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed, or on a dry run what would be; what was erased, and what could not be",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionRemoval"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found; nothing erased",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store could not be read or written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Secret store or audit journal not available; nothing erased",
             "content": {
               "application/json": {
                 "schema": {
@@ -33013,6 +33084,78 @@
             "description": "The file it was written to, when the source is a file or a folder."
           }
         }
+      },
+      "ConnectionRemoval": {
+        "type": "object",
+        "description": "What a removal erased, or would erase.",
+        "required": [
+          "connection",
+          "dryRun",
+          "removed",
+          "left"
+        ],
+        "properties": {
+          "connection": {
+            "type": "string",
+            "description": "Identifier of the connection."
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Whether nothing was erased, the list saying what would be."
+          },
+          "left": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RemovedItem"
+            },
+            "description": "What could not be erased; empty on a dry run."
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RemovedItem"
+            },
+            "description": "What was erased, or would be."
+          }
+        }
+      },
+      "RemovedItem": {
+        "type": "object",
+        "description": "One thing a removal erases.",
+        "required": [
+          "kind",
+          "name"
+        ],
+        "properties": {
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent the tool is taken from, for an agent access."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RemovedKind",
+            "description": "What it is."
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name: the server, the folder of installed files, the secret key,\nthe tool taken away, the source."
+          }
+        }
+      },
+      "RemovedKind": {
+        "type": "string",
+        "description": "The kinds of things a removal erases.",
+        "enum": [
+          "configuration",
+          "installed_files",
+          "token",
+          "secret",
+          "agent_access",
+          "source",
+          "state"
+        ]
       }
     },
     "securitySchemes": {

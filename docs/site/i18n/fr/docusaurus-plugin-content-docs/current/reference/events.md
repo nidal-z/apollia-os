@@ -219,6 +219,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | `AllReady` | aucune |
 | `ConfigInvalid` | champs nommés |
 | `ConfigReloaded` | champs nommés |
+| `ConnectionRemoved` | champs nommés |
 | `ConnectionStateChanged` | champs nommés |
 | `ContextCompacted` | champs nommés |
 | `FileModifiedSinceRead` | champs nommés |
