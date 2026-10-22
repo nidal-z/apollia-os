@@ -5,7 +5,10 @@
    * of a package), another agent or a workflow, and one to grant the tools of
    * a connection family by family. A switch turned off during the session
    * leaves the access listed, so it can be granted back before saving. An
-   * access that comes from a remote connection carries the "Remote" badge.
+   * access that comes from a remote connection carries the "Remote" badge,
+   * one from a connection its user paused the "Paused" badge. An agent on the
+   * default access says so, and each access given on top of it carries "On
+   * top".
    */
   import { t } from "svelte-i18n";
   import { Plus } from "lucide-svelte";
@@ -22,6 +25,7 @@
     ACCESS_GROUP_RULE,
     PROVENANCE_LABEL,
     type AccessGroup,
+    type AccessOrigin,
   } from "./agentSheet";
   import { grant, revoke, type AdjustDraft, type GrantCandidate } from "./agentAdjust";
 
@@ -40,6 +44,10 @@
     loadConnectionOffer: () => Promise<ConnectionOffer>;
     /** The accesses that come from a remote connection. */
     remote: Set<string>;
+    /** The accesses that come from a connection its user paused. */
+    paused?: Set<string>;
+    /** Whether the agent held the default access when the session began, and what on top. */
+    origin?: AccessOrigin;
     /** A note shown on an access, by identifier: the key of its text and its tone. */
     notes?: Record<string, { label: string; tone: "neutral" | "warning" }>;
   }
@@ -53,6 +61,8 @@
     agentName,
     loadConnectionOffer,
     remote,
+    paused = new Set<string>(),
+    origin = { byDefault: false, added: new Set<string>() },
     notes = {},
   }: Props = $props();
 
@@ -93,7 +103,13 @@
       {$t("agent_adjust.grant_open")}
     </Button>
   {/snippet}
-  <div class="space-y-3">
+  <div class="space-y-3" data-access-mode={origin.byDefault ? "default" : "listed"}>
+    {#if origin.byDefault}
+      <p class="m-0 flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground">
+        <Badge size="sm" variant="neutral">{$t("agent_sheet.access_default")}</Badge>
+        {$t("agent_sheet.access_default_hint", { values: { count: origin.added.size } })}
+      </p>
+    {/if}
     {#each groups as group (group.key)}
       <div data-testid="agent-sheet-access-group" data-family={group.key}>
         <div class="flex items-baseline justify-between gap-2">
@@ -110,6 +126,8 @@
                 class="flex items-center gap-2 border-b border-border/40 py-1.5 last:border-b-0"
                 data-testid="agent-adjust-access-row"
                 data-access={access.id}
+                data-paused={paused.has(access.id) ? "true" : undefined}
+                data-added={origin.added.has(access.id) ? "true" : undefined}
               >
                 <div class="min-w-0 flex-1">
                   <div class="text-body-xs text-foreground/85">{access.permits ?? access.label}</div>
@@ -125,8 +143,14 @@
                     {$t(notes[access.id].label)}
                   </Badge>
                 {/if}
+                {#if origin.added.has(access.id)}
+                  <Badge size="sm" variant="primary">{$t("agent_sheet.access_added")}</Badge>
+                {/if}
                 {#if remote.has(access.id)}
                   <Badge size="sm" variant="info" data-testid="agent-sheet-access-remote">{$t("agent_sheet.remote")}</Badge>
+                {/if}
+                {#if paused.has(access.id)}
+                  <Badge size="sm" variant="warning">{$t("agent_sheet.paused")}</Badge>
                 {/if}
                 {#if on !== inForce.includes(access.id)}
                   <Badge size="sm" variant="warning">{$t("agent_adjust.modified")}</Badge>

@@ -23,6 +23,10 @@ class ResolvedAgentResponse:
 
     Attributes:
         access (list[str]): Tools granted.
+        access_added (list[str]): The tools of `access` given on top of the default access; empty for
+            an agent that does not hold it.
+        access_by_default (bool): Whether the agent holds the default access, read again at every run,
+            rather than a list chosen for it.
         autonomy (str): Autonomy tier the agent runs at: `assisted`, `supervised`,
             `bounded_autonomous` or `long_autonomous`. The user's, else the
             package's, else the global default.
@@ -48,6 +52,8 @@ class ResolvedAgentResponse:
     """
 
     access: list[str]
+    access_added: list[str]
+    access_by_default: bool
     autonomy: str
     definition: ResolvedAgentResponseDefinition
     enabled: bool
@@ -69,6 +75,10 @@ class ResolvedAgentResponse:
         from ..models.agent_model_response import AgentModelResponse
 
         access = self.access
+
+        access_added = self.access_added
+
+        access_by_default = self.access_by_default
 
         autonomy = self.autonomy
 
@@ -119,6 +129,8 @@ class ResolvedAgentResponse:
         field_dict.update(
             {
                 "access": access,
+                "access_added": access_added,
+                "access_by_default": access_by_default,
                 "autonomy": autonomy,
                 "definition": definition,
                 "enabled": enabled,
@@ -149,6 +161,10 @@ class ResolvedAgentResponse:
 
         d = dict(src_dict)
         access = cast(list[str], d.pop("access"))
+
+        access_added = cast(list[str], d.pop("access_added"))
+
+        access_by_default = d.pop("access_by_default")
 
         autonomy = d.pop("autonomy")
 
@@ -211,6 +227,8 @@ class ResolvedAgentResponse:
 
         resolved_agent_response = cls(
             access=access,
+            access_added=access_added,
+            access_by_default=access_by_default,
             autonomy=autonomy,
             definition=definition,
             enabled=enabled,

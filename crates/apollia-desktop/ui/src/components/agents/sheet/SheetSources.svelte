@@ -2,7 +2,8 @@
   /**
    * SheetSources - what the agent consults: the sources checked for it, kind
    * by kind, each with where its index stands and the files it left out. The
-   * profile is read only when it is checked here.
+   * profile is read only when it is checked here. A source read through a
+   * connection its user paused carries the "Paused" badge.
    */
   import { t } from "svelte-i18n";
   import SheetSection from "./SheetSection.svelte";
@@ -13,9 +14,11 @@
     rows: Row[];
     /** Whether the value shown is the user's rather than the package's. */
     modified?: boolean;
+    /** The rows read through a connection its user paused, by identifier. */
+    paused?: Set<string>;
   }
 
-  let { rows, modified = false }: Props = $props();
+  let { rows, modified = false, paused = new Set<string>() }: Props = $props();
 </script>
 
 <SheetSection
@@ -31,7 +34,7 @@
   {:else}
     <ul class="m-0 list-none divide-y divide-border/40 p-0">
       {#each rows as row (row.id)}
-        <SourceRow {row} />
+        <SourceRow {row} paused={paused.has(row.id)} />
       {/each}
     </ul>
   {/if}
