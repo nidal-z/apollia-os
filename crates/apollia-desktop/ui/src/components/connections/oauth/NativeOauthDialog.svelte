@@ -43,9 +43,14 @@
     onopenclient: (provider: ProviderId) => void;
     /** "Try" the account just connected. */
     ontry?: (provider: ProviderId, accountId: string) => void;
+    /**
+     * The account is connected, for the flow of an addition that opened this
+     * dialog: it goes on in its own window, so this one closes on it.
+     */
+    onconnected?: (provider: ProviderId, accountId: string) => void;
   }
 
-  let { open, provider, onclose, oncompleted, onopenclient, ontry }: Props = $props();
+  let { open, provider, onclose, oncompleted, onopenclient, ontry, onconnected }: Props = $props();
 
   let authUrl = $state<string | null>(null);
   let flowState = $state<string | null>(null);
@@ -85,7 +90,12 @@
 
   /** The flow is over: the account added and its "Try" when offered, else closed. */
   function finish(): void {
-    if (ontry && connectedAccountId) step = "done";
+    const target = provider;
+    const account = connectedAccountId;
+    if (onconnected && target && account) {
+      onconnected(target, account);
+      close();
+    } else if (ontry && account) step = "done";
     else close();
   }
 

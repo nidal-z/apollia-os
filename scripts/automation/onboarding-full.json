@@ -1488,6 +1488,20 @@
     },
     {
       "kind": "waitFor",
+      "testid": "add-flow-who",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "add-flow-steps"
+    },
+    {
+      "kind": "click",
+      "testid": "add-flow-who-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "test-result-success",
       "timeoutMs": 15000
     },

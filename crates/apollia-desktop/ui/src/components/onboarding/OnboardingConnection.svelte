@@ -3,8 +3,8 @@
    * First-launch step 6 - a useful connection, optional.
    *
    * One line per connection the agent kept at the step before requires and
-   * this machine lacks. "Add" opens the add dialog of the Connections screen
-   * on that entry of the selection, above this step; once the connection is
+   * this machine lacks. "Add" opens the one flow of an addition on that entry
+   * of the selection, in a dialog above this step; once the connection is
    * added its line shows as present. "Skip" is offered whatever the lines
    * show: nothing here is needed to finish the first launch.
    *
@@ -15,7 +15,10 @@
   import { locale, t } from "svelte-i18n";
   import { CircleCheck, Plug } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
-  import ConnectorWizard from "../integrations/ConnectorWizard.svelte";
+  import { Dialog } from "$lib/components/ui/dialog";
+  import AddFlow from "../connections/add/AddFlow.svelte";
+  import { catalogueKey } from "$lib/connections/addWindow";
+  import { entryLabel } from "$lib/connections/catalogueText";
   import {
     allPresent,
     entryToAdd,
@@ -135,12 +138,21 @@
 </div>
 
 {#if adding !== null && addingEntry !== null}
-  <ConnectorWizard
-    server={addingEntry}
+  {@const type = adding}
+  <Dialog
     open={true}
     onclose={() => (adding = null)}
-    oncomplete={() => {
-      if (adding !== null) void markAdded(adding);
-    }}
-  />
+    size="lg"
+    bodyClass="p-0"
+    label={entryLabel(addingEntry, $locale)}
+  >
+    <AddFlow
+      entry={{ key: catalogueKey(addingEntry), kind: "catalogue", entry: addingEntry, source: "selection" }}
+      name={entryLabel(addingEntry, $locale)}
+      onback={() => (adding = null)}
+      onadded={() => void markAdded(type)}
+      ondone={() => (adding = null)}
+      onopenrule={() => (adding = null)}
+    />
+  </Dialog>
 {/if}

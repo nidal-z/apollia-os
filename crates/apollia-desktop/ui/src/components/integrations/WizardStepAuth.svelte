@@ -8,6 +8,8 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { FormField } from "$lib/components/ui/form-field";
   import { handleExternalLinkClick } from "$lib/utils/externalLink";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { fieldLabel, plainScopes } from "$lib/connections/addFlow";
   import type {
     ConnectorEnrichmentView,
     McpOAuthAccount,
@@ -130,6 +132,23 @@
   );
 
   let revealed = $state<Record<string, boolean>>({});
+
+  // The name of a field and the identifiers of a sign-in's scopes are the
+  // developer mode's; the operator reads a key, a value, and what is granted.
+  const fieldWords = $derived({
+    key: $t("connections.add_flow.key_label"),
+    value: $t("connections.add_flow.value_label"),
+  });
+  function labelOf(envVar: RegistryEnvVarView): string {
+    return fieldLabel(envVar, $developerMode, fieldWords);
+  }
+  function hintOf(envVar: RegistryEnvVarView): string | undefined {
+    if (!$developerMode && !envVar.isSecret) return undefined;
+    return envVar.description ?? undefined;
+  }
+  const scopeWords = $derived(
+    oauthDiscovery ? plainScopes(oauthDiscovery.scope_descriptions, oauthSelectedScopes) : [],
+  );
 
   function toggleReveal(name: string): void {
     revealed = { ...revealed, [name]: !revealed[name] };
@@ -255,6 +274,15 @@
         <p class="text-caption-lg text-muted-foreground leading-[1.5]" data-testid="auth-oauth-preregistered-scope-note">
           {$t("integrations.wizard.oauth_preregistered_scope_note")}
         </p>
+      {:else if oauthDiscovery && !$developerMode}
+        {#if scopeWords.length > 0}
+          <div class="space-y-1" data-testid="auth-oauth-permissions">
+            <p class="text-sm font-medium text-foreground">{$t("connections.add_flow.permissions_title")}</p>
+            <ul class="ml-5 list-disc space-y-0.5 text-caption text-muted-foreground">
+              {#each scopeWords as word (word)}<li>{word}</li>{/each}
+            </ul>
+          </div>
+        {/if}
       {:else if oauthDiscovery}
         <div class="space-y-2" data-testid="auth-oauth-scopes">
           <div class="space-y-1">
@@ -412,13 +440,13 @@
       {#each envVars as envVar (envVar.name)}
         <FormField
           id={`env-${envVar.name}`}
-          label={envVar.name}
+          label={labelOf(envVar)}
           labelClass="text-sm text-foreground"
           class="space-y-1.5"
           required={envVar.isRequired}
           optional={!envVar.isRequired}
           optionalLabel={`(${$t("integrations.wizard.optional")})`}
-          hint={envVar.description ?? undefined}
+          hint={hintOf(envVar)}
         >
           {#if envVar.isSecret}
             <p class="flex items-center gap-1 text-caption text-muted-foreground" data-testid={`env-encrypted-note-${envVar.name}`}>
@@ -461,7 +489,7 @@
               type="text"
               value={values[envVar.name] ?? ""}
               oninput={(e) => onchange(envVar.name, (e.currentTarget as HTMLInputElement).value)}
-              placeholder={envVar.name}
+              placeholder={$developerMode ? envVar.name : ""}
               autocomplete="off"
               data-testid={`env-input-${envVar.name}`}
             />

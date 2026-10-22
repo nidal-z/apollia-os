@@ -27,10 +27,6 @@
   import { tools as builtinTools, loadTools as loadBuiltinTools } from "$lib/stores/toolGovernance";
   import AddConnectionWindow from "../components/connections/catalogue/AddConnectionWindow.svelte";
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
-  import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
-  import MailboxDialog from "../components/integrations/MailboxDialog.svelte";
-  import FolderConnectionDialog from "../components/connections/catalogue/FolderConnectionDialog.svelte";
-  import { chooseAndAddFolder, type FolderOutcome } from "$lib/connections/folderConnection";
   import {
     listConnections,
     listMcpServers,
@@ -60,11 +56,15 @@
   import {
     ADD_WINDOW_CLOSED,
     backToSearch,
+    catalogueKey,
+    chooseEntry,
     flowCancelled,
     flowDone,
+    flowResumed,
     leaveForFlow,
     openAddWindow,
-    type AddEntry,
+    openOnEntry,
+    startAdding,
   } from "$lib/connections/addWindow";
   import {
     NATIVE_PROVIDER_KEYS,
@@ -85,8 +85,8 @@
   import { sendChatMessage } from "$lib/ipc/chat";
   import { triggerAutoName } from "$lib/chat/autoName";
   import { reportError } from "$lib/errors/reportError";
-  import { deriveServerName } from "$lib/integrations/connectorConfig";
   import { enrichmentLabel } from "$lib/connections/catalogueText";
+  import { nativeConnectionId } from "$lib/connections/addFlow";
   import {
     tryConnectorPrompt,
     tryQuestions,
@@ -178,22 +178,18 @@
     });
   }
 
-  // ── Add window + wizard ──────────────────────────────────────────────────────
-  // The window keeps its search while a flow it opened stands in its place, so
-  // cancelling that flow gives the search back rather than the list.
+  // ── Add window ──────────────────────────────────────────────────────────────
+  // The window holds the one flow of an addition. It keeps its search while
+  // the sign-in dialog of an account stands in its place, so cancelling that
+  // dialog gives the search back, and a sign-in done resumes the flow.
   let addWindow = $state(ADD_WINDOW_CLOSED);
   let registryLoading = $state(false);
   let catalogueTier = $state<CatalogueTier>("none");
   // Opening reads the selection only; the public catalogue is asked by
   // "Explore all" and nothing else.
   const catalogueSource = createCatalogueSource();
-  let selectedRegistryServer = $state<RegistryServerView | null>(null);
-  let wizardOpen = $state(false);
-  let mailboxOpen = $state(false);
-
-  // ── Folder connections ───────────────────────────────────────────────────────
-  let folderOutcome = $state<Exclude<FolderOutcome, { kind: "cancelled" }> | null>(null);
-  let folderDialogOpen = $state(false);
+  /** The sign-in dialog was opened by the flow of the window, not by a card. */
+  let oauthForAdd = $state(false);
 
   // ── Try ─────────────────────────────────────────────────────────────────────
   let tryTarget = $state<{ connectionId: string; name: string } | null>(null);
@@ -352,69 +348,29 @@
     void showSelection();
   }
 
-  /** Add on a catalogue card opens the add dialog on its warning, in place of the window. */
-  function handleConnect(server: RegistryServerView): void {
-    addWindow = leaveForFlow(addWindow);
-    selectedRegistryServer = server;
-    wizardOpen = true;
-  }
-
-  /** Add on the card of `entry`: the flow of its kind. */
-  function addEntry(entry: AddEntry): void {
-    switch (entry.kind) {
-      case "catalogue":
-        handleConnect(entry.entry);
-        return;
-      case "native":
-        addWindow = flowDone();
-        select({ kind: "native", provider: entry.provider });
-        return;
-      case "mailbox":
-        addWindow = leaveForFlow(addWindow);
-        mailboxOpen = true;
-        return;
-      case "folder":
-        void addFolder();
-        return;
-      case "address":
-        return;
-    }
-  }
-
   /**
-   * Open the add dialog on the selection entry another screen asked for; an
-   * entry the selection does not hold opens the catalogue instead.
+   * Open the window on the card of the selection entry another screen asked
+   * for; an entry the selection does not hold opens the search instead.
    */
   async function openPendingEntry(entryId: string): Promise<void> {
+    addWindow = openAddWindow();
     await showSelection();
     const entry = findSelectionEntry(registry, entryId);
-    if (entry) handleConnect(entry);
-    else addWindow = openAddWindow();
+    if (entry) addWindow = openOnEntry(catalogueKey(entry));
   }
 
-  /**
-   * "Folder" in the selection, or "Choose another folder" after one: the
-   * system picker, then the folder added. A cancelled picker changes nothing.
-   */
-  async function addFolder(): Promise<void> {
+  /** The sign-in to an account the flow asks for, in the dialog of its provider. */
+  function signInForFlow(provider: ProviderId): void {
     addWindow = leaveForFlow(addWindow);
-    const outcome = await chooseAndAddFolder($t("connections.folder.picker_title"));
-    if (outcome.kind === "cancelled") {
-      addWindow = flowCancelled(addWindow);
-      return;
-    }
-    addWindow = flowDone();
-    folderOutcome = outcome;
-    folderDialogOpen = true;
-    if (outcome.kind === "added") {
-      await loadAll();
-      select({ kind: "connection", id: outcome.connection.id });
-    }
+    oauthForAdd = true;
+    startNativeConnect(provider);
   }
 
-  function closeFolderDialog(): void {
-    folderDialogOpen = false;
-    folderOutcome = null;
+  /** The flow is over: the connection it added, when it added one, is shown. */
+  function flowFinished(connectionId: string | null): void {
+    addWindow = flowDone();
+    void loadAll();
+    if (connectionId) select({ kind: "connection", id: connectionId });
   }
 
   function handleManage(name: string): void {
@@ -527,16 +483,8 @@
     tryLaunching = false;
     if (!opened) return;
     tryTarget = null;
-    wizardOpen = false;
-    selectedRegistryServer = null;
     addWindow = flowDone();
     void loadAll();
-  }
-
-  /** "Try" on a coaching card at the end of a server's addition. */
-  function tryAddedServer(prompt: string): void {
-    const server = selectedRegistryServer;
-    if (server) void launchTry(`mcp:${deriveServerName(server)}`, prompt);
   }
 </script>
 
@@ -656,72 +604,42 @@
   </BrowseLayout>
 </div>
 
-{#if selectedRegistryServer}
-  <ConnectorWizard
-    server={selectedRegistryServer}
-    open={wizardOpen}
-    onclose={() => {
-      wizardOpen = false;
-      selectedRegistryServer = null;
-      addWindow = flowCancelled(addWindow);
-    }}
-    oncomplete={() => {
-      wizardOpen = false;
-      selectedRegistryServer = null;
-      addWindow = flowDone();
-      void loadAll();
-    }}
-    ontryprompt={tryAddedServer}
-  />
-{/if}
-
-<MailboxDialog
-  open={mailboxOpen}
-  onclose={() => {
-    mailboxOpen = false;
-    addWindow = flowCancelled(addWindow);
-  }}
-  onadded={(connectionId) => {
-    addWindow = flowDone();
-    select({ kind: "connection", id: connectionId });
-    void loadAll();
-  }}
-/>
-
-<FolderConnectionDialog
-  open={folderDialogOpen}
-  outcome={folderOutcome}
-  onclose={closeFolderDialog}
-  ontry={(connection) => {
-    closeFolderDialog();
-    openTry(connection.id, connection.label);
-  }}
-  onchooseanother={() => void addFolder()}
-  onopenrule={() => {
-    closeFolderDialog();
-    navigateTo("authorizations");
-  }}
-/>
-
 <NativeOauthDialog
   open={oauthOpen}
   provider={oauthProvider}
-  onclose={() => (oauthOpen = false)}
+  onclose={() => {
+    oauthOpen = false;
+    oauthForAdd = false;
+    addWindow = flowCancelled(addWindow);
+  }}
   oncompleted={() => {
     void refreshNativeStatus();
     void loadAll();
   }}
+  onconnected={oauthForAdd
+    ? (provider, accountId) => {
+        oauthForAdd = false;
+        addWindow = flowResumed(addWindow, nativeConnectionId(provider, accountId));
+      }
+    : undefined}
   ontry={(provider, accountId) => {
     oauthOpen = false;
     openTry(`native:${provider}:${accountId}`, nativeCard(provider).name);
   }}
-  onopenclient={(provider) => openClientSection(provider)}
+  onopenclient={(provider) => {
+    // The client is entered on the provider's card: the window of an
+    // addition that asked for the sign-in gives way to it.
+    addWindow = flowDone();
+    openClientSection(provider);
+  }}
 />
 
 <AddConnectionWindow
   open={addWindow.open}
   bind:query={addWindow.query}
   chosen={addWindow.chosen}
+  adding={addWindow.adding}
+  resume={addWindow.resume}
   selection={registry}
   {publicEntries}
   failures={catalogueFailures}
@@ -731,16 +649,21 @@
   {installedNames}
   {installedByPackage}
   onclose={() => (addWindow = ADD_WINDOW_CLOSED)}
-  onchoose={(key) => (addWindow = { ...addWindow, chosen: key })}
+  onchoose={(key) => (addWindow = chooseEntry(addWindow, key))}
   onback={() => (addWindow = backToSearch(addWindow))}
   onexploreall={handleExploreAll}
   onbacktoselection={showSelection}
-  onadd={addEntry}
+  onadd={() => (addWindow = startAdding(addWindow))}
   onmanage={handleManage}
-  oninstalled={() => {
-    addWindow = flowDone();
-    void loadAll();
+  onadded={() => void loadAll()}
+  ondone={flowFinished}
+  onsignin={signInForFlow}
+  ontry={(connectionId, name) => {
+    flowFinished(connectionId);
+    openTry(connectionId, name);
   }}
+  ontryprompt={(connectionId, prompt) => void launchTry(connectionId, prompt)}
+  onopenrule={() => (addWindow = flowDone())}
 />
 
 <TryConnectionDialog

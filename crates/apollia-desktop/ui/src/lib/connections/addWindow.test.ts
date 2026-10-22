@@ -6,12 +6,15 @@ import {
   ADD_WINDOW_CLOSED,
   addWindowGroups,
   backToSearch,
+  chooseEntry,
   entryNeeds,
   findEntry,
   flowCancelled,
   flowDone,
+  flowResumed,
   leaveForFlow,
   openAddWindow,
+  startAdding,
   type AddEntry,
 } from "$lib/connections/addWindow";
 import type { RegistryServerView } from "$lib/types";
@@ -136,20 +139,32 @@ describe("Cancel gives the search back, never the list", () => {
     const back = backToSearch(searched);
 
     // THEN the search stays, the card closes
-    expect(back).toEqual({ open: true, query: "notion", chosen: null, away: false });
+    expect(back).toEqual({ open: true, query: "notion", chosen: null, adding: false, resume: null, away: false });
   });
 
-  test("cancelling the addition the card opened reopens the window on its search", () => {
+  test("cancel in a flow not yet added keeps the words typed and closes the flow", () => {
     // GIVEN Add pressed on a card of a search
-    const searched = { ...openAddWindow(), query: "notion", chosen: "entry:com.notion/mcp" };
+    const adding = startAdding({ ...openAddWindow(), query: "notion", chosen: "entry:com.notion/mcp" });
+
+    // WHEN Cancel is pressed in its flow
+    const back = backToSearch(adding);
+
+    // THEN the search stays, neither the card nor the flow is open
+    expect(adding.adding).toBe(true);
+    expect(back).toEqual({ open: true, query: "notion", chosen: null, adding: false, resume: null, away: false });
+  });
+
+  test("cancelling the sign-in the flow opened reopens the window on its search", () => {
+    // GIVEN the flow of an account that left the window for its sign-in dialog
+    const searched = startAdding({ ...openAddWindow(), query: "outlook", chosen: "native:microsoft" });
     const adding = leaveForFlow(searched);
 
-    // WHEN the addition is cancelled
+    // WHEN the sign-in is cancelled
     const cancelled = flowCancelled(adding);
 
     // THEN the window is open again on the same words, no card open
     expect(adding.open).toBe(false);
-    expect(cancelled).toEqual({ open: true, query: "notion", chosen: null, away: false });
+    expect(cancelled).toEqual({ open: true, query: "outlook", chosen: null, adding: false, resume: null, away: false });
   });
 
   test("an addition finished, or one the window did not open, does not reopen it", () => {
@@ -163,16 +178,50 @@ describe("Cancel gives the search back, never the list", () => {
     expect(fromElsewhere.open).toBe(false);
   });
 
-  test("the Connections screen sends a cancelled addition back to the window", () => {
+  test("choosing another entry while a flow is open opens its card, not its flow", () => {
+    // GIVEN the flow of one entry open
+    const adding = startAdding({ ...openAddWindow(), chosen: "entry:com.notion/mcp" });
+
+    // WHEN another entry is chosen in the list
+    const chosen = chooseEntry(adding, "entry:com.linear/mcp");
+
+    // THEN its card opens, its warning to read before anything is added
+    expect(chosen).toEqual({ ...adding, chosen: "entry:com.linear/mcp", adding: false, resume: null });
+  });
+
+  test("a sign-in done resumes the flow on who may use the account", () => {
+    // GIVEN the flow of an account that left the window for its sign-in dialog
+    const away = leaveForFlow(startAdding({ ...openAddWindow(), query: "outlook", chosen: "native:microsoft" }));
+
+    // WHEN the dialog connects the account
+    const resumed = flowResumed(away, "native:microsoft:ada@example.com");
+
+    // THEN the window is back on the same card, its flow on that connection
+    expect(resumed).toEqual({
+      open: true,
+      query: "outlook",
+      chosen: "native:microsoft",
+      adding: true,
+      resume: "native:microsoft:ada@example.com",
+      away: false,
+    });
+    // AND a sign-in the window did not open resumes nothing
+    expect(flowResumed(ADD_WINDOW_CLOSED, "native:microsoft:ada@example.com")).toEqual(ADD_WINDOW_CLOSED);
+  });
+
+  test("the Connections screen sends a cancelled sign-in back to the window, and a done one to the flow", () => {
     // GIVEN the source of the Connections screen
     const route = readFileSync(new URL("../../routes/Connections.svelte", import.meta.url), "utf8");
 
-    // WHEN the close handler of the add dialog and of the mailbox form are read
-    const wizard = route.slice(route.indexOf("<ConnectorWizard"), route.indexOf("oncomplete=", route.indexOf("<ConnectorWizard")));
-    const mailbox = route.slice(route.indexOf("<MailboxDialog"), route.indexOf("onadded=", route.indexOf("<MailboxDialog")));
+    // WHEN the close and connected handlers of the sign-in dialog are read
+    const dialog = route.slice(route.indexOf("<NativeOauthDialog"), route.indexOf("/>", route.indexOf("<NativeOauthDialog")));
 
-    // THEN both give the window back on its search
-    expect(wizard).toContain("addWindow = flowCancelled(addWindow)");
-    expect(mailbox).toContain("addWindow = flowCancelled(addWindow)");
+    // THEN a cancel gives the window back on its search, a sign-in done resumes its flow
+    expect(dialog).toContain("addWindow = flowCancelled(addWindow)");
+    expect(dialog).toContain("addWindow = flowResumed(addWindow, nativeConnectionId(provider, accountId))");
+    // AND no separate dialog of a kind remains
+    for (const gone of ["<ConnectorWizard", "<MailboxDialog", "<FolderConnectionDialog"]) {
+      expect(route).not.toContain(gone);
+    }
   });
 });

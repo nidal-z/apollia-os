@@ -27,7 +27,6 @@ import TryConnectionDialog from "./shared/TryConnectionDialog.svelte";
 import NativeConnectorDetail from "./detail/NativeConnectorDetail.svelte";
 import McpDetailHeader from "./detail/McpDetailHeader.svelte";
 import ConnectionSummaryDetail from "./detail/ConnectionSummaryDetail.svelte";
-import FolderConnectionDialog from "./catalogue/FolderConnectionDialog.svelte";
 import type { TryQuestion } from "$lib/connections/tryConnectorPrompt";
 import type { Connection } from "$lib/types";
 
@@ -132,21 +131,17 @@ describe("Try on the page of a connection", () => {
 });
 
 describe("Try at the end of an addition", () => {
-  test("the folder just added offers Try beside Done", async () => {
-    // GIVEN a folder just added, in French
-    await french();
+  test("the flow of every addition ends on Try beside Done", () => {
+    // GIVEN the source of the one flow of an addition
+    const flow = readFileSync(fileURLToPath(new URL("./add/AddFlow.svelte", import.meta.url)), "utf8");
 
-    // WHEN the dialog is rendered with its Try action
-    const html = renderToString(FolderConnectionDialog as never, {
-      props: {
-        open: true, outcome: { kind: "added", connection: FOLDER },
-        onclose: noop, onchooseanother: noop, onopenrule: noop, ontry: noop,
-      } as never,
-    }).body;
+    // WHEN its last step is read
+    const trial = flow.slice(flow.indexOf('{:else if phase === "trial"}\n        {#if trialOk}'));
 
-    // THEN Try sits beside Done
-    expect(html).toContain('data-testid="folder-connection-try"');
-    expect(html).toContain('data-testid="folder-connection-done"');
+    // THEN Try sits beside Done, on the connection the flow added, whatever its kind
+    expect(trial).toContain('data-testid="add-flow-try"');
+    expect(trial).toContain("ontry(id, name)");
+    expect(trial).toContain('data-testid="wizard-done-btn"');
   });
 
   test("the route opens Try at the end of every addition and from every page", () => {
@@ -159,8 +154,8 @@ describe("Try at the end of an addition", () => {
     // WHEN its wiring is read
     // THEN a native account, a folder and a server reach Try at the end of their addition
     expect(source).toMatch(/<NativeOauthDialog[\s\S]*?ontry=\{\(provider, accountId\)/);
-    expect(source).toMatch(/<FolderConnectionDialog[\s\S]*?ontry=\{\(connection\)/);
-    expect(source).toMatch(/ontryprompt=\{tryAddedServer\}/);
+    expect(source).toMatch(/<AddConnectionWindow[\s\S]*?ontry=\{\(connectionId, name\)/);
+    expect(source).toMatch(/ontryprompt=\{\(connectionId, prompt\) => void launchTry\(connectionId, prompt\)\}/);
     // AND every page passes its Try to the dialog, by the identifier of its connection
     expect(source).toMatch(/<NativeConnectorDetail[\s\S]*?ontry=\{nativeTry\(/);
     expect(source).toMatch(/<McpServerDetail[\s\S]*?ontry=\{\(name\) => openTry\(`mcp:/);

@@ -5,6 +5,7 @@
  * stays a pure function (the caller owns the reactive derivation).
  */
 import type { RegistryServerView } from "$lib/types";
+import { deriveServerName, legacyServerName } from "$lib/integrations/connectorConfig";
 
 /** Prettify a raw vendor slug: strip mcp/server noise, title-case the first word. */
 export function prettyVendor(raw: string): string {
@@ -73,7 +74,11 @@ export function vendorLabel(entry: RegistryServerView): string {
  *
  * `installedNames` indexes installed servers by their sanitized name;
  * `installedByPackage` indexes them by their `package` field, bridging the
- * registry package identifier to the on-disk server name.
+ * registry package identifier to the on-disk server name. A server with no
+ * package (one reached at an address) is found by the name the entry is
+ * installed under today, drawn from its identifier, or by the one it was
+ * installed under before, drawn from its English label: adding it again must
+ * open it, not install it a second time under the other name.
  */
 export function installedNameFor(
   entry: RegistryServerView,
@@ -87,6 +92,9 @@ export function installedNameFor(
   if (pkgId) {
     const match = installedByPackage.get(pkgId);
     if (match) return match;
+  }
+  for (const name of [deriveServerName(entry), legacyServerName(entry)]) {
+    if (installedNames.has(name)) return name;
   }
   return null;
 }
