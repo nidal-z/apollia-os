@@ -198,6 +198,17 @@ describe("journal - one line per entry, in plain language", () => {
     expect(iconOf(granted)).toBe("access");
   });
 
+  test("a tool given another family reads as a sentence, not as a system line", () => {
+    // GIVEN the entry the runtime writes when the operator reclassifies a tool
+    const reclassified = line("tool_reclassified", { nature: "access_change" });
+
+    // WHEN its sentence is resolved
+    // THEN it has words of its own, in both languages
+    expect(sentenceOf(reclassified, names).key).toBe("journal.sentence.tool_reclassified");
+    expect(typeof resolve(en, "journal.sentence.tool_reclassified")).toBe("string");
+    expect(typeof resolve(fr, "journal.sentence.tool_reclassified")).toBe("string");
+  });
+
   test("every sentence and every state has its words in both languages", () => {
     // GIVEN one line per kind the journal writes for a reader, per family and per ending
     const kinds = [
@@ -205,7 +216,7 @@ describe("journal - one line per entry, in plain language", () => {
       "rule_removed",
       "batch_access_granted", "agent_installed", "agent_updated", "agent_uninstalled",
       "agent_override_changed", "package_installed", "package_updated", "package_uninstalled",
-      "connection_added", "connection_modified", "connection_removed",
+      "connection_added", "connection_modified", "connection_removed", "tool_reclassified",
       "connection_warning_accepted", "connection_secret_set", "connection_secret_removed",
       "account_connected", "account_disconnected", "folder_added", "policy_applied",
       "policy_changed", "policy_unreadable", "fail_closed_triggered", "journal_exported",

@@ -5,7 +5,8 @@
    * Pause or Resume, and Remove, confirmed in the page after the list of what
    * goes with it; the tools it brings; for a Google account, the Drive folder
    * its agents work in, for a Microsoft account, the OneDrive folders and
-   * files Apollia may read. The technical detail is a section of the developer
+   * files Apollia may read; the agents that use it and Give to an agent; what
+   * they did with it this week; its tools with their family. The technical detail is a section of the developer
    * mode, the OAuth client of an account with it; the settings of a service
    * stay on the card, their launch and transport for the developer mode.
    */
@@ -43,6 +44,9 @@
   import type { Connection, McpToolSummaryView } from "$lib/types";
   import ConnectionStateBadge from "../shared/ConnectionStateBadge.svelte";
   import McpToolsTab from "./McpToolsTab.svelte";
+  import ConnectionAgentsSection from "./ConnectionAgentsSection.svelte";
+  import ConnectionActivitySection from "./ConnectionActivitySection.svelte";
+  import ToolFamilyControl from "./ToolFamilyControl.svelte";
   import AccountDriveFolder from "./AccountDriveFolder.svelte";
   import AccountOneDriveChoices from "./AccountOneDriveChoices.svelte";
   import NativeClientSection from "./NativeClientSection.svelte";
@@ -353,6 +357,9 @@
     </div>
   {/if}
 
+  <ConnectionAgentsSection {connection} />
+  <ConnectionActivitySection {connection} {label} />
+
   {#if provider === "google" && connection.account}
     <Card class="max-w-3xl px-4 py-1">
       <AccountDriveFolder
@@ -371,7 +378,7 @@
 
   <div data-testid="connection-detail-tools">
   {#if serverName !== null && serverTools !== null}
-    <McpToolsTab tools={serverTools} {serverName} />
+    <McpToolsTab tools={serverTools} {serverName} {connection} {onupdated} />
   {:else}
     <Card class="max-w-3xl px-4 py-3.5">
       <div class="mb-2.5 flex items-center justify-between">
@@ -383,9 +390,10 @@
       {:else}
         <ul class="space-y-1">
           {#each connection.tools as tool (tool.id)}
-            <li class="flex items-center gap-2 text-body-xs text-foreground" data-testid="connection-tool-{tool.id}">
+            <li class="flex flex-wrap items-center gap-2 text-body-xs text-foreground" data-testid="connection-tool-{tool.id}">
               <Wrench size={11} class="shrink-0 text-muted-foreground" aria-hidden="true" />
               {tool.id}
+              <ToolFamilyControl {connection} toolId={tool.id} {onupdated} />
             </li>
           {/each}
         </ul>

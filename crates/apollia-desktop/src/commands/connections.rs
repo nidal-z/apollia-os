@@ -6,6 +6,13 @@
 //! connections:
 //!
 //! - `list_connections`: `GET /api/v1/connections`.
+//! - `get_connection_agents`: `GET /api/v1/connections/{id}/agents`, the
+//!   agents that hold tools of a connection, and which ones.
+//! - `get_connection_activity`: `GET /api/v1/audit/activity`, the last use of
+//!   the tools of a connection and the actions of each agent over a period.
+//! - `set_connection_tool_family`: `PUT
+//!   /api/v1/connections/{id}/tools/{tool}/family`, the family the operator
+//!   gives a tool the selection does not classify.
 //! - `grant_connection`: `POST /api/v1/connections/{id}/grants`, tools of a
 //!   connection given to agents; an agent on the default access keeps it.
 //! - `check_connection`: `POST /api/v1/connections/{id}/check`, the state found
@@ -66,6 +73,75 @@ pub async fn grant_connection(
             &json!({ "agents": agents, "tools": tools }),
         )
         .await
+}
+
+/// The agents that hold at least one tool of the connection `connection_id`,
+/// and which tools each holds, as the runtime grants them.
+#[tauri::command]
+pub async fn get_connection_agents(
+    state: State<'_, RuntimeLink>,
+    connection_id: String,
+) -> Result<Value, String> {
+    state
+        .get_json(&connection_path(&connection_id, "agents"))
+        .await
+}
+
+/// The last use of the tools named under `tool_prefix` and the actions each
+/// agent took with them since `since` (seven days when absent), read from the
+/// journal: an agent, a count and a date, never a content.
+#[tauri::command]
+pub async fn get_connection_activity(
+    state: State<'_, RuntimeLink>,
+    tool_prefix: String,
+    since: Option<String>,
+) -> Result<Value, String> {
+    state
+        .get_json(&activity_path(&tool_prefix, since.as_deref()))
+        .await
+}
+
+/// The route of the activity of the tools named under `tool_prefix`.
+fn activity_path(tool_prefix: &str, since: Option<&str>) -> String {
+    let since = since
+        .map(str::trim)
+        .filter(|since| !since.is_empty())
+        .map(|since| format!("&since={}", crate::attached::segment(since)))
+        .unwrap_or_default();
+    format!(
+        "/api/v1/audit/activity?tool_prefix={}{since}",
+        crate::attached::segment(tool_prefix)
+    )
+}
+
+/// Give `tool` of the connection `connection_id` the action family `family`.
+/// The runtime refuses a tool the selection classifies, and a connection that
+/// is not a service; it journals the change. Answers the connection as the
+/// list now shows it.
+#[tauri::command]
+pub async fn set_connection_tool_family(
+    state: State<'_, RuntimeLink>,
+    connection_id: String,
+    tool: String,
+    family: String,
+) -> Result<Connection, String> {
+    let json = state
+        .put_json(
+            &tool_family_path(&connection_id, &tool),
+            &json!({ "family": family }),
+        )
+        .await?;
+    parse_connection(json)
+}
+
+/// The route of the family of `tool`, its local name, on the connection
+/// `connection_id`.
+fn tool_family_path(connection_id: &str, tool: &str) -> String {
+    format!(
+        "/api/v1/connections/{}/tools/{}/family",
+        crate::attached::segment(connection_id),
+        crate::attached::segment(tool)
+    )
 }
 
 /// The route that grants tools of the connection `connection_id`.
@@ -377,6 +453,44 @@ mod tests {
         assert_eq!(
             path,
             "/api/v1/connections/native%3Agoogle%3Aada%40example.com/grants"
+        );
+    }
+
+    #[test]
+    fn test_the_agents_of_a_connection_name_it_as_one_segment() {
+        // GIVEN the identifier of a service, which carries a colon
+        // WHEN the route of its agents is built
+        let path = connection_path("mcp:notion", "agents");
+        // THEN the identifier is one encoded segment before `agents`
+        assert_eq!(path, "/api/v1/connections/mcp%3Anotion/agents");
+    }
+
+    #[test]
+    fn test_the_activity_of_a_connection_is_read_by_its_prefix() {
+        // GIVEN the prefix the tools of an account share, and a start
+        // WHEN the activity route is built with and without the start
+        let with = activity_path("conn:google:ada@example.com/", Some("2026-10-15"));
+        let without = activity_path("mcp:notion/", None);
+        // THEN the prefix travels encoded, the start only when given
+        assert_eq!(
+            with,
+            "/api/v1/audit/activity?tool_prefix=conn%3Agoogle%3Aada%40example.com%2F&since=2026-10-15"
+        );
+        assert_eq!(
+            without,
+            "/api/v1/audit/activity?tool_prefix=mcp%3Anotion%2F"
+        );
+    }
+
+    #[test]
+    fn test_a_reclassified_tool_is_named_by_its_local_name() {
+        // GIVEN a service and the local name of one of its tools
+        // WHEN the route of its family is built
+        let path = tool_family_path("mcp:acme", "create_page");
+        // THEN both are segments of the route, the connection encoded
+        assert_eq!(
+            path,
+            "/api/v1/connections/mcp%3Aacme/tools/create_page/family"
         );
     }
 

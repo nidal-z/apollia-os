@@ -18,6 +18,7 @@ import type {
   McpServerStatusView,
   RegistryServerView,
 } from "$lib/types";
+import type { ActionFamily } from "$lib/tools/action-family";
 
 /** Native OAuth provider identifier. */
 export type ProviderId = "google" | "microsoft";
@@ -61,6 +62,50 @@ export interface ConnectionAgents {
   connection: string;
   agents: ConnectionAgent[];
   sharedWith: string[];
+}
+
+/** The agents that hold at least one tool of the connection `connectionId`, and which. */
+export function getConnectionAgents(connectionId: string): Promise<ConnectionAgents> {
+  return invoke<ConnectionAgents>("get_connection_agents", { connectionId });
+}
+
+/** What one agent did with the tools of a connection over the period. */
+export interface AgentActivity {
+  /** The agent, `null` for calls whose entry names none. */
+  agent: string | null;
+  actions: number;
+  /** When the last of them ended, RFC 3339 UTC. */
+  lastUsedAt: string;
+}
+
+/** The activity of a connection over a period, read from the journal. */
+export interface ConnectionActivity {
+  toolPrefix: string;
+  since: string;
+  until: string | null;
+  /** Tool calls of the connection that ended over the period. */
+  actions: number;
+  /** When the last of them ended; `null` when none did. */
+  lastUsedAt: string | null;
+  /** One line per agent, the most active first. */
+  agents: AgentActivity[];
+}
+
+/**
+ * The last use of the tools named under `toolPrefix` (`mcp:notion/`) and the
+ * actions each agent took with them since `since`, seven days when absent.
+ */
+export function getConnectionActivity(toolPrefix: string, since?: string): Promise<ConnectionActivity> {
+  return invoke<ConnectionActivity>("get_connection_activity", { toolPrefix, since: since ?? null });
+}
+
+/**
+ * Give `tool`, the local name of a tool of the service `connectionId`, the
+ * action family `family`. Refused for a tool the selection classifies.
+ * Answers the connection as the list now shows it.
+ */
+export function setConnectionToolFamily(connectionId: string, tool: string, family: ActionFamily): Promise<Connection> {
+  return invoke<Connection>("set_connection_tool_family", { connectionId, tool, family });
 }
 
 /**

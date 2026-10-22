@@ -150,7 +150,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_agent_package_detail",
     "list_agent_packages",
     "uninstall_agent_package",
-    // Connections, their grant to agents, their check, pause, resume and
+    // Connections, their agents and their grant to agents, the activity of
+    // their tools, the family of a tool, their check, pause, resume and
     // removal, the folders added as connections or chosen again, and the
     // mailbox connection: the providers known from the address, and the
     // addition, which logs in before it stores.
@@ -158,7 +159,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "repoint_folder_connection",
     "add_imap_mailbox",
     "check_connection",
+    "get_connection_activity",
+    "get_connection_agents",
     "grant_connection",
+    "set_connection_tool_family",
     "pause_connection",
     "remove_connection",
     "resume_connection",
