@@ -951,6 +951,24 @@ dependency beyond its own linker shim, and the same version was already in the
 tree through other crates, so the lockfile gained no package. The cost is a
 block of FFI code with its own `unsafe` allowance, confined to one module.
 
+### Tools called from a package's code {#python-tool-calls}
+
+A tool that the code of a package calls through `ctx.tools` is decided by the
+same governance as a call of the Chat, of a plan or of a batch item, in the
+same order: the policy, a connection in pause, the fine rules, then the
+consents of the agent. Before, the proxy behind `ctx.tools` checked the access
+list of the agent and fail-closed governance only, so a workflow escaped the
+policy, the rules, the consents and the pause.
+
+A workflow runs with nobody watching it, so it follows the rule of a batch
+item, and no form of consent was added for it. A call that would ask waits for
+an answer given later: the proxy raises the approval as `NeedHumanInput`, and
+the run pauses on it. An access the caller of the run granted for the run
+counts as a consent, as a batch grants the accesses of its agent for its
+items. A refusal does not run the tool and comes back to the code that called
+it with its reason, as the error of the call; a refusal of the policy, of a
+rule or of a pause is journaled as for the other paths.
+
 ## The configuration file {#configuration-file}
 
 `apollia.toml` has one writer, `apollia_core::config::writer`. The settings

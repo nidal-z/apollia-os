@@ -9,10 +9,13 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 
 mod runtime_ops;
+mod tool_executor;
+mod tool_governance;
 mod tool_invoke;
 mod tool_proxy;
 mod workspace;
 
+pub use tool_governance::ToolGovernance;
 pub use tool_proxy::{
     describe_inner, DispatcherExecutor, ToolExecutor, ToolProxy, ToolProxyConfig,
 };

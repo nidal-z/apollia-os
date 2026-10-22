@@ -251,6 +251,7 @@ dependencies = [
  "apollia-mcp",
  "apollia-memory",
  "apollia-notifications",
+ "apollia-permissions",
  "apollia-prompts",
  "apollia-runtime",
  "apollia-stt",
