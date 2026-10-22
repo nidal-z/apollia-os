@@ -17,7 +17,6 @@
     "ai-model-menu-delete",
     "command-item-companion.toggle",
     "command-item-session.seed-session-2",
-    "mcp-detail-tab-settings",
     "profile-menu-reset",
     "settings-nav-appearance",
     "settings-nav-developer",
@@ -601,30 +600,21 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-detail-tab-settings",
+      "testid": "connection-remove-btn",
       "timeoutMs": 6000
     },
     {
       "kind": "click",
-      "testid": "mcp-detail-tab-settings"
+      "testid": "connection-remove-btn"
     },
     {
       "kind": "waitFor",
-      "testid": "mcp-disconnect-btn",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "click",
-      "testid": "mcp-disconnect-btn"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "mcp-disconnect-confirm-btn",
+      "testid": "connection-remove-confirm-btn",
       "timeoutMs": 5000
     },
     {
       "kind": "click",
-      "testid": "mcp-disconnect-confirm-btn"
+      "testid": "connection-remove-confirm-btn"
     },
     {
       "kind": "sleep",

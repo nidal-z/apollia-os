@@ -362,13 +362,18 @@ organization policy can impose it and Rust readers see the same value.
 ## 11. Testing
 
 - **Unit : Vitest**, `npm test` from `crates/apollia-desktop/ui/`.
-  `vitest.config.ts` sets `environment: "node"` and
-  `include: ["src/**/*.test.ts"]`, and `package.json` carries neither a DOM
-  environment nor a rendering library, so a test that mounts a component
-  cannot run here. Test a component by exporting the logic under test from
-  its `<script module>` block and asserting on that export, the way
-  `src/components/observability/TaskTimeline.test.ts` does. Anything that
-  needs a rendered tree is a Playwright test, below.
+  `vitest.config.ts` declares two projects. `node` runs every
+  `src/**/*.test.ts` except the `*.dom.test.ts` ones, in the `node`
+  environment, where a component renders through `svelte/server` only: test
+  a component by exporting the logic under test from its `<script module>`
+  block and asserting on that export, the way
+  `src/components/observability/TaskTimeline.test.ts` does, or by its server
+  render. `dom` runs every `src/**/*.dom.test.ts` under `jsdom` with the
+  `browser` resolve condition, so `mount` from `svelte` works there: that is
+  where a gesture is held (a click, the command it reaches, what the card then
+  shows), the way `src/components/connections/detail/connectionCardRemoval.dom.test.ts`
+  does. Neither replaces a browser: what needs real layout or the real bridge
+  is a Playwright test, below.
 - **Browser tests : Playwright**, in `crates/apollia-desktop/ui/tests/`, run
   against the production bundle served by `vite preview` with the Tauri bridge
   stubbed through `window.__TAURI_INTERNALS__.invoke`. They cover UI machinery

@@ -150,15 +150,20 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_agent_package_detail",
     "list_agent_packages",
     "uninstall_agent_package",
-    // Connections, their grant to agents, the folders added as connections,
-    // and the mailbox connection: the providers known from the address, and
-    // the addition, which logs in before it stores.
+    // Connections, their grant to agents, their check, pause, resume and
+    // removal, the folders added as connections or chosen again, and the
+    // mailbox connection: the providers known from the address, and the
+    // addition, which logs in before it stores.
     "add_folder_connection",
+    "repoint_folder_connection",
     "add_imap_mailbox",
+    "check_connection",
     "grant_connection",
+    "pause_connection",
+    "remove_connection",
+    "resume_connection",
     "list_connections",
     "list_imap_providers",
-    "remove_folder_connection",
     // The registry of sources, what an agent may consult once checked, and
     // where the index of each stands.
     "add_source",
@@ -384,8 +389,6 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // browser of the consent; the daemon starts it, completes it and stores
     // the token.
     "oauth_complete_flow",
-    "oauth_disconnect",
-    "oauth_get_status",
     "oauth_list_drive_folders",
     "oauth_reset_drive_folder",
     "oauth_set_drive_folder",
@@ -421,7 +424,6 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "setup_local_llm",
     // MCP: the secret of a server, and the public registry joined with the
     // servers installed.
-    "delete_mcp_secret",
     "fetch_mcp_registry",
     "store_mcp_secret",
     // Models: the removal of an installed model, refused while a backend or

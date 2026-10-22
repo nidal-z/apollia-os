@@ -5,15 +5,31 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const alias = { $lib: path.resolve(__dirname, "src/lib") };
+
 export default defineConfig({
   plugins: [svelte({ hot: false })],
-  resolve: {
-    alias: {
-      $lib: path.resolve(__dirname, "src/lib"),
-    },
-  },
+  resolve: { alias },
   test: {
-    environment: "node",
-    include: ["src/**/*.test.ts"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "node",
+          environment: "node",
+          include: ["src/**/*.test.ts"],
+          exclude: ["src/**/*.dom.test.ts"],
+        },
+      },
+      {
+        extends: true,
+        resolve: { conditions: ["browser"] },
+        test: {
+          name: "dom",
+          environment: "jsdom",
+          include: ["src/**/*.dom.test.ts"],
+        },
+      },
+    ],
   },
 });

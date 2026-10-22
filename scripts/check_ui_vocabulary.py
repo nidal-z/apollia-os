@@ -39,10 +39,13 @@ Exemptions, three kinds:
                   does an exempted key the catalogue no longer has.
 
 The call side. A `$t("dev.…")` (or `get(t)("dev.…")`) in a file that never
-reads `developerMode` fails. This is an approximation at the file level: a file
-that reads the mode once may still render a `dev.` text outside the branch that
-tests it, and the guard cannot tell. It only proves the file knows the mode
-exists.
+reads `developerMode` fails, unless the call sits between a `<DeveloperOnly`
+and the `</DeveloperOnly>` that closes it: the wrapper reads the mode, and the
+guard holds that one at the level of the block, so a `dev.` text placed after
+the closing tag still fails. A file that reads `developerMode` itself is held
+at the file level only: it may still render a `dev.` text outside the branch
+that tests it, and the guard cannot tell. It only proves the file knows the
+mode exists.
 
 Out of scope, said here so nobody reads the green as more than it is: the texts
 rendered by Rust or Python (the guide's tables, error messages built by the
@@ -86,6 +89,8 @@ DEV_CALL = re.compile(r"(?:\$t|\$_|get\(t\))\(\s*[\"'`]dev\.")
 DEVELOPER_NAV = re.compile(
     r"DEVELOPER_NAV\b[^=]*=\s*\[(?P<body>.*?)\];", re.DOTALL
 )
+DEVELOPER_ONLY_OPEN = re.compile(r"<DeveloperOnly\b")
+DEVELOPER_ONLY_CLOSE = "</DeveloperOnly>"
 NAV_ROUTE = re.compile(r"route:\s*[\"'](?P<route>[^\"']+)[\"']")
 
 
@@ -183,13 +188,30 @@ def block_findings(routes: set[str]) -> list[str]:
     ]
 
 
+def _developer_only_blocks(text: str) -> list[tuple[int, int]]:
+    """The spans from each `<DeveloperOnly` to the `</DeveloperOnly>` closing it."""
+    blocks: list[tuple[int, int]] = []
+    for opening in DEVELOPER_ONLY_OPEN.finditer(text):
+        end = text.find(DEVELOPER_ONLY_CLOSE, opening.end())
+        if end < 0:
+            continue
+        blocks.append((opening.start(), end))
+    return blocks
+
+
 def call_findings(files: dict[str, str]) -> list[str]:
-    """Files that render a `dev.` text without reading `developerMode`."""
-    return [
-        f"{rel}: renders a dev. text but never reads developerMode"
-        for rel, text in sorted(files.items())
-        if DEV_CALL.search(text) and "developerMode" not in text
-    ]
+    """Files that render a `dev.` text the developer mode does not guard."""
+    findings: list[str] = []
+    for rel, text in sorted(files.items()):
+        if "developerMode" in text:
+            continue
+        blocks = _developer_only_blocks(text)
+        if any(
+            not any(start < call.start() < end for start, end in blocks)
+            for call in DEV_CALL.finditer(text)
+        ):
+            findings.append(f"{rel}: renders a dev. text but never reads developerMode")
+    return findings
 
 
 def _source_files() -> dict[str, str]:

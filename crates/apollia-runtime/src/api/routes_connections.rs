@@ -4,8 +4,8 @@
 //! each kind keeps: `mcp.db` and the live MCP sessions, the tool registry, the
 //! native account index, the mailbox list, the folders and the last state of
 //! each connection in `system.db`, and `package_items` in `agents.db` when it
-//! exists. A folder is added and removed under `/api/v1/connections/folders`
-//! (see [`folders`]). The agents of a connection are read, and the connection
+//! exists. A folder is added, pointed at another folder and removed under
+//! `/api/v1/connections/folders` (see [`folders`]). The agents of a connection are read, and the connection
 //! granted to several agents, under `/api/v1/connections/{id}` (see
 //! [`agents`]). A connection is checked now under
 //! `/api/v1/connections/{id}/check` (see [`check`]), and put in pause and
@@ -52,7 +52,8 @@ pub fn connections_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> 
         )
         .route(
             "/api/v1/connections/folders/:id",
-            delete(folders::remove_folder_connection::<B>),
+            put(folders::repoint_folder_connection::<B>)
+                .delete(folders::remove_folder_connection::<B>),
         )
         .route(
             "/api/v1/connections/:id",

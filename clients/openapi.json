@@ -3613,6 +3613,96 @@
       }
     },
     "/api/v1/connections/folders/{id}": {
+      "put": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`PUT /api/v1/connections/folders/{id}`: point a folder connection at\nanother folder, its identifier, label and accesses kept.",
+        "operationId": "repoint_folder_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identifier of the stored folder, the part of the connection identifier after `folder:`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepointFolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The connection now points at the folder; the connection it is",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path is not a folder of this machine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No folder connection has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another connection already holds the folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "connections"
@@ -29140,6 +29230,19 @@
           "title": {
             "type": "string",
             "description": "The title, trimmed and capped at 100 characters."
+          }
+        }
+      },
+      "RepointFolderBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/connections/folders/{id}`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the folder, as the system picker answered it."
           }
         }
       },

@@ -199,7 +199,8 @@ def build_corpus(ui_root=UI):
             # `"data-testid": testid` binds the prop to a local name; both count.
             props.update(re.findall(r'([A-Za-z_$][\w$]*)\s*(?:[,}]|=)', pm.group(1)))
             props.update(re.findall(r':\s*([A-Za-z_$][\w$]*)', pm.group(1)))
-        for m in re.finditer(r'(?:data-testid|dataTestId|testId|testid)\s*[=:]\s*', txt):
+        # The key may be quoted: `{ "data-testid": "x" }` hands an id to a toast.
+        for m in re.finditer(r'(?:data-testid|dataTestId|testId|testid)["\']?\s*[=:]\s*', txt):
             i = m.end()
             if i >= len(txt):
                 continue

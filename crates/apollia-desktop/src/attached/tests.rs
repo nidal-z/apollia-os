@@ -1016,9 +1016,9 @@ fn test_the_export_and_the_reveal_run_attached_as_window_commands() {
 // ── MCP: secrets, registry, sign-in ──────────────────────────────────────
 
 #[tokio::test]
-async fn test_an_mcp_secret_is_put_and_removed_on_the_daemon_with_the_token() {
-    // GIVEN a daemon that stores and removes the secret of a server, only
-    // with the token of this installation, and answers both with no content
+async fn test_an_mcp_secret_is_put_on_the_daemon_with_the_token() {
+    // GIVEN a daemon that stores the secret of a server, only with the token
+    // of this installation, and answers with no content
     let server = MockServer::start().await;
     let auth = format!("Bearer {TOKEN}");
     Mock::given(method("PUT"))
@@ -1029,25 +1029,15 @@ async fn test_an_mcp_secret_is_put_and_removed_on_the_daemon_with_the_token() {
         .expect(1)
         .mount(&server)
         .await;
-    Mock::given(method("DELETE"))
-        .and(path("/api/v1/mcp/servers/notion/secrets/NOTION_API_KEY"))
-        .and(header("authorization", auth.as_str()))
-        .respond_with(ResponseTemplate::new(204))
-        .expect(1)
-        .mount(&server)
-        .await;
     let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
 
-    // WHEN the bodies of store_mcp_secret and delete_mcp_secret run attached
+    // WHEN the body of store_mcp_secret runs attached
     let stored =
         crate::commands::mcp::put_mcp_secret(&link, "notion", "NOTION_API_KEY", "secret-1").await;
-    let removed = crate::commands::mcp::remove_mcp_secret(&link, "notion", "NOTION_API_KEY").await;
 
-    // THEN both reached the daemon and the empty answers read as success
+    // THEN it reached the daemon and the empty answer reads as success
     assert_eq!(stored, Ok(()));
-    assert_eq!(removed, Ok(()));
     assert!(gate(LinkMode::Attached, "store_mcp_secret").is_ok());
-    assert!(gate(LinkMode::Attached, "delete_mcp_secret").is_ok());
 }
 
 #[tokio::test]

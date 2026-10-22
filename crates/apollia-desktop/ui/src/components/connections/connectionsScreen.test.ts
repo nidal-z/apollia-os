@@ -26,12 +26,9 @@ import { developerMode } from "$lib/stores/developerMode";
 import { connectionRows } from "$lib/connections/connectionRows";
 import Connections from "../../routes/Connections.svelte";
 import ConnectionList from "./list/ConnectionList.svelte";
-import NativeConnectorDetail from "./detail/NativeConnectorDetail.svelte";
-import McpDetailHeader from "./detail/McpDetailHeader.svelte";
+import ConnectionCard from "./detail/ConnectionCard.svelte";
+import NativeProviderCard from "./detail/NativeProviderCard.svelte";
 import McpToolsTab from "./detail/McpToolsTab.svelte";
-import McpOverviewTab from "./detail/McpOverviewTab.svelte";
-import McpSettingsTab from "./detail/McpSettingsTab.svelte";
-import ConnectionSummaryDetail from "./detail/ConnectionSummaryDetail.svelte";
 import BuiltinToolsDetail from "./detail/BuiltinToolsDetail.svelte";
 import AddConnectionWindow from "./catalogue/AddConnectionWindow.svelte";
 import CustomMcpForm from "./catalogue/CustomMcpForm.svelte";
@@ -95,6 +92,21 @@ const CLIENT = {
 
 type Rendered = { component: unknown; props?: Record<string, unknown> };
 
+/** What the card of `connection` is given by the route. */
+function cardProps(connection: Connection, label: string): Record<string, unknown> {
+  const noop = () => {};
+  return {
+    connection,
+    label,
+    clientStatus: connection.kind === "native" ? CLIENT : undefined,
+    onupdated: noop,
+    onremoved: noop,
+    onreload: noop,
+    onrepair: noop,
+    ontry: noop,
+  };
+}
+
 /** Every screen of Connections, with what it needs to show its technical parts. */
 function screens(): Record<string, Rendered> {
   const rows = connectionRows(CONNECTIONS);
@@ -105,38 +117,23 @@ function screens(): Record<string, Rendered> {
       component: ConnectionList,
       props: { rows, query: "", kind: "all", selection: { kind: "connection", id: rows[1].key }, loading: false, onselect: noop, onadd: noop, builtinTools: { active: 2, total: 3 } },
     },
-    native: {
-      component: NativeConnectorDetail,
+    nativeProvider: {
+      component: NativeProviderCard,
       props: {
         connector: { id: "google", name: "Google Workspace", description: "Gmail, Calendar, Drive" },
-        remote: true,
-        accounts: [{ provider: "google", account_id: "ada@example.com" }],
-        loading: false,
-        error: null,
-        tab: "accounts",
+        needsSetup: false,
         clientStatus: CLIENT,
         clientError: null,
+        loading: false,
         onclientretry: noop,
         onconnect: noop,
-        ondisconnect: noop,
-        ontabchange: noop,
       },
     },
-    serverHeader: {
-      component: McpDetailHeader,
-      props: { label: "Linear", meta: "Project management", remote: true, status: "active", sync: null, testing: false, reconnecting: false, ontest: noop, onreconnect: noop },
-    },
-    serverOverview: {
-      component: McpOverviewTab,
-      props: { health: { state: "healthy", verified: true }, toolsCount: 1, statusError: null, lastActivityLabel: null, testState: "idle", testToolCount: 0, testDetail: null, testError: null, reconnectError: null },
-    },
+    nativeCard: { component: ConnectionCard, props: cardProps(CONNECTIONS[0], "Google") },
+    serverCard: { component: ConnectionCard, props: cardProps(CONNECTIONS[1], "Linear") },
     serverTools: { component: McpToolsTab, props: { tools: TOOLS, serverName: "linear" } },
-    serverSettings: {
-      component: McpSettingsTab,
-      props: { serverName: "linear", confirmDisconnect: false, disconnecting: false, disconnectError: null, onsaved: noop, onrequestdisconnect: noop, oncanceldisconnect: noop, onconfirmdisconnect: noop },
-    },
     builtinTools: { component: BuiltinToolsDetail },
-    otherConnection: { component: ConnectionSummaryDetail, props: { connection: CONNECTIONS[3], label: "Invoices" } },
+    folderCard: { component: ConnectionCard, props: cardProps(CONNECTIONS[3], "Invoices") },
     addSheet: {
       component: AddConnectionWindow,
       props: { open: true, query: "", chosen: null, selection: [], publicEntries: [], failures: [], catalogueTier: "none", loading: true, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, oninstalled: noop },
@@ -229,19 +226,18 @@ describe("Connections, developer mode on", () => {
     expect(text).toContain("Custom MCP");
   });
 
-  test("a mailbox or folder page gives the provenance of the connection and of each tool", async () => {
-    // GIVEN the developer mode on and a connection with a tool
+  test("a card gives the provenance of the connection and of each tool", async () => {
+    // GIVEN the developer mode on and a folder with a tool
     const withTool = { ...CONNECTIONS[3], tools: CONNECTIONS[1].tools };
     locale.set("en");
     await waitLocale("en");
     developerMode.set(true);
 
-    // WHEN its page is rendered
-    const html = renderToString(ConnectionSummaryDetail, {
-      props: { connection: withTool, label: "Invoices" },
-    }).body;
+    // WHEN its card is rendered
+    const html = renderToString(ConnectionCard, { props: cardProps(withTool, "Invoices") as never }).body;
 
-    // THEN the connection and its tool carry their provenance
+    // THEN the technical section carries the provenance of the connection and of its tool
+    expect(html).toContain('data-testid="connection-technical"');
     expect(html).toContain('data-testid="connection-detail-provenance"');
     expect(html).toContain('data-testid="connection-tool-provenance"');
   });
@@ -331,15 +327,15 @@ describe("Connections, the remote badge", () => {
     expect(html).not.toContain('data-testid="connection-remote-folder:invoices"');
   });
 
-  test("the page of a remote connection carries the badge", async () => {
-    // GIVEN a remote server and a remote native account
-    // WHEN their pages are rendered
-    const server = await render("serverHeader", false);
-    const native = await render("native", false);
+  test("the card of a remote connection carries the badge, a local one does not", async () => {
+    // GIVEN a remote server and a local folder
+    // WHEN their cards are rendered
+    const server = await render("serverCard", false);
+    const folder = await render("folderCard", false);
 
-    // THEN both pages carry it, worded for the user
-    expect(server).toContain('data-testid="mcp-detail-remote"');
-    expect(native).toContain('data-testid="native-detail-remote"');
+    // THEN only the server's card carries it, worded for the user
+    expect(server).toContain('data-testid="connection-detail-remote"');
+    expect(folder).not.toContain('data-testid="connection-detail-remote"');
     expect(visibleText(server)).toContain("Remote");
   });
 });

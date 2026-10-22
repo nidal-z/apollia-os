@@ -24,21 +24,5 @@ export interface BuiltinToolsCount {
   total: number;
 }
 
-/** MCP detail tab keys. */
-export type McpTab = "overview" | "tools" | "settings";
-
-/** Native connector detail tab keys. */
-export type NativeTab = "accounts" | "capabilities" | "settings";
-
-/** Live-test verdict for an MCP server. */
-export type TestState =
-  | "idle"
-  | "testing"
-  | "ok"
-  | "unverified"
-  | "degraded"
-  | "needs_reauth"
-  | "error";
-
 /** Custom MCP transport kinds. */
 export type CustomTransport = "stdio" | "streamable-http" | "sse";

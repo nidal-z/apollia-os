@@ -24,18 +24,8 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "ai.panel.inference.structured.placeholder", // { "type": "object", "properties": {} }
   "authorizations.apollia_name", // Apollia
   "chat.generation.seconds", // {value} s
-  "connections.capabilities.group_gdocs", // Google Docs
-  "connections.capabilities.group_gdrive", // Google Drive
-  "connections.capabilities.group_gforms", // Google Forms
-  "connections.capabilities.group_gmail", // Gmail
-  "connections.capabilities.group_gsheets", // Google Sheets
   "dev.developer.examples.javascript", // JavaScript
   "dev.developer.examples.python", // Python
-  "connections.capabilities.group_gslides", // Google Slides
-  "connections.capabilities.group_gtasks", // Google Tasks
-  "connections.capabilities.group_onedrive", // OneDrive
-  "connections.capabilities.group_outlook_mail", // Outlook Mail
-  "connections.capabilities.group_youtube", // YouTube
   "connections.native_google_name", // Google Workspace
   "connections.native_microsoft_description", // Outlook Mail, Outlook Calendar, OneDrive
   "connections.native_microsoft_name", // Microsoft 365
@@ -129,14 +119,12 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "commandPalette.groups.actions", // Actions
   "commandPalette.groups.pages", // Pages
   "commandPalette.groups.sessions", // Sessions
-  "connections.badge_status_attention", // attention
   "connections.custom_test_ok", // Test OK - {result}
   "connections.mcp_settings.transport", // Transport
   "connections.mailbox.port_label", // Port
   "detailSidebar.tab_guide", // Guide
   "dev.ai.panel.type.embeddings.label", // Embeddings
   "dev.connections.custom_transport_label", // Transport
-  "connections.settings_provider_title", // Provider
   "connections.list.kind_mcp", // Services
   "dev.developer.docs.admonition.danger", // Danger
   "dev.developer.docs.admonition.info", // Info
