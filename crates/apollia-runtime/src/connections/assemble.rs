@@ -15,7 +15,7 @@ use apollia_mcp::tool_search::ToolIndexSnapshot;
 use apollia_mcp::Provenance;
 use apollia_tools::{FamilySource, ToolDescriptor};
 
-use super::state::{kept_mcp_state, shown_state};
+use super::state::{kept_detail, kept_mcp_state, shown_state};
 use super::{
     folder_connections, imap_connection_id, is_prechecked, is_remote, is_remote_host, Connection,
     ConnectionKind, ConnectionState, ConnectionTool,
@@ -49,12 +49,16 @@ pub struct ConnectionSources {
     pub folders: Vec<FolderConnection>,
     /// The state each connection was last found in, by identifier.
     pub states: HashMap<String, ConnectionStateRecord>,
+    /// Connections the user put in pause, by identifier.
+    pub paused: HashSet<String>,
 }
 
 /// Assemble every connection: native accounts first, then mailboxes, then MCP
 /// servers by name, then folders. A connection the policy forbade at boot is
-/// marked so, whatever else its state would be. Each one reads in the state
-/// it was last found in, dated; one never found yet needs a check.
+/// marked so, whatever else its state would be. A connection in pause reads
+/// paused, whatever state was kept for it before, and stopped in the detail
+/// its kind gives. Each other one reads in the state it was last found in,
+/// dated; one never found yet needs a check.
 #[must_use]
 pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
     let mut out = Vec::new();
@@ -76,6 +80,9 @@ pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
     out.extend(folder_connections(&sources.folders));
     for connection in &mut out {
         let forbidden = sources.forbidden.contains(&connection.id);
+        if connection.kind != ConnectionKind::Mcp {
+            connection.state = kept_detail(sources.states.get(&connection.id));
+        }
         if forbidden {
             connection.state = ConnectionState::ForbiddenByPolicy;
         }
@@ -88,6 +95,12 @@ pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
         connection.status = shown.status;
         connection.reason = shown.reason;
         connection.checked_at = shown.checked_at;
+        if !forbidden && sources.paused.contains(&connection.id) {
+            connection.state = ConnectionState::Stopped;
+            connection.status = ConnectionStatus::Paused;
+            connection.reason = None;
+            connection.checked_at = None;
+        }
     }
     out
 }

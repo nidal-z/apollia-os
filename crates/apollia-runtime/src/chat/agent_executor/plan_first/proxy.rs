@@ -292,7 +292,7 @@ impl GrantedToolProxy {
         }
     }
 
-    /// Records in the journal a call the policy or a rule refused. Neither
+    /// Records in the journal a call the policy, a rule or a pause refused. Neither
     /// the call's argument nor its result is recorded.
     fn journal_refusal(&self, tool_name: &str, family: ActionFamily, reason: &DecisionReason) {
         let event = match reason {
@@ -307,6 +307,12 @@ impl GrantedToolProxy {
                 access_id: tool_name.to_string(),
                 family,
                 rule_id: *rule_id,
+            },
+            DecisionReason::Paused { connection_id } => GovernanceEvent::PausedRefused {
+                agent_id: self.agent_id.clone(),
+                access_id: tool_name.to_string(),
+                family,
+                connection_id: connection_id.clone(),
             },
             _ => return,
         };

@@ -224,6 +224,17 @@ pub enum GovernanceEvent {
         /// Identifier of the rule in `governance.db`.
         rule_id: i64,
     },
+    /// A call was refused because its connection is in pause.
+    PausedRefused {
+        /// Agent the call was made by.
+        agent_id: String,
+        /// Access the call used (the tool).
+        access_id: String,
+        /// Family of the tool.
+        family: ActionFamily,
+        /// The connection in pause, as the connection list names it.
+        connection_id: String,
+    },
     /// A fine rule was added.
     RuleAdded(RuleRecord),
     /// A fine rule was removed.
@@ -416,6 +427,7 @@ impl GovernanceEvent {
             | GovernanceEvent::AlwaysWithdrawn { agent_id, .. }
             | GovernanceEvent::PolicyRefused { agent_id, .. }
             | GovernanceEvent::RuleRefused { agent_id, .. }
+            | GovernanceEvent::PausedRefused { agent_id, .. }
             | GovernanceEvent::BatchAccessGranted { agent_id, .. } => agent_id,
             GovernanceEvent::RuleAdded(rule) | GovernanceEvent::RuleRemoved(rule) => {
                 rule.agent_id.as_deref().unwrap_or(&rule.tool_name)
@@ -474,6 +486,7 @@ impl GovernanceEvent {
             GovernanceEvent::AlwaysWithdrawn { .. } => JournalEntryKind::AlwaysWithdrawn,
             GovernanceEvent::PolicyRefused { .. } => JournalEntryKind::PolicyRefused,
             GovernanceEvent::RuleRefused { .. } => JournalEntryKind::RuleRefused,
+            GovernanceEvent::PausedRefused { .. } => JournalEntryKind::PausedRefused,
             GovernanceEvent::RuleAdded(_) => JournalEntryKind::RuleAdded,
             GovernanceEvent::RuleRemoved(_) => JournalEntryKind::RuleRemoved,
             GovernanceEvent::BatchAccessGranted { .. } => JournalEntryKind::BatchAccessGranted,

@@ -277,6 +277,7 @@ const FIXED_SENTENCE: Record<string, string> = {
   always_withdrawn: "journal.sentence.always_withdrawn",
   policy_refused: "journal.sentence.policy_refused",
   rule_refused: "journal.sentence.rule_refused",
+  paused_refused: "journal.sentence.paused_refused",
   rule_added: "journal.sentence.rule_added",
   rule_removed: "journal.sentence.rule_removed",
   batch_access_granted: "journal.sentence.batch_access_granted",

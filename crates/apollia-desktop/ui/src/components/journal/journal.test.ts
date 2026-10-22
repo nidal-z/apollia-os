@@ -201,7 +201,8 @@ describe("journal - one line per entry, in plain language", () => {
   test("every sentence and every state has its words in both languages", () => {
     // GIVEN one line per kind the journal writes for a reader, per family and per ending
     const kinds = [
-      "always_withdrawn", "policy_refused", "rule_refused", "rule_added", "rule_removed",
+      "always_withdrawn", "policy_refused", "rule_refused", "paused_refused", "rule_added",
+      "rule_removed",
       "batch_access_granted", "agent_installed", "agent_updated", "agent_uninstalled",
       "agent_override_changed", "package_installed", "package_updated", "package_uninstalled",
       "connection_added", "connection_modified", "connection_removed",

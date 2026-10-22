@@ -6526,6 +6526,7 @@
       "always_withdrawn": "An \"always\" was withdrawn from {agent}",
       "policy_refused": "The organization policy blocked an action of {agent}",
       "rule_refused": "A rule refused an action of {agent}",
+      "paused_refused": "An action of {agent} was refused: its connection is paused",
       "rule_added": "A fine rule was added",
       "rule_removed": "A fine rule was removed",
       "batch_access_granted": "An access was granted to {agent} for one batch",

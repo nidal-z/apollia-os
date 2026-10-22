@@ -278,6 +278,34 @@ fn a_consent_and_the_two_refusals_are_actions_with_their_family() {
 }
 
 #[test]
+fn a_refusal_by_the_pause_is_an_action_on_its_connection() {
+    // GIVEN a call refused because its connection is in pause
+    let event = GovernanceEvent::PausedRefused {
+        agent_id: "quotes".into(),
+        access_id: "conn:google:ada@example.com/gmail.send".into(),
+        family: ActionFamily::SendExternal,
+        connection_id: "native:google:ada@example.com".into(),
+    };
+    // WHEN it is summarised
+    let summary = summarize(&governance(event));
+    // THEN it is a refused action of that agent, naming the tool and the
+    // connection in pause
+    assert_eq!(summary.nature, JournalNature::Action);
+    assert_eq!(summary.what, "Call refused: its connection is in pause");
+    assert_eq!(summary.agent.as_deref(), Some("quotes"));
+    assert_eq!(
+        summary.tool.as_deref(),
+        Some("conn:google:ada@example.com/gmail.send")
+    );
+    assert_eq!(summary.family.as_deref(), Some("send_external"));
+    assert_eq!(
+        summary.target.as_deref(),
+        Some("native:google:ada@example.com")
+    );
+    assert_eq!(summary.outcome, Some(JournalOutcome::Refused));
+}
+
+#[test]
 fn a_consent_given_is_a_success() {
     // GIVEN a consent given for good
     let always = governance(GovernanceEvent::ConsentAnswered {
@@ -443,6 +471,7 @@ fn every_kind_is_said_in_words_and_carries_the_nature_of_its_kind() {
         "always_withdrawn",
         "policy_refused",
         "rule_refused",
+        "paused_refused",
         "rule_added",
         "rule_removed",
         "batch_access_granted",

@@ -267,6 +267,57 @@ async fn test_the_recorder_keeps_and_announces_each_state_and_the_list_reads_it_
     assert_eq!(system_db(&dir).list().unwrap().len(), 1);
 }
 
+#[test]
+fn test_a_paused_connection_reads_paused_whatever_was_kept() {
+    // GIVEN an MCP server whose failed start was kept as unreachable, a
+    // working one, and a forbidden one, the three of them in pause
+    let mut states = HashMap::new();
+    states.insert(
+        "mcp:files".to_owned(),
+        kept(
+            "mcp:files",
+            ConnectionStatus::NeedsRepair,
+            Some(ConnectionReasonKey::Unreachable),
+        ),
+    );
+    states.insert(
+        "mcp:notion".to_owned(),
+        kept("mcp:notion", ConnectionStatus::Working, None),
+    );
+    let sources = ConnectionSources {
+        mcp_configs: vec![server("files"), server("notion"), server("sqlite")],
+        states,
+        forbidden: ["mcp:sqlite".to_owned()].into_iter().collect(),
+        paused: ["mcp:files", "mcp:notion", "mcp:sqlite"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+        ..ConnectionSources::default()
+    };
+
+    // WHEN the connections are listed
+    let list = assemble(&sources);
+
+    // THEN the two allowed ones read paused, stopped, with no reason, and the
+    // forbidden one stays blocked by the organisation
+    for connection in &list[..2] {
+        assert_eq!(
+            connection.status,
+            ConnectionStatus::Paused,
+            "{}",
+            connection.id
+        );
+        assert_eq!(
+            connection.state,
+            ConnectionState::Stopped,
+            "{}",
+            connection.id
+        );
+        assert_eq!(connection.reason, None, "{}", connection.id);
+    }
+    assert_eq!(list[2].status, ConnectionStatus::Blocked);
+}
+
 const APPROVAL: &str =
     "https://login.microsoftonline.com/organizations/adminconsent?client_id=c4f95bc5";
 

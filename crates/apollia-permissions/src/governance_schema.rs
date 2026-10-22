@@ -1,8 +1,8 @@
 //! Versioned schema of `governance.db`, shared by every store in the file.
 //!
 //! `governance.db` gathers the runtime governance tables: `permission_rules`,
-//! `family_consents`, `governance_upgrades` and
-//! `journal_outbox` (owned by this crate), plus `tools` and
+//! `family_consents`, `governance_upgrades`,
+//! `journal_outbox` and `paused_connections` (owned by this crate), plus `tools` and
 //! `tool_credentials` (owned by `apollia-tools`, whose `GovernanceDb` reuses
 //! this list). Since v3 `tool_credentials` is an index of the credentials,
 //! their values living in the secret store; the encrypted values of an older
@@ -20,14 +20,15 @@ use rusqlite::Connection;
 use apollia_core::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `governance.db`.
-pub const GOVERNANCE_SCHEMA_VERSION: u32 = 5;
+pub const GOVERNANCE_SCHEMA_VERSION: u32 = 6;
 
 /// Numbered migration steps of `governance.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`GOVERNANCE_SCHEMA_VERSION`].
-pub const GOVERNANCE_MIGRATIONS: &[Migration] =
-    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5];
+pub const GOVERNANCE_MIGRATIONS: &[Migration] = &[
+    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6,
+];
 
 /// Name, in `governance_upgrades`, of the data upgrade that moves the
 /// encrypted tool credentials of `tool_credentials_legacy` into the secret
@@ -223,6 +224,19 @@ fn migrate_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
          DROP TRIGGER IF EXISTS no_delete_audit;
          DROP INDEX IF EXISTS idx_audit_tool;
          DROP TABLE IF EXISTS permission_audit;",
+    )
+}
+
+/// v6: the connections the user paused (see
+/// [`crate::paused_connections::PausedConnectionStore`]), one row per
+/// connection identifier as the connection list names it. A connection is in
+/// pause while its row exists; nothing else about it is stored here.
+fn migrate_v6(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS paused_connections (
+            connection_id  TEXT PRIMARY KEY,
+            paused_at      INTEGER NOT NULL
+        );",
     )
 }
 
@@ -458,6 +472,41 @@ mod tests {
         migrate_v5(&conn).unwrap();
 
         assert!(!has_object(&conn, "permission_audit"));
+    }
+
+    // GIVEN a file at v5, holding a rule
+    // WHEN it is opened through the versioned layer, and v6 is replayed
+    // THEN the table of paused connections exists and is empty, the rule is
+    // kept and the replay fails on nothing
+    #[test]
+    fn test_governance_v6_adds_an_empty_table_of_paused_connections() {
+        let conn = Connection::open_in_memory().unwrap();
+        for step in &GOVERNANCE_MIGRATIONS[..5] {
+            step(&conn).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 5).unwrap();
+        conn.execute(
+            "INSERT INTO permission_rules (tool_name, action, created_at) VALUES ('t', 'deny', 1)",
+            [],
+        )
+        .unwrap();
+
+        open_governance_schema(&conn).unwrap();
+        migrate_v6(&conn).unwrap();
+
+        assert!(has_object(&conn, "paused_connections"));
+        let paused: i64 = conn
+            .query_row("SELECT COUNT(*) FROM paused_connections", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(paused, 0);
+        let rules: i64 = conn
+            .query_row("SELECT COUNT(*) FROM permission_rules", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rules, 1);
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 6);
     }
 
     // GIVEN a database stamped by a newer binary

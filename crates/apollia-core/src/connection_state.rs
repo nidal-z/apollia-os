@@ -59,6 +59,12 @@ pub enum ConnectionReasonKey {
     NotChecked,
     /// Its account must sign in again.
     SignInAgain,
+    /// Its server refused the identifier or the password; the action is to
+    /// enter the password again.
+    PasswordRefused,
+    /// Its folder is no longer where it was added; the action is to point it
+    /// at the folder again.
+    FolderNotFound,
     /// Its service cannot be reached.
     Unreachable,
     /// It is reached, but its operations fail.

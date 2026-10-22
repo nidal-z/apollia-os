@@ -358,3 +358,53 @@ async fn test_allow_command_refuses_compound_off_mode_and_other_tools() {
     };
     assert!(rules.is_empty());
 }
+
+// A pause is written to governance.db and read by the next decision, without
+// a restart; a resume lets the tools run again; a new actor over the same
+// file reads the pause it left.
+#[tokio::test]
+async fn test_a_pause_is_live_persisted_and_resumed() {
+    // GIVEN a running actor and a reading tool of the Notion server
+    let dir = tempfile::tempdir().unwrap();
+    let handle = GovernanceHandle::spawn(sources(&dir, Arc::new(PolicyVerdict::Absent)));
+    let read = AccessCall {
+        family: ActionFamily::Read,
+        ..write_call("mcp:notion/search")
+    };
+    assert!(handle.decide(&read).is_allowed());
+
+    // WHEN the server is paused
+    assert!(handle.set_paused("mcp:notion", true).await.unwrap());
+
+    // THEN the next call is refused with the pause, and a second pause
+    // changes nothing
+    assert_eq!(
+        handle.decide(&read),
+        AccessDecision::Denied {
+            reason: DecisionReason::Paused {
+                connection_id: "mcp:notion".into()
+            }
+        }
+    );
+    assert!(!handle.set_paused("mcp:notion", true).await.unwrap());
+    // AND an actor started later over the same file reads the pause
+    let later = GovernanceHandle::spawn(sources(&dir, Arc::new(PolicyVerdict::Absent)));
+    assert!(later.state().paused.contains("mcp:notion"));
+
+    // WHEN it is resumed
+    assert!(handle.set_paused("mcp:notion", false).await.unwrap());
+
+    // THEN the call runs again
+    assert!(handle.decide(&read).is_allowed());
+}
+
+// A handle with no database refuses to pause.
+#[tokio::test]
+async fn test_a_detached_handle_refuses_to_pause() {
+    // GIVEN a handle with no actor behind it
+    let handle = GovernanceHandle::detached(GovernanceState::default(), None);
+    // WHEN a connection is paused
+    let written = handle.set_paused("mcp:notion", true).await;
+    // THEN it is refused
+    assert!(matches!(written, Err(GovernanceWriteError::NoDatabase)));
+}

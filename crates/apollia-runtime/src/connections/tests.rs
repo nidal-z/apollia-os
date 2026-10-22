@@ -96,6 +96,7 @@ fn test_two_mcp_servers_and_one_google_account_are_three_connections_with_tools(
         folders: Vec::new(),
         mcp_index: Vec::new(),
         states: HashMap::new(),
+        paused: HashSet::new(),
     };
 
     // WHEN the connections are listed
