@@ -7,8 +7,10 @@
    * folder in developer mode; a folder of this machine is connected on the
    * spot. A source added is checked in the draft and grants no tool: it is
    * searched, and a folder or a file the agent cannot open offers its
-   * reading, connecting the folder of a file when none holds it.
+   * reading, connecting the folder of a file when none holds it. A source
+   * read through a connection its user paused carries the "Paused" badge.
    */
+  import { untrack } from "svelte";
   import { t } from "svelte-i18n";
   import { Plus } from "lucide-svelte";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -32,6 +34,7 @@
     folderCandidates,
     folderToConnect,
     mailCandidates,
+    pausedSources,
     readingToGrant,
     readingTools,
     sourceOn,
@@ -47,18 +50,21 @@
     /** The registry and the indexes, read by the sheet. */
     sources: AgentSources;
     modified: boolean;
+    /** The connections the sheet already read, until this section reads them again. */
+    known?: Connection[];
   }
 
-  let { draft, sources, modified }: Props = $props();
+  let { draft, sources, modified, known = [] }: Props = $props();
 
   let folderKinds = $state<SourceKind[]>(["folder"]);
-  let connections = $state<Connection[]>([]);
+  let connections = $state<Connection[]>(untrack(() => known));
   let picking = $state<"folder" | "code_folder" | "mail" | null>(null);
   let loadingConnections = $state(false);
   let removing = $state<Row | null>(null);
   let removingBusy = $state(false);
 
   const rows = $derived(sourceRows(sources.registry, sources.indexes, draft.sources, true));
+  const paused = $derived(pausedSources(rows, connections));
   const choices = $derived(addChoices(folderKinds));
   const candidates = $derived<SourceCandidate[]>(
     picking === "mail" ? mailCandidates(connections) : folderCandidates(connections),
@@ -226,7 +232,7 @@
     {#each rows as row (row.id)}
       {@const reading = readingToGrant(row, connections, draft.access)}
       {@const unconnected = reading.length > 0 ? null : folderToConnect(row, connections)}
-      <SourceRow {row} ontoggle={(on) => check(row.id, on)} onremove={() => (removing = row)}>
+      <SourceRow {row} paused={paused.has(row.id)} ontoggle={(on) => check(row.id, on)} onremove={() => (removing = row)}>
         {#snippet note()}
           {#if unconnected !== null}
             <p class="m-0 mt-1 text-caption text-muted-foreground" data-testid="agent-source-reading-note">

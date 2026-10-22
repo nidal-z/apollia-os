@@ -363,11 +363,12 @@ async fn test_the_card_shows_the_default_access() {
 }
 
 // GIVEN an agent created in the interface on the default access, given
-//       `file_write` on top of it, and the package agent `invoices`, which
-//       lists its own
+//       `file_write` and a tool switched off on top of it, and
+//       the package agent `invoices`, which lists its own and still keeps a
+//       tool given on top in the store
 // WHEN both cards are read
-// THEN the first says it holds the default access and names the tool given
-//      on top, the second holds neither
+// THEN the first says it holds the default access and names only the tool
+//      given on top that it holds, the second holds neither
 #[tokio::test]
 async fn test_the_card_says_the_default_access_and_what_is_given_on_top() {
     // GIVEN
@@ -388,7 +389,18 @@ async fn test_the_card_says_the_default_access_and_what_is_given_on_top() {
         })
         .unwrap();
     agents
-        .set_override("writer", OverrideField::AccessAdded, &json!(["file_write"]))
+        .set_override(
+            "writer",
+            OverrideField::AccessAdded,
+            &json!(["file_write", "mcp:notion/search"]),
+        )
+        .unwrap();
+    agents
+        .set_override(
+            "invoices",
+            OverrideField::AccessAdded,
+            &json!(["file_write"]),
+        )
         .unwrap();
     let registry = apollia_tools::ToolRegistryHandle::start();
     for descriptor in [
@@ -398,6 +410,13 @@ async fn test_the_card_says_the_default_access_and_what_is_given_on_top() {
         registry.register(descriptor).await.unwrap();
     }
     state.tool_registry_handle = Some(registry.clone());
+    state.governance = Some(crate::governance::GovernanceHandle::detached(
+        crate::governance::GovernanceState {
+            disabled_tools: vec!["mcp:notion/search".to_owned()],
+            ..Default::default()
+        },
+        None,
+    ));
 
     // WHEN
     let (_, writer) = call(
@@ -411,6 +430,10 @@ async fn test_the_card_says_the_default_access_and_what_is_given_on_top() {
 
     // THEN
     assert_eq!(writer["access_by_default"], json!(true));
+    assert!(!writer["access"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("mcp:notion/search")));
     assert_eq!(writer["access_added"], json!(["file_write"]));
     assert_eq!(invoices["access_by_default"], json!(false));
     assert_eq!(invoices["access_added"], json!([]));

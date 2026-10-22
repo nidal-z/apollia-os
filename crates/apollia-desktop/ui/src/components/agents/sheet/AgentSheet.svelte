@@ -350,7 +350,7 @@
           {paused}
           origin={adjustOrigin}
         />
-        <AdjustSources draft={adjust.draft} sources={registry} modified={marked("sources")} />
+        <AdjustSources draft={adjust.draft} sources={registry} modified={marked("sources")} known={connections} />
       {:else}
         <div class="min-w-0 space-y-5">
           <SheetMission view={mission} modified={marked("mission") || marked("examples")} />

@@ -20,6 +20,7 @@ vi.hoisted(() => {
 });
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => null) }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(async () => null) }));
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(async () => () => {}),
   emit: vi.fn(async () => {}),
@@ -28,6 +29,9 @@ vi.mock("@tauri-apps/api/event", () => ({
 import type { Connection, ConnectionTool } from "$lib/types";
 import SheetAccess from "./SheetAccess.svelte";
 import SheetSources from "./SheetSources.svelte";
+import AdjustSources from "./AdjustSources.svelte";
+import type { Source } from "$lib/ipc/sources";
+import type { AgentSources } from "./useAgentSources.svelte";
 import { accessOrigin, accessView, groupAccesses } from "./agentSheet";
 import { pausedAccesses } from "./connectionGrant";
 import { pausedSources, type SourceRow } from "./agentSources";
@@ -158,6 +162,42 @@ describe("a paused connection on the sheet of an agent", () => {
     expect([...paused].sort()).toEqual(["file", "folder", "mail-imap"]);
     expect(markup.match(/data-paused="true"/g)?.length).toBe(3);
     expect(markup.match(/>Paused</g)?.length).toBe(3);
+  });
+
+  test("in the adjustment, a source read through a paused connection carries the same mark", () => {
+    // GIVEN a registry holding a folder of a paused connection, a mailbox at
+    //       work, and the connections the sheet already read
+    const source = (id: string, kind: Source["kind"], reference: string): Source => ({
+      id,
+      kind,
+      label: id,
+      group: null,
+      reference,
+      indexState: "ready",
+      addedAt: "2026-10-22T00:00:00Z",
+    });
+    const sources: AgentSources = {
+      registry: [source("folder", "folder", "folder:invoices"), source("mail-imap", "mail", "imap:ada@example.com")],
+      indexes: {},
+      error: null,
+      refresh: async () => {},
+      add: async () => null,
+      remove: async () => false,
+    };
+    const known = [
+      connection({ id: "folder:invoices", kind: "folder", path: "/home/ada/invoices", status: "paused" }),
+      connection({ id: "imap:ada@example.com", kind: "imap" }),
+    ];
+    const draft = { mission: "", examples: [], access: [], sources: ["folder", "mail-imap"], model: null };
+
+    // WHEN the sources are drawn for adjustment
+    const markup = html(AdjustSources, { draft, sources, modified: false, known });
+
+    // THEN only the folder of the paused connection is marked and reads Paused
+    expect(accessRow(markup, 'id="agent-adjust-source-folder"')).toContain('data-paused="true"');
+    expect(accessRow(markup, 'id="agent-adjust-source-mail-imap"')).not.toContain("data-paused");
+    expect(markup.match(/data-paused="true"/g)?.length).toBe(1);
+    expect(markup.match(/>Paused</g)?.length).toBe(1);
   });
 });
 
