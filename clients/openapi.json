@@ -9431,7 +9431,7 @@
           "mcp"
         ],
         "summary": "`GET /api/v1/mcp/servers/:name/raw_config`, Return the persisted launch\nconfiguration of a server (command, args, env, transport, …) as stored in\n`mcp.db`.",
-        "description": "The `env` map contains either literal values for non-secret variables or\n`${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret\nmaterial is never returned. Used by the desktop \"Modifier les arguments\"\nflow to fetch the current config, patch `args`, and PUT the result back\nwithout losing the rest of the configuration.\n\nReturns `404 Not Found` when no server with `name` is persisted.\nReturns `503 Service Unavailable` when the MCP repository is unavailable.",
+        "description": "The `env` map contains either literal values for non-secret variables or\n`${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret\nmaterial is never returned: a secret still kept in clear (a header of a\nremote server, a variable whose name marks it secret) is shown as the\nplaceholder of its variable, and a configuration sent back with that\nplaceholder keeps the stored value. Used by the desktop \"Modifier les arguments\"\nflow to fetch the current config, patch `args`, and PUT the result back\nwithout losing the rest of the configuration.\n\nReturns `404 Not Found` when no server with `name` is persisted.\nReturns `503 Service Unavailable` when the MCP repository is unavailable.",
         "operationId": "get_server_raw_config",
         "parameters": [
           {
@@ -28786,6 +28786,8 @@
           "mission",
           "examples",
           "access",
+          "access_by_default",
+          "access_added",
           "sources",
           "autonomy",
           "planning",
@@ -28799,6 +28801,17 @@
               "type": "string"
             },
             "description": "Tools granted."
+          },
+          "access_added": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The tools of `access` given on top of the default access; empty for\nan agent that does not hold it."
+          },
+          "access_by_default": {
+            "type": "boolean",
+            "description": "Whether the agent holds the default access, read again at every run,\nrather than a list chosen for it."
           },
           "autonomy": {
             "type": "string",

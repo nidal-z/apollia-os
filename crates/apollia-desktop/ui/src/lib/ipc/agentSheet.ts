@@ -34,6 +34,10 @@ export interface ResolvedAgent {
   examples: string[];
   /** Accesses granted: tool names, `mcp:<server>`, `agent:<id>`, `workflow:<id>`. */
   access: string[];
+  /** Whether the agent holds the default access rather than a list chosen for it. */
+  access_by_default?: boolean;
+  /** The accesses given on top of the default access; empty for an agent that does not hold it. */
+  access_added?: string[];
   /** Sources checked, `profile` among them. */
   sources: string[];
   model: AgentModelAssignment | null;

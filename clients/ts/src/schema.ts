@@ -3073,7 +3073,10 @@ export interface paths {
          *     `mcp.db`.
          * @description The `env` map contains either literal values for non-secret variables or
          *     `${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret
-         *     material is never returned. Used by the desktop "Modifier les arguments"
+         *     material is never returned: a secret still kept in clear (a header of a
+         *     remote server, a variable whose name marks it secret) is shown as the
+         *     placeholder of its variable, and a configuration sent back with that
+         *     placeholder keeps the stored value. Used by the desktop "Modifier les arguments"
          *     flow to fetch the current config, patch `args`, and PUT the result back
          *     without losing the rest of the configuration.
          *
@@ -10547,6 +10550,16 @@ export interface components {
         ResolvedAgentResponse: {
             /** @description Tools granted. */
             access: string[];
+            /**
+             * @description The tools of `access` given on top of the default access; empty for
+             *     an agent that does not hold it.
+             */
+            access_added: string[];
+            /**
+             * @description Whether the agent holds the default access, read again at every run,
+             *     rather than a list chosen for it.
+             */
+            access_by_default: boolean;
             /**
              * @description Autonomy tier the agent runs at: `assisted`, `supervised`,
              *     `bounded_autonomous` or `long_autonomous`. The user's, else the
