@@ -157,6 +157,9 @@ fn resolve_callback(params: &CallbackParams, expected_state: &str) -> Result<Str
         if ours && crate::admin_approval::requires_admin_approval(&text) {
             return Err(AuthError::AdminApprovalRequired(text));
         }
+        if ours && crate::admin_approval::declined_in_organisation(&text) {
+            return Err(AuthError::ConsentDeclinedInOrganisation(text));
+        }
         return Err(AuthError::ProviderError(text));
     }
     if params.state.as_deref() != Some(expected_state) {
@@ -238,17 +241,41 @@ mod tests {
 
     #[test]
     fn test_a_personal_account_that_declines_is_a_provider_error_not_an_approval() {
-        // GIVEN an Outlook.com user who declined the consent page
+        // GIVEN an Outlook.com user who declined the consent page, answered
+        // without an AADSTS code
         let params = CallbackParams {
             code: None,
             state: Some("abc123".into()),
             error: Some("access_denied".into()),
-            error_description: Some("AADSTS65004: User declined to consent.".into()),
+            error_description: Some(
+                "The user has denied access to the scope requested by the client application."
+                    .into(),
+            ),
         };
         // WHEN the callback is resolved
         let result = resolve_callback(&params, "abc123");
         // THEN it stays a provider error the user can retry
-        assert!(matches!(result, Err(AuthError::ProviderError(t)) if t.contains("AADSTS65004")));
+        assert!(matches!(result, Err(AuthError::ProviderError(t)) if t.contains("denied access")));
+    }
+
+    #[test]
+    fn test_a_work_account_that_declines_is_named_so_and_only_with_its_state() {
+        // GIVEN a work account's refusal, once with the state of the consent and
+        // once forged without it
+        let refusal = |state: &str| CallbackParams {
+            code: None,
+            state: Some(state.into()),
+            error: Some("access_denied".into()),
+            error_description: Some("AADSTS65004: User declined to consent.".into()),
+        };
+        // WHEN each is resolved
+        let ours = resolve_callback(&refusal("abc123"), "abc123");
+        let forged = resolve_callback(&refusal("forged"), "abc123");
+        // THEN ours may hide an approval, and the forged one is a plain error
+        assert!(
+            matches!(ours, Err(AuthError::ConsentDeclinedInOrganisation(t)) if t.contains("AADSTS65004"))
+        );
+        assert!(matches!(forged, Err(AuthError::ProviderError(_))));
     }
 
     #[test]

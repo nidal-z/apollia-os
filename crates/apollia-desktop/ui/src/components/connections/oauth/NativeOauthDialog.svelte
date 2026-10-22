@@ -25,6 +25,7 @@
     isMissingSecretError,
     isRefusedByPolicy,
   } from "$lib/connections/errors";
+  import { MICROSOFT_SCOPES } from "$lib/connections/microsoftScopes";
   import {
     oauthStartFlow,
     oauthCompleteFlow,
@@ -55,10 +56,11 @@
   // as an error: retrying cannot change it, only the policy can.
   let errorIsPolicyRefusal = $state(false);
   let errorIsMissingSecret = $state(false);
-  // The provider answered that an administrator of the organisation must
-  // approve the application: the approval page to copy, kept by the runtime
-  // as the blocked state of the connection.
-  let adminConsentUrl = $state<string | null>(null);
+  // The approval page to copy: `required` when the provider answered that an
+  // administrator must approve (the runtime keeps the connection blocked),
+  // `possible` when a work account refused the consent, which may hide an
+  // approval left unasked (nothing is blocked).
+  let adminApproval = $state<{ address: string; kind: "required" | "possible" } | null>(null);
   let busy = $state(false);
   let awaitingCallback = $state(false);
   let step = $state<"auth" | "drive_folder" | "done">("auth");
@@ -116,7 +118,7 @@
     errorIsMissingClient = false;
     errorIsPolicyRefusal = false;
     errorIsMissingSecret = false;
-    adminConsentUrl = null;
+    adminApproval = null;
     busy = true;
     awaitingCallback = false;
     step = "auth";
@@ -145,10 +147,7 @@
               "tasks",
               "forms",
             ]
-          : // "mail.readwrite" carries outlook.move: Graph refuses the move
-            // action on Mail.Read alone, so a consent without it left that
-            // operation advertised and unusable.
-            ["mail.read", "mail.readwrite", "mail.send", "calendar.read", "calendar.write", "files.read"];
+          : [...MICROSOFT_SCOPES];
       const startResult = await oauthStartFlow(provider, scopes);
       authUrl = startResult.auth_url;
       flowState = startResult.state;
@@ -168,10 +167,14 @@
         state: string;
         error: string;
         admin_consent_url?: string | null;
+        admin_approval?: "required" | "possible" | null;
       }>("oauth://error", (event) => {
         if (event.payload?.state !== expectedState) return;
         awaitingCallback = false;
-        adminConsentUrl = event.payload.admin_consent_url ?? null;
+        const address = event.payload.admin_consent_url;
+        adminApproval = address
+          ? { address, kind: event.payload.admin_approval === "possible" ? "possible" : "required" }
+          : null;
         error = event.payload.error;
       });
       unlistenFns = [codeUnlisten, errUnlisten];
@@ -200,7 +203,8 @@
         finish();
       }
     } catch (e) {
-      adminConsentUrl = adminApprovalAddress(e);
+      const address = adminApprovalAddress(e);
+      adminApproval = address ? { address, kind: "required" } : null;
       error = formatTauriError(e, $t);
     } finally {
       busy = false;
@@ -299,9 +303,14 @@
         {$t("connections.open_connection_client")}
       </Button>
     </div>
-  {:else if adminConsentUrl}
-    <OauthAdminApproval {providerShort} address={adminConsentUrl} />
+  {:else if adminApproval}
+    <OauthAdminApproval {providerShort} address={adminApproval.address} kind={adminApproval.kind} />
     <div class="mt-4 flex justify-end gap-2">
+      {#if adminApproval.kind === "possible"}
+        <Button variant="outline" size="sm" onclick={startFlow} data-testid="oauth-admin-approval-retry-btn">
+          {$t("common.retry")}
+        </Button>
+      {/if}
       <Button variant="primary-solid" size="sm" onclick={close} data-testid="oauth-admin-approval-close-btn">
         {$t("common.close")}
       </Button>

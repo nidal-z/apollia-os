@@ -2,8 +2,11 @@
   /**
    * OauthAdminApproval - the box the connection dialog shows when the
    * provider answers that an administrator of the user's organisation must
-   * approve the application: why it is blocked, the approval address to copy
-   * and send, and that a personal account is not concerned.
+   * approve the application (`required`): why it is blocked, the approval
+   * address to copy and send, and that a personal account is not concerned.
+   * When a work account refused the consent (`possible`), which may hide an
+   * approval left unasked, the same address is offered, conditionally, and
+   * nothing is said to be blocked.
    */
   import { t } from "svelte-i18n";
   import { Building2, Copy } from "lucide-svelte";
@@ -16,11 +19,19 @@
     providerShort: string;
     /** The approval page to send the administrator. */
     address: string;
+    /** Whether the approval is required, or only possibly what is missing. */
+    kind?: "required" | "possible";
   }
 
-  let { providerShort, address }: Props = $props();
+  let { providerShort, address, kind = "required" }: Props = $props();
 
   let copied = $state<"idle" | "done" | "failed">("idle");
+
+  const addressLabel = $derived(
+    kind === "required"
+      ? $t("connections.oauth_admin_approval_address")
+      : $t("connections.oauth_admin_approval_possible"),
+  );
 
   async function copy(): Promise<void> {
     try {
@@ -32,24 +43,36 @@
   }
 </script>
 
-<Banner
-  variant="warning"
-  surface="card"
-  icon={Building2}
-  title={$t("connections.oauth_admin_approval_title")}
-  data-testid="oauth-admin-approval"
->
-  {$t("connections.oauth_admin_approval_body", { values: { provider: providerShort } })}
-</Banner>
+{#if kind === "required"}
+  <Banner
+    variant="warning"
+    surface="card"
+    icon={Building2}
+    title={$t("connections.oauth_admin_approval_title")}
+    data-testid="oauth-admin-approval"
+  >
+    {$t("connections.oauth_admin_approval_body", { values: { provider: providerShort } })}
+  </Banner>
+{:else}
+  <Banner
+    variant="info"
+    surface="card"
+    icon={Building2}
+    title={$t("connections.oauth_admin_approval_declined_title")}
+    data-testid="oauth-admin-approval-possible"
+  >
+    {$t("connections.oauth_admin_approval_declined_body", { values: { provider: providerShort } })}
+  </Banner>
+{/if}
 <div class="mt-3 space-y-2">
-  <p class="text-body-sm text-foreground">{$t("connections.oauth_admin_approval_address")}</p>
+  <p class="text-body-sm text-foreground">{addressLabel}</p>
   <div class="flex items-center gap-2">
     <Input
       type="text"
       class="font-mono"
       readonly
       value={address}
-      aria-label={$t("connections.oauth_admin_approval_address")}
+      aria-label={addressLabel}
       data-testid="oauth-admin-approval-address"
     />
     <Button variant="outline" size="sm" onclick={copy} data-testid="oauth-admin-approval-copy">
@@ -64,5 +87,7 @@
       {$t("connections.oauth_admin_approval_copy_failed")}
     </p>
   {/if}
-  <p class="text-caption text-muted-foreground">{$t("connections.oauth_admin_approval_personal")}</p>
+  {#if kind === "required"}
+    <p class="text-caption text-muted-foreground">{$t("connections.oauth_admin_approval_personal")}</p>
+  {/if}
 </div>

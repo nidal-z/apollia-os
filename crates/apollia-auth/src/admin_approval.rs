@@ -2,16 +2,26 @@
 //! the application before its user can sign in, and the address of that
 //! approval.
 //!
-//! In an organisation at its default setting, a user cannot consent alone to
-//! `Mail.Read`, `Mail.ReadWrite` or `Calendars.*`: the identity platform
-//! answers with an `AADSTS` code instead of a code to exchange, either on the
-//! redirect or at the token endpoint. A personal account (Outlook.com) signs in
-//! through the same `common` authority and consents for itself, so it never
-//! receives one of these codes.
+//! Whether a user may consent alone to `Mail.Read`, `Mail.ReadWrite` or
+//! `Calendars.*` depends on the consent settings of their organisation. Where
+//! those settings keep the consent for an administrator, the identity
+//! platform answers with an `AADSTS` code instead of a code to exchange,
+//! either on the redirect or at the token endpoint. A personal account
+//! (Outlook.com) signs in through the same `common` authority and consents for
+//! itself, so it never receives one of these codes.
 //!
 //! What the user can do then is send their administrator the approval page of
 //! the application, `adminconsent` under the `organizations` authority, where
 //! an administrator signs in and approves it for the whole organisation.
+//!
+//! A refused consent (`AADSTS65004`) is the one answer that may hide such an
+//! approval: Microsoft does not say what an application receives when its user
+//! leaves the "Need admin approval" page without asking for it, and documents
+//! no field telling that case apart from a plain refusal. Only Microsoft Entra
+//! ID, the directory of organisation accounts, words its answers with an
+//! `AADSTS` code; a personal account refusing the consent page is answered
+//! without one. So `AADSTS65004` names a work or school account, which is
+//! offered the approval page as a possibility, and never marked blocked.
 
 /// The `AADSTS` codes that mean an administrator must approve the
 /// application, and nothing the user can do alone will.
@@ -26,6 +36,11 @@
 /// A user who declines (`65004`) or cancels is not among them: retrying is
 /// theirs to do.
 pub const ADMIN_APPROVAL_CODES: [u32; 4] = [90094, 90095, 900941, 65001];
+
+/// The `AADSTS` code of a refused consent, answered by Microsoft Entra ID to a
+/// work or school account. It may hide an administrator approval the user
+/// left unasked, which nothing in the answer tells apart.
+pub const ORGANISATION_DECLINE_CODE: u32 = 65004;
 
 /// Authority under which the approval page is opened: any organisation, the
 /// administrator's own resolved when they sign in.
@@ -54,6 +69,15 @@ pub fn requires_admin_approval(text: &str) -> bool {
     aadsts_codes(text)
         .iter()
         .any(|code| ADMIN_APPROVAL_CODES.contains(code))
+}
+
+/// `true` when and only when `text` is a refused consent answered to an
+/// organisation account ([`ORGANISATION_DECLINE_CODE`]) and names no code of
+/// [`ADMIN_APPROVAL_CODES`]: the approval may be what is missing, and is
+/// offered without being asserted.
+#[must_use]
+pub fn declined_in_organisation(text: &str) -> bool {
+    !requires_admin_approval(text) && aadsts_codes(text).contains(&ORGANISATION_DECLINE_CODE)
 }
 
 /// The approval page of the application `client_id`, the address the user
@@ -110,6 +134,23 @@ mod tests {
             assert!(!requires_admin_approval(text), "{text}");
         }
         assert_eq!(aadsts_codes(longer), vec![900944]);
+    }
+
+    #[test]
+    fn test_a_work_account_refusal_may_hide_an_approval_and_a_personal_one_does_not() {
+        // GIVEN the refusal Microsoft Entra ID answers a work account, and the
+        // refusal a personal account receives, worded without an AADSTS code
+        let work = "access_denied: AADSTS65004: User declined to consent to access the app.";
+        let personal = "access_denied: The user has denied access to the scope requested \
+                        by the client application.";
+
+        // WHEN each is read
+        // THEN only the work account's may hide an approval, and neither
+        // asserts one
+        assert!(declined_in_organisation(work));
+        assert!(!declined_in_organisation(personal));
+        assert!(!requires_admin_approval(work));
+        assert!(!declined_in_organisation("AADSTS90094 then AADSTS65004"));
     }
 
     #[test]

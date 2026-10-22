@@ -160,8 +160,8 @@ pub enum MicrosoftScope {
     /// Read the user's own OneDrive files (`Files.Read`).
     ///
     /// Never `Files.Read.All`: that one reaches every file shared with the
-    /// user and needs an administrator in an organisation at its default
-    /// setting, while the OneDrive operations read `/me/drive` only.
+    /// user, and an organisation's consent settings may keep it for an
+    /// administrator, while the OneDrive operations read `/me/drive` only.
     FilesRead,
     /// Read / write files (`Files.ReadWrite`).
     FilesWrite,
@@ -628,23 +628,63 @@ mod tests {
         assert!(cfg.scopes.contains(&"Mail.Read"));
     }
 
-    /// The scope names the desktop's Microsoft connection asks for.
-    const DESKTOP_MICROSOFT_SCOPES: [&str; 6] = [
-        "mail.read",
-        "mail.readwrite",
-        "mail.send",
-        "calendar.read",
-        "calendar.write",
-        "files.read",
-    ];
+    /// The module of the desktop interface that holds the scope names its
+    /// Microsoft connection asks for, the one list the dialog sends.
+    const DESKTOP_MICROSOFT_SCOPES_TS: &str =
+        include_str!("../../apollia-desktop/ui/src/lib/connections/microsoftScopes.ts");
+
+    /// The quoted names of the `MICROSOFT_SCOPES` array of `source`.
+    fn microsoft_scopes_of(source: &str) -> Vec<String> {
+        let start = source
+            .find("MICROSOFT_SCOPES = [")
+            .map(|at| at + "MICROSOFT_SCOPES = [".len())
+            .unwrap();
+        let end = start + source[start..].find(']').unwrap();
+        source[start..end]
+            .split(',')
+            .map(|item| item.trim().trim_matches('"').to_owned())
+            .filter(|item| !item.is_empty())
+            .collect()
+    }
+
+    /// The scope names the desktop's Microsoft connection asks for, read from
+    /// the interface's own list.
+    fn desktop_microsoft_scopes() -> Vec<String> {
+        microsoft_scopes_of(DESKTOP_MICROSOFT_SCOPES_TS)
+    }
+
+    #[test]
+    fn test_the_scope_names_are_read_from_the_list_the_dialog_sends() {
+        // GIVEN the interface's list, and a copy of it with one name removed
+        let shipped = DESKTOP_MICROSOFT_SCOPES_TS;
+        let edited = shipped.replacen("\"mail.send\",", "", 1);
+
+        // WHEN both are read
+        let names = microsoft_scopes_of(shipped);
+        let fewer = microsoft_scopes_of(&edited);
+
+        // THEN the six names are read, each a known group, and an edit of the
+        // list is what the consent is built from
+        assert_eq!(
+            names,
+            [
+                "mail.read",
+                "mail.readwrite",
+                "mail.send",
+                "calendar.read",
+                "calendar.write",
+                "files.read",
+            ]
+        );
+        assert!(names.iter().all(|n| MicrosoftScope::from_name(n).is_some()));
+        assert_eq!(fewer.len(), 5);
+        assert!(!fewer.contains(&"mail.send".to_owned()));
+    }
 
     #[test]
     fn test_the_microsoft_consent_asks_for_the_users_own_files_only() {
         // GIVEN the scope names the desktop sends for a Microsoft connection
-        let names: Vec<String> = DESKTOP_MICROSOFT_SCOPES
-            .iter()
-            .map(|n| (*n).to_owned())
-            .collect();
+        let names = desktop_microsoft_scopes();
 
         // WHEN the consent request is built from them
         let cfg =
@@ -717,16 +757,15 @@ mod tests {
     #[test]
     fn test_a_personal_account_signs_in_through_the_common_authority_with_no_approval() {
         // GIVEN the consent request of the desktop's Microsoft connection
-        let names: Vec<String> = DESKTOP_MICROSOFT_SCOPES
-            .iter()
-            .map(|n| (*n).to_owned())
-            .collect();
+        let names = desktop_microsoft_scopes();
         let cfg =
             crate::connector_consent::provider_config_for(ConnectorProvider::Microsoft, &names)
                 .unwrap();
 
-        // WHEN it is sent, and an Outlook.com account declines then retries
-        let declined = "access_denied: AADSTS65004: User declined to consent to access the app.";
+        // WHEN it is sent, and an Outlook.com account declines then retries,
+        // answered without an AADSTS code, as a personal account is
+        let declined = "access_denied: The user has denied access to the scope requested \
+                        by the client application.";
 
         // THEN it goes through `common`, which takes personal accounts and
         // lets them consent for themselves, and the refusal of a personal
@@ -738,6 +777,7 @@ mod tests {
             .token_url
             .starts_with("https://login.microsoftonline.com/common/"));
         assert!(!crate::admin_approval::requires_admin_approval(declined));
+        assert!(!crate::admin_approval::declined_in_organisation(declined));
     }
 
     #[test]

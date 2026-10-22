@@ -30,12 +30,20 @@ function escaped(text: string): string {
  * Renders the box through Svelte's server renderer, the only renderer the node
  * environment of this suite offers, in `lang`.
  */
-async function renderIn(lang: "fr" | "en"): Promise<string> {
+async function renderIn(
+  lang: "fr" | "en",
+  kind: "required" | "possible" = "required",
+): Promise<string> {
   locale.set(lang);
   await waitLocale(lang);
   return renderToString(OauthAdminApproval, {
-    props: { providerShort: "Microsoft", address: ADDRESS },
+    props: { providerShort: "Microsoft", address: ADDRESS, kind },
   }).body;
+}
+
+/** True when `message` is in `html`, raw or as the renderer escapes it. */
+function shows(html: string, message: string): boolean {
+  return html.includes(message) || html.includes(escaped(message));
 }
 
 describe("OauthAdminApproval", () => {
@@ -65,5 +73,38 @@ describe("OauthAdminApproval", () => {
     expect(html).toContain(`value="${escaped(ADDRESS)}"`);
     for (const message of messagesOf(en)) expect(html).toContain(message);
     expect(html).toContain("Blocked by your organisation");
+  });
+
+  test("offers a refused work account the address, conditionally, in both languages", async () => {
+    // GIVEN a work account that refused the consent, which may hide an
+    // administrator's approval left unasked
+    for (const [lang, catalogue] of [
+      ["fr", fr],
+      ["en", en],
+    ] as const) {
+      // WHEN the box is rendered in that language
+      const html = await renderIn(lang, "possible");
+
+      // THEN the refusal is said, the address is offered with the conditional
+      // sentence, and nothing says the connection is blocked
+      const c = catalogue.connections;
+      expect(html).toContain('data-testid="oauth-admin-approval-possible"');
+      expect(html).not.toContain('data-testid="oauth-admin-approval"');
+      expect(html).toContain(`value="${escaped(ADDRESS)}"`);
+      for (const message of [
+        c.oauth_admin_approval_declined_title,
+        c.oauth_admin_approval_declined_body.replace("{provider}", "Microsoft"),
+        c.oauth_admin_approval_possible,
+      ]) {
+        expect(shows(html, message), message).toBe(true);
+      }
+      expect(shows(html, c.oauth_admin_approval_title)).toBe(false);
+    }
+    expect(en.connections.oauth_admin_approval_possible).toBe(
+      "If your organisation requires an administrator's approval, send them this address.",
+    );
+    expect(fr.connections.oauth_admin_approval_possible).not.toBe(
+      en.connections.oauth_admin_approval_possible,
+    );
   });
 });

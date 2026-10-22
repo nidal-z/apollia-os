@@ -590,14 +590,20 @@ opérations échouent. Une connexion que l'organisation interdit n'est pas
 jointe. Ce qu'une vérification constate est gardé et annoncé comme tout autre
 état.
 
-Quand Microsoft répond qu'un administrateur de l'organisation doit approuver
-l'application, aucun compte n'a pu se connecter, il n'y en a donc aucun à
-nommer : l'état est gardé sous le seul fournisseur (`native:microsoft`),
-bloqué, avec la raison `admin_approval_required` et l'adresse de la page
-d'accord (`adminconsent`) à copier. Le premier compte de ce fournisseur qui se
-connecte le lève. Le consentement Microsoft demande les propres fichiers de
-l'utilisateur (`Files.Read`), jamais `Files.Read.All`, qu'un utilisateur d'une
-telle organisation ne peut jamais accorder seul.
+Qu'un utilisateur puisse consentir seul au courrier et à l'agenda dépend des
+réglages de consentement de son organisation. Quand Microsoft répond qu'un
+administrateur doit approuver l'application, aucun compte n'a pu se
+connecter, il n'y en a donc aucun à nommer : l'état est gardé sous le seul
+fournisseur (`native:microsoft`), bloqué, avec la raison
+`admin_approval_required` et l'adresse de la page d'accord (`adminconsent`) à
+copier. Le premier compte de ce fournisseur qui se connecte le lève. Un
+compte professionnel dont le consentement est refusé (`AADSTS65004`), que
+Microsoft ne distingue pas d'un accord d'administrateur non demandé, se voit
+proposer la même adresse à copier, sans que sa connexion soit marquée
+bloquée. Le consentement Microsoft demande les propres fichiers de
+l'utilisateur (`Files.Read`), jamais `Files.Read.All`, qui atteint tous les
+fichiers partagés avec lui et que les réglages de consentement réservent plus
+souvent à un administrateur.
 
 ### Une connexion en pause {#connection-pause}
 

@@ -8,13 +8,77 @@
 //! handed the same address to copy. A personal account consents for itself and
 //! never receives that answer.
 //!
+//! A work or school account that refuses the consent (`AADSTS65004`) may have
+//! left an administrator's approval unasked, which Microsoft does not tell
+//! apart from a plain refusal: the dialog offers the same address to copy, as a
+//! possibility, and the connection is not marked blocked. A personal account's
+//! refusal carries no `AADSTS` code and stays a plain refusal.
+//!
 //! Attached to the daemon, the state is the daemon's and is not written from
 //! the window; the dialog still shows the approval to send.
 
 use std::path::{Path, PathBuf};
 
-use apollia_auth::ConnectorProvider;
+use apollia_auth::{AuthError, ConnectorProvider};
 use apollia_core::EventBusSender;
+use serde::Serialize;
+
+/// What a refused consent says of an administrator's approval.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum Approval {
+    /// Microsoft answered that an administrator must approve: the connection
+    /// is kept blocked by the organisation.
+    Required,
+    /// A work or school account refused the consent: an approval may be what
+    /// is missing, offered and not asserted.
+    Possible,
+}
+
+/// What the dialog is told when the loopback callback ended on `err`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct CallbackOutcome {
+    /// The approval page to offer, when one applies.
+    pub address: Option<String>,
+    /// How sure the answer is that an approval is missing.
+    pub approval: Option<Approval>,
+}
+
+impl CallbackOutcome {
+    /// Keep the connection blocked: only when an approval is required.
+    pub(super) fn blocks(&self) -> bool {
+        self.approval == Some(Approval::Required) && self.address.is_some()
+    }
+
+    /// The payload of the `oauth://error` event of consent `state`.
+    pub(super) fn payload(&self, state: &str, err: &AuthError) -> serde_json::Value {
+        serde_json::json!({
+            "state": state,
+            "error": err.to_string(),
+            "admin_consent_url": self.address,
+            "admin_approval": self.address.as_ref().and(self.approval),
+        })
+    }
+}
+
+/// What the callback error `err` of a consent with `provider` tells the
+/// dialog, the approval page being `resolved`.
+pub(super) fn callback_outcome(
+    err: &AuthError,
+    provider: Option<ConnectorProvider>,
+    resolved: Option<String>,
+) -> CallbackOutcome {
+    let approval = match err {
+        AuthError::AdminApprovalRequired(_) => Some(Approval::Required),
+        AuthError::ConsentDeclinedInOrganisation(_) => Some(Approval::Possible),
+        _ => None,
+    };
+    let address = approval_address(provider, approval.is_some(), resolved);
+    CallbackOutcome {
+        address: address.clone(),
+        approval: address.and(approval),
+    }
+}
 
 /// Where the state of a blocked connection is kept and announced: the data
 /// directory and the bus of the embedded runtime.
@@ -136,6 +200,76 @@ mod tests {
         assert_eq!(declined, None);
         assert_eq!(google, None);
         assert_eq!(no_client, None);
+    }
+
+    /// Resolve the redirect `query` on a real loopback listener, as the
+    /// browser would bring it back, and answer what the dialog is told. No
+    /// Microsoft endpoint is reached: the redirect is written here.
+    async fn outcome_of_redirect(query: &str) -> (CallbackOutcome, serde_json::Value) {
+        let (listener, port) = apollia_auth::callback::bind_ephemeral_port().await.unwrap();
+        let waiter = tokio::spawn(apollia_auth::callback::wait_for_callback(listener, "s1"));
+        let _ = reqwest::get(format!("http://127.0.0.1:{port}/callback?state=s1&{query}")).await;
+        let err = waiter.await.unwrap().unwrap_err();
+        let outcome = callback_outcome(
+            &err,
+            Some(ConnectorProvider::Microsoft),
+            Some(ADDRESS.to_owned()),
+        );
+        let payload = outcome.payload("s1", &err);
+        (outcome, payload)
+    }
+
+    #[tokio::test]
+    async fn test_a_work_account_that_refuses_is_offered_the_approval_without_being_blocked() {
+        // GIVEN the refusal Microsoft Entra ID answers a work account
+        let query =
+            "error=access_denied&error_description=AADSTS65004%3A+User+declined+to+consent.";
+
+        // WHEN the redirect comes back on the loopback
+        let (outcome, payload) = outcome_of_redirect(query).await;
+
+        // THEN the dialog is offered the approval page as a possibility, and
+        // the connection is not kept blocked
+        assert_eq!(outcome.approval, Some(Approval::Possible));
+        assert!(!outcome.blocks());
+        assert_eq!(payload["admin_consent_url"], ADDRESS);
+        assert_eq!(payload["admin_approval"], "possible");
+    }
+
+    #[tokio::test]
+    async fn test_a_personal_account_that_refuses_keeps_the_plain_refusal() {
+        // GIVEN the refusal a personal account receives, with no AADSTS code
+        let query = "error=access_denied&error_description=The+user+has+denied+access+to+the+\
+                     scope+requested+by+the+client+application.";
+
+        // WHEN the redirect comes back on the loopback
+        let (outcome, payload) = outcome_of_redirect(query).await;
+
+        // THEN nothing about an approval is said, and the refusal is shown as is
+        assert_eq!(
+            outcome,
+            CallbackOutcome {
+                address: None,
+                approval: None
+            }
+        );
+        assert!(payload["admin_consent_url"].is_null());
+        assert!(payload["admin_approval"].is_null());
+        assert!(payload["error"].as_str().unwrap().contains("denied access"));
+    }
+
+    #[tokio::test]
+    async fn test_a_required_approval_blocks_the_connection() {
+        // GIVEN Microsoft's answer that an administrator must approve
+        let query = "error=consent_required&error_description=AADSTS90094%3A+Admin+permission.";
+
+        // WHEN the redirect comes back on the loopback
+        let (outcome, payload) = outcome_of_redirect(query).await;
+
+        // THEN the connection is kept blocked and the dialog says it is
+        assert_eq!(outcome.approval, Some(Approval::Required));
+        assert!(outcome.blocks());
+        assert_eq!(payload["admin_approval"], "required");
     }
 
     #[tokio::test]

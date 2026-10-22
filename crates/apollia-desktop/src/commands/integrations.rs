@@ -325,25 +325,20 @@ pub async fn oauth_start_flow(
             }
             Err(err) => {
                 // An organisation that requires its administrator's approval
-                // is kept blocked with the approval page, which the dialog
-                // shows to copy.
-                let approval = matches!(err, apollia_auth::AuthError::AdminApprovalRequired(_));
-                let address = admin_approval::approval_address(
+                // is kept blocked with the approval page; a work account that
+                // refused is offered the same page, unblocked. The dialog
+                // shows it to copy.
+                let outcome = admin_approval::callback_outcome(
+                    &err,
                     provider_for_task,
-                    approval,
                     apollia_auth::admin_approval::resolved_admin_consent_url(),
                 );
-                if let (Some(provider), Some(address)) = (provider_for_task, address.clone()) {
+                if let (true, Some(provider), Some(address)) =
+                    (outcome.blocks(), provider_for_task, outcome.address.clone())
+                {
                     admin_approval::keep_blocked(sink, provider, err.to_string(), address).await;
                 }
-                let _ = app_handle.emit(
-                    "oauth://error",
-                    serde_json::json!({
-                        "state": state_for_task,
-                        "error": err.to_string(),
-                        "admin_consent_url": address,
-                    }),
-                );
+                let _ = app_handle.emit("oauth://error", outcome.payload(&state_for_task, &err));
             }
         }
     });
