@@ -215,9 +215,10 @@ Rules :
 
 - **Unit tests** : Vitest, `npm test` from `crates/apollia-desktop/ui/`,
   co-located in `*.test.ts` next to the unit they cover. `vitest.config.ts`
-  declares two projects. `node` runs `src/**/*.test.ts` in the `node`
-  environment: cover a component by exporting the logic under test from its
-  `<script module>` block and asserting on that export, the way
+  declares two projects. `node` runs `src/**/*.test.ts`, the `*.dom.test.ts`
+  files excluded, in the `node` environment: cover a component by exporting
+  the logic under test from its `<script module>` block and asserting on
+  that export, the way
   `crates/apollia-desktop/ui/src/components/observability/TaskTimeline.test.ts` does, or by its
   `svelte/server` render. A file there may declare `// @vitest-environment jsdom`
   (the `jsdom` devDependency exists for it) when the unit under test is inert

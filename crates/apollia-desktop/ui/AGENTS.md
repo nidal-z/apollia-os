@@ -363,9 +363,10 @@ organization policy can impose it and Rust readers see the same value.
 
 - **Unit : Vitest**, `npm test` from `crates/apollia-desktop/ui/`.
   `vitest.config.ts` declares two projects. `node` runs every
-  `src/**/*.test.ts` in the `node` environment, where a component renders
-  through `svelte/server` only: test a component by exporting the logic under
-  test from its `<script module>` block and asserting on that export, the way
+  `src/**/*.test.ts` except the `*.dom.test.ts` ones, in the `node`
+  environment, where a component renders through `svelte/server` only: test
+  a component by exporting the logic under test from its `<script module>`
+  block and asserting on that export, the way
   `src/components/observability/TaskTimeline.test.ts` does, or by its server
   render. `dom` runs every `src/**/*.dom.test.ts` under `jsdom` with the
   `browser` resolve condition, so `mount` from `svelte` works there: that is
