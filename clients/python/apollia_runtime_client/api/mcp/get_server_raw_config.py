@@ -74,7 +74,10 @@ def sync_detailed(
 
      The `env` map contains either literal values for non-secret variables or
     `${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret
-    material is never returned. Used by the desktop \"Modifier les arguments\"
+    material is never returned: a secret still kept in clear (a header of a
+    remote server, a variable whose name marks it secret) is shown as the
+    placeholder of its variable, and a configuration sent back with that
+    placeholder keeps the stored value. Used by the desktop \"Modifier les arguments\"
     flow to fetch the current config, patch `args`, and PUT the result back
     without losing the rest of the configuration.
 
@@ -114,7 +117,10 @@ def sync(
 
      The `env` map contains either literal values for non-secret variables or
     `${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret
-    material is never returned. Used by the desktop \"Modifier les arguments\"
+    material is never returned: a secret still kept in clear (a header of a
+    remote server, a variable whose name marks it secret) is shown as the
+    placeholder of its variable, and a configuration sent back with that
+    placeholder keeps the stored value. Used by the desktop \"Modifier les arguments\"
     flow to fetch the current config, patch `args`, and PUT the result back
     without losing the rest of the configuration.
 
@@ -149,7 +155,10 @@ async def asyncio_detailed(
 
      The `env` map contains either literal values for non-secret variables or
     `${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret
-    material is never returned. Used by the desktop \"Modifier les arguments\"
+    material is never returned: a secret still kept in clear (a header of a
+    remote server, a variable whose name marks it secret) is shown as the
+    placeholder of its variable, and a configuration sent back with that
+    placeholder keeps the stored value. Used by the desktop \"Modifier les arguments\"
     flow to fetch the current config, patch `args`, and PUT the result back
     without losing the rest of the configuration.
 
@@ -187,7 +196,10 @@ async def asyncio(
 
      The `env` map contains either literal values for non-secret variables or
     `${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret
-    material is never returned. Used by the desktop \"Modifier les arguments\"
+    material is never returned: a secret still kept in clear (a header of a
+    remote server, a variable whose name marks it secret) is shown as the
+    placeholder of its variable, and a configuration sent back with that
+    placeholder keeps the stored value. Used by the desktop \"Modifier les arguments\"
     flow to fetch the current config, patch `args`, and PUT the result back
     without losing the rest of the configuration.
 
