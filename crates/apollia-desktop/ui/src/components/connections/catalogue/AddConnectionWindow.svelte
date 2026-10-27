@@ -198,65 +198,70 @@
         return entryDescription(entry.entry, $locale) ?? entry.entry.enrichment?.category ?? "";
     }
   }
+
+  /** What every row shares, whatever its kind: the chosen state and the choice. */
+  function rowProps(entry: AddEntry) {
+    return {
+      variant: "row" as const,
+      border: false,
+      pad: "snug" as const,
+      class: "rounded-lg border border-border/60 bg-card elev-interactive hover:border-primary/40",
+      state: entry.key === chosen ? ("active" as const) : ("default" as const),
+      onclick: () => onchoose(entry.key),
+    };
+  }
 </script>
 
-<!-- The anchor of each row sits on its item, spelt out per kind. -->
+<!-- The anchor of each row sits on the control that chooses it, spelt out per
+     kind: a click dispatched on the anchor itself only bubbles up, so an anchor
+     on the item around the control would choose nothing. -->
 {#snippet row(entry: AddEntry)}
   {#if entry.kind === "catalogue"}
-    <li data-testid="catalogue-entry-{entry.entry.name}">{@render rowBody(entry)}</li>
+    <li><ListRow {...rowProps(entry)} data-testid="catalogue-entry-{entry.entry.name}">{@render rowBody(entry)}</ListRow></li>
   {:else if entry.kind === "native"}
-    <li data-testid="catalogue-native-{entry.provider}">{@render rowBody(entry)}</li>
+    <li><ListRow {...rowProps(entry)} data-testid="catalogue-native-{entry.provider}">{@render rowBody(entry)}</ListRow></li>
   {:else if entry.kind === "folder"}
-    <li data-testid="catalogue-folder">{@render rowBody(entry)}</li>
+    <li><ListRow {...rowProps(entry)} data-testid="catalogue-folder">{@render rowBody(entry)}</ListRow></li>
   {:else if entry.kind === "mailbox"}
-    <li data-testid="catalogue-native-mailbox">{@render rowBody(entry)}</li>
+    <li><ListRow {...rowProps(entry)} data-testid="catalogue-native-mailbox">{@render rowBody(entry)}</ListRow></li>
   {:else}
-    <li data-testid="catalogue-address">{@render rowBody(entry)}</li>
+    <li><ListRow {...rowProps(entry)} data-testid="catalogue-address">{@render rowBody(entry)}</ListRow></li>
   {/if}
 {/snippet}
 
 {#snippet rowBody(entry: AddEntry)}
-    <ListRow
-      variant="row"
-      border={false}
-      pad="snug"
-      class="rounded-lg border border-border/60 bg-card elev-interactive hover:border-primary/40"
-      state={entry.key === chosen ? "active" : "default"}
-      onclick={() => onchoose(entry.key)}
+    <ConnectorTile
+      size="md"
+      accent={entry.kind === "catalogue" ? accentTokenFor(rowName(entry)) : "hsl(var(--primary))"}
     >
-      <ConnectorTile
-        size="md"
-        accent={entry.kind === "catalogue" ? accentTokenFor(rowName(entry)) : "hsl(var(--primary))"}
-      >
-        {#snippet icon()}
-          {#if entry.kind === "folder"}<Folder size={14} />
-          {:else if entry.kind === "mailbox"}<Mail size={14} />
-          {:else if entry.kind === "native"}<UserRound size={14} />
-          {:else if entry.kind === "address"}<Globe size={14} />
-          {:else}<LinkIcon size={14} />{/if}
-        {/snippet}
-      </ConnectorTile>
-      <div class="min-w-0 flex-1">
-        <div class="flex min-w-0 items-center gap-1.5">
-          <span class="truncate text-body-sm font-medium text-foreground">{rowName(entry)}</span>
-          {#if entry.kind === "catalogue"}
-            {#if isOfficial(entry.entry)}
-              <Badge size="sm" variant="primary" data-testid="catalogue-badge-official"
-                >{$t("connections.badge_official")}</Badge
-              >
-            {:else}
-              <Badge size="sm" variant="neutral" outline data-testid="catalogue-badge-community"
-                >{$t("connections.badge_community")}</Badge
-              >
-            {/if}
-            {#if installedOf(entry)}
-              <Badge size="sm" variant="success">{$t("connections.badge_installed")}</Badge>
-            {/if}
+      {#snippet icon()}
+        {#if entry.kind === "folder"}<Folder size={14} />
+        {:else if entry.kind === "mailbox"}<Mail size={14} />
+        {:else if entry.kind === "native"}<UserRound size={14} />
+        {:else if entry.kind === "address"}<Globe size={14} />
+        {:else}<LinkIcon size={14} />{/if}
+      {/snippet}
+    </ConnectorTile>
+    <div class="min-w-0 flex-1">
+      <div class="flex min-w-0 items-center gap-1.5">
+        <span class="truncate text-body-sm font-medium text-foreground">{rowName(entry)}</span>
+        {#if entry.kind === "catalogue"}
+          {#if isOfficial(entry.entry)}
+            <Badge size="sm" variant="primary" data-testid="catalogue-badge-official"
+              >{$t("connections.badge_official")}</Badge
+            >
+          {:else}
+            <Badge size="sm" variant="neutral" outline data-testid="catalogue-badge-community"
+              >{$t("connections.badge_community")}</Badge
+            >
           {/if}
-        </div>
-        <div class="truncate text-caption text-muted-foreground">{rowDescription(entry)}</div>
+          {#if installedOf(entry)}
+            <Badge size="sm" variant="success">{$t("connections.badge_installed")}</Badge>
+          {/if}
+        {/if}
       </div>
-    </ListRow>
+      <div class="truncate text-caption text-muted-foreground">{rowDescription(entry)}</div>
+    </div>
 {/snippet}
 
 <Dialog

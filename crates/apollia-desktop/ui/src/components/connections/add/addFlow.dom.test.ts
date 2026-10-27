@@ -84,11 +84,11 @@ async function click(id: string): Promise<void> {
   await settle();
 }
 
-/** A row of the add window: its testid sits on the item, the gesture on its button. */
+/** A row of the add window: its testid sits on the control that chooses it. */
 async function choose(id: string): Promise<void> {
-  const button = byTestid(id)?.querySelector<HTMLElement>('[role="button"]');
-  if (!button) throw new Error(`no row ${id}`);
-  button.click();
+  const row = byTestid(id);
+  if (row?.getAttribute("role") !== "button") throw new Error(`no row ${id}`);
+  row.click();
   await settle();
 }
 
