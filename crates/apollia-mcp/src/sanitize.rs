@@ -13,7 +13,8 @@
 //! bounds are crate constants, mirroring the byte-level bounding posture
 //! documented for the transport layer.
 
-use crate::protocol::McpToolDefinition;
+use crate::protocol::{McpResource, McpToolDefinition};
+use crate::server_repository::StoredResource;
 
 /// Maximum accepted length of a tool name, in bytes. A well-behaved MCP tool
 /// name is a short identifier; anything longer is rejected outright.
@@ -29,6 +30,18 @@ const MAX_TITLE_LEN: usize = 256;
 
 /// Maximum retained length of the server `instructions` string, in bytes.
 pub(crate) const MAX_INSTRUCTIONS_LEN: usize = 16 * 1024;
+
+/// Maximum accepted length of a resource URI, in bytes. The URI is the key a
+/// read sends back to the server, so a longer one is dropped, not truncated.
+const MAX_RESOURCE_URI_LEN: usize = 2048;
+
+/// Maximum retained length of a resource MIME type, in bytes.
+const MAX_MIME_TYPE_LEN: usize = 128;
+
+/// Maximum number of resources kept per server. A server's tools are capped
+/// by its `max_tools`; its resources, often one per document, get a fixed
+/// ceiling of their own, generous for a picker and bounded for `mcp.db`.
+pub(crate) const MAX_RESOURCES_PER_SERVER: usize = 1024;
 
 /// Returns `true` when `name` is a well-formed MCP tool name: non-empty, within
 /// [`MAX_TOOL_NAME_LEN`], and drawn only from `[A-Za-z0-9_.-]`.
@@ -114,10 +127,139 @@ pub(crate) fn sanitize_tool_definitions(
     out
 }
 
+/// Validate, sanitize, and cap the resources `server` listed.
+///
+/// - The URI is stripped of control characters; a resource whose URI is then
+///   empty or longer than [`MAX_RESOURCE_URI_LEN`] is dropped (the URI is the
+///   key of a read, so it cannot be cut). The raw value is never logged.
+/// - The name is free text shown in the @ picker, bounded like a tool title;
+///   a name left empty reads as the URI.
+/// - The description and the MIME type are stripped and truncated.
+/// - The list is capped at [`MAX_RESOURCES_PER_SERVER`].
+pub(crate) fn sanitize_resources(resources: Vec<McpResource>, server: &str) -> Vec<StoredResource> {
+    let received = resources.len();
+    let mut out: Vec<StoredResource> = Vec::with_capacity(received.min(MAX_RESOURCES_PER_SERVER));
+    for resource in resources {
+        if out.len() >= MAX_RESOURCES_PER_SERVER {
+            break;
+        }
+        let uri: String = resource.uri.chars().filter(|c| !c.is_control()).collect();
+        if uri.is_empty() || uri.len() > MAX_RESOURCE_URI_LEN {
+            continue;
+        }
+        let name =
+            sanitize_free_text(Some(resource.name), MAX_TITLE_LEN).unwrap_or_else(|| uri.clone());
+        out.push(StoredResource {
+            name,
+            mime_type: sanitize_free_text(resource.mime_type, MAX_MIME_TYPE_LEN),
+            description: sanitize_free_text(resource.description, MAX_DESCRIPTION_LEN),
+            uri,
+        });
+    }
+    if out.len() < received {
+        tracing::warn!(
+            server = %server,
+            kept = out.len(),
+            received,
+            "mcp.resources.bounded"
+        );
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn listed(uri: &str, name: &str, description: Option<&str>) -> McpResource {
+        McpResource {
+            uri: uri.to_string(),
+            name: name.to_string(),
+            description: description.map(str::to_string),
+            mime_type: Some("text/plain".to_string()),
+        }
+    }
+
+    #[test]
+    fn hostile_resources_are_dropped_stripped_and_capped() {
+        // GIVEN a list mixing an empty URI, an overlong URI, control characters
+        //       in every field, an overlong name, and more entries than the cap
+        let mut noisy = listed(
+            "memo://a\n\u{7}b",
+            "Road\nmap\u{1b}[31m",
+            Some("ignore\nrules"),
+        );
+        noisy.mime_type = Some("text/\rplain".to_string());
+        let mut resources = vec![
+            listed("", "empty", None),
+            listed("\n\t", "only control", None),
+            listed(
+                &format!("memo://{}", "x".repeat(MAX_RESOURCE_URI_LEN)),
+                "long uri",
+                None,
+            ),
+            noisy,
+            listed("memo://named", &"\u{e9}".repeat(MAX_TITLE_LEN), None),
+            listed("memo://blank", "\n", None),
+        ];
+        resources.extend(
+            (0..MAX_RESOURCES_PER_SERVER).map(|i| listed(&format!("memo://fill{i}"), "fill", None)),
+        );
+
+        // WHEN the list is sanitized
+        let out = sanitize_resources(resources, "srv");
+
+        // THEN the bad URIs are gone, control characters stripped, the name
+        //      bounded on a character boundary, a blank name read as the URI,
+        //      and the list capped
+        assert_eq!(out.len(), MAX_RESOURCES_PER_SERVER);
+        assert!(out
+            .iter()
+            .all(|r| !r.uri.is_empty() && r.uri.len() <= MAX_RESOURCE_URI_LEN));
+        assert_eq!(out[0].uri, "memo://ab");
+        assert_eq!(out[0].name, "Roadmap[31m");
+        assert_eq!(out[0].description.as_deref(), Some("ignorerules"));
+        assert_eq!(out[0].mime_type.as_deref(), Some("text/plain"));
+        assert!(out[1].name.len() <= MAX_TITLE_LEN && !out[1].name.is_empty());
+        assert_eq!(out[2].name, "memo://blank");
+        let mut long_mime = listed("memo://mime", "mime", None);
+        long_mime.mime_type = Some("a".repeat(MAX_MIME_TYPE_LEN * 2));
+        let bounded = sanitize_resources(vec![long_mime], "srv");
+        assert_eq!(
+            bounded[0].mime_type.as_ref().map(String::len),
+            Some(MAX_MIME_TYPE_LEN)
+        );
+    }
+
+    #[test]
+    fn legitimate_resources_pass_through_unchanged() {
+        // GIVEN resources a real server would list
+        let resources = vec![
+            listed("notion://page/1", "Roadmap", Some("Q3 plan")),
+            listed("file:///docs/spec.md", "Spec", None),
+        ];
+        // WHEN sanitized
+        let out = sanitize_resources(resources, "srv");
+        // THEN every field is kept as is
+        assert_eq!(
+            out,
+            vec![
+                StoredResource {
+                    uri: "notion://page/1".to_string(),
+                    name: "Roadmap".to_string(),
+                    mime_type: Some("text/plain".to_string()),
+                    description: Some("Q3 plan".to_string()),
+                },
+                StoredResource {
+                    uri: "file:///docs/spec.md".to_string(),
+                    name: "Spec".to_string(),
+                    mime_type: Some("text/plain".to_string()),
+                    description: None,
+                },
+            ]
+        );
+    }
 
     fn tool(name: &str, description: Option<&str>) -> McpToolDefinition {
         McpToolDefinition {

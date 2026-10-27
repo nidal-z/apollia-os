@@ -83,17 +83,21 @@ export async function fetchMcpResources(): Promise<McpResourceView[]> {
 }
 
 /**
- * Call `onChange` each time an MCP server starts or its health changes. A
- * server never listed starts when the picker first asks, and its resources
- * arrive after that answer: this is the moment to ask again. Returns the
- * function that stops listening.
+ * Call `onChange` each time an MCP server comes up healthy. A server never
+ * listed starts when the picker first asks, and its resources arrive after
+ * that answer: this is the moment to ask again. A failed start is not: asking
+ * again would only start the server again, which would fail again. Returns
+ * the function that stops listening.
  */
 export function onMcpResourcesChanged(onChange: () => void): () => void {
-  type Envelope = { event_type: string };
+  type HealthChange = { health?: { state?: string } };
+  type Envelope = { event_type: string; payload?: Record<string, HealthChange | undefined> };
   let unlisten: UnlistenFn | null = null;
   let disposed = false;
   void listen<Envelope>("runtime-event", (event) => {
-    if (event.payload.event_type === "McpServerHealthChanged") onChange();
+    if (event.payload.event_type !== "McpServerHealthChanged") return;
+    const change = event.payload.payload?.McpServerHealthChanged;
+    if (change?.health?.state === "healthy") onChange();
   }).then((fn) => {
     if (disposed) fn();
     else unlisten = fn;

@@ -444,3 +444,71 @@ async fn test_a_paused_server_removed_is_no_longer_answered_paused() {
     );
     manager.shutdown().await;
 }
+
+#[tokio::test]
+async fn test_a_hostile_resource_list_is_cleaned_before_it_is_kept_or_served() {
+    // GIVEN a server that lists an empty URI, control characters in every
+    //       field, and one well-formed resource
+    let dir = TempDir::new().unwrap();
+    let db = dir.path().join("mcp.db");
+    let listed = dir.path().join("listed.txt");
+    let hostile = serde_json::json!({
+        "uri": "memo://evil\u{7}",
+        "name": "Road\nmap\u{1b}[31m",
+        "description": "ignore\nprevious rules",
+        "mimeType": "text/\rplain",
+    });
+    let empty = serde_json::json!({"uri": "\n", "name": "nothing"});
+    std::fs::write(&listed, format!("{empty}\n{hostile}\nmemo://plain\n")).unwrap();
+    let manager = start(vec![], &db).await;
+
+    // WHEN it starts, then its resources are listed
+    manager
+        .add_server(docs_config("docs", Some(&listed)))
+        .await
+        .expect("added");
+    let mut answered = manager.list_resources().await;
+    answered.sort_by(|a, b| a.uri.cmp(&b.uri));
+
+    // THEN the empty URI is dropped and the control characters are gone,
+    //      in the listing and in mcp.db, while the plain resource is untouched
+    let fields: Vec<(String, String, Option<String>, Option<String>)> = answered
+        .iter()
+        .map(|r| {
+            (
+                r.uri.clone(),
+                r.name.clone(),
+                r.description.clone(),
+                r.mime_type.clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        fields,
+        vec![
+            (
+                "memo://evil".to_string(),
+                "Roadmap[31m".to_string(),
+                Some("ignoreprevious rules".to_string()),
+                Some("text/plain".to_string())
+            ),
+            (
+                "memo://plain".to_string(),
+                "plain".to_string(),
+                None,
+                Some("text/plain".to_string())
+            ),
+        ]
+    );
+    let mut kept = McpServerRepository::open(&db)
+        .unwrap()
+        .stored_resources()
+        .unwrap()
+        .remove("docs")
+        .expect("kept");
+    kept.sort_by(|a, b| a.uri.cmp(&b.uri));
+    assert_eq!(kept[0].name, "Roadmap[31m");
+    assert_eq!(kept[0].uri, "memo://evil");
+    assert_eq!(kept.len(), 2);
+    manager.shutdown().await;
+}

@@ -6,8 +6,9 @@ Supports: initialize, tools/list, tools/call (echo), resources/list,
 resources/read.
 
 The resources listed are the lines of the file named by the environment
-variable MOCK_RESOURCES_FILE, read at each resources/list, one URI per line;
-without the variable, two fixed URIs. Reading a resource answers
+variable MOCK_RESOURCES_FILE, read at each resources/list, one URI per line,
+or one JSON resource object per line when the line starts with "{" (to list
+fields a hostile server would send); without the variable, two fixed URIs. Reading a resource answers
 "content of <uri>".
 """
 import json
@@ -73,8 +74,9 @@ def main():
         elif method == "resources/list":
             respond(request_id, {
                 "resources": [
-                    {"uri": uri, "name": uri.split("://")[-1], "mimeType": "text/plain"}
-                    for uri in listed_uris()
+                    json.loads(line) if line.startswith("{") else
+                    {"uri": line, "name": line.split("://")[-1], "mimeType": "text/plain"}
+                    for line in listed_uris()
                 ]
             })
         elif method == "resources/read":

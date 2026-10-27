@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-type Handler = (event: { payload: { event_type: string } }) => void;
+type Handler = (event: { payload: { event_type: string; payload?: Record<string, unknown> } }) => void;
 const listened: { handler: Handler | null; unlisten: ReturnType<typeof vi.fn> } = {
   handler: null,
   unlisten: vi.fn(),
@@ -85,6 +85,15 @@ describe("buildPinnedPrefix", () => {
   });
 });
 
+function healthChanged(health: Record<string, unknown>) {
+  return {
+    payload: {
+      event_type: "McpServerHealthChanged",
+      payload: { McpServerHealthChanged: { name: "notion", health } },
+    },
+  };
+}
+
 describe("onMcpResourcesChanged", () => {
   it("asks again when an MCP server starts, and only then", async () => {
     // GIVEN a picker listening for the resources of servers that slept
@@ -94,12 +103,38 @@ describe("onMcpResourcesChanged", () => {
     await Promise.resolve();
 
     // WHEN a server starts, then an unrelated event arrives
-    listened.handler?.({ payload: { event_type: "McpServerHealthChanged" } });
+    listened.handler?.(healthChanged({ state: "healthy", verified: false }));
     listened.handler?.({ payload: { event_type: "ConnectionStateChanged" } });
 
     // THEN the picker is told once, and stops listening when asked
     expect(onChange).toHaveBeenCalledTimes(1);
     stop();
     expect(listened.unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not ask again when a server fails to start", async () => {
+    // GIVEN a picker listening for the resources of servers that slept
+    const onChange = vi.fn();
+    const stop = onMcpResourcesChanged(onChange);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // WHEN a server fails its start, or is degraded or needs a new sign-in
+    listened.handler?.(healthChanged({ state: "unavailable", reason: "handshake_failed" }));
+    listened.handler?.(healthChanged({ state: "needs_reauth", reason: "401" }));
+    listened.handler?.(
+      healthChanged({
+        state: "degraded",
+        category: "network",
+        last_error: "timeout",
+        consecutive_failures: 1,
+        since: "2026-10-27T08:00:00Z",
+      }),
+    );
+    listened.handler?.({ payload: { event_type: "McpServerHealthChanged" } });
+
+    // THEN the picker does not ask again: asking would start it again
+    expect(onChange).not.toHaveBeenCalled();
+    stop();
   });
 });

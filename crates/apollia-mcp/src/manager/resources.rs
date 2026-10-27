@@ -12,6 +12,7 @@ use tokio::sync::oneshot;
 
 use crate::manager::kept::fetched_now;
 use crate::manager::{McpClientManager, McpResourcePayload, McpResourceSummary};
+use crate::sanitize::sanitize_resources;
 use crate::server_repository::StoredResource;
 use crate::session::{McpSession, McpSessionError};
 
@@ -24,25 +25,15 @@ pub(super) struct WaitingRead {
     pub(super) reply: ReadReply,
 }
 
-/// What `session` lists, bounded by its response cap; an empty list for a
-/// server that declares no resources, `None` when the list failed.
+/// What `session` lists, validated and bounded by `sanitize` before anything
+/// keeps or serves it; an empty list for a server that declares no
+/// resources, `None` when the list failed.
 pub(super) async fn list_of(session: &McpSession) -> Option<Vec<StoredResource>> {
     if session.capabilities().resources.is_none() {
         return Some(Vec::new());
     }
     match session.list_resources().await {
-        Ok(result) => Some(
-            result
-                .resources
-                .into_iter()
-                .map(|r| StoredResource {
-                    uri: r.uri,
-                    name: r.name,
-                    mime_type: r.mime_type,
-                    description: r.description,
-                })
-                .collect(),
-        ),
+        Ok(result) => Some(sanitize_resources(result.resources, &session.config().name)),
         Err(e) => {
             tracing::event!(
                 tracing::Level::WARN,
@@ -109,8 +100,9 @@ impl McpClientManager {
     ///
     /// A live session is asked, and its answer kept; a dormant server
     /// answers its kept list, without starting. A dormant server never asked
-    /// is started in a task: the listing does not wait for it. A paused
-    /// server offers nothing. A per-server failure is logged and skipped.
+    /// is started in a task: the listing does not wait for it; one whose last
+    /// start failed is left alone, so a server out of reach is not started
+    /// again at each opening of the @ picker. A paused server offers nothing. A per-server failure is logged and skipped.
     pub(super) async fn handle_list_resources(&mut self) -> Vec<McpResourceSummary> {
         let mut out: Vec<McpResourceSummary> = Vec::new();
         let live: Vec<String> = self.sessions.keys().cloned().collect();
@@ -125,9 +117,10 @@ impl McpClientManager {
             self.keep_resources(&name, resources).await;
         }
         let mut never_asked = Vec::new();
-        for name in self.dormant.keys() {
+        for (name, dormant) in &self.dormant {
             match self.kept_resources.get(name) {
                 Some(kept) => out.extend(summaries(name, kept)),
+                None if dormant.start_failed => {}
                 None => never_asked.push(name.clone()),
             }
         }
@@ -146,11 +139,8 @@ impl McpClientManager {
     /// server whose kept list holds it.
     async fn resolve_resource_server(&self, uri: &str) -> Option<String> {
         for (server_name, session) in &self.sessions {
-            if session.capabilities().resources.is_none() {
-                continue;
-            }
-            if let Ok(result) = session.list_resources().await {
-                if result.resources.iter().any(|r| r.uri == uri) {
+            if let Some(listed) = list_of(session).await {
+                if listed.iter().any(|r| r.uri == uri) {
                     return Some(server_name.clone());
                 }
             }

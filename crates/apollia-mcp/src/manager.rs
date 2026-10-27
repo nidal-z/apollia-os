@@ -608,6 +608,9 @@ impl McpClientManager {
 mod request_server_tests;
 
 #[cfg(test)]
+mod resources_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

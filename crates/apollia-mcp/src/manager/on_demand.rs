@@ -55,6 +55,11 @@ pub(super) struct Dormant {
     pub(super) waiting: Vec<WaitingCall>,
     /// The resource reads waiting for that session.
     pub(super) waiting_reads: Vec<WaitingRead>,
+    /// Whether its last start failed. A server never listed is then no
+    /// longer started by a resource listing, until the next explicit check
+    /// (a test, a restart) or a start that succeeds; a tool call or a
+    /// resource read still starts it.
+    pub(super) start_failed: bool,
 }
 
 impl Dormant {
@@ -66,6 +71,7 @@ impl Dormant {
             starting: false,
             waiting: Vec::new(),
             waiting_reads: Vec::new(),
+            start_failed: false,
         }
     }
 }
@@ -217,6 +223,7 @@ impl McpClientManager {
                     }));
                 }
                 dormant.starting = false;
+                dormant.start_failed = true;
                 self.dormant.insert(name.to_string(), dormant);
                 self.publish();
                 return;

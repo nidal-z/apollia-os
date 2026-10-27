@@ -94,7 +94,9 @@ impl McpClientManager {
         {
             Ok(session) => session,
             Err(e) => {
-                if let Some(dormant) = dormant {
+                // An explicit start was tried: a listing may try once again.
+                if let Some(mut dormant) = dormant {
+                    dormant.start_failed = false;
                     self.dormant.insert(name, dormant);
                 }
                 return Err(e);
