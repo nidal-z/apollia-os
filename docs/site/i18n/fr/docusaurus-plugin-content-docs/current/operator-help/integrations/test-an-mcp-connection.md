@@ -1,61 +1,76 @@
 ---
-title: Tester une connexion MCP
+title: Vérifier une connexion et la réparer
 slug: /operator-help/integrations/test-an-mcp-connection
 sidebar_position: 6
 ---
 
-# Tester une connexion MCP
+# Vérifier une connexion et la réparer
 
-> Pour tout operator qui veut vérifier qu'un serveur MCP installé répond bien, ou en diagnostiquer un en erreur.
+> Pour tout opérateur qui veut savoir si une connexion fonctionne vraiment, et la remettre d'aplomb quand elle ne fonctionne pas.
 
 ## Prérequis
 
-- Au moins un serveur MCP installé (voir [Connecter un serveur MCP](connecter-un-serveur-mcp.md)).
+- Au moins une connexion dans **Connexions** : un compte, une boîte mail, un dossier ou un service.
 
-## Étapes
+## Vérifier une connexion
 
-1. Dans **Connexions**, cliquez sur le serveur MCP à tester. Sa fiche s'ouvre à la place de la liste.
+1. Dans **Connexions**, ouvrez la fiche de la connexion.
+2. Cliquez sur **Vérifier**. Apollia essaie la connexion tout de suite : il se connecte au compte, ouvre la boîte mail, cherche le dossier, ou démarre le service et lui demande ses outils. Un service qui dormait est démarré pour la vérification.
+3. L'état en haut de la fiche montre ce qui a été constaté, avec l'heure : *vérifiée à l'instant*.
 
-2. Dans l'en-tête de la fiche, cliquez sur **Tester**, à côté de **Reconnecter**.
+Pour un service, son usage met aussi son état à jour : quand ses appels échouent il passe **À réparer**, et quand ils marchent de nouveau il revient à **Fonctionne**. La page l'apprend aussitôt, sans rien recharger.
 
-   ![Fiche d'un serveur MCP installé, avec les boutons Tester et Reconnecter dans son en-tête](/img/operator-help/integration-tester-une-connexion-mcp-2.png)
+## Lire l'état
 
-3. Pendant le test, le bouton affiche **Test…** et se désactive.
+| État | Ce qu'il veut dire |
+|---|---|
+| **Fonctionne** | La dernière vérification l'a trouvée en marche, ou pour un service, son dernier usage. |
+| **À réparer** | Il faut d'abord faire quelque chose. La raison dit quoi, en clair. |
+| **En pause** | Vous l'avez mise en pause. Voir [Mettre en pause ou retirer une connexion](pause-or-remove-a-connection.md). |
+| **Bloquée par l'organisation** | La politique de votre organisation l'interdit, ou un administrateur doit d'abord l'approuver. |
+| **Pas encore vérifiée** | Rien ne l'a essayée depuis son ajout. Elle est rangée avec les autres, pas en tête. |
 
-4. Le résultat s'affiche sur une ligne dans l'onglet **Aperçu**. Elle porte un nombre d'outils, jamais une latence : rien sur le chemin MCP ne mesure un temps de réponse.
+Un état n'est **Fonctionne** qu'une fois qu'Apollia l'a vue fonctionner. Avec le mode développeur activé, la section **Détail technique** de la fiche montre aussi la raison brute de l'état.
 
-   - **Opérationnel - N outils, dernière opération réussie**, en vert.
-   - **Joignable - N outils listés, pas encore vérifié par une opération**, en gris. Le serveur a répondu à la poignée de main, mais aucune opération ne l'a confirmé depuis.
-   - **Attention requise - reconnecte ou vérifie les autorisations**, en orange. Avec le mode développeur activé, la ligne précise : **Joignable, mais des opérations récentes ont échoué** ou **Joignable, mais l'autorisation a expiré**.
-   - Le message d'erreur brut, en rouge, quand l'appel lui-même a échoué.
+## La réparer
 
-   À l'écran : la ligne verte Opérationnel affichée dans l'onglet Aperçu de la fiche du serveur.
+La fiche propose, sous l'état, la seule action qui répare la connexion :
 
-## Messages d'erreur traduits, à l'ajout d'une connexion
+| Raison | Action | Ce qu'elle fait |
+|---|---|---|
+| *le compte doit se reconnecter* | **Se reconnecter** | Ouvre la connexion au compte, comme à l'ajout. Un service distant qui se connecte par sa propre page fait de même. |
+| *le serveur refuse le mot de passe* | **Saisir le mot de passe** | Ouvre le formulaire de la boîte mail sur cette adresse, pour un nouveau mot de passe d'application. |
+| *le dossier n'est plus à sa place* | **Choisir le dossier** | Vous fait choisir le dossier à nouveau. La connexion reste la même, donc ses agents gardent leurs accès. |
+| *injoignable* ou *ses opérations échouent* | **Relancer** | Redémarre un service de cet ordinateur. |
+| *interdite par la politique*, ou *un administrateur doit d'abord l'approuver* | **Voir la règle** | Ouvre **Autorisations**, où la règle qui la bloque est montrée. |
 
-Ces messages appartiennent à la fenêtre qui ajoute une connexion depuis le catalogue, pas au test d'un serveur déjà installé. Sur la fiche du serveur ci-dessus, un test en échec affiche le message du backend tel quel, sans traduction et sans lien **Voir le détail technique**. Quand une connexion est ajoutée et que son essai échoue, Apollia traduit les erreurs techniques en messages clairs :
+Une fois le dossier choisi à nouveau, les agents cherchent aussitôt dans son nouveau contenu : rien de l'ancien dossier ne revient dans leurs réponses, même pendant que le nouveau est encore en cours de lecture.
 
-- *« Authentification refusée - vérifiez votre clé API. »* : token invalide ou expiré (HTTP 401).
-- *« Accès interdit - votre clé n'a pas les droits requis. »* : permissions insuffisantes (HTTP 403).
-- *« Service introuvable - vérifiez l'URL ou le nom du serveur. »* : mauvaise URL ou serveur absent (HTTP 404).
-- *« Erreur réseau - le service n'a pas répondu à temps. »* : timeout ou connexion impossible.
-- *« Commande introuvable - le paquet n'est probablement pas installé. »* : transport stdio, binaire absent.
-- *« La connexion a échoué. Vérifiez vos identifiants et réessayez. »* : erreur générique.
+Pour un compte Microsoft professionnel qu'un administrateur doit approuver, voir l'entrée **Bloquée par votre organisation** de [Connecter Microsoft 365](connecter-microsoft-365.md).
 
-Dans cette fenêtre, un dépliant **Voir le détail technique** révèle le message brut du backend, **Réessayer** essaie de nouveau la connexion et **Retirer** l'enlève.
+## Messages d'erreur à l'ajout d'un service
+
+Quand vous ajoutez un service et que son essai échoue, Apollia traduit l'erreur technique en message clair :
+
+- *« Authentification refusée - vérifiez votre clé API. »* : clé invalide ou expirée.
+- *« Accès interdit - votre clé n'a pas les droits requis. »* : il manque une permission à la clé.
+- *« Service introuvable - vérifiez l'URL ou le nom du serveur. »* : mauvaise adresse ou serveur absent.
+- *« Erreur réseau - le service n'a pas répondu à temps. »* : le service n'a pas pu être joint.
+- *« Commande introuvable - le paquet n'est probablement pas installé. »* : un service local dont le programme manque.
+- *« La connexion a échoué. Vérifiez vos identifiants et réessayez. »* : tout autre échec.
+
+**Voir le détail technique** montre le message brut, **Réessayer** essaie à nouveau et **Retirer** enlève la connexion.
 
 ## Vérification
 
-- La ligne de résultat dit **Opérationnel** ou **Joignable**, et son nombre d'outils est non nul.
-- Les outils attendus apparaissent dans l'onglet **Outils**.
-- S'il en manque, regardez d'abord du côté d'Apollia : la découverte garde au plus `max_tools` outils par serveur, 256 par défaut, et journalise `mcp.tools.bounded` avec ce qu'elle a gardé et ce qu'elle a reçu quand elle coupe. La réponse d'un serveur est aussi plafonnée par `max_response_bytes`. Ce n'est qu'une fois ces deux bornes écartées que le serveur distant devient l'explication.
+- L'état indique **Fonctionne**, avec une heure récente.
+- Les outils attendus sont listés sur la fiche.
+- S'il manque des outils à un service, regardez d'abord Apollia : il garde au plus `max_tools` outils par serveur, 256 par défaut, et journalise `mcp.tools.bounded` avec ce qu'il a gardé et ce qu'il a reçu quand il coupe. Une réponse de serveur est aussi plafonnée à `max_response_bytes`. Ce n'est qu'une fois ces deux causes écartées que le service lui-même devient l'explication.
 
-## Si ça ne marche pas
+## En cas de problème
 
-- **Erreur réseau** : votre machine ne peut pas joindre le serveur. Vérifiez votre connexion internet ou, pour un MCP stdio, le PATH de la commande.
-- **Authentification refusée** : utilisez **Reconnecter** dans l'en-tête de la fiche, et si cela ne suffit pas, utilisez **Déconnecter** dans l'onglet **Paramètres** puis ajoutez de nouveau le serveur avec des identifiants valides.
-- **Accès interdit** : votre compte n'a pas les droits côté fournisseur. Vérifiez les scopes accordés ou augmentez les permissions côté outil métier.
-- **Commande introuvable (stdio)** : pour un MCP en transport stdio, le binaire n'est pas dans le PATH d'Apollia. Installez l'outil ou ajustez la commande.
-- **Test OK mais l'agent n'appelle pas l'outil** : ouvrez la fiche de l'agent et vérifiez, sous **Accès**, que les outils de cette connexion lui sont accordés. Voir [Comprendre la portée d'une intégration](understand-integration-scope.md).
+- **L'état reste À réparer après l'action** : cliquez de nouveau sur **Vérifier**, puis lisez la raison. Avec le mode développeur activé, **Détail technique** donne le message brut.
+- **Un service local est injoignable** : son programme n'est pas dans le PATH d'Apollia, ou il s'arrête aussitôt. Vérifiez la commande avec le mode développeur activé.
+- **Elle fonctionne, mais un agent ne s'en sert pas** : l'agent ne tient pas ses outils. Sur la fiche, **Donner à un agent**, ou voir [Comprendre la portée d'une intégration](understand-integration-scope.md).
 
-> **Référence technique :** [Référence Apollia](/reference) , codes d'erreur complets, sémantique handshake MCP.
+> **Référence technique :** [Référence Apollia](/reference) , états des connexions, sémantique de la poignée de main MCP.

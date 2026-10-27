@@ -23,7 +23,13 @@ Chaque outil exposé par un connecteur ou un MCP appartient à une **famille d'a
 | **Lire des données personnelles**, **Écrire ou supprimer**, **Envoyer vers l'extérieur** | **Votre accord est demandé** : une carte apparaît, vous décidez. | Lecture d'un compte connecté, `gcal.list_events`, `outlook.search`. Écritures et suppressions, `gcal.create_event`, `gcal.delete_event`. Envois, `gmail.send`, `outlook.send`. |
 | **Exécuter du code** | **Accord à chaque fois**. | Une commande ou un script que l'agent veut lancer. |
 
-La carte porte trois réponses, **Une fois**, **Toujours pour cet agent** et **Refuser**. Il n'y a ni portée à choisir ni mot à taper. **Toujours pour cet agent** vaut pour l'agent qui a demandé et pour la famille d'action de l'outil ; vous le retrouvez, et le retirez, sur l'écran **Autorisations**. Un refus accepte une raison facultative, transmise à l'agent. Pour le code, la réponse durable est **Toujours autoriser cette commande** : elle est proposée avec le mode développeur activé, pour une commande simple et unique, et toute autre exécution redemande. Un outil que son serveur ne décrit pas est traité comme sensible et demandé à chaque fois.
+La carte porte trois réponses, **Une fois**, **Toujours pour cet agent** et **Refuser**. Il n'y a ni portée à choisir ni mot à taper. **Toujours pour cet agent** vaut pour l'agent qui a demandé et pour la famille d'action de l'outil ; vous le retrouvez, et le retirez, sur l'écran **Autorisations**. Un refus accepte une raison facultative, transmise à l'agent. Pour le code, la réponse durable est **Toujours autoriser cette commande** : elle est proposée avec le mode développeur activé, pour une commande simple et unique, et toute autre exécution redemande. Un outil que son serveur ne décrit pas est traité comme sensible et demandé à chaque fois, sans **Toujours pour cet agent**.
+
+## D'où vient la famille d'un outil
+
+- Pour un service de la sélection d'Apollia, la sélection donne sa famille à chaque outil.
+- Pour tout autre service, la famille vient de ce que le serveur déclare sur l'outil : un outil qu'il déclare en lecture seule est une lecture (une lecture de données personnelles derrière un compte), un outil qu'il déclare destructeur est une écriture ou suppression. Cela vaut que l'outil soit montré d'emblée à l'agent ou trouvé par `tool_search` : un outil en lecture seule d'un tel service s'exécute donc sans demander, ou peut recevoir **Toujours pour cet agent** quand il lit un compte.
+- Sur la fiche d'un tel service, dans **Connexions**, **Changer** à côté d'un outil lui donne une autre famille, et **Appliquer** l'enregistre. Votre choix l'emporte sur ce que déclare le serveur, reste quand le service est ajouté à nouveau, et est inscrit au **Journal** avec la famille d'avant et celle d'après. Un outil de la sélection d'Apollia ne se change pas ainsi.
 
 Il n'existe pas d'écran d'approbations propre au MCP, ni de file d'attente de demandes MCP à traiter. Un outil exposé par un serveur MCP passe par la même porte qu'un outil natif, celle qu'ouvre la boucle d'exécution : la carte dans la conversation si vous y êtes, l'écran **À valider** pour une tâche d'agent en attente. Tout ce que le reste de ce centre d'aide dit sur l'approbation d'une action s'y applique sans changement.
 
@@ -38,7 +44,7 @@ Ouvrez **Autorisations** dans la barre latérale. L'écran liste les agents, et 
 
 Pour en retirer plusieurs d'un coup, **Tout révoquer** demande ce qui est retiré (les règles fines, les « toujours » ou les deux) et pour quelle portée (tous les agents ou un agent), puis affiche combien sont concernés. Il ne demande aucune confirmation à taper. Chaque retrait est inscrit au **Journal**.
 
-Il n'existe pas de niveau d'approbation par serveur. Dans **Connexions**, l'onglet **Paramètres** d'un serveur contient ses réglages de lancement, ses délais d'attente et **Déconnecter**, et rien sur l'approbation : un outil se décide sur sa famille d'action, quel que soit le serveur dont il vient.
+Il n'existe pas de niveau d'approbation par serveur. Dans **Connexions**, la fiche d'un service contient ses réglages, ses délais d'attente, **Mettre en pause** et **Retirer**, et rien sur l'approbation : un outil se décide sur sa famille d'action, quel que soit le serveur dont il vient.
 
 Un « toujours » apparaît tout seul, quand vous répondez **Toujours pour cet agent** à une demande d'accord. Une règle fine s'écrit à la main depuis cet écran, via **Ajouter une règle fine**, avec le mode développeur activé.
 
@@ -52,7 +58,7 @@ qui la vérifie.
 - **Aucune politique** : vous êtes libre. Aucune connexion n'est refusée parce qu'elle est en ligne.
 - **Une politique avec `connections.remote = "deny"`** : ajouter une connexion à un service en ligne est refusé, qu'il s'agisse d'un compte Google ou Microsoft ou d'un serveur MCP distant. La fenêtre affiche « Refusé par la politique de l'organisation » et rien n'est envoyé.
 
-La politique est lue au démarrage d'Apollia. Une connexion qu'elle interdit n'est pas démarrée : elle est listée sous **Interdites par la politique** dans **Connexions**, et un appel à l'un de ses outils est refusé. Une politique peut aussi interdire un type d'action ou un outil nommé, et ce refus tient quoi que vous ayez répondu auparavant.
+La politique est lue au démarrage d'Apollia. Une connexion qu'elle interdit n'est pas démarrée : elle indique **Bloquée par l'organisation** dans **Connexions**, avec la raison *interdite par la politique*, et un appel à l'un de ses outils est refusé. Une politique peut aussi interdire un type d'action ou un outil nommé, et ce refus tient quoi que vous ayez répondu auparavant.
 
 ## Ce qu'un serveur MCP peut, et ne peut pas, vous demander
 
@@ -77,6 +83,7 @@ reste sans réponse. Roots est le seul cas où l'annonce devance l'implémentati
 
 - **Un outil qui ne fait que lire demande votre accord** : il lit un compte connecté, donc des données personnelles, ou son serveur ne l'a pas décrit et il est traité comme sensible. Répondez **Toujours pour cet agent** pour que la question cesse pour cet agent.
 - **Un outil sensible s'exécute sans demande** : vous avez répondu **Toujours pour cet agent** un jour, pour sa famille. Ouvrez **Autorisations** et retirez cet accord.
-- **Une connexion ne répond plus après le déploiement d'une politique** : vérifiez si elle est listée sous **Interdites par la politique** dans **Connexions**. Si ce n'est pas le cas, regardez le serveur lui-même, via [Tester une connexion MCP](test-an-mcp-connection.md).
+- **Une connexion ne répond plus après le déploiement d'une politique** : vérifiez si elle indique **Bloquée par l'organisation** dans **Connexions**. Si ce n'est pas le cas, regardez la connexion elle-même, via [Vérifier une connexion et la réparer](test-an-mcp-connection.md).
+- **Un outil demande toujours alors qu'il ne fait que lire** : son serveur ne le décrit pas. S'il s'agit d'un service hors de la sélection d'Apollia, donnez-lui la famille **Lire** avec **Changer** sur la fiche de la connexion.
 
 > **Référence technique :** [Référence Apollia](/reference) , gouvernance complète, audit trail, format des règles dans `governance.db`.

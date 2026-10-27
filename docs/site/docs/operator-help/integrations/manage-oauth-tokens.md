@@ -44,8 +44,10 @@ An index at `~/.apollia/connectors-index.json` lists the connected accounts per 
 **On the Apollia side (local keyring)**:
 
 1. Open **Connections**.
-2. Open the page of the connection, Google Workspace or Microsoft 365.
-3. Under the **Accounts** tab, click **Disconnect** next to the account and confirm. The token is removed immediately from the secret store and from the index.
+2. Open the card of the account, on its own line of the list.
+3. Click **Remove**, read what goes with it, then click **Remove the connection**. The token is removed immediately from the secret store and from the index. See [Pause or remove a connection](pause-or-remove-a-connection.md).
+
+To stop an account for a while without losing its token, click **Pause** instead: its tools stop running, and **Resume** brings them back.
 
 The token stays valid on the Google or Microsoft side until its natural expiry (typically one hour for the access token).
 
@@ -69,11 +71,11 @@ Apollia refreshes tokens proactively:
 
 ## Change the scopes of an account
 
-You cannot. The scope set of a native connector is fixed in the application: the Google dialog always asks for the same ten scope aliases and the Microsoft one for the same six, and there is no checkbox to adjust before connecting. Disconnecting and reconnecting replays exactly the same request. Narrowing what Apollia may do is done on the provider side, by restricting the OAuth client, or by not connecting the account at all.
+You cannot. The scope set of a native connector is fixed in the application: the Google dialog always asks for the same ten scope aliases and the Microsoft one for the same six, and there is no checkbox to adjust before connecting. Removing the account and connecting it again replays exactly the same request. Narrowing what Apollia may do is done on the provider side, by restricting the OAuth client, or by not connecting the account at all.
 
 ## Verification
 
-- On the page of the connection, the account no longer appears after disconnection.
+- The account no longer appears in **Connections** after its removal.
 - The system keyring tool no longer shows a matching entry.
 - A native tool call on the revoked account returns `NotConnected`.
 
@@ -96,8 +98,8 @@ Every tool call of a run is recorded in the signed journal, `~/.apollia/audit_jo
 ### Common errors in file mode
 
 - **The account cannot be saved on Linux**: no Secret Service daemon is available and the file mode is not set, or it is set without its passphrase. See the headless Linux section above.
-- **A refresh reports no refresh token available**: the provider returned none. It is not a scope you forgot: Apollia always adds `access_type=offline` for Google and always includes `offline_access` for Microsoft, so that cause is not reachable from the interface. The usual explanation is a grant already revoked on the provider side. Disconnect then reconnect.
-- **Refresh looping on 401**: the refresh token was revoked on the provider side. Disconnect then reconnect.
+- **A refresh reports no refresh token available**: the provider returned none. It is not a scope you forgot: Apollia always adds `access_type=offline` for Google and always includes `offline_access` for Microsoft, so that cause is not reachable from the interface. The usual explanation is a grant already revoked on the provider side. Remove the account, then connect it again.
+- **Refresh looping on 401**: the refresh token was revoked on the provider side. Remove the account, then connect it again.
 
 </details>
 
@@ -105,6 +107,6 @@ Every tool call of a run is recorded in the signed journal, `~/.apollia/audit_jo
 
 - **Linux, the account cannot be saved**: see the headless Linux section.
 - **A refresh reports no refresh token available**: reconnect the account. The scopes are not the cause, Apollia always asks for offline access.
-- **Refresh looping on 401**: disconnect then reconnect the account, the refresh token was revoked on the provider side.
+- **Refresh looping on 401**: remove the account and connect it again, the refresh token was revoked on the provider side. **Check** on the card of the account then reads **Needs repair**, *the account must sign in again*, and **Sign in again** does the same.
 
 > **Technical reference:** [Apollia reference](/reference) , keyring storage, proactive refresh, governance.db audit.

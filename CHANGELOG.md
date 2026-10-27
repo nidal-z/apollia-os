@@ -5,6 +5,192 @@ All notable changes to Apollia OS are documented in this file.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
 This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
+## [0.3.1] - Unreleased
+
+Changes since `0.3.0`. Connections are rebuilt from the screen to the engine:
+one page shows every connection with its true state, one window adds any of
+them, and a connection is checked, repaired, paused or removed in one gesture
+from its card. Google Workspace stays as it was in 0.3.0.
+
+### Highlights
+
+- **One page for every connection.** Accounts, mailboxes, folders and
+  services share one list and one card. Each connection says whether it works,
+  since when, why not, and the one action that repairs it; what needs repair
+  comes first.
+- **One window to add a connection.** A single search answers from Apollia's
+  selection, this computer, the public catalogue and a service's address, and
+  every addition goes through the same three steps: connect it, choose which
+  agents may use it, try it.
+- **Pause and remove for real.** A pause keeps every access and runs nothing
+  until it is resumed; a removal says what goes with the connection before it
+  erases it.
+- **Services start when they are needed.** MCP servers start at their first
+  call and stop after a while without one, and Apollia's launch no longer waits
+  for any of them.
+- **Microsoft asks for less.** Apollia asks for your own OneDrive files only,
+  reads only the folders and files you choose, and guides a work account whose
+  organisation requires an administrator's approval.
+
+### Added
+
+#### The Connections page
+
+- A list and a card side by side, with a search and a filter by kind
+  (accounts, mailboxes, services, folders). The page keeps its selection, its
+  search and its filter when you leave it and come back. Each account is a line
+  of its own, and a connection a package installed says which package brought
+  it.
+- Five states: **Working**, **Needs repair** with its reason in plain words,
+  **Paused**, **Blocked by your organisation**, and **Not checked yet** for a
+  connection nothing has tried, listed with the others rather than at the top.
+  Each state carries the time it was found, is kept across restarts, and
+  reaches the page as soon as it changes.
+- **Check** tries a connection of any kind on request: an account signs in, a
+  mailbox opens, a folder is looked for, a service is started and asked for its
+  tools.
+- The one action that repairs: **Sign in again**, **Enter the password**,
+  **Choose the folder**, **Start again** or **See the rule**. A folder chosen
+  again keeps its connection and its agents' accesses, and is searched in its
+  new content at once: nothing from the former folder comes back in an answer,
+  even while the new one is read.
+- **Pause** and **Resume** on every kind of connection. While paused, its
+  agents keep their accesses, a call of one of its tools is refused with the
+  reason and written in the Activity log, the agent's sheet marks the access
+  **Paused**, and a service is stopped and never started again, at launch or on
+  request. The pause holds across a restart.
+- **Remove** lists what goes with the connection, its settings, the files
+  installed for it, its sign-in, its secrets, the tools each agent held through
+  it, and for a folder its source and index, then erases them and names
+  anything it could not erase.
+- **Agents that use it** on the card, and **Give to an agent** to give a
+  connection to several agents at once, each gift written in the Activity log.
+  An agent on the default access keeps it when it is given a connection: the
+  connection is added on top, marked **On top** on its sheet.
+- **Activity over 7 days** on the card, when it was last used and how many
+  actions each agent took with it, and **See in the journal**, which opens the
+  Activity log on that connection alone.
+- The tools of a service added outside Apollia's selection can be given
+  another action family with **Change**. The choice prevails over what the
+  server declares, survives the service being added again, and is written in
+  the Activity log with the family before and after.
+- The technical detail of a connection, its identifier, origin and raw
+  reason, shows in developer mode only.
+
+#### Adding a connection
+
+- One window with a single search, answered in four groups: **Offered by
+  Apollia**, **On this computer** (a folder, a mailbox), **Public catalogue**,
+  asked only on **Explore all** and marked **Not verified**, and **Connect a
+  service by its address**. The card of each entry says what it asks before
+  anything is added.
+- One flow for every kind, in three steps: **Connect**, **Who can use it**,
+  where Apollia, the agent of the Chat, comes checked and the other agents can
+  be checked, and **Try it**. Cancelling before the connection exists brings
+  the search back.
+- A service reached by its address takes a name, the address and, when it
+  asks for one, a key. Its transport, a local command, headers and variables
+  are in developer mode.
+- Apollia's selection is read from a signed online index when the window
+  opens, so an entry can be added or corrected without a new version. An index
+  whose signature does not hold is refused, and the copy kept on the computer
+  or the selection built into the application is shown instead.
+  `mcp.catalogue_enabled = false` turns the online index off, and
+  `mcp.catalogue_url` and `mcp.catalogue_mirror_url` name where it is read.
+- The selection reads in the language of the interface. A service added from
+  it is named after its entry, so a translated label no longer changes the
+  accesses its agents hold.
+
+#### Chat
+
+- When a request needs a connection that is not there, Apollia says so and
+  offers **Connect** it in the conversation; when it is connected but not
+  given to Apollia, it offers **Allow Apollia**. Once done, the request is
+  played again. Apollia looks this up through a tool of its own, on this
+  computer, against its selection; nothing is added to the prompt, and an
+  entry the organisation policy would refuse is never offered.
+- The **@** picker offers the resources of a service that is asleep, from the
+  list it last gave. Reading one starts the service. A paused service is never
+  started, and its resources are not offered.
+
+#### Microsoft 365
+
+- **OneDrive files Apollia can read** on the card of a Microsoft account:
+  browse the drive, choose folders and files, remove a choice. Agents read
+  only inside what is chosen, and nothing at all until something is.
+- When a work account's organisation requires an administrator to approve
+  Apollia, the connection reads **Blocked by your organisation**, with the
+  approval address and a request written for the administrator, both ready to
+  copy. The block lifts as soon as an account connects.
+
+#### API
+
+- `GET /api/v1/connections/{id}/agents` and `POST /api/v1/connections/{id}/grants`
+  read and give the agents of a connection.
+- `POST /api/v1/connections/{id}/check`, `POST /api/v1/connections/{id}/pause`
+  and `POST /api/v1/connections/{id}/resume`.
+- `DELETE /api/v1/connections/{id}` removes a connection of any kind and
+  answers what was erased; `?dry_run=1` erases nothing and answers what would
+  be.
+- `PUT /api/v1/connections/{id}/tools/{tool}/family` gives a tool another
+  family.
+- `tool_prefix` on `GET /api/v1/audit/journal` and `GET /api/v1/audit/export`,
+  and `GET /api/v1/audit/activity`, which counts what each agent did with a
+  connection.
+- `GET /api/v1/connectors/onedrive/{account_id}/choices`, `.../browse` and
+  `.../choices/{item_id}` read and change the OneDrive choices of an account.
+- A `ConnectionStateChanged` event announces each state found.
+
+### Changed
+
+- MCP servers start at the first call of one of their tools and stop after
+  `mcp.idle_stop_secs` without a call, 900 seconds by default (60 to 86400),
+  to start again at the next call. Apollia's launch waits for none of them; a
+  server whose tools are not known yet is started at launch in the background
+  to learn them. What a server last published is kept in `mcp.db`, so its
+  tools stay offered while it sleeps and survive a restart.
+- `mcp.tool_loading` is read when Apollia starts and no longer applies while
+  it runs: restart Apollia after changing it. `mcp.idle_stop_secs` is read at
+  start too.
+- An MCP tool found through `tool_search` is decided on the family its server
+  declares, on every path that calls it, as a tool declared up front already
+  was. A tool its server declares read-only is therefore no longer
+  unclassified in deferred loading: it runs without asking, or offers
+  **Always for this agent** when it reads an account.
+- Microsoft accounts ask for `Files.Read`, your own files, instead of
+  `Files.Read.All`, and Apollia holds the limit of the chosen OneDrive folders
+  and files on the computer.
+- A value typed as a header when a service is added or edited, and a value of
+  a variable whose name marks it secret, goes to the secret store; the
+  settings of the connection keep only a reference to it, and the raw settings
+  read back through the API mask it.
+- The OAuth client of an account provider, your own Google client or your own
+  Microsoft registration, is entered in developer mode, in the technical
+  detail of the card.
+- A connection the organisation policy forbids reads **Blocked by your
+  organisation** with its reason, in place of a separate list.
+- `confirm()` dialogs on the Connections page are replaced by confirmations
+  in the page.
+
+### Upgrading from 0.3.0
+
+- **OneDrive reads nothing until you choose.** A Microsoft account already
+  connected keeps working for mail and calendar, but its agents read no
+  OneDrive file until folders or files are chosen on its card, under
+  **OneDrive files Apollia can read**.
+- **Secrets move to the secret store.** At the first launch of 0.3.1, the
+  header values and secret variable values that 0.3.0 kept in the settings of
+  an MCP server are moved to the secret store, and each server moved is
+  logged. Nothing has to be typed again.
+- **Restart after changing `mcp.tool_loading`.** A change saved while Apollia
+  runs waits for the next start.
+- **Google Workspace is unchanged.** It still needs your own OAuth client;
+  its section now shows in developer mode.
+- **No way back to 0.3.0.** 0.3.1 raises the schema of several databases under
+  `~/.apollia` at its first start, and 0.3.0 refuses to open a database whose
+  schema is newer than its own. Keep a copy of the folder before upgrading if
+  you may go back.
+
 ## [0.3.0] - 2026-10-20
 
 The desktop application is named Apollia Desktop from this version on.

@@ -44,8 +44,10 @@ Un index `~/.apollia/connectors-index.json` énumère les comptes connectés par
 **Côté Apollia (trousseau local)** :
 
 1. Ouvrir **Connexions**.
-2. Ouvrir la fiche de la connexion, Google Workspace ou Microsoft 365.
-3. Sous l'onglet **Comptes**, cliquer sur **Déconnecter** à côté du compte et confirmer. Le token est supprimé immédiatement du coffre de secrets et de l'index.
+2. Ouvrir la fiche du compte, sur sa propre ligne de la liste.
+3. Cliquer sur **Retirer**, lire ce qui part avec lui, puis cliquer sur **Retirer la connexion**. Le token est supprimé immédiatement du coffre de secrets et de l'index. Voir [Mettre en pause ou retirer une connexion](pause-or-remove-a-connection.md).
+
+Pour arrêter un compte un temps sans perdre son token, cliquer plutôt sur **Mettre en pause** : ses outils cessent de s'exécuter, et **Reprendre** les rend.
 
 Le token reste valide côté Google ou Microsoft jusqu'à son expiration naturelle (typiquement une heure pour l'access token).
 
@@ -69,11 +71,11 @@ Apollia rafraîchit les tokens proactivement :
 
 ## Changer les scopes d'un compte
 
-Vous ne pouvez pas. L'ensemble de scopes d'un connecteur natif est figé dans l'application : la fenêtre Google demande toujours les mêmes dix alias de scope et la fenêtre Microsoft les mêmes six, et il n'y a aucune case à ajuster avant de connecter. Déconnecter puis reconnecter rejoue exactement la même demande. Restreindre ce qu'Apollia peut faire se joue côté fournisseur, en bridant le client OAuth, ou en ne connectant pas le compte.
+Vous ne pouvez pas. L'ensemble de scopes d'un connecteur natif est figé dans l'application : la fenêtre Google demande toujours les mêmes dix alias de scope et la fenêtre Microsoft les mêmes six, et il n'y a aucune case à ajuster avant de connecter. Retirer le compte puis le connecter à nouveau rejoue exactement la même demande. Restreindre ce qu'Apollia peut faire se joue côté fournisseur, en bridant le client OAuth, ou en ne connectant pas le compte.
 
 ## Vérification
 
-- Sur la fiche de la connexion, le compte n'apparaît plus après déconnexion.
+- Le compte n'apparaît plus dans **Connexions** après son retrait.
 - L'outil trousseau du système ne montre plus d'entrée correspondante.
 - Un appel d'outil natif sur le compte révoqué retourne `NotConnected`.
 
@@ -96,8 +98,8 @@ Chaque appel d'outil d'une exécution est enregistré dans le journal signé, `~
 ### Erreurs courantes mode fichier
 
 - **Le compte ne peut pas être enregistré sous Linux** : aucun daemon Secret Service n'est disponible et le mode fichier n'est pas défini, ou il l'est sans sa phrase de passe. Voir la section Linux headless ci-dessus.
-- **Un rafraîchissement annonce qu'aucun refresh token n'est disponible** : le fournisseur n'en a pas rendu. Ce n'est pas un scope oublié : Apollia ajoute toujours `access_type=offline` pour Google et inclut toujours `offline_access` pour Microsoft, cette cause n'est donc pas atteignable depuis l'interface. L'explication habituelle est une autorisation déjà révoquée côté fournisseur. Déconnectez puis reconnectez.
-- **Refresh en boucle 401** : le refresh token a été révoqué côté provider. Déconnectez puis reconnectez.
+- **Un rafraîchissement annonce qu'aucun refresh token n'est disponible** : le fournisseur n'en a pas rendu. Ce n'est pas un scope oublié : Apollia ajoute toujours `access_type=offline` pour Google et inclut toujours `offline_access` pour Microsoft, cette cause n'est donc pas atteignable depuis l'interface. L'explication habituelle est une autorisation déjà révoquée côté fournisseur. Retirez le compte, puis connectez-le à nouveau.
+- **Refresh en boucle 401** : le refresh token a été révoqué côté provider. Retirez le compte, puis connectez-le à nouveau.
 
 </details>
 
@@ -105,6 +107,6 @@ Chaque appel d'outil d'une exécution est enregistré dans le journal signé, `~
 
 - **Linux, le compte ne peut pas être enregistré** : voir la section Linux headless.
 - **Un rafraîchissement annonce qu'aucun refresh token n'est disponible** : reconnectez le compte. Les scopes ne sont pas en cause, Apollia demande toujours l'accès hors ligne.
-- **Refresh boucle 401** : déconnectez puis reconnectez le compte, le refresh token a été révoqué côté provider.
+- **Refresh boucle 401** : retirez le compte et connectez-le à nouveau, le refresh token a été révoqué côté provider. **Vérifier** sur la fiche du compte indique alors **À réparer**, *le compte doit se reconnecter*, et **Se reconnecter** fait de même.
 
 > **Référence technique :** [Référence Apollia](/reference) , stockage trousseau, refresh proactif, audit governance.db.
