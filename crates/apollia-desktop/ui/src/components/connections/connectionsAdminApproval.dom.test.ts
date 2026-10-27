@@ -19,6 +19,18 @@ import { developerMode } from "$lib/stores/developerMode";
 import type { Connection } from "$lib/types";
 import Connections from "../../routes/Connections.svelte";
 
+// The dialogs of the page run Svelte transitions, which jsdom cannot play: an
+// animation that finishes at once stands in for them.
+Element.prototype.animate = function (): Animation {
+  const animation = {
+    onfinish: null as (() => void) | null,
+    cancel: () => {},
+    finished: Promise.resolve(),
+  };
+  setTimeout(() => animation.onfinish?.(), 0);
+  return animation as unknown as Animation;
+};
+
 // The page is mounted whole in the DOM, its commands answered here and its
 // runtime events sent from here: no Microsoft endpoint is reached.
 
@@ -133,6 +145,10 @@ describe("the card of a Microsoft account blocked until an administrator approve
     const dialog = document.body.querySelector('[data-testid="oauth-dialog"]');
     expect(dialog?.getAttribute("aria-label")).toBe("Connect Microsoft 365");
     expect(byTestid("connector-detail")).not.toBeNull();
+    // AND the sign-in itself starts, for Microsoft
+    const starts = calls("oauth_start_flow") as { provider?: string }[];
+    expect(starts).toHaveLength(1);
+    expect(starts[0]?.provider).toBe("microsoft");
   });
 
   test("once an account connected, the block lifted shows on the card without reading the list again", async () => {
