@@ -103,6 +103,10 @@ pub enum McpSessionError {
     #[error("server '{server}' transport closed: {cause}")]
     StdinClosed { server: String, cause: String },
 
+    /// The server is in pause: nothing starts it until it is resumed.
+    #[error("server '{server}' is paused")]
+    ServerPaused { server: String },
+
     /// A hot reload was requested for a server that is not currently managed.
     #[error("cannot reload server '{server}': not found in managed sessions")]
     ConfigReload { server: String },

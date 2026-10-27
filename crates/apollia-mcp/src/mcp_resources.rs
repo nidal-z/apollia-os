@@ -5,8 +5,9 @@
 //! native tools the ReAct agent can call on its own initiative, mirroring how
 //! `file_read` works.
 //!
-//! - [`McpResourcesListExecutor`] (`mcp_resources_list`) aggregates
-//!   `resources/list` across every connected MCP server.
+//! - [`McpResourcesListExecutor`] (`mcp_resources_list`) aggregates the
+//!   resources of every MCP server, the dormant ones answering the list they
+//!   last gave.
 //! - [`McpResourcesReadExecutor`] (`mcp_resources_read`) reads a single
 //!   resource by URI via `resources/read`.
 //!
@@ -140,8 +141,8 @@ pub fn build_mcp_resource_executors(
 
 /// [`ToolExecutor`] for `mcp_resources_list`.
 ///
-/// Aggregates `resources/list` across all connected MCP servers through the
-/// shared [`McpClientManagerHandle`].
+/// Aggregates the resources of every MCP server, running or dormant, through
+/// the shared [`McpClientManagerHandle`].
 pub struct McpResourcesListExecutor {
     handle: McpClientManagerHandle,
 }

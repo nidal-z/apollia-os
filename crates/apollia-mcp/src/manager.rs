@@ -14,6 +14,7 @@ mod kept;
 mod lifecycle;
 mod on_demand;
 mod reclassify;
+mod resources;
 mod snapshot;
 mod views;
 
@@ -53,6 +54,8 @@ enum McpCommand {
     Started {
         server_name: String,
         result: Result<Box<McpSession>, McpSessionError>,
+        /// What the new session lists, when it answered.
+        resources: Option<Vec<crate::server_repository::StoredResource>>,
     },
     /// Return detailed info (status + tools + redacted config) for a single server.
     GetDetail {
@@ -114,14 +117,15 @@ enum McpCommand {
         server_name: String,
         started_at: std::time::Instant,
     },
-    /// Aggregate `resources/list` across every connected session.
+    /// Aggregate the resources of every server, live or dormant.
     ListResources {
         reply: oneshot::Sender<Vec<McpResourceSummary>>,
     },
     /// Read a single resource (`resources/read`) from one server.
     ///
     /// When `server_name` is `None`, the manager resolves the owning server by
-    /// scanning the per-session resource caches for a matching `uri`.
+    /// matching `uri` against the live lists, then the kept ones. A dormant
+    /// server starts first.
     ReadResource {
         server_name: Option<String>,
         uri: String,
@@ -358,6 +362,11 @@ struct McpClientManager {
     last_used: HashMap<String, tokio::time::Instant>,
     /// The calls running on each session.
     in_flight: HashMap<String, usize>,
+    /// What each server answered its last `resources/list` with, live or
+    /// not; a server never asked is absent.
+    kept_resources: HashMap<String, Vec<crate::server_repository::StoredResource>>,
+    /// The servers in pause: none of them starts, for a call or a read.
+    paused: HashSet<String>,
 }
 
 // ─── handle impl ─────────────────────────────────────────────────────────────
@@ -394,6 +403,8 @@ impl McpClientManager {
             idle_stop: None,
             last_used: HashMap::new(),
             in_flight: HashMap::new(),
+            kept_resources: HashMap::new(),
+            paused: HashSet::new(),
         };
         (actor, McpClientManagerHandle { tx, snapshot })
     }
@@ -443,7 +454,8 @@ impl McpClientManager {
             McpCommand::Started {
                 server_name,
                 result,
-            } => self.finish_start(&server_name, result).await,
+                resources,
+            } => self.finish_start(&server_name, result, resources).await,
 
             McpCommand::CallFinished {
                 server_name,
@@ -464,6 +476,7 @@ impl McpClientManager {
 
             McpCommand::AddServer { config, reply } => {
                 let name = config.name.clone();
+                self.paused.remove(&name);
                 let before = self.index_of(&name);
                 let result = self.handle_add_server(config).await;
                 self.settle_kept(&name, before).await;
@@ -490,8 +503,12 @@ impl McpClientManager {
                 let result = self.handle_remove_server(&server_name).await;
                 if keep_tools {
                     self.kept_index.remove(&server_name);
-                } else if result.is_ok() || self.kept_index.contains_key(&server_name) {
-                    self.forget_kept(&server_name).await;
+                    self.note_paused(&server_name);
+                } else {
+                    if result.is_ok() || self.kept_index.contains_key(&server_name) {
+                        self.forget_kept(&server_name).await;
+                    }
+                    self.forget_resources(&server_name);
                 }
                 self.publish();
                 let _ = reply.send(result);
@@ -551,9 +568,7 @@ impl McpClientManager {
                 server_name,
                 uri,
                 reply,
-            } => {
-                let _ = reply.send(self.handle_read_resource(server_name, &uri).await);
-            }
+            } => self.handle_read_resource(server_name, uri, reply).await,
 
             McpCommand::SetOperatorFamily {
                 server_name,

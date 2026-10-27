@@ -9603,11 +9603,11 @@
           "mcp"
         ],
         "summary": "`GET /api/v1/mcp/resources`, List MCP resources aggregated across servers.",
-        "description": "Returns the same data as the agent-facing `mcp_resources_list` tool: one\nentry per resource exposed by a connected MCP server, tagged with its owning\nserver. Feeds the desktop @-mention picker.\n\nReturns an empty array (not an error) when no MCP configuration is active,\nso the picker degrades to \"no resources\" rather than a failure state.",
+        "description": "Returns the same data as the agent-facing `mcp_resources_list` tool: one\nentry per resource exposed by an MCP server, tagged with its owning\nserver. Feeds the desktop @-mention picker.\nA server that runs no session answers the list it last gave, without\nstarting; one never listed starts in the background and joins a later\nanswer. A paused server offers nothing.\n\nReturns an empty array (not an error) when no MCP configuration is active,\nso the picker degrades to \"no resources\" rather than a failure state.",
         "operationId": "list_resources",
         "responses": {
           "200": {
-            "description": "MCP resources aggregated across connected servers"
+            "description": "MCP resources aggregated across servers, running or not"
           }
         }
       }

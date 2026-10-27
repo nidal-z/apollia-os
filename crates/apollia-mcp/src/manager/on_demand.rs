@@ -13,6 +13,7 @@
 //! is started at once, in a task: the manager does not wait for it either.
 //!
 //! A paused or removed server leaves the dormant set, so nothing starts it.
+//! A dormant server offers the resources it last listed (see `resources`).
 
 use std::time::Duration;
 
@@ -23,13 +24,14 @@ use apollia_core::McpHealth;
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
 use crate::manager::detached::CallReply;
 use crate::manager::kept::{fetched_now, keep_session_tools};
+use crate::manager::resources::{list_of, WaitingRead};
 use crate::manager::views::{log_session_start_error, tool_descriptor, ServerHints};
 use crate::manager::{
     McpClientManager, McpCommand, McpServerConfigView, McpServerDetail, McpServerStatus,
     McpToolSummary,
 };
 use crate::protocol::McpToolDefinition;
-use crate::server_repository::StoredTool;
+use crate::server_repository::{StoredResource, StoredTool};
 use crate::session::{LoadingMode, McpSession, McpSessionError};
 
 /// A tool call waiting for its server's handshake.
@@ -51,6 +53,8 @@ pub(super) struct Dormant {
     pub(super) starting: bool,
     /// The calls waiting for that session.
     pub(super) waiting: Vec<WaitingCall>,
+    /// The resource reads waiting for that session.
+    pub(super) waiting_reads: Vec<WaitingRead>,
 }
 
 impl Dormant {
@@ -61,6 +65,7 @@ impl Dormant {
             health: None,
             starting: false,
             waiting: Vec::new(),
+            waiting_reads: Vec::new(),
         }
     }
 }
@@ -116,8 +121,8 @@ impl McpClientManager {
     }
 
     /// Start a session of the dormant `name` in a task of its own, unless
-    /// one is being started. The outcome comes back as
-    /// [`McpCommand::Started`].
+    /// one is being started. The task also asks the new session for its
+    /// resources. The outcome comes back as [`McpCommand::Started`].
     pub(super) fn begin_start(&mut self, name: &str) {
         let Some(report) = self.commands.upgrade() else {
             return;
@@ -137,10 +142,15 @@ impl McpClientManager {
             let result = McpSession::start_with_mode(config, Some(&DefaultMcpSecretResolver), mode)
                 .await
                 .map(Box::new);
+            let resources = match &result {
+                Ok(session) => list_of(session).await,
+                Err(_) => None,
+            };
             let _ = report
                 .send(McpCommand::Started {
                     server_name,
                     result,
+                    resources,
                 })
                 .await;
         });
@@ -168,12 +178,14 @@ impl McpClientManager {
     }
 
     /// A session of `name` started, or failed to. Started, it takes the
-    /// place of the dormant server and runs the calls that waited for it;
-    /// failed, the server stays dormant and the calls get the failure.
+    /// place of the dormant server, keeps the resources it listed, and runs
+    /// the reads and calls that waited for it; failed, the server stays
+    /// dormant and they get the failure.
     pub(super) async fn finish_start(
         &mut self,
         name: &str,
         result: Result<Box<McpSession>, McpSessionError>,
+        resources: Option<Vec<StoredResource>>,
     ) {
         let Some(mut dormant) = self.dormant.remove(name) else {
             // Removed or paused while it started: nobody waits for it.
@@ -198,6 +210,12 @@ impl McpClientManager {
                         });
                     let _ = call.reply.send(Err(error));
                 }
+                for read in dormant.waiting_reads.drain(..) {
+                    let _ = read.reply.send(Err(McpSessionError::InitializeFailed {
+                        server: name.to_string(),
+                        cause: cause.clone(),
+                    }));
+                }
                 dormant.starting = false;
                 self.dormant.insert(name.to_string(), dormant);
                 self.publish();
@@ -219,6 +237,12 @@ impl McpClientManager {
         self.watch_session_end(name, &session);
         self.sessions.insert(name.to_string(), session);
         self.mark_used(name);
+        if let Some(resources) = resources {
+            self.keep_resources(name, resources).await;
+        }
+        for read in dormant.waiting_reads {
+            let _ = read.reply.send(self.read_live(name, &read.uri).await);
+        }
         for call in dormant.waiting {
             self.spawn_call_tool(name.to_string(), call.tool_name, call.arguments, call.reply);
         }
@@ -234,6 +258,11 @@ impl McpClientManager {
         self.unregister_dormant(name, &dormant).await;
         for call in dormant.waiting {
             let _ = call.reply.send(Err(McpSessionError::ServerExited {
+                server: name.to_string(),
+            }));
+        }
+        for read in dormant.waiting_reads {
+            let _ = read.reply.send(Err(McpSessionError::ServerExited {
                 server: name.to_string(),
             }));
         }

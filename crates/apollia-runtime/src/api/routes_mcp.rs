@@ -122,8 +122,11 @@ pub(crate) async fn list_servers<B: ExecutionBackend + Clone>(
 /// `GET /api/v1/mcp/resources`, List MCP resources aggregated across servers.
 ///
 /// Returns the same data as the agent-facing `mcp_resources_list` tool: one
-/// entry per resource exposed by a connected MCP server, tagged with its owning
+/// entry per resource exposed by an MCP server, tagged with its owning
 /// server. Feeds the desktop @-mention picker.
+/// A server that runs no session answers the list it last gave, without
+/// starting; one never listed starts in the background and joins a later
+/// answer. A paused server offers nothing.
 ///
 /// Returns an empty array (not an error) when no MCP configuration is active,
 /// so the picker degrades to "no resources" rather than a failure state.
@@ -132,7 +135,7 @@ pub(crate) async fn list_servers<B: ExecutionBackend + Clone>(
     path = "/api/v1/mcp/resources",
     tag = "mcp",
     responses(
-        (status = 200, description = "MCP resources aggregated across connected servers"),
+        (status = 200, description = "MCP resources aggregated across servers, running or not"),
     )
 )]
 pub(crate) async fn list_resources<B: ExecutionBackend + Clone>(

@@ -4,11 +4,13 @@
  * The agent-initiative path lives in the runtime (`mcp_resources_list` /
  * `mcp_resources_read` tools). This module backs the complementary
  * user-initiative path: when the user types `@`, a picker lists the MCP
- * resources exposed by connected servers. Selecting one PINS it; on the next
+ * resources the MCP servers expose, the dormant ones answering the list they
+ * last gave. Selecting one PINS it; on the next
  * turn the pinned resources are prepended as an explicit system-prefix block.
  * Nothing is ever injected automatically.
  */
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 /** One MCP resource entry, as returned by the `list_mcp_resources` command. */
 export interface McpResourceView {
@@ -78,6 +80,28 @@ export async function fetchMcpResources(): Promise<McpResourceView[]> {
     console.warn("list_mcp_resources failed", err);
     return [];
   }
+}
+
+/**
+ * Call `onChange` each time an MCP server starts or its health changes. A
+ * server never listed starts when the picker first asks, and its resources
+ * arrive after that answer: this is the moment to ask again. Returns the
+ * function that stops listening.
+ */
+export function onMcpResourcesChanged(onChange: () => void): () => void {
+  type Envelope = { event_type: string };
+  let unlisten: UnlistenFn | null = null;
+  let disposed = false;
+  void listen<Envelope>("runtime-event", (event) => {
+    if (event.payload.event_type === "McpServerHealthChanged") onChange();
+  }).then((fn) => {
+    if (disposed) fn();
+    else unlisten = fn;
+  });
+  return () => {
+    disposed = true;
+    unlisten?.();
+  };
 }
 
 /**

@@ -18,8 +18,10 @@ use crate::config::McpServerConfig;
 use crate::origin::{ConnectionOrigin, Provenance};
 
 mod operator;
+mod resources;
 mod tools;
 
+pub use resources::StoredResource;
 pub use tools::StoredTool;
 
 /// Errors returned by [`McpServerRepository`].
@@ -48,14 +50,14 @@ pub enum McpRepoError {
 }
 
 /// Current schema version of `mcp.db`.
-const MCP_SCHEMA_VERSION: u32 = 7;
+const MCP_SCHEMA_VERSION: u32 = 8;
 
 /// Numbered migration steps of `mcp.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`MCP_SCHEMA_VERSION`].
 const MCP_MIGRATIONS: &[apollia_core::schema::Migration] = &[
-    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6, migrate_v7,
+    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6, migrate_v7, migrate_v8,
 ];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
@@ -170,6 +172,28 @@ fn migrate_v7(conn: &Connection) -> Result<(), rusqlite::Error> {
             family TEXT NOT NULL,
             set_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             PRIMARY KEY (server, tool)
+        );",
+    )
+}
+
+/// v8: the resources each server answered its last `resources/list` with,
+/// so a server that is not running still offers them, and one row per
+/// server that answered a list, so a server that answered an empty one is
+/// told apart from one never asked. Nothing is carried from v7: both tables
+/// fill at the next `resources/list` of each server.
+fn migrate_v8(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS mcp_resource_lists (
+            server     TEXT PRIMARY KEY,
+            fetched_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS mcp_resources (
+            server      TEXT NOT NULL,
+            uri         TEXT NOT NULL,
+            name        TEXT NOT NULL,
+            mime_type   TEXT,
+            description TEXT,
+            PRIMARY KEY (server, uri)
         );",
     )
 }
@@ -355,8 +379,8 @@ impl McpServerRepository {
 
     /// Deletes the server with `name`.
     ///
-    /// The tools kept for the server, and the families the operator gave
-    /// them, leave with it. Returns
+    /// The tools and resources kept for the server, and the families the
+    /// operator gave its tools, leave with it. Returns
     /// [`McpRepoError::NotFound`] when no row was deleted.
     pub fn delete(&self, name: &str) -> Result<(), McpRepoError> {
         let affected = self
@@ -366,6 +390,7 @@ impl McpServerRepository {
             return Err(McpRepoError::NotFound(name.to_string()));
         }
         self.forget_tools(name)?;
+        self.forget_resources(name)?;
         self.forget_operator_families(name)?;
         Ok(())
     }

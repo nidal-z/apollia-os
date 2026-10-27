@@ -2,10 +2,23 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
+type Handler = (event: { payload: { event_type: string } }) => void;
+const listened: { handler: Handler | null; unlisten: ReturnType<typeof vi.fn> } = {
+  handler: null,
+  unlisten: vi.fn(),
+};
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(async (_name: string, handler: Handler) => {
+    listened.handler = handler;
+    return listened.unlisten;
+  }),
+}));
+
 import {
   detectMentionQuery,
   filterResources,
   buildPinnedPrefix,
+  onMcpResourcesChanged,
   type McpResourceView,
   type PinnedResource,
 } from "./mcpResources";
@@ -69,5 +82,24 @@ describe("buildPinnedPrefix", () => {
     expect(prefix).toContain("</pinned-mcp-resources>");
     expect(prefix).toContain("mcp_resources_read");
     expect(prefix).toContain('uri="notion://page/1"');
+  });
+});
+
+describe("onMcpResourcesChanged", () => {
+  it("asks again when an MCP server starts, and only then", async () => {
+    // GIVEN a picker listening for the resources of servers that slept
+    const onChange = vi.fn();
+    const stop = onMcpResourcesChanged(onChange);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // WHEN a server starts, then an unrelated event arrives
+    listened.handler?.({ payload: { event_type: "McpServerHealthChanged" } });
+    listened.handler?.({ payload: { event_type: "ConnectionStateChanged" } });
+
+    // THEN the picker is told once, and stops listening when asked
+    expect(onChange).toHaveBeenCalledTimes(1);
+    stop();
+    expect(listened.unlisten).toHaveBeenCalledTimes(1);
   });
 });

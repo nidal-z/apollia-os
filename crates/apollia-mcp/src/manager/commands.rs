@@ -1,8 +1,8 @@
 //! The manager actor's command handlers.
 //!
 //! Split out of `manager.rs`: the actor loop stays in the parent, the arm of
-//! each `McpCommand` (server lifecycle, tool calls, resources)
-//! lives here.
+//! each `McpCommand` (server lifecycle, tool calls) lives
+//! here; resources live in `resources`.
 
 use apollia_core::{McpHealth, RuntimeEvent};
 
@@ -12,10 +12,7 @@ use crate::manager::views::{
     build_status, register_session_tools_in_registry, registry_names, session_tool_names,
     ServerHints,
 };
-use crate::manager::{
-    McpClientManager, McpConnectionTestResult, McpResourcePayload, McpResourceSummary,
-    McpServerStatus, McpToolSummary,
-};
+use crate::manager::{McpClientManager, McpConnectionTestResult, McpServerStatus, McpToolSummary};
 use crate::protocol::{extract_text_parts, ToolCallResult};
 use crate::session::{LoadingMode, McpSession, McpSessionError};
 
@@ -357,94 +354,5 @@ impl McpClientManager {
         self.sessions.insert(server_name.clone(), new_session);
         self.mark_used(&server_name);
         Ok(status)
-    }
-    /// Aggregate `resources/list` across every connected session.
-    ///
-    /// Servers that do not advertise the `resources` capability are skipped
-    /// without a round-trip. A per-server failure is logged and skipped; it
-    /// never aborts the aggregation of the others.
-    pub(super) async fn handle_list_resources(&self) -> Vec<McpResourceSummary> {
-        let mut out: Vec<McpResourceSummary> = Vec::new();
-        for (server_name, session) in &self.sessions {
-            if session.capabilities().resources.is_none() {
-                continue;
-            }
-            match session.list_resources().await {
-                Ok(result) => {
-                    for resource in result.resources {
-                        out.push(McpResourceSummary {
-                            server: server_name.clone(),
-                            uri: resource.uri,
-                            name: resource.name,
-                            mime_type: resource.mime_type,
-                            description: resource.description,
-                        });
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        server = %server_name,
-                        error = %e,
-                        "mcp.resources_list_failed"
-                    );
-                }
-            }
-        }
-        out
-    }
-    /// Resolve and read a single resource via `resources/read`.
-    ///
-    /// When `server_name` is `None`, the owning server is resolved by matching
-    /// `uri` against each connected session's resource list.
-    pub(super) async fn handle_read_resource(
-        &self,
-        server_name: Option<String>,
-        uri: &str,
-    ) -> Result<McpResourcePayload, McpSessionError> {
-        let resolved = match server_name {
-            Some(name) => name,
-            None => self.resolve_resource_server(uri).await.ok_or_else(|| {
-                McpSessionError::ServerExited {
-                    server: format!("(none exposes resource {uri})"),
-                }
-            })?,
-        };
-
-        let session =
-            self.sessions
-                .get(&resolved)
-                .ok_or_else(|| McpSessionError::ServerExited {
-                    server: resolved.clone(),
-                })?;
-
-        let result = session.read_resource(uri).await?;
-        let mime_type = result.contents.iter().find_map(|c| c.mime_type.clone());
-        let text = result
-            .contents
-            .iter()
-            .filter_map(|c| c.text.as_deref())
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        Ok(McpResourcePayload {
-            server: resolved,
-            uri: uri.to_string(),
-            mime_type,
-            text,
-        })
-    }
-    /// Find the first connected server that exposes a resource with `uri`.
-    pub(super) async fn resolve_resource_server(&self, uri: &str) -> Option<String> {
-        for (server_name, session) in &self.sessions {
-            if session.capabilities().resources.is_none() {
-                continue;
-            }
-            if let Ok(result) = session.list_resources().await {
-                if result.resources.iter().any(|r| r.uri == uri) {
-                    return Some(server_name.clone());
-                }
-            }
-        }
-        None
     }
 }
