@@ -89,7 +89,7 @@ Les outils sont les mêmes des deux côtés, seul le backend qui répond change.
 
 ## Utiliser votre propre inscription d'application
 
-Optionnel. L'inscription d'Apollia couvre les deux types de comptes, la plupart des operators n'en ont donc jamais besoin. Deux situations le justifient : votre organisation veut que la connexion apparaisse sous une application qu'elle contrôle et peut auditer, ou votre tenant Entra ID bloque les applications qu'il n'a pas inscrites lui-même.
+Optionnel. L'inscription d'Apollia couvre les deux types de comptes, la plupart des opérateurs n'en ont donc jamais besoin. Deux situations le justifient : votre organisation veut que la connexion apparaisse sous une application qu'elle contrôle et peut auditer, ou votre tenant Entra ID bloque les applications qu'il n'a pas inscrites lui-même.
 
 **Dans le centre d'administration Microsoft Entra** (ou le portail Azure, « Inscriptions d'applications ») :
 

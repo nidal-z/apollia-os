@@ -32,7 +32,7 @@ Chaque ligne porte l'état de sa connexion :
 | **Bloquée par l'organisation** | La politique de votre organisation l'interdit, ou un administrateur doit d'abord l'approuver. | **Voir la règle**. |
 | **Pas encore vérifiée** | Rien ne l'a essayée depuis son ajout. | **Vérifier**. |
 
-Un état constaté par une vérification ou un usage dit quand il l'a été, par exemple *vérifiée il y a 5 min*. **En pause**, **Pas encore vérifiée** et un blocage qui attend l'accord d'un administrateur ne portent pas d'heure. Un état change à l'écran dès qu'Apollia le constate, sans recharger la page.
+Un état constaté par une vérification, un usage ou une connexion dit quand il l'a été, par exemple *vérifiée il y a 5 min*. **En pause** et **Pas encore vérifiée** ne portent pas d'heure. Un état change à l'écran dès qu'Apollia le constate, sans recharger la page.
 
 ## La fiche
 

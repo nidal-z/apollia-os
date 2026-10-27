@@ -32,7 +32,7 @@ Each line carries the state of its connection:
 | **Blocked by your organisation** | Your organisation's policy forbids it, or an administrator must approve it first. | **See the rule**. |
 | **Not checked yet** | Nothing has tried it since it was added. | **Check**. |
 
-A state found by a check or a use says when it was found, such as *checked 5 min ago*. **Paused**, **Not checked yet** and a block waiting for an administrator's approval carry no time. A state changes on screen as soon as Apollia finds it, without reloading the page.
+A state found by a check, a use or a sign-in says when it was found, such as *checked 5 min ago*. **Paused** and **Not checked yet** carry no time. A state changes on screen as soon as Apollia finds it, without reloading the page.
 
 ## The card
 

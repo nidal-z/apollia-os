@@ -10,7 +10,8 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 Changes since `0.3.0`. Connections are rebuilt from the screen to the engine:
 one page shows every connection with its true state, one window adds any of
 them, and a connection is checked, repaired, paused or removed in one gesture
-from its card. Google Workspace stays as it was in 0.3.0.
+from its card. Google Workspace works as in 0.3.0; only the place where its
+OAuth client is entered has moved, into developer mode.
 
 ### Highlights
 
@@ -43,9 +44,8 @@ from its card. Google Workspace stays as it was in 0.3.0.
 - Five states: **Working**, **Needs repair** with its reason in plain words,
   **Paused**, **Blocked by your organisation**, and **Not checked yet** for a
   connection nothing has tried, listed with the others rather than at the top.
-  A state found by a check or a use says when it was found; **Paused**,
-  **Not checked yet** and a block waiting for an administrator's approval
-  carry no time. A state is kept across restarts and reaches the page as soon
+  A state found by a check, a use or a sign-in says when it was found;
+  **Paused** and **Not checked yet** carry no time. A state is kept across restarts and reaches the page as soon
   as it changes.
 - **Check** tries a connection of any kind on request: an account signs in, a
   mailbox opens, a folder is looked for, a service is started and asked for its
@@ -57,7 +57,8 @@ from its card. Google Workspace stays as it was in 0.3.0.
   even while the new one is read.
 - **Pause** and **Resume** on every kind of connection. While paused, its
   agents keep their accesses, a call of one of its tools is refused with the
-  reason and, except for a mailbox, written in the Activity log, the agent's
+  reason and written in the Activity log (for a mailbox, as a failed
+  action rather than a refusal), the agent's
   sheet marks the access **Paused**, and a service is stopped and never
   started again, at launch or on request. The pause holds across a restart.
 - **Remove** lists what goes with the connection, its settings, the files
