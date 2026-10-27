@@ -6,70 +6,71 @@ sidebar_position: 5
 
 # Connect an MCP server from the catalogue
 
-> For any operator who wants to enable an MCP server from the catalogue (Notion, Linear, Atlassian, Stripe, Time, etc.) in a few clicks.
+> For any operator who wants to add a service from the catalogue (Notion, Linear, Atlassian, Stripe, Time, etc.) in a few clicks, and choose which agents may use it.
 
 ## Prerequisites
 
 - Apollia running, the **Connections** page reachable.
-- You know which service you want to plug in. The catalogue opens on the selection Apollia ships, listed in [Integrations overview](vue-d-ensemble-integrations.md); the public MCP registry is one click further.
-- For authenticated services, your credentials (API key or OAuth account with the provider).
+- You know which service you want to plug in. The selection Apollia offers is listed in [Integrations overview](vue-d-ensemble-integrations.md); the public catalogue is one click further.
+- For services that ask for one, your key or your account with the provider.
 
-## Steps
+## Find the service
 
-1. In the sidebar, open **Connections**, then click **Add a connection** at the top of the page. A sheet opens on its **Catalogue** tab.
+1. In the sidebar, open **Connections**, then click **Add a connection**. A window opens on a single search.
+2. Type the name of the service. The answers come in four groups:
+   - **Offered by Apollia**: the Microsoft 365 and Google Workspace accounts, then the services Apollia selected, each marked **Official** or **Community**.
+   - **On this computer**: a folder, a mailbox.
+   - **Public catalogue**: asked only when you click **Explore all**. Anyone can publish there and Apollia has not checked its entries, so each one is marked **Not verified**.
+   - **Connect a service by its address**: always last, for a service you reach by its address. See [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
+3. Click the service. Its card says **What it asks**: a sign-in in your browser, a key, a few settings, a download to this computer, or that the service is reached over the internet. Click **Add**. A service already added offers **Open its page** instead.
 
-   ![The sheet that adds a connection, open on its catalogue tab with its list of entries](/img/operator-help/integration-connecter-un-serveur-mcp-1.png)
+## Add it in three steps
 
-2. Search for the entry you want, or filter the list with **Official** and **Community**, then click it. If it is not in the selection, click **Explore all** to load the public catalogue. A dialog opens: two gestures are yours, choosing the entry and accepting one warning, and the rest runs on its own.
+The steps show at the top of the window: **Connect**, **Who can use it**, **Try it**. **Cancel** before the end of the first step brings you back to the search, and nothing is added.
 
-### The warning
+### Connect
 
-The dialog opens on **Before adding this connection**: your agents will be able to use what the service offers, an action that sends, changes or deletes something asks for your agreement first, what they read or send goes through the service under its own terms, and you can remove the connection at any time. There is nothing to tick. Click **Add**; your agreement is recorded in the **Activity log**.
+For a service of the catalogue, its card already showed **Before adding this connection**, above **Add**: your agents will be able to use what the service offers, an action that sends, changes or deletes something asks for your agreement first, what they read or send goes through the service under its own terms, and you can remove the connection at any time. Clicking **Add** gave your agreement, and it is recorded in the **Activity log**.
 
-On screen: the warning, with the Cancel and Add buttons.
+Then Apollia asks only what the service needs:
 
-### Authentication, only when the connection needs it
+- **Nothing**: the service is added straight away.
+- **A key**: paste it in the field. It is kept in the secret store of this computer, never in the settings of the connection.
+- **A sign-in**: click the sign-in button, your browser opens the consent page of the provider, authorize, and the return is automatic. When the service publishes its permissions, **What the sign-in will grant** lists them before you sign in. Choosing which ones to grant is for developer mode only.
 
-Apollia detects what the connection requires. Three possible cases:
+A component the service needs is downloaded first when required, and its integrity is checked before it is installed.
 
-- **No authentication**: this step does not appear, the connection is added straight away.
-- **API key or static token**: a field appears for each value, masked when it is a secret. Paste your key, then click **Add**.
-- **OAuth**: a **Sign in to [Provider]** button appears, with the **Requested permissions** when the server publishes them; untick the ones you do not want to grant. Click the button, your browser opens the consent page, authorize, the return is automatic. Then click **Add**.
+### Who can use it
 
-On screen: the authentication step in the OAuth case, with the Sign in to [Provider] button and the list of requested permissions above it.
+**Which agents can use this connection?** **Apollia, in the Chat** comes first and checked; the other agents of this computer are listed to check. The agents checked get every tool of the connection. A tool that writes, sends or runs code, and one nobody classified, still asks for your approval before it runs. Click **Continue**.
 
-### The trial, on its own
+You can change this later, on the card of the connection with **Give to an agent**, or on the sheet of each agent.
 
-There is no test button to click. Once added, the connection is tried at once, and a component it needs is downloaded first when required. The dialog shows the result:
+### Try it
 
-- **Connection added and working**, in green, with the number of tools available.
-- **The connection is added, but its trial failed**, in red, with a precise message (invalid key, unreachable address, etc.). The connection stays added: click **Retry** to try it again, or **Remove** to take it out.
+Apollia tries the connection at once and shows the result:
 
-A refusal says who refused: your organisation's policy, for instance.
+- **Connection added and working**, with the number of tools available.
+- **The connection is added, but its trial failed**, with a clear message. The connection stays added: **Retry** tries again, **Remove** takes it out.
 
-On screen: the result of the trial, in green, with the number of tools available.
+A refusal says who refused, your organisation's policy for instance.
 
-### Examples to try
-
-Under the result, **What can you do now?** shows a few example cards, each with a **Try** button that opens a conversation with Apollia limited to the tools of this connection. Click **Close** to leave the dialog.
-
-On screen: the example cards, each carrying a Try button, and the Close button.
+Under the result, **What can you do now?** offers a few examples, each with a **Try** button that opens a conversation with Apollia limited to the tools of this connection.
 
 ## Verification
 
-- The connection appears in the **Connections** list with an **active** badge.
-- Its page lists, in the **Tools** tab, the tools the server declares, with their description.
-- Click **Try** on one of the example cards. The matching tool is called.
+- The connection is in the **Connections** list. Its state reads **Working**, or **Not checked yet** until it is first used or checked.
+- Its card lists the tools of the service, each with its family, and under **Agents that use it**, the agents you checked.
+- Click **Try** on the card and ask something the service can do. The matching tool is called.
 
-> **Note - deferred loading:** by default, `[mcp] tool_loading = "deferred"`. The server's tool schemas are not all put in front of the model at startup: when the tools granted to an agent number at most `tool_search_limit`, they are all declared, above it the agent calls `tool_search` to find what it needs. The tool count shown in the UI stays complete either way. See [Configure deferred loading of MCP tools](configure-deferred-mcp-loading.md).
+> **Note:** a service starts at its first use and stops after a while without one. Its tools stay listed in between. See [Configure deferred loading of MCP tools](configure-deferred-mcp-loading.md).
 
 ## If it does not work
 
-- **The trial fails with "Authentication refused"**: your key or token is invalid or revoked. Click **Remove**, then add the connection again and paste the value without stray spaces.
-- **The trial fails with "Service not found"**: the server is not reachable. Check your connection or the provider's status, then click **Retry**.
-- **The added server exposes no tool**: the server starts but declares nothing. See [Test an MCP connection](test-an-mcp-connection.md) to run the test again, then check the logs on the provider side.
-- **You want to plug in a server that is not in the catalogue**: see [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
-- **The agent cannot find the tool in deferred mode**: `tool_search` only searches the tools granted to the agent. Grant the tool on the agent's sheet, as described in the next line.
-- **The agent says it has no access to the tool**: a connection added here is not granted to every agent. Open the agent's sheet, click **Adjust**, and under **Accesses** use **Grant a connection**. See [Understand the scope of an integration](understand-integration-scope.md).
+- **The trial fails with "Authentication refused"**: the key is invalid or revoked. Click **Remove**, then add the service again and paste the key without stray spaces.
+- **The trial fails with "Service not found"**: the service answered that nothing is at the address it was given. Check the address or the name of the service.
+- **The service exposes no tool**: it starts but declares nothing. Run [a check](test-an-mcp-connection.md), then look at the logs on the provider side.
+- **The service you want is not in the catalogue**: see [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
+- **An agent says it has no access to the tool**: it was not checked under **Who can use it**. On the card of the connection, click **Give to an agent**. See [Understand the scope of an integration](understand-integration-scope.md).
 
 > **Technical reference:** [Apollia reference](/reference) , MCP protocol, transports, trust levels, governance.
