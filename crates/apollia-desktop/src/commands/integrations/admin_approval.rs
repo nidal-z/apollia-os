@@ -80,6 +80,27 @@ pub(super) fn callback_outcome(
     }
 }
 
+/// Answer the callback error `err` of consent `state` with `provider`, the
+/// approval page being `resolved`: an approval that is required is kept
+/// blocked in `sink` with the very address the dialog is handed, so the card
+/// of the connection shows what the dialog showed. Returns the payload of the
+/// `oauth://error` event.
+pub(super) async fn answer_callback_error(
+    err: &AuthError,
+    provider: Option<ConnectorProvider>,
+    resolved: Option<String>,
+    sink: Option<StateSink>,
+    state: &str,
+) -> serde_json::Value {
+    let outcome = callback_outcome(err, provider, resolved);
+    if let (true, Some(provider), Some(address)) =
+        (outcome.blocks(), provider, outcome.address.clone())
+    {
+        keep_blocked(sink, provider, err.to_string(), address).await;
+    }
+    outcome.payload(state, err)
+}
+
 /// Where the state of a blocked connection is kept and announced: the data
 /// directory and the bus of the embedded runtime.
 #[derive(Clone)]
@@ -270,6 +291,44 @@ mod tests {
         assert_eq!(outcome.approval, Some(Approval::Required));
         assert!(outcome.blocks());
         assert_eq!(payload["admin_approval"], "required");
+    }
+
+    #[tokio::test]
+    async fn test_the_card_keeps_the_very_address_the_dialog_is_handed() {
+        // GIVEN the sink of an embedded runtime over an empty data directory,
+        // and Microsoft's answer that an administrator must approve
+        let dir = tempfile::tempdir().unwrap();
+        let (bus, _keep) = tokio::sync::broadcast::channel(8);
+        let sink = StateSink {
+            data_dir: dir.path().to_path_buf(),
+            bus,
+        };
+        let err = AuthError::AdminApprovalRequired("AADSTS90094: Admin permission.".to_owned());
+
+        // WHEN the callback error is answered
+        let payload = answer_callback_error(
+            &err,
+            Some(ConnectorProvider::Microsoft),
+            Some(ADDRESS.to_owned()),
+            Some(sink),
+            "s1",
+        )
+        .await;
+
+        // THEN the state kept for the card, read back from the file, holds the
+        // address the dialog is handed, and nothing else of the consent
+        let store = apollia_core::ConnectionStateStore::open(
+            &apollia_core::paths::DataFile::System.path(dir.path()),
+        )
+        .unwrap();
+        let kept = store.get("native:microsoft").unwrap().unwrap();
+        let reason = kept.reason.unwrap();
+        assert_eq!(payload["admin_consent_url"], ADDRESS);
+        assert_eq!(
+            reason.address.as_deref(),
+            payload["admin_consent_url"].as_str()
+        );
+        assert!(!reason.detail.unwrap_or_default().contains("s1"));
     }
 
     #[tokio::test]

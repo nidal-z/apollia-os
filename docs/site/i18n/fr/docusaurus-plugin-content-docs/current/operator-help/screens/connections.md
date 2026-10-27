@@ -29,7 +29,7 @@ Chaque ligne porte l'état de sa connexion :
 | **Fonctionne** | La dernière vérification l'a trouvée en marche, ou pour un service, son dernier usage. | Aucune. |
 | **À réparer** | Il faut d'abord faire quelque chose. La raison est écrite en clair, par exemple *le compte doit se reconnecter* ou *le dossier n'est plus à sa place*. | La seule action qui la répare : **Se reconnecter**, **Saisir le mot de passe**, **Choisir le dossier** ou **Relancer**. |
 | **En pause** | Vous l'avez mise en pause. Ses agents gardent leurs accès, et aucun de ses outils ne s'exécute. | **Reprendre**. |
-| **Bloquée par l'organisation** | La politique de votre organisation l'interdit, ou un administrateur doit d'abord l'approuver. | **Voir la règle**. |
+| **Bloquée par l'organisation** | La politique de votre organisation l'interdit, ou un administrateur doit d'abord l'approuver. | **Voir la règle**, ou, quand un administrateur doit l'approuver, l'adresse d'accord et la demande à copier, et **Réessayer**. |
 | **Pas encore vérifiée** | Rien ne l'a essayée depuis son ajout. | **Vérifier**. |
 
 Un état constaté par une vérification, un usage ou une connexion dit quand il l'a été, par exemple *vérifiée il y a 5 min*. **En pause** et **Pas encore vérifiée** ne portent pas d'heure. Un état change à l'écran dès qu'Apollia le constate, sans recharger la page.

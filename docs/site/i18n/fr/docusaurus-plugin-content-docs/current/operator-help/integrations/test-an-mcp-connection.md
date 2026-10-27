@@ -38,11 +38,12 @@ La fiche propose, sous l'état, la seule action qui répare la connexion :
 
 | Raison | Action | Ce qu'elle fait |
 |---|---|---|
-| *le compte doit se reconnecter*, ou *un administrateur doit d'abord l'approuver* | **Se reconnecter** | Ouvre la connexion au compte, comme à l'ajout. Un service distant qui se connecte par sa propre page fait de même. |
+| *le compte doit se reconnecter* | **Se reconnecter** | Ouvre la connexion au compte, comme à l'ajout. Un service distant qui se connecte par sa propre page fait de même. |
+| *un administrateur doit d'abord l'approuver* (Microsoft 365) | **Réessayer** | La fiche montre l'adresse d'accord et une demande écrite pour votre administrateur, chacune prête à copier (**Copier l'adresse**, **Copier la demande**). Une fois l'accord donné par votre administrateur, **Réessayer** rouvre la connexion au compte. |
 | *le serveur refuse le mot de passe* | **Saisir le mot de passe** | Ouvre le formulaire de la boîte mail sur cette adresse, pour un nouveau mot de passe d'application. |
 | *le dossier n'est plus à sa place* | **Choisir le dossier** | Vous fait choisir le dossier à nouveau. La connexion reste la même, donc ses agents gardent leurs accès. |
 | *injoignable* ou *ses opérations échouent* | **Relancer** | Redémarre le service. |
-| Aucune affichée : l'état indique **Bloquée par l'organisation** | **Voir la règle** | Ouvre **Autorisations**. |
+| Aucune affichée, et aucune adresse d'accord : l'état indique **Bloquée par l'organisation** | **Voir la règle** | Ouvre **Autorisations**. |
 
 Une fois le dossier choisi à nouveau, les agents cherchent aussitôt dans son nouveau contenu : rien de l'ancien dossier ne revient dans leurs réponses, même pendant que le nouveau est encore en cours de lecture.
 

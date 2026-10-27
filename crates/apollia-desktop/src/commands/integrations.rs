@@ -320,17 +320,15 @@ pub async fn oauth_start_flow(
                 // is kept blocked with the approval page; a work account that
                 // refused is offered the same page, unblocked. The dialog
                 // shows it to copy.
-                let outcome = admin_approval::callback_outcome(
+                let payload = admin_approval::answer_callback_error(
                     &err,
                     provider_for_task,
                     apollia_auth::admin_approval::resolved_admin_consent_url(),
-                );
-                if let (true, Some(provider), Some(address)) =
-                    (outcome.blocks(), provider_for_task, outcome.address.clone())
-                {
-                    admin_approval::keep_blocked(sink, provider, err.to_string(), address).await;
-                }
-                let _ = app_handle.emit("oauth://error", outcome.payload(&state_for_task, &err));
+                    sink,
+                    &state_for_task,
+                )
+                .await;
+                let _ = app_handle.emit("oauth://error", payload);
             }
         }
     });

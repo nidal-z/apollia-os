@@ -368,7 +368,7 @@
   }
 
   /** The repair a card asks for that opens another flow: sign in, the password, the folder, the rule. */
-  function repairConnection(connection: Connection, kind: Exclude<RepairKind, "restart">): void {
+  function repairConnection(connection: Connection, kind: Exclude<RepairKind, "restart" | "admin_approval">): void {
     switch (kind) {
       case "sign_in": {
         const provider = nativeProviderOf(connection);
