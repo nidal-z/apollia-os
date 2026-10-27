@@ -11,8 +11,10 @@
 //! `connection_removed`. A folder that moved or was renamed is chosen again
 //! under the same connection: the new folder goes through the admission, the
 //! row keeps its identifier, so the accesses of its agents and the sources made
-//! on it stay, and the change is journaled as `connection_modified`. Each
-//! answers the connection as the list shows it.
+//! on it stay, and the change is journaled as `connection_modified`; the
+//! source registry is told before the route answers, so the folder sources
+//! made on it are no longer searched in the old folder and are indexed in the
+//! new one at once. Each answers the connection as the list shows it.
 //!
 //! Sources may be made on a folder connection (a folder whose documents are
 //! indexed, a code folder). Removing the connection then asks for
@@ -214,8 +216,30 @@ pub(crate) async fn repoint_folder_connection<B: ExecutionBackend + Clone>(
     UrlPath(id): UrlPath<String>,
     Json(body): Json<RepointFolderBody>,
 ) -> Result<Json<Connection>, FolderRouteError> {
-    let store = store(&state.data_dir).map_err(|e| store_err(&e))?;
-    repoint(&state.connection_governance, &store, &id, &body.path).map(Json)
+    let connection = {
+        let store = store(&state.data_dir).map_err(|e| store_err(&e))?;
+        repoint(&state.connection_governance, &store, &id, &body.path)?
+    };
+    if let Some(registry) = &state.source_registry {
+        tell_sources(registry, &id).await;
+    }
+    Ok(Json(connection))
+}
+
+/// Tells the source registry that the folder connection `id` now names
+/// another folder, so the agents stop searching the old one at once and the
+/// new one is indexed without waiting for the sweep. The connection is
+/// repointed whatever happens here; a registry that cannot be told is traced,
+/// and its sweep follows the folder later.
+async fn tell_sources(registry: &SourceRegistryHandle, id: &str) {
+    if let Err(e) = registry.folder_repointed(id).await {
+        tracing::event!(
+            tracing::Level::WARN,
+            connection_id = %id,
+            error = %e,
+            "connections.folder.sources_not_told"
+        );
+    }
 }
 
 /// Admit the folder at `path`, point the connection `id` at it and journal

@@ -11,6 +11,7 @@ use crate::index::{index_path, SkipReason};
 use crate::SourceRegistryHandle;
 
 mod recognition;
+mod repointed;
 
 /// An embedder that never leaves the process: an eight-dimension vector
 /// counted from the bytes of each text, the model named by the test, every

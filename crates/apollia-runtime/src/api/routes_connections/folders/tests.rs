@@ -381,3 +381,75 @@ async fn test_a_folder_the_admission_refuses_is_not_chosen_again() {
     assert_eq!(unknown, StatusCode::NOT_FOUND);
     assert_eq!(unknown_err.code, "not_found");
 }
+
+/// An embedder with no model: the indexes are built for keywords alone.
+struct NoModel;
+
+impl apollia_sources::PassageEmbedder for NoModel {
+    async fn model(&self) -> Result<String, apollia_llm::embeddings_client::EmbeddingError> {
+        Err(apollia_llm::embeddings_client::EmbeddingError::NoModel)
+    }
+
+    async fn embed_passages(
+        &self,
+        _texts: &[String],
+    ) -> Result<apollia_sources::index::ChunkVectors, apollia_llm::embeddings_client::EmbeddingError>
+    {
+        Err(apollia_llm::embeddings_client::EmbeddingError::NoModel)
+    }
+}
+
+/// The documents `source_search` finds for `query` in the source `id`.
+async fn found(registry: &SourceRegistryHandle, id: &str, query: &str) -> Vec<String> {
+    let outcome = registry
+        .search(apollia_sources::SourcesQuery {
+            sources: vec![id.to_owned()],
+            query: query.to_owned(),
+            vector: None,
+            limit: None,
+        })
+        .await
+        .unwrap();
+    outcome.hits.into_iter().map(|h| h.document).collect()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_a_folder_chosen_again_is_searched_in_its_new_content_at_once() {
+    // GIVEN a folder source indexed on a folder about Lyon, an indexer that
+    // sweeps once an hour, and another folder about Nantes
+    let dir = tempfile::TempDir::new().unwrap();
+    let old = tempfile::TempDir::new().unwrap();
+    let new = tempfile::TempDir::new().unwrap();
+    std::fs::write(old.path().join("old.txt"), "The lease of the Lyon office.").unwrap();
+    std::fs::write(
+        new.path().join("new.txt"),
+        "The lease of the Nantes office.",
+    )
+    .unwrap();
+    let (state, folder_id, source_id, _) = folder_with_source(&dir, &old).await;
+    let registry = state.source_registry.clone().unwrap();
+    registry
+        .start_indexing_every(NoModel, std::time::Duration::from_secs(3600))
+        .await
+        .unwrap();
+    registry.refresh_indexes().await.unwrap().await.unwrap();
+    assert_eq!(found(&registry, &source_id, "Lyon").await.len(), 1);
+
+    // WHEN the connection is pointed at the other folder through the route
+    let (status, body) = crate::api::test_support::call(
+        state.clone(),
+        "PUT",
+        &format!("/api/v1/connections/folders/{folder_id}"),
+        Some(serde_json::json!({ "path": new.path().to_str().unwrap() })),
+    )
+    .await;
+    let right_after = found(&registry, &source_id, "Lyon").await;
+    registry.refresh_indexes().await.unwrap().await.unwrap();
+
+    // THEN the old folder is no longer searched as soon as the route
+    // answered, and the new one is once its indexing is over
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(right_after.is_empty(), "{right_after:?}");
+    assert!(found(&registry, &source_id, "Lyon").await.is_empty());
+    assert_eq!(found(&registry, &source_id, "Nantes").await.len(), 1);
+}

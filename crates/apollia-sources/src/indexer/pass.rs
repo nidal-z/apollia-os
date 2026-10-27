@@ -4,7 +4,8 @@
 //! same part, and settles the difference: a file the index lacks, or whose
 //! modification date and then fingerprint changed, is read, cut and written;
 //! a file whose date changed but whose content did not only has its date
-//! updated; a document whose file is gone leaves the index. A document with
+//! updated; a document whose file is gone leaves the index, and a pass over
+//! the whole root drops every document outside it. A document with
 //! pages waiting for optical character recognition is read again once it is
 //! available. A file over
 //! [`MAX_INDEXED_FILE_BYTES`], or one no reader opens, is recorded as
@@ -87,7 +88,7 @@ fn key_of(path: &Path) -> String {
 }
 
 /// Whether `key` is `scope` or lies under it.
-fn is_under(key: &str, scope: &str) -> bool {
+pub(crate) fn is_under(key: &str, scope: &str) -> bool {
     key == scope
         || key
             .strip_prefix(scope)
@@ -210,19 +211,18 @@ pub(super) fn run(
     };
     for scope in &full {
         let scope_key = key_of(scope);
+        // A pass over the whole root also drops what lies outside it: the
+        // documents of a folder the source named before.
+        let whole = scope.as_path() == root;
         let on_disk = walk(scope);
         let present: HashSet<&str> = on_disk.iter().map(|f| f.key.as_str()).collect();
-        for gone in known
-            .keys()
-            .filter(|k| is_under(k, &scope_key) && !present.contains(k.as_str()))
-        {
+        let settled =
+            |k: &String| (whole || is_under(k, &scope_key)) && !present.contains(k.as_str());
+        for gone in known.keys().filter(|k| settled(k)) {
             index.remove_document(gone)?;
             outcome.removed += 1;
         }
-        for gone in skipped
-            .iter()
-            .filter(|k| is_under(k, &scope_key) && !present.contains(k.as_str()))
-        {
+        for gone in skipped.iter().filter(|k| settled(k)) {
             index.forget_skipped(gone)?;
         }
         for file in &on_disk {
