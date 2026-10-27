@@ -79,6 +79,8 @@ impl McpClientManagerHandle {
         on_demand: OnDemand,
     ) -> Result<Self, McpSessionError> {
         let mut stored = on_demand.tool_store.load().await;
+        let kept_resources = on_demand.tool_store.load_resources().await;
+        let paused = on_demand.tool_store.paused().await;
         let (mut actor, handle) = McpClientManager::new(
             tool_registry,
             event_bus,
@@ -86,6 +88,8 @@ impl McpClientManagerHandle {
             Some(on_demand.tool_store),
         );
         actor.idle_stop = on_demand.idle_stop;
+        actor.kept_resources = kept_resources;
+        actor.paused = paused;
         let mut unknown = Vec::new();
         for config in configs {
             let name = config.name.clone();
@@ -230,12 +234,16 @@ impl McpClientManagerHandle {
     pub async fn get_tool_index(&self) -> Vec<ToolIndexSnapshot> {
         self.snapshot.borrow().tool_index()
     }
-    /// Aggregate `resources/list` across every connected MCP server.
+    /// Aggregate the resources of every MCP server, running or dormant.
     ///
     /// Returns one [`McpResourceSummary`] per resource, tagged with its owning
-    /// server. Servers that do not advertise the `resources` capability are
-    /// skipped without a round-trip. Returns an empty `Vec` when no server is
-    /// connected or the actor has already shut down.
+    /// server. A running server is asked (`resources/list`) and its answer
+    /// kept; a dormant server answers the list it last gave, without
+    /// starting. A dormant server never asked is started in a task, without
+    /// delaying this answer; its list joins the next one. Servers that do not
+    /// advertise the `resources` capability are skipped without a
+    /// round-trip, a paused server offers nothing. Returns an empty `Vec`
+    /// once the actor has shut down.
     pub async fn list_resources(&self) -> Vec<McpResourceSummary> {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
@@ -251,14 +259,16 @@ impl McpClientManagerHandle {
     /// Read a single resource (`resources/read`).
     ///
     /// When `server_name` is `Some`, the call is routed directly to that
-    /// session. When `None`, the manager resolves the owning server by matching
-    /// `uri` against the per-session resource list.
+    /// server. When `None`, the manager resolves the owning server by matching
+    /// `uri` against the running servers' lists, then the kept ones. A
+    /// dormant server is started first, as a tool call starts it.
     ///
     /// # Errors
     ///
-    /// Returns [`McpSessionError::ServerExited`] when the actor channel is
-    /// closed, when the named server is unknown, or when no connected server
-    /// exposes a resource with the given `uri`. Propagates any
+    /// Returns [`McpSessionError::ServerPaused`] for a server in pause, which
+    /// does not start. Returns [`McpSessionError::ServerExited`] when the
+    /// actor channel is closed, when the named server is unknown, or when no
+    /// server exposes a resource with the given `uri`. Propagates any
     /// [`McpSessionError`] raised by the underlying `resources/read` call.
     pub async fn read_resource(
         &self,

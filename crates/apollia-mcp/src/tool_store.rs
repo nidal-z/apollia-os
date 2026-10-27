@@ -1,4 +1,5 @@
-//! Where the manager keeps the tools each server published, between launches.
+//! Where the manager keeps the tools and the resources each server
+//! published, between launches.
 //!
 //! The store is a path to `mcp.db`, never an open connection: each read or
 //! write opens the file on a blocking thread, does its one transaction, and
@@ -11,7 +12,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::server_repository::{McpRepoError, McpServerRepository, StoredTool};
+use crate::server_repository::{McpRepoError, McpServerRepository, StoredResource, StoredTool};
 
 /// How long a write waits for another connection to the same file.
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -62,11 +63,65 @@ impl ToolIndexStore {
         }
     }
 
-    /// Forget the tools kept for `server`.
+    /// Every kept resource list, by server; a server never asked is absent.
+    /// Empty when the file cannot be read.
+    pub(crate) async fn load_resources(&self) -> HashMap<String, Vec<StoredResource>> {
+        self.with_repository(|repo| repo.stored_resources())
+            .await
+            .unwrap_or_else(|e| {
+                tracing::event!(tracing::Level::WARN, error = %e, "mcp.resources.store.read_failed");
+                HashMap::new()
+            })
+    }
+
+    /// The servers in pause: configured, and not enabled. Empty when the
+    /// file cannot be read.
+    pub(crate) async fn paused(&self) -> std::collections::HashSet<String> {
+        self.with_repository(|repo| repo.disabled_names())
+            .await
+            .unwrap_or_else(|e| {
+                tracing::event!(tracing::Level::WARN, error = %e, "mcp.servers.store.read_failed");
+                std::collections::HashSet::new()
+            })
+    }
+
+    /// Keep `resources`, answered at `fetched_at`, as everything `server`
+    /// lists.
+    pub(crate) async fn replace_resources(
+        &self,
+        server: String,
+        resources: Vec<StoredResource>,
+        fetched_at: String,
+    ) {
+        let count = resources.len();
+        let name = server.clone();
+        match self
+            .with_repository(move |repo| repo.replace_resources(&server, &resources, &fetched_at))
+            .await
+        {
+            Ok(()) => tracing::event!(
+                tracing::Level::DEBUG,
+                server = %name,
+                resources_count = count,
+                "mcp.resources.store.kept"
+            ),
+            Err(e) => tracing::event!(
+                tracing::Level::WARN,
+                server = %name,
+                error = %e,
+                "mcp.resources.store.write_failed"
+            ),
+        }
+    }
+
+    /// Forget the tools and the resources kept for `server`.
     pub(crate) async fn forget(&self, server: String) {
         let name = server.clone();
         if let Err(e) = self
-            .with_repository(move |repo| repo.forget_tools(&server))
+            .with_repository(move |repo| {
+                repo.forget_tools(&server)?;
+                repo.forget_resources(&server)
+            })
             .await
         {
             tracing::event!(

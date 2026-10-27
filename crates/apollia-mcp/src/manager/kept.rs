@@ -66,7 +66,7 @@ impl McpClientManager {
     }
 
     /// After a command started, restarted or reloaded `name`: keep what its
-    /// new session published, or, when no session is left, go on serving
+    /// new session published, tools and resources, or, when no session is left, go on serving
     /// the entries it had before the command (`before`).
     pub(super) async fn settle_kept(&mut self, name: &str, before: Vec<ToolIndexSnapshot>) {
         if self.request_servers.contains(name) {
@@ -75,6 +75,7 @@ impl McpClientManager {
         if let Some(session) = self.sessions.get(name) {
             self.kept_index.remove(name);
             keep_session_tools(self.tool_store.as_ref(), name, session).await;
+            self.keep_live_resources(name).await;
         } else if self.loading_mode == LoadingMode::Deferred && !before.is_empty() {
             self.kept_index.insert(name.to_string(), before);
         }

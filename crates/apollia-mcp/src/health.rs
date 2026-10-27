@@ -190,9 +190,9 @@ fn classify_session_error(err: &McpSessionError) -> Signal {
             last_error: truncate(&err.to_string()),
         },
         // No health signal: the operation never reached the server.
-        McpSessionError::ServerReloading { .. } | McpSessionError::ConfigReload { .. } => {
-            Signal::Unchanged
-        }
+        McpSessionError::ServerReloading { .. }
+        | McpSessionError::ConfigReload { .. }
+        | McpSessionError::ServerPaused { .. } => Signal::Unchanged,
     }
 }
 

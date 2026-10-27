@@ -239,7 +239,7 @@ mod tests {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(version, MCP_SCHEMA_VERSION);
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
         let found = repo.find_by_name("notion").unwrap().unwrap();
         assert_eq!(found.args, vec!["-y", "@notionhq/notion-mcp-server"]);
         assert_eq!(

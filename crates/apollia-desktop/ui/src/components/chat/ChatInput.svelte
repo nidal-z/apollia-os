@@ -41,6 +41,7 @@
     detectMentionQuery,
     filterResources,
     fetchMcpResources,
+    onMcpResourcesChanged,
     buildPinnedPrefix,
   } from "$lib/chat/mcpResources";
   import SlashCommandMenu from "./SlashCommandMenu.svelte";
@@ -384,6 +385,15 @@
       void loadResources();
     }
   });
+
+  // A server that slept answers its resources after the picker asked: the
+  // next opening asks again, and an open picker asks at once.
+  $effect(() =>
+    onMcpResourcesChanged(() => {
+      resourcesLoaded = false;
+      if (mentionQuery !== null) void loadResources();
+    }),
+  );
 
   async function loadResources(): Promise<void> {
     if (resourcesLoaded || mentionLoading) return;
