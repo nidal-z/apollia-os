@@ -184,6 +184,37 @@ OAuth client is entered has moved, into developer mode.
 - `confirm()` dialogs on the Connections page are replaced by confirmations
   in the page.
 
+- The application menu keeps its width on every screen, the chat included,
+  and follows the one choice you make with its toggle; it no longer folds into
+  a rail by itself when the chat is shown. Its icons are drawn at one size and
+  one stroke, and the breadcrumb and the command palette use the same ones.
+
+### Fixed
+
+- A chat that used a tool of a connection on an OpenAI-compatible engine that
+  checks tool names, such as MLX, failed with "missing field `error`". Tools
+  are now sent under a name the engine accepts, and their calls come back
+  under their own.
+- **Web Browser** is back in the selection of connections, and a connection
+  added by its address can be given to an agent like any other.
+- On Windows, the memory of the graphics card is read in full: a card with
+  more than 4 GB was taken for a 4 GB one, and models were sized for it.
+- On Windows, a factory reset is carried out at the next start, before
+  anything opens a file, instead of stopping half way on a file in use.
+- A package shipped with Apollia is installed again when its content changed
+  under the same version, so a fix to a shipped package reaches a machine
+  that already had that version.
+- The agent workshop leaves a small local model room for its answer: the
+  creation of an agent no longer fails on "the answer is not JSON" with a 4B
+  model.
+- A deletion of a calendar event or a task says that it requires approval,
+  in the interface and to the model, instead of promising a confirmation
+  phrase the approval card never asks for.
+- The Google card and the help of `llm setup --local` no longer speak of
+  v0.1 or of a cloud provider.
+- The certificate roots and their verifier take the distrust of the emSign
+  intermediates, and the network dependencies take their security fixes.
+
 ### Upgrading from 0.3.0
 
 - **OneDrive reads nothing until you choose.** A Microsoft account already
