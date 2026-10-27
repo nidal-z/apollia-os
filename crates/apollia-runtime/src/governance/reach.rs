@@ -2,85 +2,78 @@
 //!
 //! The file tools and `code_context` are natives, shared by every folder
 //! connection: the call's tool names no connection, its arguments do. A file
-//! tool given an absolute path reaches the folder that holds the path;
-//! `code_context` reaches the code folder it names, or every code folder of
-//! the agent when it names none. The decision refuses a call one of whose
-//! folders is in pause, as it refuses a tool of a connection in pause.
+//! tool reaches the deepest folder that holds where its path lands, read as
+//! the tool reads it (`apollia_tools::sandbox_path::landing`, relative to the
+//! first granted folder, `~` expanded, links followed); `code_context`
+//! reaches the code folder it names, or every code folder of the agent when
+//! it names none. The decision refuses a call one of whose folders is in
+//! pause, as it refuses a tool of a connection in pause.
 //!
-//! A relative path is anchored in a folder granted to the agent, and a folder
-//! in pause is not one of its roots (`apollia_tools::granted_folders`), so it
-//! reaches none in pause.
+//! The decision is not what keeps a folder in pause unread: a walk over a
+//! sound folder names no nested one. The sandbox of the file tools takes every
+//! folder in pause out of the roots that hold it
+//! (`apollia_tools::SandboxSpec::with_paused`); the decision is what refuses
+//! for the pause, and journals it, a call whose path names one.
 
 use std::collections::HashSet;
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 
-use apollia_core::paths::DataFile;
-use apollia_core::FolderConnectionStore;
 use apollia_tools::folder_access::{FOLDER_READ_TOOLS, FOLDER_WRITE_TOOLS};
-use apollia_tools::CODE_CONTEXT_TOOL;
+use apollia_tools::{FolderRoots, CODE_CONTEXT_TOOL};
 use serde_json::Value;
 
 /// The keys a file tool names its path under.
 const PATH_KEYS: [&str; 2] = ["path", "dir"];
 
-/// The folder connections a call of `access_id` with `input` by `agent_id`
-/// reaches, read from the `system.db` and `agents.db` of `data_dir`, for the
-/// decision to refuse the call when one is in pause. Nothing is read while no
-/// folder of `paused` is in pause.
+/// The agent a call is reached for, as its turn knows it.
+#[derive(Debug, Clone, Copy)]
+pub struct Caller<'a> {
+    /// The agent whose code folders `code_context` reads.
+    pub agent_id: &'a str,
+    /// The data directory its `agents.db` and `system.db` are read from.
+    pub data_dir: Option<&'a Path>,
+    /// Its folders, read once for the turn.
+    pub folders: &'a FolderRoots,
+}
+
+/// The folder connections a call of `access_id` with `input` by `caller`
+/// reaches, for the decision to refuse the call when one is in pause. A file
+/// tool's folder is named from the caller's folders, read once for the turn;
+/// the code folders of `code_context` from the `agents.db` and `system.db` of
+/// its data directory. Nothing is resolved while no folder of `paused` is in
+/// pause.
 #[must_use]
 pub fn call_reaches(
-    agent_id: &str,
+    caller: &Caller<'_>,
     access_id: &str,
     input: &Value,
-    data_dir: Option<&Path>,
     paused: &HashSet<String>,
 ) -> Vec<String> {
     let any_folder_paused = paused
         .iter()
         .any(|id| crate::connections::folder_id_of(id).is_some());
-    let Some(data_dir) = data_dir.filter(|_| any_folder_paused) else {
+    if !any_folder_paused {
         return Vec::new();
-    };
+    }
     if FOLDER_READ_TOOLS.contains(&access_id) || FOLDER_WRITE_TOOLS.contains(&access_id) {
-        return file_tool_reach(input, data_dir).into_iter().collect();
+        let path = PATH_KEYS
+            .iter()
+            .find_map(|key| input.get(*key).and_then(Value::as_str))
+            .map(str::trim)
+            .filter(|p| !p.is_empty());
+        return caller
+            .folders
+            .folder_of(path)
+            .map(str::to_owned)
+            .into_iter()
+            .collect();
     }
-    if access_id == CODE_CONTEXT_TOOL {
-        return code_context_reach(agent_id, input, data_dir);
-    }
-    Vec::new()
-}
-
-/// The folder connection that holds the absolute path a file tool is given,
-/// the deepest one when folders nest.
-fn file_tool_reach(input: &Value, data_dir: &Path) -> Option<String> {
-    let path = PATH_KEYS
-        .iter()
-        .find_map(|key| input.get(*key).and_then(Value::as_str))
-        .map(str::trim)
-        .filter(|p| !p.is_empty())
-        .map(Path::new)
-        .filter(|p| p.is_absolute())?;
-    let system = DataFile::System.path(data_dir);
-    if !system.exists() {
-        return None;
-    }
-    let folders = match FolderConnectionStore::open(&system).and_then(|store| store.list()) {
-        Ok(folders) => folders,
-        Err(error) => {
-            tracing::event!(
-                tracing::Level::WARN,
-                error = %error,
-                "governance.reach.folders_unreadable"
-            );
-            return None;
+    match caller.data_dir {
+        Some(data_dir) if access_id == CODE_CONTEXT_TOOL => {
+            code_context_reach(caller.agent_id, input, data_dir)
         }
-    };
-    let path = canonical(path);
-    folders
-        .iter()
-        .filter(|folder| path.starts_with(canonical(Path::new(&folder.path))))
-        .max_by_key(|folder| folder.path.len())
-        .map(|folder| crate::connections::folder_connection_id(&folder.id))
+        _ => Vec::new(),
+    }
 }
 
 /// The code folders a `code_context` call reaches: the one it names, by its
@@ -109,36 +102,6 @@ fn code_context_reach(agent_id: &str, input: &Value, data_dir: &Path) -> Vec<Str
         })
         .map(|(_, connection)| connection)
         .collect()
-}
-
-/// `path` with its longest existing ancestor resolved and its `.` and `..`
-/// taken out, so that a path written through a link or a parent step lands
-/// where the folder's own canonical path does.
-fn canonical(path: &Path) -> PathBuf {
-    let mut lexical = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                lexical.pop();
-            }
-            other => lexical.push(other),
-        }
-    }
-    let mut existing = lexical.as_path();
-    let mut rest = Vec::new();
-    loop {
-        if let Ok(resolved) = existing.canonicalize() {
-            return rest.iter().rev().fold(resolved, |acc, part| acc.join(part));
-        }
-        match (existing.parent(), existing.file_name()) {
-            (Some(parent), Some(name)) => {
-                rest.push(name.to_owned());
-                existing = parent;
-            }
-            _ => return lexical,
-        }
-    }
 }
 
 #[cfg(test)]

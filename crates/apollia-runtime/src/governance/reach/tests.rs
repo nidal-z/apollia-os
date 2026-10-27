@@ -1,5 +1,7 @@
 use super::*;
+use apollia_core::paths::DataFile;
 use apollia_core::source_registry::{NewSource, SourceRegistryStore};
+use apollia_core::FolderConnectionStore;
 use apollia_sources::SourceKind;
 use apollia_tools::{AgentOrigin, AgentRepository, OverrideField, StoredAgent};
 use serde_json::json;
@@ -52,67 +54,80 @@ fn paused(ids: &[&str]) -> HashSet<String> {
     ids.iter().map(|id| (*id).to_owned()).collect()
 }
 
+/// The folders of an agent granted `granted`, read from `data_dir` with
+/// `pauses`, as the turn reads them once.
+fn folders_of(data_dir: &Path, granted: &[&str], pauses: &HashSet<String>) -> FolderRoots {
+    let access = granted
+        .iter()
+        .map(|connection| {
+            let id = crate::connections::folder_id_of(connection).unwrap();
+            apollia_tools::folder_access::folder_access_name(id, "file_read")
+        })
+        .collect();
+    apollia_tools::granted_folders(access, data_dir, pauses).1
+}
+
 #[test]
-fn test_a_file_tool_reaches_the_folder_that_holds_its_absolute_path() {
-    // GIVEN a folder connection, and a folder nested in it, the outer one in pause
+fn test_a_file_tool_reaches_the_folder_that_holds_its_path() {
+    // GIVEN a sound folder connection granted to the agent, a folder nested
+    // in it in pause, and a link from the outer one to the inner one
     let data = tempfile::tempdir().unwrap();
     let outer = tempfile::tempdir().unwrap();
     let inner = outer.path().join("inner");
     std::fs::create_dir(&inner).unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&inner, outer.path().join("link")).unwrap();
     let outer_id = seed_folder(data.path(), &outer.path().canonicalize().unwrap());
     let inner_id = seed_folder(data.path(), &inner.canonicalize().unwrap());
-    let pauses = paused(&[&outer_id]);
+    let pauses = paused(&[&inner_id]);
+    let folders = folders_of(data.path(), &[&outer_id], &pauses);
+    let caller = Caller {
+        agent_id: "dev",
+        data_dir: Some(data.path()),
+        folders: &folders,
+    };
+    let reach = |tool: &str, input: Value| call_reaches(&caller, tool, &input, &pauses);
 
-    // WHEN a read, a write of a new file, a list and a relative read are reached
-    let read = call_reaches(
-        "dev",
-        "file_read",
-        &json!({ "path": outer.path().join("notes.md") }),
-        Some(data.path()),
-        &pauses,
-    );
-    let write = call_reaches(
-        "dev",
+    // WHEN calls with an absolute, a relative, a `..`, a linked path, a new
+    // file to write, and no path at all are reached
+    let absolute = reach("file_read", json!({ "path": inner.join("n.md") }));
+    let relative = reach("file_read", json!({ "path": "inner/n.md" }));
+    let parent = reach("file_list", json!({ "dir": "x/../inner/" }));
+    #[cfg(unix)]
+    let linked = reach("file_read", json!({ "path": "link/n.md" }));
+    let write = reach(
         "file_write",
-        &json!({ "path": inner.join("new/./draft.md"), "content": "x" }),
-        Some(data.path()),
-        &pauses,
+        json!({ "path": inner.join("new/./draft.md"), "content": "x" }),
     );
-    let list = call_reaches(
-        "dev",
-        "file_list",
-        &json!({ "dir": outer.path() }),
-        Some(data.path()),
-        &pauses,
-    );
-    let relative = call_reaches(
-        "dev",
-        "file_read",
-        &json!({ "path": "notes.md" }),
-        Some(data.path()),
-        &pauses,
-    );
+    let sound = reach("file_read", json!({ "path": "notes.md" }));
+    let unnamed = reach("file_grep", json!({ "pattern": "x" }));
 
-    // THEN each absolute path reaches the deepest folder that holds it, even
-    // through the unresolved temporary directory and a new file
-    assert_eq!(read, vec![outer_id.clone()]);
-    assert_eq!(write, vec![inner_id]);
-    assert_eq!(list, vec![outer_id]);
-    // AND a relative path reaches none: a folder in pause is no root
-    assert!(relative.is_empty());
+    // THEN each path that lands in the folder in pause reaches it, read as
+    // the tools read it: a relative path from the first granted folder
+    for reached in [&absolute, &relative, &parent, &write] {
+        assert_eq!(reached, &vec![inner_id.clone()]);
+    }
+    #[cfg(unix)]
+    assert_eq!(linked, vec![inner_id.clone()]);
+    // AND a path of the sound folder, or none, reaches the sound folder
+    assert_eq!(sound, vec![outer_id.clone()]);
+    assert_eq!(unnamed, vec![outer_id]);
 }
 
 #[test]
-fn test_nothing_is_read_while_no_folder_is_paused() {
+fn test_nothing_is_resolved_while_no_folder_is_paused() {
     // GIVEN a data directory with no system.db, and only a server in pause
     let data = tempfile::tempdir().unwrap();
 
     // WHEN a file read is reached
     let reached = call_reaches(
-        "dev",
+        &Caller {
+            agent_id: "dev",
+            data_dir: Some(data.path()),
+            folders: &FolderRoots::default(),
+        },
         "file_read",
         &json!({ "path": "/anywhere/notes.md" }),
-        Some(data.path()),
         &paused(&["mcp:notion"]),
     );
 
@@ -131,24 +146,33 @@ fn test_code_context_reaches_the_code_folder_it_names_or_every_one() {
 
     // WHEN calls naming it, naming nothing, and naming another are reached
     let named = call_reaches(
-        "dev",
+        &Caller {
+            agent_id: "dev",
+            data_dir: Some(data.path()),
+            folders: &FolderRoots::default(),
+        },
         CODE_CONTEXT_TOOL,
         &json!({ "folder": "apollia" }),
-        Some(data.path()),
         &pauses,
     );
     let unnamed = call_reaches(
-        "dev",
+        &Caller {
+            agent_id: "dev",
+            data_dir: Some(data.path()),
+            folders: &FolderRoots::default(),
+        },
         CODE_CONTEXT_TOOL,
         &json!({}),
-        Some(data.path()),
         &pauses,
     );
     let other = call_reaches(
-        "dev",
+        &Caller {
+            agent_id: "dev",
+            data_dir: Some(data.path()),
+            folders: &FolderRoots::default(),
+        },
         CODE_CONTEXT_TOOL,
         &json!({ "folder": "elsewhere" }),
-        Some(data.path()),
         &pauses,
     );
 

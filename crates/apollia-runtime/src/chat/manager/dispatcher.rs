@@ -184,6 +184,7 @@ fn build_full_chat_dispatcher(
     let native_cfg = apollia_tools::NativeDispatcherConfig {
         sandbox_roots: folders.read.clone(),
         write_roots: folders.write.clone(),
+        paused_folders: folders.paused.clone(),
         agent_id: format!("apollia:chat:{session_id}"),
         venv_base_dir: cfg.data_dir.join("venvs"),
         // The memory of the agent of the run; `memory_search` reads it only
@@ -291,7 +292,7 @@ fn push_writing_natives(
         }
         if folders.write.is_empty() {
             extra_executors.push(Box::new(apollia_tools::NoFolderGranted::new(name)));
-        } else if let Some(tool) = writing_tool(name, folders.write.clone()) {
+        } else if let Some(tool) = writing_tool(name, folders.sandbox(folders.write.clone())) {
             extra_executors.push(tool);
         }
     }
@@ -322,7 +323,7 @@ fn push_writing_natives(
 /// built.
 fn writing_tool(
     name: &str,
-    roots: Vec<std::path::PathBuf>,
+    roots: apollia_tools::SandboxSpec,
 ) -> Option<Box<dyn apollia_tools::executor::ToolExecutor>> {
     use apollia_tools::executor::ToolExecutor;
     use apollia_tools::tools::{file_edit::FileEdit, file_write::FileWrite};
@@ -404,6 +405,7 @@ mod tests {
         apollia_tools::FolderRoots {
             read: vec![path.to_path_buf()],
             write: vec![path.to_path_buf()],
+            ..Default::default()
         }
     }
 

@@ -50,6 +50,7 @@ fn production_tools_fixture_matches_runtime_registration() {
     let cfg = NativeDispatcherConfig {
         sandbox_roots: vec![sandbox.path().to_path_buf()],
         write_roots: vec![sandbox.path().to_path_buf()],
+        paused_folders: Vec::new(),
         agent_id: "apollia:test:tool-catalogue".to_string(),
         venv_base_dir: sandbox.path().join("venvs"),
         memory_namespace: Some("apollia:test:tool-catalogue".to_string()),

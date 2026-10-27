@@ -19,6 +19,7 @@ use std::path::PathBuf;
 use apollia_core::{WebReadConfig, WebSearchConfig};
 
 use crate::executor::{ToolDispatcher, ToolExecutor};
+use crate::sandbox_path::SandboxSpec;
 use crate::source_access::SourceAccess;
 use crate::tools::ask_user::{AskUserExecutor, PendingUserInputs};
 use crate::tools::bash_executor::BashExecutor;
@@ -61,6 +62,9 @@ pub struct NativeDispatcherConfig {
     /// `notebook_edit`) may reach, anchor first: the folders granted to the
     /// agent for writing. Empty, those tools refuse every call.
     pub write_roots: Vec<PathBuf>,
+    /// Folders in pause, taken out of every root that holds them: no file or
+    /// notebook tool reads or writes in one ([`crate::FolderRoots::paused`]).
+    pub paused_folders: Vec<PathBuf>,
     /// Agent identifier, namespaces the per-agent Python venv.
     pub agent_id: String,
     /// Root directory under which per-agent venvs are created for `python_executor`.
@@ -347,13 +351,15 @@ fn register_sandbox_tools(
     let mut push =
         |name: &'static str,
          roots: &Vec<PathBuf>,
-         build: &dyn Fn(Vec<PathBuf>) -> Option<Box<dyn ToolExecutor>>| {
+         build: &dyn Fn(SandboxSpec) -> Option<Box<dyn ToolExecutor>>| {
             if !is_active(name) {
                 return;
             }
             if roots.is_empty() {
                 executors.push(Box::new(NoFolderGranted { name }));
-            } else if let Some(exec) = build(roots.clone()) {
+            } else if let Some(exec) =
+                build(SandboxSpec::from(roots.clone()).with_paused(cfg.paused_folders.clone()))
+            {
                 executors.push(exec);
             }
         };
@@ -527,6 +533,7 @@ mod tests {
         NativeDispatcherConfig {
             sandbox_roots: vec![root.clone()],
             write_roots: vec![root.clone()],
+            paused_folders: Vec::new(),
             agent_id: "agent".to_string(),
             venv_base_dir: root.join("venvs"),
             memory_namespace: None,
@@ -730,6 +737,7 @@ mod tests {
         let cfg = NativeDispatcherConfig {
             sandbox_roots: vec![root.clone()],
             write_roots: vec![root.clone()],
+            paused_folders: Vec::new(),
             agent_id: "apollia:chat:s1".to_string(),
             venv_base_dir: root.join("venvs"),
             memory_namespace: None,

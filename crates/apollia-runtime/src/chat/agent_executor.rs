@@ -129,8 +129,10 @@ pub struct AgentExecutorDeps {
 /// the human however long it takes.
 #[derive(Default)]
 pub struct SessionWiring {
-    /// The folders granted to the agent, whose files the planner is shown.
-    pub planning_folders: Vec<PathBuf>,
+    /// The folders granted to the agent and those in pause: the planner is
+    /// shown the files of the granted ones, and the decision on a call of a
+    /// file tool names the folder its path lands in.
+    pub folders: apollia_tools::FolderRoots,
     /// For an item of a batch, the plan template of its batch.
     pub plan_template: Option<apollia_oria::plan_template::PlanTemplate>,
     /// Working directory named in the prompt and used by the tools.
@@ -295,7 +297,7 @@ impl AgentExecutor {
             event_bus: deps.event_bus.clone(),
             plan_cache: deps.plan_cache,
             workspace_path: wiring.workspace_path.clone(),
-            planning_folders: wiring.planning_folders.clone(),
+            folders: wiring.folders.clone(),
             plan_template: wiring.plan_template.clone(),
             tool_output_dir: wiring.tool_output_dir.clone(),
             runtime_ceiling: runtime_ceiling.clone(),
@@ -322,6 +324,7 @@ impl AgentExecutor {
         .with_conversation_profile(apollia.profile_id)
         .with_composer(composer)
         .with_workspace_path(wiring.workspace_path)
+        .with_folders(wiring.folders)
         .with_mcp_index(wiring.mcp_index, wiring.tool_search_limit)
         .with_plan_mode(wiring.plan_mode)
         .with_plan_phase_start(wiring.plan_phase)

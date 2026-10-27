@@ -11,11 +11,12 @@
 //!   `notebook_edit`) is also a write root.
 //!
 //! The roots keep the order in which the folders were added, so the first one
-//! anchors a relative path. A folder whose connection is in pause is no root:
-//! nothing of it is read or written until it is resumed, and the decision on
-//! a call that names a path in it refuses the call for the pause. An agent
-//! with no folder granted has no root, and its file tools refuse with a
-//! message that says what to do.
+//! anchors a relative path. A folder whose connection is in pause is no root,
+//! and is taken out of every root that holds it: nothing of it is read or
+//! written until it is resumed, whatever path or walk leads there, and the
+//! decision on a call whose path lands in it refuses the call for the pause.
+//! An agent with no folder granted has no root, and its file tools refuse
+//! with a message that says what to do.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -62,6 +63,22 @@ pub struct FolderRoots {
     pub read: Vec<PathBuf>,
     /// The folders granted for writing, in the same order.
     pub write: Vec<PathBuf>,
+    /// Every stored folder whose connection is in pause, granted or not: a
+    /// subtree no file tool reads or writes, even under a root that holds it
+    /// ([`crate::SandboxSpec::with_paused`]).
+    pub paused: Vec<PathBuf>,
+    /// Every stored folder, for the decision on a call to name the folder
+    /// the path of the call lands in.
+    pub stored: Vec<StoredFolder>,
+}
+
+/// A stored folder, as the pauses name its connection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredFolder {
+    /// The identifier of its connection, `folder:<id>`.
+    pub connection: String,
+    /// Its path, as stored.
+    pub path: PathBuf,
 }
 
 impl FolderRoots {
@@ -69,6 +86,44 @@ impl FolderRoots {
     #[must_use]
     pub fn anchor(&self) -> Option<&Path> {
         self.read.first().map(PathBuf::as_path)
+    }
+
+    /// The connection of the deepest stored folder that holds where the path
+    /// `input` of a file tool lands, read as the tool reads it
+    /// ([`crate::sandbox_path::landing`], [`crate::sandbox_path::real_path`]).
+    /// No path means the anchor, where a tool given none searches. `None`
+    /// when the path lands in no stored folder, or is relative and no folder
+    /// is granted.
+    #[must_use]
+    pub fn folder_of(&self, input: Option<&str>) -> Option<&str> {
+        let anchor = self.anchor().unwrap_or(Path::new(""));
+        let landed = crate::sandbox_path::landing(input.unwrap_or("."), anchor)?;
+        self.folder_landed(&landed)
+    }
+
+    /// The connection of the deepest stored folder that holds `landed`, a
+    /// path as [`crate::sandbox_path::landing`] reads it.
+    fn folder_landed(&self, landed: &Path) -> Option<&str> {
+        if !landed.is_absolute() {
+            return None;
+        }
+        let real = crate::sandbox_path::real_path(landed)?;
+        self.stored
+            .iter()
+            .filter_map(|folder| {
+                let path = crate::sandbox_path::real_path(&folder.path)?;
+                real.starts_with(&path)
+                    .then(|| (path.components().count(), folder))
+            })
+            .max_by_key(|(depth, _)| *depth)
+            .map(|(_, folder)| folder.connection.as_str())
+    }
+
+    /// The sandbox of a file tool reaching `roots`, this agent's folders in
+    /// pause taken out of them.
+    #[must_use]
+    pub fn sandbox(&self, roots: Vec<PathBuf>) -> crate::SandboxSpec {
+        crate::SandboxSpec::from(roots).with_paused(self.paused.clone())
     }
 }
 
@@ -97,13 +152,21 @@ pub fn resolve_folder_access(
         .collect();
     let mut roots = FolderRoots::default();
     for folder in folders {
+        let connection = format!("{FOLDER_CONNECTION_PREFIX}{}", folder.id);
+        let in_pause = paused.contains(&connection);
+        if in_pause {
+            roots.paused.push(PathBuf::from(&folder.path));
+        }
+        roots.stored.push(StoredFolder {
+            connection,
+            path: PathBuf::from(&folder.path),
+        });
         let tools: Vec<&str> = granted
             .iter()
             .filter(|(id, _)| *id == folder.id)
             .map(|(_, tool)| *tool)
             .collect();
-        if tools.is_empty() || paused.contains(&format!("{FOLDER_CONNECTION_PREFIX}{}", folder.id))
-        {
+        if tools.is_empty() || in_pause {
             continue;
         }
         roots.read.push(PathBuf::from(&folder.path));
@@ -158,3 +221,6 @@ pub fn granted_folders(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod paused_tests;

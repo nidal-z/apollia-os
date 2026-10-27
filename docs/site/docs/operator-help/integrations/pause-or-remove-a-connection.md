@@ -29,7 +29,7 @@ sidebar_position: 6.5
 While it is paused:
 
 - An agent that calls one of its tools is refused, and told that the connection is paused. The refusal is written in the **Activity log**: *An action of the agent was refused: its connection is paused*, for a mailbox as for an account, a folder or a service.
-- A folder is neither read nor searched: an agent that reads, lists or writes a file in it, or asks the context of a code folder it holds, is refused and told that the connection is paused, with the same line in the **Activity log**; an agent that searches its sources is told that this one is paused, and the other sources it holds are searched.
+- A folder is neither read nor searched, even when it sits inside another folder the agent holds: an agent that reads, lists or writes a file in it, whatever path it writes, or asks the context of a code folder it holds, is refused and told that the connection is paused, with the same line in the **Activity log**; an agent that lists or searches the folder around it finds nothing of it; an agent that searches its sources is told that this one is paused, and the other sources it holds are searched.
 - The sheet of each agent that holds it marks the access **Paused**.
 - A service is stopped and never started again, neither at the next launch of Apollia nor on request. In the Chat, the **@** picker no longer offers its resources.
 - The pause holds across a restart of Apollia.

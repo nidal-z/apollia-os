@@ -34,6 +34,10 @@ pub enum FileGrepError {
     )]
     SandboxViolation { path: String },
 
+    /// Path lands in a folder whose connection is in pause.
+    #[error("path '{path}' {}", crate::sandbox_path::PAUSED_REASON)]
+    Paused { path: String },
+
     /// The provided regex pattern is syntactically invalid.
     #[error("invalid regex pattern: {0}")]
     InvalidRegex(String),
@@ -47,6 +51,7 @@ impl From<SandboxPathError> for FileGrepError {
     fn from(e: SandboxPathError) -> Self {
         match e {
             SandboxPathError::SandboxViolation { path } => Self::SandboxViolation { path },
+            SandboxPathError::Paused { path } => Self::Paused { path },
             SandboxPathError::InitFailed { path, cause } => {
                 Self::IoError(format!("{path}: {cause}"))
             }
@@ -127,10 +132,14 @@ impl FileGrep {
     /// - `IoError` on any I/O failure during traversal.
     pub async fn run(&self, input: FileGrepInput) -> Result<FileGrepOutput, FileGrepError> {
         let base = match &input.path {
-            Some(p) => self
-                .sandbox
-                .resolve(p)
-                .map_err(|_| FileGrepError::SandboxViolation { path: p.clone() })?,
+            Some(p) => self.sandbox.resolve(p).map_err(|e| {
+                let path = p.clone();
+                if e.is_paused() {
+                    FileGrepError::Paused { path }
+                } else {
+                    FileGrepError::SandboxViolation { path }
+                }
+            })?,
             None => self.sandbox.path().to_path_buf(),
         };
 
@@ -149,12 +158,11 @@ impl FileGrep {
         let regex = regex::Regex::new(&pattern_str)
             .map_err(|e| FileGrepError::InvalidRegex(e.to_string()))?;
 
-        let sandbox_root = self.sandbox.path().to_path_buf();
         let glob_filter = input.glob.clone();
 
         let params = GrepParams {
             base,
-            sandbox_root,
+            sandbox: self.sandbox.clone(),
             glob_filter,
             regex,
             context_lines,
@@ -262,12 +270,15 @@ impl FileGrep {
 
 /// Collect all candidate files under `base`, optionally filtered by a glob pattern.
 ///
-/// Files outside the sandbox root are silently excluded. Only regular files are returned.
+/// Files outside the sandbox root, and files the sandbox does not serve (in a
+/// folder in pause, or reached through a link that leaves every root), are
+/// silently excluded and never read. Only regular files are returned.
 fn collect_files(
     base: &Path,
-    sandbox_root: &Path,
+    sandbox: &SandboxRoot,
     glob_filter: Option<&str>,
 ) -> Result<Vec<PathBuf>, FileGrepError> {
+    let sandbox_root = sandbox.path();
     let pattern = glob_filter.unwrap_or("**/*");
     let full_pattern = base.join(pattern).to_string_lossy().into_owned();
 
@@ -277,7 +288,7 @@ fn collect_files(
     let mut files = Vec::new();
     for entry in entries {
         let path = entry.map_err(|e| FileGrepError::IoError(e.to_string()))?;
-        if path.is_file() && path.starts_with(sandbox_root) {
+        if path.is_file() && path.starts_with(sandbox_root) && sandbox.serves(&path) {
             files.push(path);
         }
     }
@@ -289,7 +300,7 @@ fn collect_files(
 /// moved into the blocking search task.
 struct GrepParams {
     base: std::path::PathBuf,
-    sandbox_root: std::path::PathBuf,
+    sandbox: SandboxRoot,
     glob_filter: Option<String>,
     regex: regex::Regex,
     context_lines: usize,
@@ -301,11 +312,7 @@ struct GrepParams {
 /// Binary files (non-UTF-8) are silently skipped and not included in `files_searched`.
 /// Collection stops once `max_results` matches are gathered and `truncated` is set to `true`.
 fn grep_files(params: &GrepParams) -> Result<FileGrepOutput, FileGrepError> {
-    let files = collect_files(
-        &params.base,
-        &params.sandbox_root,
-        params.glob_filter.as_deref(),
-    )?;
+    let files = collect_files(&params.base, &params.sandbox, params.glob_filter.as_deref())?;
 
     let mut matches: Vec<GrepMatch> = Vec::new();
     let mut files_searched: u32 = 0;
@@ -368,7 +375,7 @@ fn build_match(file_path: &Path, lines: &[&str], i: usize, params: &GrepParams) 
     // strip_prefix is guaranteed to succeed: collect_files ensures all paths
     // start with sandbox_root.
     let relative_path = file_path
-        .strip_prefix(&params.sandbox_root)
+        .strip_prefix(params.sandbox.path())
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|_| file_path.to_string_lossy().into_owned());
 

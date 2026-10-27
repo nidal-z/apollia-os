@@ -631,13 +631,17 @@ redémarré, ni au démarrage suivant ni à la demande.
 Certains outils sont partagés par plusieurs connexions, et l'appel dit celle
 qu'il atteint. Un outil de boîte mail atteint la boîte que l'appel nomme, ou la
 seule connectée, reconnue quelle que soit la casse de son adresse ; un outil de
-fichiers atteint le dossier qui contient le chemin absolu qu'on lui donne ;
-`code_context` atteint le dossier de code qu'il nomme, ou chaque dossier de
-code de l'agent. La décision refuse un tel appel quand ce qu'il atteint est en
-pause, et le journalise comme tout autre. Un dossier en pause n'est pas non
-plus une racine des outils de fichiers, si bien qu'un chemin relatif n'y
-aboutit jamais, et `source_search` ne le cherche pas : il rend la source sous
-`paused` et cherche les autres. L'exécuteur des boîtes refuse lui aussi à
+fichiers atteint le dossier le plus profond qui contient l'endroit où aboutit
+son chemin, lu comme l'outil le lit (un chemin relatif depuis le premier
+dossier accordé, `~` développé, liens suivis) ; `code_context` atteint le
+dossier de code qu'il nomme, ou chaque dossier de code de l'agent. La décision
+refuse un tel appel quand ce qu'il atteint est en pause, et le journalise comme
+tout autre. Les outils de fichiers ne reposent pas sur cette seule décision,
+puisqu'un parcours d'un dossier sain ne nomme aucun dossier imbriqué : un
+dossier en pause est retiré de leur bac à sable, il n'est pas une racine et
+aucune racine qui le contient n'y descend, si bien qu'aucun chemin, lien,
+liste ou recherche récursive n'y lit ni n'y écrit. `source_search` ne le
+cherche pas non plus : il rend la source sous `paused` et cherche les autres. L'exécuteur des boîtes refuse lui aussi à
 chaque appel une boîte en pause, comme il refuse une boîte interdite. Une
 connexion en pause se lit en pause dans la liste, quel que soit l'état gardé
 pour elle avant.

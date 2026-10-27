@@ -93,10 +93,13 @@ impl BuiltInChatAgent {
         let argument =
             crate::governance::call_argument(&call.name, &call.arguments, data_dir.as_deref());
         let reaches = crate::governance::call_reaches(
-            &self.agent_id,
+            &crate::governance::Caller {
+                agent_id: &self.agent_id,
+                data_dir: data_dir.as_deref(),
+                folders: &self.folders,
+            },
             &call.name,
             &call.arguments,
-            data_dir.as_deref(),
             &self.governance.state().paused,
         );
         let decision = self.governance.decide(&AccessCall {

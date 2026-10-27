@@ -134,6 +134,7 @@ async fn test_a_long_document_is_referenced_and_its_folder_is_a_reading_root() {
     let granted = apollia_tools::FolderRoots {
         read: vec![PathBuf::from("/granted")],
         write: vec![PathBuf::from("/granted")],
+        ..Default::default()
     };
     let folders = with_session_documents(granted, Some(dir.path()), &id);
     assert_eq!(folders.read, [PathBuf::from("/granted"), folder]);
@@ -159,6 +160,7 @@ async fn test_a_conversation_without_documents_gains_no_reading_root() {
         apollia_tools::FolderRoots {
             read: Vec::new(),
             write: Vec::new(),
+            ..Default::default()
         },
         Some(dir.path()),
         &without,

@@ -157,7 +157,14 @@ async fn run_exchange_calling_with(
     answer: Option<ToolDecision>,
 ) -> Vec<JournalEntry> {
     let governance = GovernanceHandle::detached(state, Some(journal.clone()));
-    run_exchange_governed(journal, tool, arguments, governance, answer).await
+    run_exchange_governed(
+        journal,
+        tool,
+        arguments,
+        (governance, apollia_tools::FolderRoots::default()),
+        answer,
+    )
+    .await
 }
 
 /// Runs the exchange against `journal`, the model calling `tool` with
@@ -166,7 +173,7 @@ async fn run_exchange_governed(
     journal: &AuditJournalHandle,
     tool: &'static str,
     arguments: serde_json::Value,
-    governance: GovernanceHandle,
+    (governance, folders): (GovernanceHandle, apollia_tools::FolderRoots),
     answer: Option<ToolDecision>,
 ) -> Vec<JournalEntry> {
     let model: Arc<dyn CompletionModel> = Arc::new(OneCallThenText {
@@ -189,7 +196,8 @@ async fn run_exchange_governed(
         todo: None,
         plan: None,
     })
-    .with_governance(Some(governance));
+    .with_governance(Some(governance))
+    .with_folders(folders);
     let budget = StepBudget::with_max(10);
     let approvals = PendingChatApprovals::new();
     let operator = tokio::spawn({
@@ -469,12 +477,14 @@ async fn test_a_paused_mailbox_is_refused_whatever_the_case_of_its_address() {
 }
 
 /// Runs the exchange where the model calls `tool` with `arguments`, under
-/// `paused`, its arguments read in `data_dir`.
+/// `paused`, its arguments read in `data_dir`, by an agent granted the folders
+/// `granted` (their connections) in that directory.
 async fn run_exchange_reading_in(
     tool: &'static str,
     arguments: serde_json::Value,
     paused: &str,
     data_dir: &std::path::Path,
+    granted: &[&str],
 ) -> Vec<JournalEntry> {
     let dir = tempfile::tempdir().expect("tempdir");
     let journal = AuditJournalHandle::open(&dir.path().join("audit_journal.db"))
@@ -484,8 +494,17 @@ async fn run_exchange_reading_in(
         paused: [paused.to_owned()].into_iter().collect(),
         ..GovernanceState::default()
     };
+    let access = granted
+        .iter()
+        .map(|connection| {
+            let id = crate::connections::folder_id_of(connection).expect("a folder connection");
+            apollia_tools::folder_access::folder_access_name(id, "file_read")
+        })
+        .collect();
+    let (_, folders) = apollia_tools::granted_folders(access, data_dir, &state.paused);
     let governance = GovernanceHandle::detached(state, Some(journal.clone())).reading_in(data_dir);
-    let entries = run_exchange_governed(&journal, tool, arguments, governance, None).await;
+    let entries =
+        run_exchange_governed(&journal, tool, arguments, (governance, folders), None).await;
     journal.shutdown().await;
     entries
 }
@@ -508,6 +527,7 @@ async fn test_a_file_read_in_a_paused_folder_is_refused_and_journaled() {
         serde_json::json!({ "path": folder.path().join(ARGUMENT) }),
         &connection,
         data.path(),
+        &[],
     )
     .await;
 
@@ -516,6 +536,41 @@ async fn test_a_file_read_in_a_paused_folder_is_refused_and_journaled() {
     assert_eq!(kinds, vec![JournalEntryKind::PausedRefused]);
     assert_eq!(entries[0].payload["access_id"], "file_read");
     assert_eq!(entries[0].payload["connection_id"], connection);
+    assert_no_content(&entries);
+}
+
+// A relative path names no folder by itself: it lands in the first folder
+// granted, and a folder in pause nested there is reached all the same.
+#[tokio::test]
+async fn test_a_relative_read_into_a_nested_paused_folder_is_refused_and_journaled() {
+    // GIVEN a sound folder granted to the agent, holding a folder in pause
+    let data = tempfile::tempdir().expect("tempdir");
+    let outer = tempfile::tempdir().expect("tempdir");
+    let inner = outer.path().join("inner");
+    std::fs::create_dir(&inner).expect("mkdir");
+    let outer_id = crate::governance::reach::tests::seed_folder(
+        data.path(),
+        &outer.path().canonicalize().expect("canonical"),
+    );
+    let inner_id = crate::governance::reach::tests::seed_folder(
+        data.path(),
+        &inner.canonicalize().expect("canonical"),
+    );
+
+    // WHEN the model reads a file of the folder in pause by a relative path
+    let entries = run_exchange_reading_in(
+        "file_read",
+        serde_json::json!({ "path": format!("inner/{ARGUMENT}") }),
+        &inner_id,
+        data.path(),
+        &[&outer_id],
+    )
+    .await;
+
+    // THEN the read is refused by the pause of the inner folder, and journaled
+    let kinds: Vec<JournalEntryKind> = entries.iter().map(|e| e.kind.clone()).collect();
+    assert_eq!(kinds, vec![JournalEntryKind::PausedRefused]);
+    assert_eq!(entries[0].payload["connection_id"], inner_id);
     assert_no_content(&entries);
 }
 
@@ -539,6 +594,7 @@ async fn test_code_context_on_a_paused_code_folder_is_refused_and_journaled() {
         serde_json::json!({}),
         &connection,
         data.path(),
+        &[],
     )
     .await;
 

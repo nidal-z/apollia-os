@@ -50,6 +50,10 @@ pub enum FileReadError {
     )]
     SandboxViolation { path: String },
 
+    /// Path lands in a folder whose connection is in pause.
+    #[error("path '{path}' {}", crate::sandbox_path::PAUSED_REASON)]
+    Paused { path: String },
+
     /// File not found at the specified path. `near` names the files of the
     /// same name in the granted folders, or is empty.
     #[error("not found: '{path}'{near}")]
@@ -160,12 +164,14 @@ impl FileRead {
     /// Returns an error if the path is invalid, the file doesn't exist,
     /// cannot be read, or contains non-UTF-8 data.
     pub async fn run(&self, input: FileReadInput) -> Result<FileReadOutput, FileReadError> {
-        let resolved_path =
-            self.sandbox
-                .resolve(&input.path)
-                .map_err(|_| FileReadError::SandboxViolation {
-                    path: input.path.clone(),
-                })?;
+        let resolved_path = self.sandbox.resolve(&input.path).map_err(|e| {
+            let path = input.path.clone();
+            if e.is_paused() {
+                FileReadError::Paused { path }
+            } else {
+                FileReadError::SandboxViolation { path }
+            }
+        })?;
 
         let (content, parts) = match self.read_text(&resolved_path, &input).await {
             Err(FileReadError::NotFound { path, .. }) => {

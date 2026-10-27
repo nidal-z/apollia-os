@@ -107,8 +107,9 @@ pub(super) struct PlanFirstDeps {
     pub event_bus: EventBusSender,
     pub plan_cache: Option<SharedPlanCache>,
     pub workspace_path: Option<PathBuf>,
-    /// The folders granted to the agent, whose files the planner is shown.
-    pub planning_folders: Vec<PathBuf>,
+    /// The folders granted to the agent, whose files the planner is shown,
+    /// and those in pause, whose files it is not.
+    pub folders: apollia_tools::FolderRoots,
     /// For an item of a batch, the plan template of its batch.
     pub plan_template: Option<apollia_oria::plan_template::PlanTemplate>,
     pub tool_output_dir: Option<PathBuf>,
@@ -171,7 +172,7 @@ impl PlanFirstRun<'_> {
         if let Some(workspace) = &self.deps.workspace_path {
             engine = engine.with_cwd(workspace.clone());
         }
-        let folders = self.deps.planning_folders.clone();
+        let folders = self.deps.folders.clone();
         let files_note = tokio::task::spawn_blocking(move || files::planning_note(&folders))
             .await
             .ok()

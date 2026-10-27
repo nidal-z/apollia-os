@@ -15,6 +15,7 @@ impl BuiltInChatAgent {
             session: SessionOverrides::default(),
             meta_handle: None,
             workspace_path: None,
+            folders: apollia_tools::FolderRoots::default(),
             mcp_index: None,
             // Overwritten by `with_mcp_index` in deferred mode; unused otherwise.
             tool_search_limit: 20,
@@ -253,6 +254,14 @@ impl BuiltInChatAgent {
     ) -> Self {
         self.mcp_index = mcp_index;
         self.tool_search_limit = tool_search_limit;
+        self
+    }
+
+    /// Set the folders granted to the agent and those in pause, which the
+    /// decision on a call of a file tool reads to name the folder the path of
+    /// the call lands in.
+    pub fn with_folders(mut self, folders: apollia_tools::FolderRoots) -> Self {
+        self.folders = folders;
         self
     }
 

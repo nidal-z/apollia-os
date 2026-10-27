@@ -41,6 +41,7 @@ impl ToolExecutor for FileRead {
             let output = self.run(typed).await.map_err(|e| {
                 let code = match &e {
                     FileReadError::SandboxViolation { .. } => "sandbox_violation",
+                    FileReadError::Paused { .. } => "paused",
                     FileReadError::NotFound { .. } => "not_found",
                     FileReadError::IoError { .. } => "io_error",
                     FileReadError::BinaryFile { .. } => "binary_file",
@@ -79,6 +80,7 @@ impl ToolExecutor for FileWrite {
             self.run(typed).await.map_err(|e| {
                 let code = match &e {
                     FileWriteError::SandboxViolation { .. } => "sandbox_violation",
+                    FileWriteError::Paused { .. } => "paused",
                     FileWriteError::IoError { .. } => "io_error",
                     FileWriteError::JournalFailed(_) => "journal_failed",
                 };
@@ -110,6 +112,7 @@ impl ToolExecutor for FileEdit {
             let output = self.run(typed).await.map_err(|e| {
                 let code = match &e {
                     FileEditError::SandboxViolation { .. } => "sandbox_violation",
+                    FileEditError::Paused { .. } => "paused",
                     FileEditError::NotFound { .. } => "not_found",
                     FileEditError::PatternNotFound { .. } => "pattern_not_found",
                     FileEditError::AmbiguousMatch { .. } => "ambiguous_match",
@@ -153,6 +156,7 @@ impl ToolExecutor for FileList {
             let output = self.run(typed).await.map_err(|e| {
                 let code = match &e {
                     FileListError::SandboxViolation { .. } => "sandbox_violation",
+                    FileListError::Paused { .. } => "paused",
                     FileListError::NotFound { .. } => "not_found",
                     FileListError::NotADirectory { .. } => "not_a_directory",
                     FileListError::IoError { .. } => "io_error",
@@ -192,6 +196,7 @@ impl ToolExecutor for FileGlob {
             let output = self.run(typed).await.map_err(|e| {
                 let code = match &e {
                     FileGlobError::SandboxViolation { .. } => "sandbox_violation",
+                    FileGlobError::Paused { .. } => "paused",
                     FileGlobError::InvalidPattern(_) => "invalid_pattern",
                     FileGlobError::IoError(_) => "io_error",
                     FileGlobError::GlobLimitExceeded { .. } => "glob_limit_exceeded",
@@ -231,6 +236,7 @@ impl ToolExecutor for FileGrep {
             let output = self.run(typed).await.map_err(|e| {
                 let code = match &e {
                     FileGrepError::SandboxViolation { .. } => "sandbox_violation",
+                    FileGrepError::Paused { .. } => "paused",
                     FileGrepError::InvalidRegex(_) => "invalid_regex",
                     FileGrepError::IoError(_) => "io_error",
                 };
@@ -269,6 +275,7 @@ impl ToolExecutor for NotebookRead {
             let output = self.run(typed).await.map_err(|e| {
                 let code = match &e {
                     NotebookReadError::SandboxViolation { .. } => "sandbox_violation",
+                    NotebookReadError::Paused { .. } => "paused",
                     NotebookReadError::NotFound { .. } => "not_found",
                     NotebookReadError::Io { .. } => "io_error",
                     NotebookReadError::InvalidNotebook => "invalid_input",
@@ -304,6 +311,7 @@ impl ToolExecutor for NotebookEdit {
             let output = self.run(typed).await.map_err(|e| {
                 let code = match &e {
                     NotebookEditError::SandboxViolation { .. } => "sandbox_violation",
+                    NotebookEditError::Paused { .. } => "paused",
                     NotebookEditError::NotFound { .. } => "not_found",
                     NotebookEditError::Io { .. } => "io_error",
                     NotebookEditError::InvalidNotebook => "invalid_input",

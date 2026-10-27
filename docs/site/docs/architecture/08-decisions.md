@@ -585,12 +585,16 @@ started again, at the next start or on request.
 Some tools are shared by several connections, and the call says which one it
 reaches. A mailbox tool reaches the mailbox the call names, or the only one
 connected, matched whatever the case of its address; a file tool reaches the
-folder that holds the absolute path it is given; `code_context` reaches the
-code folder it names, or every code folder of the agent. The decision refuses
-such a call when what it reaches is in pause, and journals it as any other.
-A folder in pause is also no root of the file tools, so a relative path never
-lands in it, and `source_search` does not search it: it answers the source
-under `paused` and searches the others. The mailbox executor refuses a paused
+deepest folder that holds where its path lands, read as the tool reads it (a
+relative path from the first folder granted, `~` expanded, links followed);
+`code_context` reaches the code folder it names, or every code folder of the
+agent. The decision refuses such a call when what it reaches is in pause, and
+journals it as any other. The file tools do not rest on that decision alone,
+since a walk over a sound folder names no folder nested in it: a folder in
+pause is taken out of their sandbox, it is no root and no root that holds it
+reaches into it, so no path, link or recursive listing or search reads or
+writes in it. `source_search` does not search it either: it answers the
+source under `paused` and searches the others. The mailbox executor refuses a paused
 mailbox at each call as well, as it refuses a forbidden one. A connection in
 pause reads paused in the list, whatever state was kept for it before.
 
