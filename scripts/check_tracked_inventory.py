@@ -48,9 +48,6 @@ ALLOWED_EMPTY = {
     # Keeps the `python/**/*` resource glob of tauri.conf.json matching in a
     # tree where no interpreter has been staged.
     "crates/apollia-desktop/python/.gitkeep",
-    # Read by `include_str!` in crates/apollia-signing/src/distribution.rs:
-    # empty means a build that carries no distribution key.
-    "crates/apollia-signing/keys/distribution.key.pub",
     # Tells the static host not to run the published site through Jekyll.
     "docs/site/static/.nojekyll",
     # PEP 561 marker: its presence, not its content, declares the SDK typed.
