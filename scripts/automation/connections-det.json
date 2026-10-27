@@ -3777,7 +3777,7 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "connection-agents-shared",
       "timeoutMs": 3000
     },
