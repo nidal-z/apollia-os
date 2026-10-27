@@ -13,9 +13,10 @@
 //! A mailbox the organisation policy forbids is refused before anything is
 //! read from it: each call submits the mailbox it names to the admission a
 //! connection goes through, under the policy deposited on the machine. A
-//! mailbox the user put in pause is refused the same way: the tools are
-//! shared by every mailbox, so the decision on a call cannot tell which one it
-//! reads, and each call reads the pauses of `governance.db`.
+//! mailbox the user put in pause is refused by the decision on the call, which
+//! reads the mailbox the call names (or the only one connected, see
+//! [`mailbox_of_call`]) and journals the refusal; each call also reads the
+//! pauses of `governance.db`, so a caller that decides nothing is refused too.
 
 use std::collections::HashSet;
 use std::future::Future;
@@ -279,6 +280,24 @@ async fn run_with(
 }
 
 /// The mailbox `requested` names, or the only one connected.
+/// The address of the mailbox a call with `input` reads: the one `account`
+/// names, else the only mailbox connected in `data_dir`; `None` when neither
+/// says, and the executor answers why.
+#[must_use]
+pub fn mailbox_of_call(input: &Value, data_dir: Option<&std::path::Path>) -> Option<String> {
+    let named = input
+        .get("account")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|e| !e.is_empty());
+    if let Some(email) = named {
+        return Some(email.to_owned());
+    }
+    let store = ImapAccountStore::open(data_dir?).ok()?;
+    let mut accounts = store.list().ok()?;
+    (accounts.len() == 1).then(|| accounts.remove(0).email)
+}
+
 fn resolve_account(
     store: &ImapAccountStore,
     requested: Option<&str>,
@@ -307,6 +326,39 @@ fn to_value<T: serde::Serialize>(value: &T) -> Result<Value, ImapError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // The mailbox a call reads is the one it names, else the only one
+    // connected; with several and none named, no mailbox is guessed.
+    #[test]
+    fn test_the_mailbox_of_a_call_is_named_or_the_only_one() {
+        // GIVEN a data directory holding one mailbox, then two
+        let dir = tempfile::tempdir().unwrap();
+        let index = dir.path().join(apollia_connectors::imap::IMAP_INDEX_FILE);
+        let account = |email: &str| json!({"email": email, "host": "imap.example.org", "port": 993, "username": email});
+        std::fs::write(
+            &index,
+            json!({"accounts": [account("ada@example.org")]}).to_string(),
+        )
+        .unwrap();
+
+        // WHEN the mailbox of calls is resolved
+        let named = mailbox_of_call(&json!({"account": " bob@example.org "}), Some(dir.path()));
+        let only = mailbox_of_call(&json!({}), Some(dir.path()));
+        std::fs::write(
+            &index,
+            json!({"accounts": [account("ada@example.org"), account("bob@example.org")]})
+                .to_string(),
+        )
+        .unwrap();
+        let several = mailbox_of_call(&json!({}), Some(dir.path()));
+        let nowhere = mailbox_of_call(&json!({}), None);
+
+        // THEN the named one wins, the only one is taken, and none is guessed
+        assert_eq!(named.as_deref(), Some("bob@example.org"));
+        assert_eq!(only.as_deref(), Some("ada@example.org"));
+        assert_eq!(several, None);
+        assert_eq!(nowhere, None);
+    }
 
     /// A secret store holding nothing; resolving an account never reads it.
     struct NoSecrets;

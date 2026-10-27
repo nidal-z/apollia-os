@@ -22,7 +22,7 @@ sidebar_position: 5
    - **Sur cet ordinateur** : un dossier, une boîte mail.
    - **Catalogue public** : interrogé seulement quand vous cliquez sur **Explorer tout**. Tout le monde peut y publier et Apollia n'a pas vérifié ses entrées, donc chacune est marquée **Non vérifié**.
    - **Brancher un service par son adresse** : toujours en dernier, pour un service que vous joignez par son adresse. Voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
-3. Cliquez sur le service. Sa carte dit **Ce qu'elle demande** : une connexion à votre compte dans votre navigateur, une clé, quelques réglages, un téléchargement sur cet ordinateur, ou que le service est joint par internet. Cliquez sur **Ajouter**. Un service déjà ajouté propose plutôt **Ouvrir sa page**.
+3. Cliquez sur le service. Sa carte dit **Ce qu'elle demande** : une connexion à votre compte dans votre navigateur, une clé, quelques réglages, un téléchargement sur cet ordinateur, ou que le service est joint par internet. Cliquez sur **Ajouter**. Un service déjà ajouté propose plutôt **Ouvrir sa fiche**.
 
 ## L'ajouter en trois étapes
 

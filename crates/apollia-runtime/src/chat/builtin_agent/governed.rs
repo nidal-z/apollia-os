@@ -89,7 +89,9 @@ impl BuiltInChatAgent {
         acc: &ReactAccumulators,
         rewritten_by_hook: bool,
     ) -> AccessDecision {
-        let argument = apollia_permissions::extract_first_arg(&call.arguments);
+        let data_dir = apollia_core::paths::data_dir();
+        let argument =
+            crate::governance::call_argument(&call.name, &call.arguments, data_dir.as_deref());
         let decision = self.governance.decide(&AccessCall {
             agent_id: &self.agent_id,
             access_id: &call.name,

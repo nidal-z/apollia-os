@@ -25,6 +25,7 @@ const PROMPT_WAIT: Duration = Duration::from_secs(5);
 struct OneCallThenText {
     iteration: AtomicU32,
     tool: &'static str,
+    arguments: serde_json::Value,
 }
 
 #[async_trait::async_trait]
@@ -54,7 +55,7 @@ impl CompletionModel for OneCallThenText {
             LlmStreamChunk::ToolCall(LlmToolCall {
                 id: "c0".into(),
                 name: self.tool.into(),
-                arguments: serde_json::json!({ "path": ARGUMENT, "content": ARGUMENT }),
+                arguments: self.arguments.clone(),
             })
         } else {
             LlmStreamChunk::Text("done".to_string())
@@ -110,6 +111,21 @@ async fn run_exchange_with(tool: &'static str, state: GovernanceState) -> Vec<Jo
     entries
 }
 
+/// Runs the same exchange, the model calling `tool` with `arguments`.
+async fn run_exchange_with_arguments(
+    tool: &'static str,
+    arguments: serde_json::Value,
+    state: GovernanceState,
+) -> Vec<JournalEntry> {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let journal = AuditJournalHandle::open(&dir.path().join("audit_journal.db"))
+        .await
+        .expect("journal");
+    let entries = run_exchange_calling_with(&journal, tool, arguments, state, None).await;
+    journal.shutdown().await;
+    entries
+}
+
 /// Runs the same exchange against `journal`, which stays open so the caller
 /// can verify it.
 async fn run_exchange_into(
@@ -127,10 +143,24 @@ async fn run_exchange_calling(
     state: GovernanceState,
     answer: Option<ToolDecision>,
 ) -> Vec<JournalEntry> {
+    let arguments = serde_json::json!({ "path": ARGUMENT, "content": ARGUMENT });
+    run_exchange_calling_with(journal, tool, arguments, state, answer).await
+}
+
+/// Runs the exchange against `journal`, the model calling `tool` with
+/// `arguments`.
+async fn run_exchange_calling_with(
+    journal: &AuditJournalHandle,
+    tool: &'static str,
+    arguments: serde_json::Value,
+    state: GovernanceState,
+    answer: Option<ToolDecision>,
+) -> Vec<JournalEntry> {
     let governance = GovernanceHandle::detached(state, Some(journal.clone()));
     let model: Arc<dyn CompletionModel> = Arc::new(OneCallThenText {
         iteration: AtomicU32::new(0),
         tool,
+        arguments,
     });
     let mut backends = std::collections::HashMap::new();
     backends.insert("default".to_string(), model);
@@ -370,4 +400,32 @@ fn test_the_model_is_told_the_connection_is_paused() {
     // THEN it names the connection and the pause
     assert!(text.contains("mcp:notion"), "{text}");
     assert!(text.contains("paused"), "{text}");
+}
+
+// A call on a mailbox in pause is refused before anything asks the user, the
+// model told why, and journaled as refused by the pause, like a call of an
+// MCP server in pause.
+#[tokio::test]
+async fn test_a_paused_mailbox_refusal_is_journaled() {
+    // GIVEN the mailbox the call names, in pause
+    let state = GovernanceState {
+        paused: ["imap:ada@example.org".to_string()].into_iter().collect(),
+        ..GovernanceState::default()
+    };
+
+    // WHEN the model searches it
+    let entries = run_exchange_with_arguments(
+        "imap.search",
+        serde_json::json!({ "account": "ada@example.org", "subject": ARGUMENT }),
+        state,
+    )
+    .await;
+
+    // THEN the journal records the refusal by the pause, naming the mailbox,
+    // and nothing of what the call searched for
+    let kinds: Vec<JournalEntryKind> = entries.iter().map(|e| e.kind.clone()).collect();
+    assert_eq!(kinds, vec![JournalEntryKind::PausedRefused]);
+    assert_eq!(entries[0].payload["access_id"], "imap.search");
+    assert_eq!(entries[0].payload["connection_id"], "imap:ada@example.org");
+    assert!(!entries[0].payload.to_string().contains(ARGUMENT));
 }

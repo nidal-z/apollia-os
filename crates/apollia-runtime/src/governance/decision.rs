@@ -126,7 +126,7 @@ fn policy_names(access_id: &str) -> Vec<String> {
 /// The connection that brings the tool `access_id`, as the connection list
 /// names it: `mcp:<server>`, `native:<provider>:<account>`, `folder:<id>`;
 /// `None` for a tool Apollia ships, and for a mailbox tool, shared by every
-/// mailbox and refused by its executor.
+/// mailbox: the mailbox a call reads is its argument, see [`call_argument`].
 #[must_use]
 pub fn listed_connection_of(access_id: &str) -> Option<String> {
     let connection = connection_of(access_id)?;
@@ -137,6 +137,34 @@ pub fn listed_connection_of(access_id: &str) -> Option<String> {
         return Some(format!("native:{account}"));
     }
     Some(connection.to_owned())
+}
+
+/// The connection in pause that `call` reads, as the connection list names
+/// it. A mailbox tool is shared by every mailbox: the one it reads is the
+/// argument of the call, see [`call_argument`].
+fn paused_connection_of(state: &GovernanceState, call: &AccessCall<'_>) -> Option<String> {
+    let connection = if call.access_id.starts_with(IMAP_TOOL_PREFIX) {
+        call.argument.map(crate::connections::imap_connection_id)
+    } else {
+        listed_connection_of(call.access_id)
+    };
+    connection.filter(|id| state.paused.contains(id))
+}
+
+/// The argument a call of `access_id` with `input` is decided on: for a
+/// mailbox tool, the mailbox it reads (the one `account` names, else the only
+/// one connected in `data_dir`), so that the pause of that mailbox refuses it;
+/// for any other tool, the first argument a rule matches.
+#[must_use]
+pub fn call_argument(
+    access_id: &str,
+    input: &serde_json::Value,
+    data_dir: Option<&std::path::Path>,
+) -> Option<String> {
+    if access_id.starts_with(IMAP_TOOL_PREFIX) {
+        return crate::connectors_bridge::mailbox_of_call(input, data_dir);
+    }
+    apollia_permissions::extract_first_arg(input)
 }
 
 /// Everything a decision reads.
@@ -176,9 +204,7 @@ pub fn decide(state: &GovernanceState, call: &AccessCall<'_>, now: i64) -> Acces
             reason: DecisionReason::Policy { detail },
         };
     }
-    if let Some(connection_id) =
-        listed_connection_of(call.access_id).filter(|id| state.paused.contains(id))
-    {
+    if let Some(connection_id) = paused_connection_of(state, call) {
         return AccessDecision::Denied {
             reason: DecisionReason::Paused { connection_id },
         };

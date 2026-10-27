@@ -28,7 +28,8 @@ sidebar_position: 6.5
 
 Pendant la pause :
 
-- Un agent qui appelle l'un de ses outils essuie un refus, avec la raison : la connexion est en pause. Pour un compte, un dossier ou un service, le refus est inscrit au **Journal** : *Une action de l'agent a été refusée : sa connexion est en pause*. Pour une boîte mail, l'appel est inscrit au journal comme une action en échec.
+- Un agent qui appelle l'un de ses outils essuie un refus, avec la raison : la connexion est en pause. Le refus est inscrit au **Journal** : *Une action de l'agent a été refusée : sa connexion est en pause*, pour une boîte mail comme pour un compte, un dossier ou un service.
+- Un dossier n'est pas cherché : un agent qui cherche dans ses sources apprend que celle-ci est en pause, et les autres sources qu'il tient sont cherchées.
 - La fiche de chaque agent qui la tient marque l'accès **En pause**.
 - Un service est arrêté et n'est plus jamais démarré, ni au lancement suivant d'Apollia, ni à la demande. Dans le Chat, le sélecteur **@** ne propose plus ses ressources.
 - La pause tient après un redémarrage d'Apollia.
@@ -37,7 +38,7 @@ Une connexion **Bloquée par l'organisation** ne propose pas de pause : la polit
 
 ## Reprendre une connexion
 
-Sur la fiche, cliquez sur **Reprendre**. Ses outils s'exécutent à nouveau pour les agents qui les tenaient, sans accès à redonner, et un service est redémarré.
+Sur la fiche, cliquez sur **Reprendre**. La liste et la fiche montrent aussitôt son nouvel état. Ses outils s'exécutent à nouveau pour les agents qui les tenaient, sans accès à redonner, et un service est redémarré.
 
 ## Retirer une connexion
 
@@ -48,7 +49,8 @@ Sur la fiche, cliquez sur **Reprendre**. Ses outils s'exécutent à nouveau pour
    - sa connexion au compte,
    - chaque secret gardé pour elle,
    - chaque outil qu'un agent tenait par elle, avec le nom de l'agent,
-   - pour un dossier, la source et son index.
+   - pour un dossier, la source et son index,
+   - pour un compte Microsoft, chaque dossier ou fichier OneDrive choisi pour lui.
 3. Cliquez sur **Retirer la connexion** pour confirmer, ou sur **Annuler**.
 
 La connexion quitte la liste. Si quelque chose n'a pas pu être effacé, un message le nomme, pour que vous le retiriez à la main. Retirer un compte Microsoft oublie aussi les dossiers et fichiers OneDrive que vous aviez choisis pour lui.

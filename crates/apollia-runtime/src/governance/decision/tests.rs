@@ -703,3 +703,45 @@ fn test_the_listed_connection_of_a_call() {
     assert_eq!(listed_connection_of("imap.search"), None);
     assert_eq!(listed_connection_of("web_search"), None);
 }
+
+// A mailbox tool is shared by every mailbox: the call is refused by the pause
+// of the mailbox it reads, and only of that one.
+#[test]
+fn test_a_mailbox_tool_is_refused_by_the_pause_of_the_mailbox_it_reads() {
+    // GIVEN one mailbox in pause
+    let state = GovernanceState {
+        paused: ["imap:ada@example.org".to_owned()].into_iter().collect(),
+        ..GovernanceState::default()
+    };
+
+    // WHEN a search of that mailbox, and one of another, are decided
+    let on_paused = decide(
+        &state,
+        &call(
+            "imap.search",
+            ActionFamily::ReadPersonal,
+            Some("ada@example.org"),
+        ),
+        NOW,
+    );
+    let on_other = decide(
+        &state,
+        &call(
+            "imap.search",
+            ActionFamily::ReadPersonal,
+            Some("bob@example.org"),
+        ),
+        NOW,
+    );
+
+    // THEN the first is refused by the pause of its mailbox, the second is not
+    assert_eq!(
+        on_paused,
+        AccessDecision::Denied {
+            reason: DecisionReason::Paused {
+                connection_id: "imap:ada@example.org".to_owned()
+            }
+        }
+    );
+    assert!(!matches!(on_other, AccessDecision::Denied { .. }));
+}

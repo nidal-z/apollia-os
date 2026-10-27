@@ -3,9 +3,11 @@
 //! An agent consults a source through a tool it calls, never through its
 //! prompt (principle 6). `memory_search` and `memory_write` are offered and
 //! registered exactly when the agent's memory is checked, whatever its access
-//! lists; `source_search` only when an indexable source is, bounded to those. The agent's resolved source list is read at
+//! lists; `source_search` only when an indexable source is, bounded to those,
+//! a source whose folder connection is in pause answered paused. The agent's resolved source list is read at
 //! every turn, so a box checked or cleared takes effect on the next message.
 
+use apollia_sources::CheckedSource;
 use apollia_tools::SourceAccess;
 
 use super::ChatToolsConfig;
@@ -37,6 +39,7 @@ pub(in crate::chat::manager) async fn source_access(
         // An agent whose profile is checked may propose facts for it, each
         // one put to the person before it is written.
         Ok(Some(checked)) => SourceAccess::from_checked(&checked, Some(registry))
+            .with_paused_sources(paused_sources(cfg, &checked))
             .with_profile_store(
                 apollia_core::paths::DataFile::UserMemory.path(&cfg.data_dir),
                 &memory_namespace(agent_id),
@@ -53,6 +56,40 @@ pub(in crate::chat::manager) async fn source_access(
             SourceAccess::default()
         }
     }
+}
+
+/// The sources of `checked` held by a folder connection the user paused, as
+/// governance holds the pauses (its actor, else the `governance.db` beside
+/// `cfg`'s data directory). Pauses that cannot be read pause nothing here: the
+/// decision on every sensitive call refuses it then.
+fn paused_sources(cfg: &ChatToolsConfig, checked: &[CheckedSource]) -> Vec<String> {
+    let paused = match cfg.governance.as_ref() {
+        Some(handle) => handle.state().paused.clone(),
+        None => apollia_permissions::read_paused_connections(
+            &apollia_core::paths::DataFile::Governance.path(&cfg.data_dir),
+        )
+        .unwrap_or_else(|e| {
+            tracing::event!(
+                tracing::Level::WARN,
+                error = %e,
+                "chat.sources.pauses_unreadable"
+            );
+            Default::default()
+        }),
+    };
+    checked
+        .iter()
+        .filter_map(|source| match source {
+            CheckedSource::Registered(source) => {
+                let folder = source.reference.as_deref()?;
+                let folder = folder.strip_prefix("folder:").unwrap_or(folder);
+                paused
+                    .contains(&format!("folder:{folder}"))
+                    .then(|| source.id.clone())
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// `available` as the sources `access` leave it, so that the model is offered

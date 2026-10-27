@@ -7,6 +7,8 @@
 //! - `POST /api/v1/connections/{id}/resume`: its tools run again; an MCP
 //!   server is switched on and started.
 //!
+//! Both announce the connection in its new state as `ConnectionStateChanged`.
+//!
 //! Neither touches what the connection was given: the accesses of the agents
 //! that hold its tools, its configuration and its secrets are kept as they
 //! are, so a resumed connection works as it did before its pause. The pause is
@@ -141,14 +143,20 @@ pub(crate) async fn set_paused<B: ExecutionBackend + Clone>(
         "connections.pause.changed"
     );
     let connection = find(collect_connections(state, accounts).await?, id)?;
-    if paused && connection.status == ConnectionStatus::Paused {
+    // A pause and a resume are both announced, in the state the list now
+    // shows, so a page open on the connection follows either without
+    // reading the list again.
+    if paused == (connection.status == ConnectionStatus::Paused) {
         let _ = state
             .event_sender
             .send(RuntimeEvent::ConnectionStateChanged {
                 id: connection.id.clone(),
-                state: ConnectionStatus::Paused,
-                reason: None,
-                checked_at: chrono::Utc::now().to_rfc3339(),
+                state: connection.status,
+                reason: connection.reason.clone(),
+                checked_at: connection
+                    .checked_at
+                    .clone()
+                    .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
             });
     }
     Ok(connection)

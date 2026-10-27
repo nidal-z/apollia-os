@@ -192,3 +192,48 @@ async fn test_the_memory_box_grants_both_memory_tools_whatever_the_access_lists(
     assert_eq!(with_memory, ["file_read", "memory_search", "memory_write"]);
     assert_eq!(without, ["file_read"]);
 }
+
+// A folder whose connection is in pause is not searched: the search answers
+// that it is paused, and reads only the other sources checked.
+#[tokio::test]
+async fn test_a_folder_whose_connection_is_paused_is_not_searched() {
+    // GIVEN two folders checked for Apollia, the connection of the first in pause
+    let dir = tempfile::tempdir().unwrap();
+    let registry = SourceRegistryHandle::open(&DataFile::System.path(dir.path())).unwrap();
+    let contracts = folder(&registry, "Contracts").await;
+    let invoices = folder(&registry, "Invoices").await;
+    check_for_apollia(dir.path(), &[contracts.as_str(), invoices.as_str()]);
+    apollia_permissions::PausedConnectionStore::new(&DataFile::Governance.path(dir.path()))
+        .unwrap()
+        .pause("folder:folder-Contracts", 0)
+        .unwrap();
+    let cfg = config(dir.path(), Some(registry));
+    let access = source_access(Some(&cfg), APOLLIA_CHAT_AGENT_ID).await;
+    let search = access.search.as_ref().unwrap();
+
+    // WHEN Apollia searches every source, then names the paused one
+    let every = search
+        .run(SourceSearchInput {
+            query: "lease".to_owned(),
+            sources: None,
+            limit: None,
+        })
+        .await
+        .unwrap();
+    let named = search
+        .run(SourceSearchInput {
+            query: "lease".to_owned(),
+            sources: Some(vec![contracts.clone()]),
+            limit: None,
+        })
+        .await
+        .unwrap();
+
+    // THEN the paused folder is answered paused and never searched, the other
+    // one is searched
+    assert_eq!(every.paused, std::slice::from_ref(&contracts));
+    assert_eq!(every.not_indexed, [invoices]);
+    assert_eq!(named.paused, [contracts]);
+    assert!(named.not_indexed.is_empty());
+    assert!(named.results.is_empty());
+}

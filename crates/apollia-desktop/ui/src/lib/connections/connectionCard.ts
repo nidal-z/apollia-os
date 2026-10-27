@@ -79,6 +79,7 @@ const REMOVED_KEY: Record<Exclude<RemovedItem["kind"], "state">, string> = {
   secret: "connections.card.remove.item.secret",
   agent_access: "connections.card.remove.item.agent_access",
   source: "connections.card.remove.item.source",
+  onedrive_choice: "connections.card.remove.item.onedrive_choice",
 };
 
 /**

@@ -6,6 +6,9 @@ import {
   repairAction,
   replaceConnection,
 } from "$lib/connections/connectionCard";
+import en from "$lib/i18n/en.json";
+import fr from "$lib/i18n/fr.json";
+import type { RemovedItem } from "$lib/ipc/connections";
 import type { Connection } from "$lib/types";
 
 function connection(over: Partial<Connection> = {}): Connection {
@@ -107,6 +110,28 @@ describe("removalLines", () => {
         values: { name: "mcp:linear/list_issues", agent: "triage" },
       },
     ]);
+  });
+  test("the OneDrive choices of a Microsoft account are said, in English and in French", () => {
+    // GIVEN what the runtime answers a dry run of a Microsoft account's removal
+    const items = [
+      { kind: "token", name: "ada@example.org" },
+      { kind: "onedrive_choice", name: "/drive/root:/Clients" },
+    ] as RemovedItem[];
+
+    // WHEN its lines are built
+    const lines = removalLines(items);
+
+    // THEN the choice has its own line, and both catalogues hold a text for every line
+    expect(lines[1]).toEqual({
+      key: "connections.card.remove.item.onedrive_choice",
+      values: { name: "/drive/root:/Clients" },
+    });
+    for (const catalogue of [en, fr] as Record<string, unknown>[]) {
+      for (const line of lines) {
+        const text = line.key.split(".").reduce<unknown>((at, k) => (at as Record<string, unknown> | undefined)?.[k], catalogue);
+        expect(typeof text, line.key).toBe("string");
+      }
+    }
   });
 });
 
