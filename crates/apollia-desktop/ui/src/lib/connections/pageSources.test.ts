@@ -107,4 +107,21 @@ describe("applyStateChange", () => {
     expect(next[1].reason).toEqual({ key: "sign_in_again", detail: "401" });
     expect(next[1].checkedAt).toBe("2026-10-21T09:00:00Z");
   });
+
+  it("takes a resumed connection out of its pause, in the list and on its card", () => {
+    // GIVEN a mailbox in pause, the one the card shows
+    const list = [connection("imap:ada@example.org", { kind: "imap", status: "paused" }), connection("mcp:files")];
+
+    // WHEN the runtime announces its resume, in the state the list now shows
+    const next = applyStateChange(list, {
+      id: "imap:ada@example.org",
+      state: "not_checked",
+      reason: { key: "not_checked" },
+      checked_at: "2026-10-27T09:00:00Z",
+    });
+
+    // THEN its row, which the card reads, is no longer paused, and the other is untouched
+    expect(next.find((c) => c.id === "imap:ada@example.org")?.status).toBe("not_checked");
+    expect(next[1]).toBe(list[1]);
+  });
 });

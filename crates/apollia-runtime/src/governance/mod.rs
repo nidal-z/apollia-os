@@ -50,7 +50,9 @@ mod journal;
 mod journal_policy;
 #[cfg(test)]
 mod no_policy;
+mod pauses;
 pub(crate) mod policy_admission;
+pub(crate) mod reach;
 mod record;
 mod tool_attributes;
 
@@ -66,8 +68,8 @@ pub use contract::{
     GovernanceContract, GovernanceError, InstallSubject, ALL_ANSWERS, NO_ALWAYS_ANSWERS,
 };
 pub use decision::{
-    answered_once, decide, is_once_grant, listed_connection_of, once_grant, GovernanceState,
-    PolicyRefusals,
+    answered_once, call_argument, decide, is_once_grant, listed_connection_of, once_grant,
+    GovernanceState, PolicyRefusals,
 };
 pub use fail_closed::{refused_when_fail_closed, tool_gate, FailClosed, ToolGate};
 pub use forbidden::{mailbox_refusal, ForbiddenConnections, FORBIDDEN_CONNECTION_REASON};
@@ -82,6 +84,7 @@ pub use policy_admission::{
     PolicyAdmission, CONNECTION_DENIED_REASON, CONNECTION_NOT_ALLOWED_REASON,
     POLICY_REFUSAL_PREFIX, REMOTE_DENIED_REASON,
 };
+pub use reach::{call_reaches, Caller};
 pub use record::{
     governance_run_id, package_run_id, AccessChange, ExportFilters, GovernanceEvent,
     GovernanceRecord, OverrideChange, PurgeAnchor, RunCut, GLOBAL_RULES_RUN_ID,

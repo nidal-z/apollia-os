@@ -29,7 +29,7 @@ fn the_roots_are_the_union_of_the_granted_folders_in_the_order_added() {
     ]);
 
     // WHEN the access is resolved
-    let (tools, roots) = resolve_folder_access(access, &folders);
+    let (tools, roots) = resolve_folder_access(access, &folders, &HashSet::new());
 
     // THEN both granted folders are read roots, oldest first, the folder
     // granted for writing alone is a write root, and the ungranted one is none
@@ -53,7 +53,7 @@ fn no_folder_granted_means_no_root() {
     let access = names(&["file_read", "file_write"]);
 
     // WHEN the access is resolved
-    let (tools, roots) = resolve_folder_access(access, &folders);
+    let (tools, roots) = resolve_folder_access(access, &folders, &HashSet::new());
 
     // THEN the tools stay granted but reach nothing
     assert_eq!(tools, names(&["file_read", "file_write"]));
@@ -69,7 +69,7 @@ fn an_access_to_a_removed_folder_grants_nothing() {
     let access = names(&["conn:folder:gone/file_read", "conn:folder:a/bash_executor"]);
 
     // WHEN the access is resolved
-    let (tools, roots) = resolve_folder_access(access, &folders);
+    let (tools, roots) = resolve_folder_access(access, &folders, &HashSet::new());
 
     // THEN neither becomes a tool nor a root
     assert!(tools.is_empty(), "tools were {tools:?}");
@@ -107,6 +107,7 @@ fn the_granted_folders_are_read_from_system_db() {
     let (tools, roots) = granted_folders(
         vec![folder_access_name(&stored.id, "file_grep")],
         data.path(),
+        &HashSet::new(),
     );
 
     // THEN the folder is its only root, and file_grep its tool
@@ -121,10 +122,38 @@ fn a_data_directory_without_system_db_grants_no_folder() {
     let data = tempfile::tempdir().expect("tempdir");
 
     // WHEN a folder access is resolved against it
-    let (tools, roots) = granted_folders(names(&["conn:folder:a/file_read"]), data.path());
+    let (tools, roots) = granted_folders(
+        names(&["conn:folder:a/file_read"]),
+        data.path(),
+        &HashSet::new(),
+    );
 
     // THEN nothing is granted and no file is created
     assert!(tools.is_empty());
     assert!(roots.read.is_empty());
     assert!(!DataFile::System.path(data.path()).exists());
+}
+
+#[test]
+fn a_folder_whose_connection_is_paused_is_no_root_but_keeps_its_tools() {
+    // GIVEN two granted folders, the first granted for writing and in pause
+    let folders = [folder("a", "/data/a"), folder("b", "/data/b")];
+    let access = names(&[
+        "conn:folder:a/file_read",
+        "conn:folder:a/file_write",
+        "conn:folder:b/file_read",
+    ]);
+    let paused: HashSet<String> = ["folder:a".to_owned()].into_iter().collect();
+
+    // WHEN the access is resolved
+    let (tools, roots) = resolve_folder_access(access, &folders, &paused);
+
+    // THEN the folder in pause is neither read nor written, the other one
+    // anchors a relative path
+    assert_eq!(roots.read, vec![PathBuf::from("/data/b")]);
+    assert!(roots.write.is_empty());
+    assert_eq!(roots.anchor(), Some(Path::new("/data/b")));
+    // AND the tools stay, so that a call naming the paused folder is refused
+    // for the pause
+    assert_eq!(tools, names(&["file_read", "file_write"]));
 }

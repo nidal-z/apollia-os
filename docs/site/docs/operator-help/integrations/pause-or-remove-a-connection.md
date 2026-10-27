@@ -28,7 +28,8 @@ sidebar_position: 6.5
 
 While it is paused:
 
-- An agent that calls one of its tools is refused, and told that the connection is paused. For an account, a folder or a service, the refusal is written in the **Activity log**: *An action of the agent was refused: its connection is paused*. For a mailbox, the call is written in the log as a failed action.
+- An agent that calls one of its tools is refused, and told that the connection is paused. The refusal is written in the **Activity log**: *An action of the agent was refused: its connection is paused*, for a mailbox as for an account, a folder or a service.
+- A folder is neither read nor searched, even when it sits inside another folder the agent holds: an agent that reads, lists or writes a file in it, whatever path it writes, or asks the context of a code folder it holds, is refused and told that the connection is paused, with the same line in the **Activity log**; an agent that lists or searches the folder around it finds nothing of it, and an agent that looks for a file it cannot find is not pointed to one in it; an agent that searches its sources is told that this one is paused, and the other sources it holds are searched. This holds from the agent's next action, even in a conversation under way.
 - The sheet of each agent that holds it marks the access **Paused**.
 - A service is stopped and never started again, neither at the next launch of Apollia nor on request. In the Chat, the **@** picker no longer offers its resources.
 - The pause holds across a restart of Apollia.
@@ -37,7 +38,7 @@ A connection **Blocked by your organisation** offers no pause: the policy alread
 
 ## Resume a connection
 
-On the card, click **Resume**. Its tools run again for the agents that held them, with no access to give back, and a service is started again.
+On the card, click **Resume**. The list and the card show its new state at once. Its tools run again for the agents that held them, with no access to give back, and a service is started again.
 
 ## Remove a connection
 
@@ -48,7 +49,8 @@ On the card, click **Resume**. Its tools run again for the agents that held them
    - its sign-in to the account,
    - each secret kept for it,
    - each tool an agent held through it, with the name of the agent,
-   - for a folder, the source and its index.
+   - for a folder, the source and its index,
+   - for a Microsoft account, each OneDrive folder or file chosen for it.
 3. Click **Remove the connection** to confirm, or **Cancel**.
 
 The connection leaves the list. If something could not be erased, a message names it, so you can remove it by hand. Removing a Microsoft account also forgets the OneDrive folders and files you had chosen for it.

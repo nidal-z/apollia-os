@@ -4,6 +4,8 @@
 //! preventing path traversal attacks and unauthorized filesystem access.
 
 use std::path::{Component, Path, PathBuf};
+
+use crate::pauses::LivePauses;
 use thiserror::Error;
 
 /// Error type for sandbox path validation.
@@ -20,18 +22,39 @@ pub enum SandboxPathError {
     )]
     SandboxViolation { path: String },
 
+    /// Path lands in a folder whose connection is in pause.
+    #[error("path '{path}' {}", PAUSED_REASON)]
+    Paused { path: String },
+
     /// Failed to initialize sandbox root directory.
     #[error("I/O error creating sandbox root '{path}': {cause}")]
     InitFailed { path: String, cause: String },
 }
 
-/// What a file tool is allowed to reach: one anchor, and any number of
-/// additional roots.
+impl SandboxPathError {
+    /// Whether the path was refused because it lands in a folder in pause.
+    #[must_use]
+    pub fn is_paused(&self) -> bool {
+        matches!(self, Self::Paused { .. })
+    }
+}
+
+/// Why a path in a folder in pause is refused, after the path that names it.
+pub const PAUSED_REASON: &str = "is in a folder whose connection is paused: nothing in it is \
+     read or written until the user resumes the connection, in Connections";
+
+/// What a file tool is allowed to reach: one anchor, any number of additional
+/// roots, and the folders in pause no root reaches into.
 ///
 /// The anchor is where a relative path lands, so there is exactly one and it is
 /// created if missing. The additional roots only widen what an absolute path may
 /// reach; they are never created, because naming `/Volumes/work` in a setting is
 /// a statement about a disk that may not be mounted, not a request to make one.
+/// A folder in pause is a subtree taken out of every root that holds it: a path
+/// that lands in it is refused for the pause, and a walk does not enter it.
+/// With [`SandboxSpec::with_live_pauses`], the folders in pause are read again
+/// at each call ([`SandboxRoot::for_call`]), so a folder paused while the turn
+/// runs is out from the next call on.
 ///
 /// `From<PathBuf>` and `From<Vec<PathBuf>>` mean a caller with a single root
 /// writes what it always wrote. An empty vector is rejected at construction
@@ -40,6 +63,25 @@ pub enum SandboxPathError {
 pub struct SandboxSpec {
     anchor: PathBuf,
     extra: Vec<PathBuf>,
+    paused: Vec<PathBuf>,
+    live: Option<LivePauses>,
+}
+
+impl SandboxSpec {
+    /// The same roots, with the folders in `paused` taken out of them.
+    #[must_use]
+    pub fn with_paused(mut self, paused: Vec<PathBuf>) -> Self {
+        self.paused = paused;
+        self
+    }
+
+    /// The same roots, the folders in pause read from `live` at each call
+    /// instead of the ones given to [`Self::with_paused`]. `None` keeps those.
+    #[must_use]
+    pub fn with_live_pauses(mut self, live: Option<LivePauses>) -> Self {
+        self.live = live;
+        self
+    }
 }
 
 impl From<PathBuf> for SandboxSpec {
@@ -47,6 +89,8 @@ impl From<PathBuf> for SandboxSpec {
         Self {
             anchor,
             extra: Vec::new(),
+            paused: Vec::new(),
+            live: None,
         }
     }
 }
@@ -62,15 +106,14 @@ impl From<Vec<PathBuf>> for SandboxSpec {
     /// which [`SandboxRoot::new`] then refuses.
     fn from(mut roots: Vec<PathBuf>) -> Self {
         if roots.is_empty() {
-            return Self {
-                anchor: PathBuf::new(),
-                extra: Vec::new(),
-            };
+            return Self::from(PathBuf::new());
         }
         let anchor = roots.remove(0);
         Self {
             anchor,
             extra: roots,
+            paused: Vec::new(),
+            live: None,
         }
     }
 }
@@ -90,6 +133,11 @@ pub struct SandboxRoot {
     /// Every root a resolved path may sit under, canonicalized where the
     /// directory exists.
     roots: Vec<PathBuf>,
+    /// The folders in pause, where [`real_path`] lands them: no path in one
+    /// is served, unless a root nested in it holds the path.
+    paused: Vec<PathBuf>,
+    /// Where the folders in pause are read again at each call, if anywhere.
+    live: Option<LivePauses>,
 }
 
 impl SandboxRoot {
@@ -110,7 +158,12 @@ impl SandboxRoot {
     /// Returns `SandboxPathError::InitFailed` if the anchor cannot be created
     /// or canonicalized, including the case of an empty root list.
     pub fn new(spec: impl Into<SandboxSpec>) -> Result<Self, SandboxPathError> {
-        let SandboxSpec { anchor, extra } = spec.into();
+        let SandboxSpec {
+            anchor,
+            extra,
+            paused,
+            live,
+        } = spec.into();
 
         if anchor.as_os_str().is_empty() {
             return Err(SandboxPathError::InitFailed {
@@ -138,8 +191,33 @@ impl SandboxRoot {
             }
             roots.push(root.canonicalize().unwrap_or(root));
         }
+        let paused = match &live {
+            Some(live) => real_folders(&live.folders()),
+            None => real_folders(&paused),
+        };
 
-        Ok(Self { canonical, roots })
+        Ok(Self {
+            canonical,
+            roots,
+            paused,
+            live,
+        })
+    }
+
+    /// The sandbox one call of a tool works in: the folders in pause read
+    /// now, once for the whole call, when they are read at each call; the
+    /// same sandbox otherwise.
+    #[must_use]
+    pub fn for_call(&self) -> Self {
+        let Some(live) = &self.live else {
+            return self.clone();
+        };
+        Self {
+            canonical: self.canonical.clone(),
+            roots: self.roots.clone(),
+            paused: real_folders(&live.folders()),
+            live: None,
+        }
     }
 
     /// Resolve a relative path within the sandbox.
@@ -171,42 +249,31 @@ impl SandboxRoot {
     /// Returns `SandboxPathError::SandboxViolation` if the path is invalid or
     /// attempts to escape the sandbox.
     pub fn resolve(&self, relative_path: &str) -> Result<PathBuf, SandboxPathError> {
-        // Expand a leading `~` (or `~/`) to $HOME. Without this, `Path::new("~")`
-        // treats `~` as a literal directory name and the file ends up under
-        // `<sandbox>/~/...`, so agents looking for `~/Documents/foo.md` find nothing.
-        // The shell expands tilde, but file_write/file_read receive the raw
-        // string. Any tilde elsewhere in the path is left alone (only the
-        // leading shorthand is shell-portable).
-        let expanded = expand_leading_tilde(relative_path);
-        let path = Path::new(expanded.as_ref());
-
-        let normalized = normalize_path(path);
-
-        // Check if normalized path contains any remaining ParentDir components
-        for component in normalized.components() {
-            if matches!(component, Component::ParentDir) {
-                return Err(SandboxPathError::SandboxViolation {
-                    path: relative_path.to_string(),
-                });
+        let resolved = landing(relative_path, &self.canonical).ok_or_else(|| {
+            SandboxPathError::SandboxViolation {
+                path: relative_path.to_string(),
             }
-        }
-
-        // An absolute input (RootDir, or a Windows drive Prefix even without a
-        // RootDir) must not be joined onto the root: `Path::join` would replace
-        // the root, and a lexical `starts_with` against the canonical root is
-        // meaningless for a path the caller spelled in uncanonicalized form
-        // (macOS `/var` vs `/private/var`, Windows verbatim `\\?\C:\`). It goes
-        // as-is to the canonicalize-then-compare check below, which is the only
-        // comparison valid across those aliases and stays fail-closed.
-        let is_absolute = normalized.is_absolute()
-            || matches!(normalized.components().next(), Some(Component::Prefix(_)));
-        let resolved = if is_absolute {
-            normalized
-        } else {
-            self.canonical.join(&normalized)
-        };
-
+        })?;
         self.contain_within_root(&resolved, relative_path)
+    }
+
+    /// Whether a walk over the roots serves `path`, a path it found on disk:
+    /// where it really lands is under a root and in no folder in pause. A
+    /// directory it does not serve is not entered, a file not read.
+    #[must_use]
+    pub fn serves(&self, path: &Path) -> bool {
+        self.contain_within_root(path, "").is_ok()
+    }
+
+    /// A filter over the paths a walk from `base` finds, as it names them:
+    /// see [`Walk`].
+    #[must_use]
+    pub fn walk(&self, base: &Path) -> Walk<'_> {
+        Walk {
+            sandbox: self,
+            base: base.to_path_buf(),
+            dirs: std::collections::HashMap::new(),
+        }
     }
 
     /// Canonicalize the existing portion of `resolved` and re-check confinement.
@@ -214,7 +281,8 @@ impl SandboxRoot {
     /// Walks up to the longest existing ancestor, canonicalizes it (resolving
     /// every symlink), and verifies the real path still starts with one of the
     /// roots. The not-yet-existing tail is re-appended so callers that create
-    /// files (`file_write`) keep working. Any failure to confirm confinement is
+    /// files (`file_write`) keep working, and the whole is refused when it
+    /// lands in a folder in pause. Any failure to confirm confinement is
     /// treated as an escape (fail-closed).
     fn contain_within_root(
         &self,
@@ -224,32 +292,36 @@ impl SandboxRoot {
         let violation = || SandboxPathError::SandboxViolation {
             path: original.to_string(),
         };
-
-        let mut tail: Vec<std::ffi::OsString> = Vec::new();
-        let mut probe = resolved.to_path_buf();
-
-        let real_prefix = loop {
-            match probe.canonicalize() {
-                Ok(canonical) => break canonical,
-                Err(_) => {
-                    let name = probe.file_name().ok_or_else(violation)?.to_os_string();
-                    tail.push(name);
-                    if !probe.pop() {
-                        return Err(violation());
-                    }
-                }
-            }
-        };
-
+        let (real_prefix, tail) = split_real(resolved).ok_or_else(violation)?;
         if !self.roots.iter().any(|root| real_prefix.starts_with(root)) {
             return Err(violation());
         }
-
-        let mut full = real_prefix;
-        for name in tail.into_iter().rev() {
-            full.push(name);
+        let full = joined(real_prefix, tail);
+        if self.in_pause(&full) {
+            return Err(SandboxPathError::Paused {
+                path: original.to_string(),
+            });
         }
         Ok(full)
+    }
+
+    /// Whether `real`, where a path really lands, is in a folder in pause:
+    /// under one, and under no root nested deeper in that folder.
+    fn in_pause(&self, real: &Path) -> bool {
+        let depth = |path: &Path| path.components().count();
+        let Some(paused) = self
+            .paused
+            .iter()
+            .filter(|folder| real.starts_with(folder))
+            .map(|folder| depth(folder))
+            .max()
+        else {
+            return false;
+        };
+        !self
+            .roots
+            .iter()
+            .any(|root| real.starts_with(root) && depth(root) > paused)
     }
 
     /// Return the anchor: the canonical root a relative path lands under.
@@ -261,6 +333,136 @@ impl SandboxRoot {
     pub fn roots(&self) -> &[PathBuf] {
         &self.roots
     }
+}
+
+/// What a walk from one directory serves of the paths it finds. A path is
+/// served when the sandbox serves where it really lands, and every directory
+/// the walk went through to reach it, as the walk names it, is served too: a
+/// walk that entered a folder in pause, by a link out of it or by its own
+/// name, names nothing found there, wherever its links lead.
+pub struct Walk<'a> {
+    sandbox: &'a SandboxRoot,
+    base: PathBuf,
+    dirs: std::collections::HashMap<PathBuf, bool>,
+}
+
+impl Walk<'_> {
+    /// Whether the walk serves `path`, a path it found under its start.
+    pub fn serves(&mut self, path: &Path) -> bool {
+        let through = path.parent().is_none_or(|parent| self.dir_served(parent));
+        through && self.sandbox.serves(path)
+    }
+
+    /// Whether the walk may go through `dir`: its start, or a directory under
+    /// it the sandbox serves, reached through served directories.
+    fn dir_served(&mut self, dir: &Path) -> bool {
+        if dir == self.base || !dir.starts_with(&self.base) {
+            return true;
+        }
+        if let Some(known) = self.dirs.get(dir) {
+            return *known;
+        }
+        let served =
+            self.sandbox.serves(dir) && dir.parent().is_none_or(|parent| self.dir_served(parent));
+        self.dirs.insert(dir.to_path_buf(), served);
+        served
+    }
+}
+
+/// Each folder of `folders` where it really lands on disk, as written when it
+/// cannot be resolved.
+fn real_folders(folders: &[PathBuf]) -> Vec<PathBuf> {
+    folders
+        .iter()
+        .filter(|folder| !folder.as_os_str().is_empty())
+        .map(|folder| real_path(folder).unwrap_or_else(|| folder.clone()))
+        .collect()
+}
+
+/// Where a path given to a file tool points before any link is followed: a
+/// leading `~` expanded to the home directory, `.` and `..` taken out, and a
+/// relative path put under `anchor`. `None` when a `..` is left over, climbing
+/// above the start of the path.
+///
+/// This is the one reading of a path the file tools and the decision on their
+/// calls share, so that the folder the decision names is the folder the tool
+/// opens.
+#[must_use]
+pub fn landing(input: &str, anchor: &Path) -> Option<PathBuf> {
+    landing_from(input, anchor, apollia_core::paths::home_dir().as_deref())
+}
+
+/// [`landing`], with `~` standing for `home`.
+pub(crate) fn landing_from(input: &str, anchor: &Path, home: Option<&Path>) -> Option<PathBuf> {
+    // Expand a leading `~` (or `~/`) to $HOME. Without this, `Path::new("~")`
+    // treats `~` as a literal directory name and the file ends up under
+    // `<sandbox>/~/...`, so agents looking for `~/Documents/foo.md` find nothing.
+    // The shell expands tilde, but file_write/file_read receive the raw
+    // string. Any tilde elsewhere in the path is left alone (only the
+    // leading shorthand is shell-portable).
+    let expanded = expand_leading_tilde(input, home);
+    let normalized = normalize_path(Path::new(expanded.as_ref()));
+    if normalized
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return None;
+    }
+    // An absolute input (RootDir, or a Windows drive Prefix even without a
+    // RootDir) must not be joined onto the root: `Path::join` would replace
+    // the root, and a lexical `starts_with` against the canonical root is
+    // meaningless for a path the caller spelled in uncanonicalized form
+    // (macOS `/var` vs `/private/var`, Windows verbatim `\\?\C:\`). It goes
+    // as-is to the canonicalize-then-compare check, which is the only
+    // comparison valid across those aliases and stays fail-closed.
+    let is_absolute = normalized.is_absolute()
+        || matches!(normalized.components().next(), Some(Component::Prefix(_)));
+    Some(if is_absolute {
+        normalized
+    } else {
+        anchor.join(&normalized)
+    })
+}
+
+/// Where `path` really lands on disk: `.` and `..` taken out, its longest
+/// existing ancestor resolved through every link (and, on a disk that ignores
+/// case, spelled as the disk spells it), and the part not created yet put
+/// back. `None` when a `..` is left over or no ancestor exists.
+#[must_use]
+pub fn real_path(path: &Path) -> Option<PathBuf> {
+    let normalized = normalize_path(path);
+    if normalized
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return None;
+    }
+    let (prefix, tail) = split_real(&normalized)?;
+    Some(joined(prefix, tail))
+}
+
+/// `path` split into its longest existing ancestor, canonicalized, and the
+/// names under it not created yet, deepest first.
+fn split_real(path: &Path) -> Option<(PathBuf, Vec<std::ffi::OsString>)> {
+    let mut tail: Vec<std::ffi::OsString> = Vec::new();
+    let mut probe = path.to_path_buf();
+    loop {
+        if let Ok(canonical) = probe.canonicalize() {
+            return Some((canonical, tail));
+        }
+        tail.push(probe.file_name()?.to_os_string());
+        if !probe.pop() {
+            return None;
+        }
+    }
+}
+
+/// `prefix` with the names of `tail` (deepest first) put back under it.
+fn joined(mut prefix: PathBuf, tail: Vec<std::ffi::OsString>) -> PathBuf {
+    for name in tail.into_iter().rev() {
+        prefix.push(name);
+    }
+    prefix
 }
 
 /// Normalize a path by resolving `.` and `..` components without touching the filesystem.
@@ -301,18 +503,18 @@ pub(crate) fn normalize_path(path: &Path) -> PathBuf {
     components.iter().collect()
 }
 
-/// Expand a leading `~` shorthand to `$HOME`.
+/// Expand a leading `~` shorthand to `home`, `$HOME` in production.
 ///
 /// Only the *leading* tilde is expanded: `~/x` and `~` map to `$HOME/x` and
 /// `$HOME` respectively. A bare `~user` form is *not* supported (no passwd
 /// lookup) and is left unchanged so the sandbox check rejects it cleanly.
 /// If `$HOME` is unset the input is returned untouched, which makes the
 /// existing sandbox boundary check the authoritative gate.
-fn expand_leading_tilde(input: &str) -> std::borrow::Cow<'_, str> {
+fn expand_leading_tilde<'a>(input: &'a str, home: Option<&Path>) -> std::borrow::Cow<'a, str> {
     if input != "~" && !input.starts_with("~/") {
         return std::borrow::Cow::Borrowed(input);
     }
-    let Some(home) = apollia_core::paths::home_dir() else {
+    let Some(home) = home else {
         return std::borrow::Cow::Borrowed(input);
     };
     let home_str = home.to_string_lossy();
@@ -376,16 +578,17 @@ mod tests {
         let home = apollia_core::paths::home_string().expect("a test host has a home directory");
 
         // WHEN/THEN: bare `~` and `~/...` map to HOME
-        assert_eq!(expand_leading_tilde("~").as_ref(), home);
-        let expanded = expand_leading_tilde("~/Documents/file.md");
+        let expand = |input| expand_leading_tilde(input, Some(Path::new(&home)));
+        assert_eq!(expand("~").as_ref(), home);
+        let expanded = expand("~/Documents/file.md");
         assert_eq!(
             expanded.as_ref(),
             format!("{}/Documents/file.md", home.trim_end_matches('/'))
         );
         // AND a tilde mid-path is left alone (only leading shorthand is shell-portable)
-        assert_eq!(expand_leading_tilde("foo/~/bar").as_ref(), "foo/~/bar");
+        assert_eq!(expand("foo/~/bar").as_ref(), "foo/~/bar");
         // AND `~user` is unchanged (no passwd lookup; sandbox check rejects later)
-        assert_eq!(expand_leading_tilde("~root/x").as_ref(), "~root/x");
+        assert_eq!(expand("~root/x").as_ref(), "~root/x");
     }
 
     #[test]
@@ -406,6 +609,37 @@ mod tests {
             !resolved.to_string_lossy().contains("/~/"),
             "resolved path must not contain a literal '~' segment, got {resolved:?}"
         );
+    }
+
+    #[test]
+    fn a_path_from_home_into_a_folder_in_pause_is_refused_for_the_pause() {
+        // GIVEN a sandbox reaching a stand-in home directory, with a folder
+        // in pause under it
+        let (anchor, home, _) = two_roots_and_a_ghost();
+        std::fs::create_dir_all(home.join("inner")).expect("inner");
+        let sandbox = SandboxRoot::new(
+            SandboxSpec::from(vec![anchor.clone(), home.clone()])
+                .with_paused(vec![home.join("inner")]),
+        )
+        .expect("sandbox");
+
+        // WHEN a path spelled from `~` into it, and one beside it, land and
+        // are contained as `resolve` does
+        let contain = |input: &str| {
+            let landed = landing_from(input, sandbox.path(), Some(&home)).expect("lands");
+            sandbox.contain_within_root(&landed, input)
+        };
+        let paused = contain("~/inner/n.md");
+        let beside = contain("~/o.md");
+
+        // THEN the first is refused for the pause, the second resolves
+        assert!(
+            matches!(paused, Err(SandboxPathError::Paused { .. })),
+            "{paused:?}"
+        );
+        assert!(beside.is_ok(), "{beside:?}");
+
+        let _ = std::fs::remove_dir_all(anchor.parent().expect("base"));
     }
 
     /// Two throwaway directories, both created, plus a third path that is never

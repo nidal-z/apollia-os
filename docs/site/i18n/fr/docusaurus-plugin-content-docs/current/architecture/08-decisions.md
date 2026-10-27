@@ -626,10 +626,30 @@ ne lève. Une pause est lue par la décision suivante, sans redémarrage.
 Une pause ne retire rien : les accès des agents, la configuration et les
 secrets de la connexion restent tels quels. Un serveur MCP en pause est aussi
 arrêté et son drapeau `enabled` de `mcp.db` éteint, pour qu'il ne soit pas
-redémarré, ni au démarrage suivant ni à la demande. Les outils de boîte mail
-sont partagés par toutes les boîtes : leur exécuteur refuse à chaque appel une
-boîte en pause, comme il refuse une boîte interdite. Une connexion en pause se
-lit en pause dans la liste, quel que soit l'état gardé pour elle avant.
+redémarré, ni au démarrage suivant ni à la demande.
+
+Certains outils sont partagés par plusieurs connexions, et l'appel dit celle
+qu'il atteint. Un outil de boîte mail atteint la boîte que l'appel nomme, ou la
+seule connectée, reconnue quelle que soit la casse de son adresse ; un outil de
+fichiers atteint le dossier le plus profond qui contient l'endroit où aboutit
+son chemin, lu comme l'outil le lit (un chemin relatif depuis le premier
+dossier accordé, `~` développé, liens suivis) ; `code_context` atteint le
+dossier de code qu'il nomme, ou chaque dossier de code de l'agent. La décision
+refuse un tel appel quand ce qu'il atteint est en pause, et le journalise comme
+tout autre. Les outils de fichiers ne reposent pas sur cette seule décision,
+puisqu'un parcours d'un dossier sain ne nomme aucun dossier imbriqué : un
+dossier en pause est retiré de leur bac à sable, il n'est pas une racine et
+aucune racine qui le contient n'y descend, si bien qu'aucun chemin, lien,
+liste ou recherche récursive n'y lit ni n'y écrit, et un parcours ne nomme
+rien de ce qu'il a trouvé en passant par lui, pas plus que la suggestion donnée
+pour un fichier introuvable. `source_search` ne le cherche pas non plus : il
+rend la source sous `paused` et cherche les autres. Les outils d'un tour sont
+construits à son début : ils relisent donc à chacun de leurs appels les pauses
+que publie la gouvernance, comme la décision, si bien qu'un dossier mis en
+pause pendant qu'un agent travaille est retiré dès son appel suivant. L'exécuteur des boîtes refuse lui aussi à
+chaque appel une boîte en pause, comme il refuse une boîte interdite. Une
+connexion en pause se lit en pause dans la liste, quel que soit l'état gardé
+pour elle avant.
 
 ## Connecteurs {#connectors}
 

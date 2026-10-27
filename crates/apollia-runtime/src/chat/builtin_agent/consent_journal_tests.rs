@@ -25,6 +25,7 @@ const PROMPT_WAIT: Duration = Duration::from_secs(5);
 struct OneCallThenText {
     iteration: AtomicU32,
     tool: &'static str,
+    arguments: serde_json::Value,
 }
 
 #[async_trait::async_trait]
@@ -54,7 +55,7 @@ impl CompletionModel for OneCallThenText {
             LlmStreamChunk::ToolCall(LlmToolCall {
                 id: "c0".into(),
                 name: self.tool.into(),
-                arguments: serde_json::json!({ "path": ARGUMENT, "content": ARGUMENT }),
+                arguments: self.arguments.clone(),
             })
         } else {
             LlmStreamChunk::Text("done".to_string())
@@ -110,6 +111,21 @@ async fn run_exchange_with(tool: &'static str, state: GovernanceState) -> Vec<Jo
     entries
 }
 
+/// Runs the same exchange, the model calling `tool` with `arguments`.
+async fn run_exchange_with_arguments(
+    tool: &'static str,
+    arguments: serde_json::Value,
+    state: GovernanceState,
+) -> Vec<JournalEntry> {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let journal = AuditJournalHandle::open(&dir.path().join("audit_journal.db"))
+        .await
+        .expect("journal");
+    let entries = run_exchange_calling_with(&journal, tool, arguments, state, None).await;
+    journal.shutdown().await;
+    entries
+}
+
 /// Runs the same exchange against `journal`, which stays open so the caller
 /// can verify it.
 async fn run_exchange_into(
@@ -127,10 +143,43 @@ async fn run_exchange_calling(
     state: GovernanceState,
     answer: Option<ToolDecision>,
 ) -> Vec<JournalEntry> {
+    let arguments = serde_json::json!({ "path": ARGUMENT, "content": ARGUMENT });
+    run_exchange_calling_with(journal, tool, arguments, state, answer).await
+}
+
+/// Runs the exchange against `journal`, the model calling `tool` with
+/// `arguments`.
+async fn run_exchange_calling_with(
+    journal: &AuditJournalHandle,
+    tool: &'static str,
+    arguments: serde_json::Value,
+    state: GovernanceState,
+    answer: Option<ToolDecision>,
+) -> Vec<JournalEntry> {
     let governance = GovernanceHandle::detached(state, Some(journal.clone()));
+    run_exchange_governed(
+        journal,
+        tool,
+        arguments,
+        (governance, apollia_tools::FolderRoots::default()),
+        answer,
+    )
+    .await
+}
+
+/// Runs the exchange against `journal`, the model calling `tool` with
+/// `arguments`, under `governance`.
+async fn run_exchange_governed(
+    journal: &AuditJournalHandle,
+    tool: &'static str,
+    arguments: serde_json::Value,
+    (governance, folders): (GovernanceHandle, apollia_tools::FolderRoots),
+    answer: Option<ToolDecision>,
+) -> Vec<JournalEntry> {
     let model: Arc<dyn CompletionModel> = Arc::new(OneCallThenText {
         iteration: AtomicU32::new(0),
         tool,
+        arguments,
     });
     let mut backends = std::collections::HashMap::new();
     backends.insert("default".to_string(), model);
@@ -147,7 +196,8 @@ async fn run_exchange_calling(
         todo: None,
         plan: None,
     })
-    .with_governance(Some(governance));
+    .with_governance(Some(governance))
+    .with_folders(folders);
     let budget = StepBudget::with_max(10);
     let approvals = PendingChatApprovals::new();
     let operator = tokio::spawn({
@@ -370,4 +420,187 @@ fn test_the_model_is_told_the_connection_is_paused() {
     // THEN it names the connection and the pause
     assert!(text.contains("mcp:notion"), "{text}");
     assert!(text.contains("paused"), "{text}");
+}
+
+// A call on a mailbox in pause is refused before anything asks the user, the
+// model told why, and journaled as refused by the pause, like a call of an
+// MCP server in pause.
+#[tokio::test]
+async fn test_a_paused_mailbox_refusal_is_journaled() {
+    // GIVEN the mailbox the call names, in pause
+    let state = GovernanceState {
+        paused: ["imap:ada@example.org".to_string()].into_iter().collect(),
+        ..GovernanceState::default()
+    };
+
+    // WHEN the model searches it
+    let entries = run_exchange_with_arguments(
+        "imap.search",
+        serde_json::json!({ "account": "ada@example.org", "subject": ARGUMENT }),
+        state,
+    )
+    .await;
+
+    // THEN the journal records the refusal by the pause, naming the mailbox,
+    // and nothing of what the call searched for
+    let kinds: Vec<JournalEntryKind> = entries.iter().map(|e| e.kind.clone()).collect();
+    assert_eq!(kinds, vec![JournalEntryKind::PausedRefused]);
+    assert_eq!(entries[0].payload["access_id"], "imap.search");
+    assert_eq!(entries[0].payload["connection_id"], "imap:ada@example.org");
+    assert!(!entries[0].payload.to_string().contains(ARGUMENT));
+}
+
+// A mailbox is found whatever the case its address is written in: the
+// decision matches the call to the paused mailbox as the executor finds it,
+// and the refusal is journaled under the connection as it was paused.
+#[tokio::test]
+async fn test_a_paused_mailbox_is_refused_whatever_the_case_of_its_address() {
+    // GIVEN the mailbox `Ada@Example.org`, in pause
+    let state = GovernanceState {
+        paused: ["imap:Ada@Example.org".to_string()].into_iter().collect(),
+        ..GovernanceState::default()
+    };
+
+    // WHEN the model searches it, writing its address in lower case
+    let entries = run_exchange_with_arguments(
+        "imap.search",
+        serde_json::json!({ "account": "ada@example.org", "subject": ARGUMENT }),
+        state,
+    )
+    .await;
+
+    // THEN the call is refused by the pause and journaled, nothing asked first
+    let kinds: Vec<JournalEntryKind> = entries.iter().map(|e| e.kind.clone()).collect();
+    assert_eq!(kinds, vec![JournalEntryKind::PausedRefused]);
+    assert_eq!(entries[0].payload["connection_id"], "imap:Ada@Example.org");
+    assert!(!entries[0].payload.to_string().contains(ARGUMENT));
+}
+
+/// Runs the exchange where the model calls `tool` with `arguments`, under
+/// `paused`, its arguments read in `data_dir`, by an agent granted the folders
+/// `granted` (their connections) in that directory.
+async fn run_exchange_reading_in(
+    tool: &'static str,
+    arguments: serde_json::Value,
+    paused: &str,
+    data_dir: &std::path::Path,
+    granted: &[&str],
+) -> Vec<JournalEntry> {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let journal = AuditJournalHandle::open(&dir.path().join("audit_journal.db"))
+        .await
+        .expect("journal");
+    let state = GovernanceState {
+        paused: [paused.to_owned()].into_iter().collect(),
+        ..GovernanceState::default()
+    };
+    let access = granted
+        .iter()
+        .map(|connection| {
+            let id = crate::connections::folder_id_of(connection).expect("a folder connection");
+            apollia_tools::folder_access::folder_access_name(id, "file_read")
+        })
+        .collect();
+    let (_, folders) = apollia_tools::granted_folders(access, data_dir, &state.paused);
+    let governance = GovernanceHandle::detached(state, Some(journal.clone())).reading_in(data_dir);
+    let entries =
+        run_exchange_governed(&journal, tool, arguments, (governance, folders), None).await;
+    journal.shutdown().await;
+    entries
+}
+
+// A file tool is shared by every folder: a call given a path in a folder
+// whose connection is in pause is refused by that pause, and journaled.
+#[tokio::test]
+async fn test_a_file_read_in_a_paused_folder_is_refused_and_journaled() {
+    // GIVEN a folder connection, in pause
+    let data = tempfile::tempdir().expect("tempdir");
+    let folder = tempfile::tempdir().expect("tempdir");
+    let connection = crate::governance::reach::tests::seed_folder(
+        data.path(),
+        &folder.path().canonicalize().expect("canonical"),
+    );
+
+    // WHEN the model reads a file in it
+    let entries = run_exchange_reading_in(
+        "file_read",
+        serde_json::json!({ "path": folder.path().join(ARGUMENT) }),
+        &connection,
+        data.path(),
+        &[],
+    )
+    .await;
+
+    // THEN the read is refused by the pause of the folder, and journaled
+    let kinds: Vec<JournalEntryKind> = entries.iter().map(|e| e.kind.clone()).collect();
+    assert_eq!(kinds, vec![JournalEntryKind::PausedRefused]);
+    assert_eq!(entries[0].payload["access_id"], "file_read");
+    assert_eq!(entries[0].payload["connection_id"], connection);
+    assert_no_content(&entries);
+}
+
+// A relative path names no folder by itself: it lands in the first folder
+// granted, and a folder in pause nested there is reached all the same.
+#[tokio::test]
+async fn test_a_relative_read_into_a_nested_paused_folder_is_refused_and_journaled() {
+    // GIVEN a sound folder granted to the agent, holding a folder in pause
+    let data = tempfile::tempdir().expect("tempdir");
+    let outer = tempfile::tempdir().expect("tempdir");
+    let inner = outer.path().join("inner");
+    std::fs::create_dir(&inner).expect("mkdir");
+    let outer_id = crate::governance::reach::tests::seed_folder(
+        data.path(),
+        &outer.path().canonicalize().expect("canonical"),
+    );
+    let inner_id = crate::governance::reach::tests::seed_folder(
+        data.path(),
+        &inner.canonicalize().expect("canonical"),
+    );
+
+    // WHEN the model reads a file of the folder in pause by a relative path
+    let entries = run_exchange_reading_in(
+        "file_read",
+        serde_json::json!({ "path": format!("inner/{ARGUMENT}") }),
+        &inner_id,
+        data.path(),
+        &[&outer_id],
+    )
+    .await;
+
+    // THEN the read is refused by the pause of the inner folder, and journaled
+    let kinds: Vec<JournalEntryKind> = entries.iter().map(|e| e.kind.clone()).collect();
+    assert_eq!(kinds, vec![JournalEntryKind::PausedRefused]);
+    assert_eq!(entries[0].payload["connection_id"], inner_id);
+    assert_no_content(&entries);
+}
+
+// `code_context` reads a code folder: when the folder connection that holds
+// it is in pause, the call is refused by that pause, and journaled.
+#[tokio::test]
+async fn test_code_context_on_a_paused_code_folder_is_refused_and_journaled() {
+    // GIVEN the conversation's agent with a code folder whose connection is in pause
+    let data = tempfile::tempdir().expect("tempdir");
+    let code = tempfile::tempdir().expect("tempdir");
+    let connection = crate::governance::reach::tests::seed_code_folder(
+        data.path(),
+        crate::chat::manager::APOLLIA_CHAT_AGENT_ID,
+        code.path(),
+        "apollia",
+    );
+
+    // WHEN the model asks the context of its code folders
+    let entries = run_exchange_reading_in(
+        apollia_tools::CODE_CONTEXT_TOOL,
+        serde_json::json!({}),
+        &connection,
+        data.path(),
+        &[],
+    )
+    .await;
+
+    // THEN the call is refused by the pause of the folder, and journaled
+    let kinds: Vec<JournalEntryKind> = entries.iter().map(|e| e.kind.clone()).collect();
+    assert_eq!(kinds, vec![JournalEntryKind::PausedRefused]);
+    assert_eq!(entries[0].payload["access_id"], "code_context");
+    assert_eq!(entries[0].payload["connection_id"], connection);
 }

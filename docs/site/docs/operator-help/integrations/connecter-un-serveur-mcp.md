@@ -22,7 +22,7 @@ sidebar_position: 5
    - **On this computer**: a folder, a mailbox.
    - **Public catalogue**: asked only when you click **Explore all**. Anyone can publish there and Apollia has not checked its entries, so each one is marked **Not verified**.
    - **Connect a service by its address**: always last, for a service you reach by its address. See [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
-3. Click the service. Its card says **What it asks**: a sign-in in your browser, a key, a few settings, a download to this computer, or that the service is reached over the internet. Click **Add**. A service already added offers **Open its page** instead.
+3. Click the service. Its card says **What it asks**: a sign-in in your browser, a key, a few settings, a download to this computer, or that the service is reached over the internet. Click **Add**. A service already added offers **Open its card** instead.
 
 ## Add it in three steps
 

@@ -35,6 +35,10 @@ pub enum NotebookEditError {
         path: String,
     },
 
+    /// Path lands in a folder whose connection is in pause.
+    #[error("path '{path}' {}", crate::sandbox_path::PAUSED_REASON)]
+    Paused { path: String },
+
     /// File not found at the specified path.
     #[error("not found: '{path}'")]
     NotFound {
@@ -186,12 +190,14 @@ impl NotebookEdit {
         &self,
         input: NotebookEditInput,
     ) -> Result<NotebookEditOutput, NotebookEditError> {
-        let resolved =
-            self.sandbox
-                .resolve(&input.path)
-                .map_err(|_| NotebookEditError::SandboxViolation {
-                    path: input.path.clone(),
-                })?;
+        let resolved = self.sandbox.for_call().resolve(&input.path).map_err(|e| {
+            let path = input.path.clone();
+            if e.is_paused() {
+                NotebookEditError::Paused { path }
+            } else {
+                NotebookEditError::SandboxViolation { path }
+            }
+        })?;
 
         let raw = fs::read_to_string(&resolved)
             .await

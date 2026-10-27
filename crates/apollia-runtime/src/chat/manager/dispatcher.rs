@@ -84,16 +84,35 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
 }
 
 /// The access an executor checks and the folders the file tools reach, from
-/// the granted `tools` and the folders stored beside `cfg`'s data directory.
-/// Without a configuration no folder is reachable.
+/// the granted `tools` and the folders stored beside `cfg`'s data directory,
+/// a folder whose connection is in pause left out. Without a configuration
+/// no folder is reachable.
 pub(in crate::chat::manager) fn granted_folders(
     tools: Vec<String>,
     cfg: Option<&ChatToolsConfig>,
 ) -> (Vec<String>, apollia_tools::FolderRoots) {
     match cfg {
-        Some(cfg) => apollia_tools::granted_folders(tools, &cfg.data_dir),
-        None => apollia_tools::resolve_folder_access(tools, &[]),
+        Some(cfg) => apollia_tools::granted_folders(
+            tools,
+            &cfg.data_dir,
+            &super::sources::paused_connections(cfg),
+        ),
+        None => apollia_tools::resolve_folder_access(tools, &[], &Default::default()),
     }
+}
+
+/// The folders in pause, read from governance at each call of a file tool,
+/// over the folders stored when the turn started. Without governance, the
+/// pauses read for the turn hold for all of it.
+fn live_pauses(
+    cfg: &ChatToolsConfig,
+    folders: &apollia_tools::FolderRoots,
+) -> Option<apollia_tools::LivePauses> {
+    let governance = cfg.governance.as_ref()?;
+    Some(apollia_tools::LivePauses::new(
+        governance.pause_reader(),
+        folders.stored.clone(),
+    ))
 }
 
 /// Register the MCP executors for a chat session.
@@ -176,9 +195,15 @@ fn build_full_chat_dispatcher(
         }
     }
 
+    // The file tools read the pauses governance publishes at each call, as
+    // the decision on that call does: a folder paused during the turn is
+    // out from the next call on.
+    let live_pauses = live_pauses(cfg, folders);
     let native_cfg = apollia_tools::NativeDispatcherConfig {
         sandbox_roots: folders.read.clone(),
         write_roots: folders.write.clone(),
+        paused_folders: folders.paused.clone(),
+        live_pauses: live_pauses.clone(),
         agent_id: format!("apollia:chat:{session_id}"),
         venv_base_dir: cfg.data_dir.join("venvs"),
         // The memory of the agent of the run; `memory_search` reads it only
@@ -210,6 +235,7 @@ fn build_full_chat_dispatcher(
         &mut extra_executors,
         WritingNativesParams {
             folders,
+            live_pauses,
             venv_base_dir: &native_cfg.venv_base_dir,
             disabled: &effective_disabled,
         },
@@ -259,6 +285,8 @@ struct WritingNativesParams<'a> {
     /// The folders granted to the agent: the writing tools reach those
     /// granted for writing.
     folders: &'a apollia_tools::FolderRoots,
+    /// Where the writing tools read the folders in pause at each call.
+    live_pauses: Option<apollia_tools::LivePauses>,
     venv_base_dir: &'a std::path::Path,
     /// Effective disabled set (operator plus governance): a native named here
     /// is not re-added at all.
@@ -273,6 +301,7 @@ fn push_writing_natives(
 ) {
     let WritingNativesParams {
         folders,
+        live_pauses,
         venv_base_dir,
         disabled,
     } = params;
@@ -286,7 +315,12 @@ fn push_writing_natives(
         }
         if folders.write.is_empty() {
             extra_executors.push(Box::new(apollia_tools::NoFolderGranted::new(name)));
-        } else if let Some(tool) = writing_tool(name, folders.write.clone()) {
+        } else if let Some(tool) = writing_tool(
+            name,
+            folders
+                .sandbox(folders.write.clone())
+                .with_live_pauses(live_pauses.clone()),
+        ) {
             extra_executors.push(tool);
         }
     }
@@ -317,7 +351,7 @@ fn push_writing_natives(
 /// built.
 fn writing_tool(
     name: &str,
-    roots: Vec<std::path::PathBuf>,
+    roots: apollia_tools::SandboxSpec,
 ) -> Option<Box<dyn apollia_tools::executor::ToolExecutor>> {
     use apollia_tools::executor::ToolExecutor;
     use apollia_tools::tools::{file_edit::FileEdit, file_write::FileWrite};
@@ -399,6 +433,7 @@ mod tests {
         apollia_tools::FolderRoots {
             read: vec![path.to_path_buf()],
             write: vec![path.to_path_buf()],
+            ..Default::default()
         }
     }
 
@@ -603,3 +638,6 @@ mod folder_tests;
 
 #[cfg(test)]
 mod fail_closed_tests;
+
+#[cfg(test)]
+mod pause_tests;

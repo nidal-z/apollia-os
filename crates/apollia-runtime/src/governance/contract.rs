@@ -38,6 +38,13 @@ pub struct AccessCall<'a> {
     /// Argument of the call when one is meaningful for a rule (a command, a
     /// path), `None` otherwise.
     pub argument: Option<&'a str>,
+    /// The connections the call reaches when its tool is shared by several
+    /// (the folder of the path a file tool is given, the code folders
+    /// `code_context` reads), as the connection list names them; empty when
+    /// the tool's own connection is the one, see
+    /// [`crate::governance::call_reaches`]. The call is refused when one of
+    /// them is in pause.
+    pub reaches: &'a [String],
     /// Action family of the tool behind the access, as its descriptor
     /// declares it; [`ActionFamily::Unclassified`] when nothing describes it.
     pub family: ActionFamily,

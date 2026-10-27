@@ -57,13 +57,19 @@ OAuth client is entered has moved, into developer mode.
   even while the new one is read.
 - **Pause** and **Resume** on every kind of connection. While paused, its
   agents keep their accesses, a call of one of its tools is refused with the
-  reason and written in the Activity log (for a mailbox, as a failed
-  action rather than a refusal), the agent's
-  sheet marks the access **Paused**, and a service is stopped and never
-  started again, at launch or on request. The pause holds across a restart.
+  reason and written in the Activity log, a mailbox's as any other, a folder
+  is neither read, listed, written nor searched, even inside another folder
+  the agent holds (a file tool or the context of a code folder in it is
+  refused the same way, a listing or search of the folder around it leaves it
+  out, a file not found is never pointed to one in it, and the search of
+  sources says it is paused, all from the agent's next action, even in a
+  conversation under way), the agent's sheet marks the access **Paused**, and a service is
+  stopped and never started again, at launch or on request. The pause holds across a restart. A resume shows on
+  the list and the card at once.
 - **Remove** lists what goes with the connection, its settings, the files
   installed for it, its sign-in, its secrets, the tools each agent held through
-  it, and for a folder its source and index, then erases them and names
+  it, for a folder its source and index, and for a Microsoft account the
+  OneDrive folders and files chosen for it, then erases them and names
   anything it could not erase.
 - **Agents that use it** on the card, and **Give to an agent** to give a
   connection to several agents at once, each gift written in the Activity log.

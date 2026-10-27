@@ -41,6 +41,10 @@ pub enum FileGlobError {
     )]
     SandboxViolation { path: String },
 
+    /// Path lands in a folder whose connection is in pause.
+    #[error("path '{path}' {}", crate::sandbox_path::PAUSED_REASON)]
+    Paused { path: String },
+
     /// Glob pattern is syntactically invalid.
     #[error("invalid glob pattern: {0}")]
     InvalidPattern(String),
@@ -64,6 +68,7 @@ impl From<SandboxPathError> for FileGlobError {
     fn from(e: SandboxPathError) -> Self {
         match e {
             SandboxPathError::SandboxViolation { path } => Self::SandboxViolation { path },
+            SandboxPathError::Paused { path } => Self::Paused { path },
             SandboxPathError::InitFailed { path, cause } => {
                 Self::IoError(format!("{path}: {cause}"))
             }
@@ -107,22 +112,25 @@ impl FileGlob {
     /// - `InvalidPattern` if `pattern` is syntactically invalid.
     /// - `IoError` on any I/O failure during traversal.
     pub async fn run(&self, input: FileGlobInput) -> Result<FileGlobOutput, FileGlobError> {
+        let sandbox = self.sandbox.for_call();
         let base = match &input.path {
-            Some(p) => self
-                .sandbox
-                .resolve(p)
-                .map_err(|_| FileGlobError::SandboxViolation { path: p.clone() })?,
-            None => self.sandbox.path().to_path_buf(),
+            Some(p) => sandbox.resolve(p).map_err(|e| {
+                let path = p.clone();
+                if e.is_paused() {
+                    FileGlobError::Paused { path }
+                } else {
+                    FileGlobError::SandboxViolation { path }
+                }
+            })?,
+            None => sandbox.path().to_path_buf(),
         };
 
-        let sandbox_root = self.sandbox.path().to_path_buf();
         let pattern = input.pattern.clone();
 
         // Glob traversal is blocking filesystem I/O: run off the async executor.
-        let matches =
-            tokio::task::spawn_blocking(move || glob_files(&base, &sandbox_root, &pattern))
-                .await
-                .map_err(|e| FileGlobError::IoError(e.to_string()))??;
+        let matches = tokio::task::spawn_blocking(move || glob_files(&base, &sandbox, &pattern))
+            .await
+            .map_err(|e| FileGlobError::IoError(e.to_string()))??;
 
         Ok(FileGlobOutput { matches })
     }
@@ -178,13 +186,15 @@ impl FileGlob {
 
 /// Perform the blocking glob search and return file paths sorted by mtime descending.
 ///
-/// Directories are excluded from results. Entries outside the sandbox root are silently
-/// skipped (defensive: the sandbox check at `run` already guards the base path).
+/// Directories are excluded from results. Entries outside the sandbox root, and
+/// entries the walk does not serve (in a folder in pause, found through one, or
+/// reached through a link that leaves every root), are silently skipped.
 fn glob_files(
     base: &std::path::Path,
-    sandbox_root: &std::path::Path,
+    sandbox: &SandboxRoot,
     pattern: &str,
 ) -> Result<Vec<String>, FileGlobError> {
+    let sandbox_root = sandbox.path();
     // Build the absolute pattern string: {base}/{pattern}
     let full_pattern = base.join(pattern).to_string_lossy().into_owned();
 
@@ -192,19 +202,28 @@ fn glob_files(
         .map_err(|e| FileGlobError::InvalidPattern(format!("{pattern}: {e}")))?;
 
     let mut entries: Vec<(PathBuf, SystemTime)> = Vec::new();
+    let mut walk = sandbox.walk(base);
+    // Every file the glob yields counts, served or not: a walk that keeps
+    // finding files it may not name (a cycle of links through a folder in
+    // pause) still ends at the limit instead of running unbounded.
+    let mut yielded = 0usize;
 
     for path_result in paths {
         let path = path_result.map_err(|e| FileGlobError::IoError(e.to_string()))?;
 
-        // Exclude directories and any path that escaped the sandbox.
-        if path.is_dir() || !path.starts_with(sandbox_root) {
+        if path.is_dir() {
             continue;
         }
-
-        if entries.len() >= MAX_GLOB_RESULTS {
+        yielded += 1;
+        if yielded > MAX_GLOB_RESULTS {
             return Err(FileGlobError::GlobLimitExceeded {
                 limit: MAX_GLOB_RESULTS,
             });
+        }
+
+        // Exclude any path the sandbox does not serve.
+        if !path.starts_with(sandbox_root) || !walk.serves(&path) {
+            continue;
         }
 
         let mtime = std::fs::metadata(&path)

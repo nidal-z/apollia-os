@@ -30,6 +30,10 @@ pub enum FileListError {
     )]
     SandboxViolation { path: String },
 
+    /// Path lands in a folder whose connection is in pause.
+    #[error("path '{path}' {}", crate::sandbox_path::PAUSED_REASON)]
+    Paused { path: String },
+
     /// Directory not found at the specified path.
     #[error("not found: '{path}'")]
     NotFound { path: String },
@@ -47,6 +51,7 @@ impl From<SandboxPathError> for FileListError {
     fn from(e: SandboxPathError) -> Self {
         match e {
             SandboxPathError::SandboxViolation { path } => Self::SandboxViolation { path },
+            SandboxPathError::Paused { path } => Self::Paused { path },
             SandboxPathError::InitFailed { path, cause } => Self::IoError { path, cause },
         }
     }
@@ -104,12 +109,15 @@ impl FileList {
         let dir = input.dir.as_deref().unwrap_or(".");
         let recursive = input.recursive.unwrap_or(false);
 
-        let resolved = self
-            .sandbox
-            .resolve(dir)
-            .map_err(|_| FileListError::SandboxViolation {
-                path: dir.to_string(),
-            })?;
+        let sandbox = self.sandbox.for_call();
+        let resolved = sandbox.resolve(dir).map_err(|e| {
+            let path = dir.to_string();
+            if e.is_paused() {
+                FileListError::Paused { path }
+            } else {
+                FileListError::SandboxViolation { path }
+            }
+        })?;
 
         let meta = tokio::fs::metadata(&resolved).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
@@ -131,7 +139,7 @@ impl FileList {
         }
 
         let mut entries = Vec::new();
-        collect_entries(&resolved, &resolved, recursive, &mut entries).await?;
+        collect_entries(&sandbox, &resolved, &resolved, recursive, &mut entries).await?;
         entries.sort_by(|a, b| a.name.cmp(&b.name));
 
         Ok(FileListOutput { entries })
@@ -193,8 +201,10 @@ impl FileList {
 ///
 /// Entry names are relative to `base_dir`. Entries within each directory are
 /// collected before descending, so the sort applied by the caller covers all
-/// levels uniformly.
+/// levels uniformly. A link is listed and never followed. Any other entry the
+/// sandbox does not serve (a folder in pause) is neither listed nor entered.
 fn collect_entries<'a>(
+    sandbox: &'a SandboxRoot,
     base_dir: &'a std::path::Path,
     current_dir: &'a std::path::Path,
     recursive: bool,
@@ -226,10 +236,15 @@ fn collect_entries<'a>(
         local.sort_by(|a, b| a.0.cmp(&b.0));
 
         for (abs_path, entry) in &local {
+            // The metadata of the entry itself: a link is listed by its own
+            // name and size, and never followed, wherever it points.
             let meta = entry.metadata().await.map_err(|e| FileListError::IoError {
                 path: abs_path.display().to_string(),
                 cause: e.to_string(),
             })?;
+            if !meta.file_type().is_symlink() && !sandbox.serves(abs_path) {
+                continue;
+            }
 
             let name = abs_path
                 .strip_prefix(base_dir)
@@ -250,7 +265,7 @@ fn collect_entries<'a>(
             });
 
             if recursive && meta.is_dir() {
-                collect_entries(base_dir, abs_path, recursive, out).await?;
+                collect_entries(sandbox, base_dir, abs_path, recursive, out).await?;
             }
         }
 

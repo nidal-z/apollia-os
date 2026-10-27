@@ -123,7 +123,11 @@ pub(in crate::chat::manager) fn granted_folder_anchor(
     else {
         return None;
     };
-    let (_, folders) = apollia_tools::granted_folders(tools, data_dir);
+    let paused = apollia_permissions::read_paused_connections(
+        &apollia_core::paths::DataFile::Governance.path(data_dir),
+    )
+    .unwrap_or_default();
+    let (_, folders) = apollia_tools::granted_folders(tools, data_dir, &paused);
     folders.read.into_iter().next()
 }
 

@@ -580,10 +580,27 @@ A pause is read by the next decision, without a restart.
 A pause takes nothing away: the accesses of the agents, the configuration and
 the secrets of the connection stay as they are. An MCP server in pause is
 also stopped and its `enabled` flag in `mcp.db` switched off, so it is not
-started again, at the next start or on request. The mailbox tools are shared
-by every mailbox, so their executor refuses a paused mailbox at each call,
-as it refuses a forbidden one. A connection in pause reads paused in the list,
-whatever state was kept for it before.
+started again, at the next start or on request.
+
+Some tools are shared by several connections, and the call says which one it
+reaches. A mailbox tool reaches the mailbox the call names, or the only one
+connected, matched whatever the case of its address; a file tool reaches the
+deepest folder that holds where its path lands, read as the tool reads it (a
+relative path from the first folder granted, `~` expanded, links followed);
+`code_context` reaches the code folder it names, or every code folder of the
+agent. The decision refuses such a call when what it reaches is in pause, and
+journals it as any other. The file tools do not rest on that decision alone,
+since a walk over a sound folder names no folder nested in it: a folder in
+pause is taken out of their sandbox, it is no root and no root that holds it
+reaches into it, so no path, link or recursive listing or search reads or
+writes in it, and a walk names nothing it found through it, nor does the
+suggestion given for a file not found. `source_search` does not search it
+either: it answers the source under `paused` and searches the others. The
+tools of a turn are built when it starts, so they read the pauses governance
+publishes again at each of their calls, as the decision does: a folder paused
+while an agent works is out from its next call. The mailbox executor refuses a paused
+mailbox at each call as well, as it refuses a forbidden one. A connection in
+pause reads paused in the list, whatever state was kept for it before.
 
 ## Connectors {#connectors}
 

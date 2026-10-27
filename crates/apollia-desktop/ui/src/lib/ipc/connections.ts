@@ -126,7 +126,7 @@ export function addFolderConnection(path: string): Promise<Connection> {
   return invoke<Connection>("add_folder_connection", { path });
 }
 
-/** What a removal erases: its configuration, a token, a secret, installed files, a tool granted to an agent, a source, its state. */
+/** What a removal erases: its configuration, a token, a secret, installed files, a tool granted to an agent, a source, its state, a OneDrive folder or file chosen for a Microsoft account. */
 export type RemovedKind =
   | "configuration"
   | "installed_files"
@@ -134,12 +134,13 @@ export type RemovedKind =
   | "secret"
   | "agent_access"
   | "source"
-  | "state";
+  | "state"
+  | "onedrive_choice";
 
 /** One thing a removal erased, or would erase. */
 export interface RemovedItem {
   kind: RemovedKind;
-  /** The server, the folder of installed files, the secret key, the tool, the source. */
+  /** The server, the folder of installed files, the secret key, the tool, the source, the path of a OneDrive choice. */
   name: string;
   /** The agent the tool is taken from, for an agent access. */
   agent?: string | null;

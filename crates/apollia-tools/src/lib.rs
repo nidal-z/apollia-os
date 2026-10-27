@@ -47,6 +47,7 @@ pub mod host_env;
 pub mod journal;
 pub mod native_dispatcher;
 pub mod package_repository;
+pub mod pauses;
 pub mod project_repository;
 pub mod registry;
 pub mod sandbox_path;
@@ -79,7 +80,7 @@ pub use executor::{
 };
 pub use exposed_items::{ExposedItem, ExposedItemError, ExposedItemRepository, ExposedKind};
 pub use file_path_extractor::FilePathExtractor;
-pub use folder_access::{granted_folders, resolve_folder_access, FolderRoots};
+pub use folder_access::{granted_folders, resolve_folder_access, FolderRoots, StoredFolder};
 pub use governance_db::{
     GovernanceDb, GovernanceError, GOVERNANCE_DB_FILENAME, LEGACY_BACKUP_FILENAME,
     LEGACY_PERMISSIONS_FILENAME,
@@ -95,6 +96,7 @@ pub use package_repository::{
     InstalledPackage, PackageItem, PackageItemKind, PackageRepository, PackageRepositoryError,
     PackageSignature,
 };
+pub use pauses::{LivePauses, LiveSourcePauses, PauseReader};
 pub use project_repository::{
     ProjectDetail, ProjectDocument, ProjectProviderRow, ProjectRepository, ProjectRepositoryError,
     ProjectSummary,

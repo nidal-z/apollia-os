@@ -96,7 +96,10 @@ pub async fn checked_sources(
 /// served on a guess. The reads are blocking.
 pub fn code_context_for(data_dir: &Path, agent: &str) -> Option<CodeContext> {
     let folders = match code_folders(data_dir, agent) {
-        Ok(folders) => folders,
+        Ok(folders) => folders
+            .into_iter()
+            .map(|(folder, _)| folder)
+            .collect::<Vec<_>>(),
         Err(error) => {
             tracing::event!(
                 tracing::Level::WARN,
@@ -110,7 +113,14 @@ pub fn code_context_for(data_dir: &Path, agent: &str) -> Option<CodeContext> {
     (!folders.is_empty()).then(|| CodeContext::new(folders))
 }
 
-fn code_folders(data_dir: &Path, agent: &str) -> Result<Vec<CodeFolder>, String> {
+/// The code folders `agent` has checked, read from the `agents.db` and
+/// `system.db` of `data_dir`, each with the identifier of the folder
+/// connection that holds it (`folder:<id>`). The reads are blocking.
+///
+/// # Errors
+///
+/// What a store that cannot be read says.
+pub fn code_folders(data_dir: &Path, agent: &str) -> Result<Vec<(CodeFolder, String)>, String> {
     let agents = DataFile::Agents.path(data_dir);
     let system = DataFile::System.path(data_dir);
     if !agents.exists() || !system.exists() {
@@ -137,10 +147,13 @@ fn code_folders(data_dir: &Path, agent: &str) -> Result<Vec<CodeFolder>, String>
             None => None,
         };
         match connection {
-            Some(connection) => folders.push(CodeFolder {
-                label: source.label,
-                path: connection.path.into(),
-            }),
+            Some(connection) => folders.push((
+                CodeFolder {
+                    label: source.label,
+                    path: connection.path.into(),
+                },
+                crate::connections::folder_connection_id(&connection.id),
+            )),
             None => tracing::event!(
                 tracing::Level::WARN,
                 agent = %agent,

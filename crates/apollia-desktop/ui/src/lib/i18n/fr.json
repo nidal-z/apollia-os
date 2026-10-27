@@ -514,8 +514,8 @@
     "native_google_description": "Gmail (envoi + brouillons), Calendar, Drive Workspace",
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
     "error_refused_by_policy": "Refusé par la politique de l'organisation.",
-    "error_oauth_client_missing": "Identifiant OAuth manquant - saisissez-le sur la fiche de cette connexion, dans Connexions.",
-    "error_oauth_client_secret_missing": "Secret client OAuth manquant - ajoutez-le sur la fiche de cette connexion, dans Connexions.",
+    "error_oauth_client_missing": "Identifiant OAuth manquant - mode développeur activé, saisissez-le sur la fiche du service, dans Connexions.",
+    "error_oauth_client_secret_missing": "Secret client OAuth manquant - mode développeur activé, ajoutez-le sur la fiche du service, dans Connexions.",
     "error_invalid_client_file": "Ce fichier n'est pas un export de client OAuth exploitable.",
     "custom_error_command_required": "Indiquez la commande à lancer (ex. npx, uvx, /usr/local/bin/myserver).",
     "custom_error_url_required": "Indiquez l'adresse de la connexion.",
@@ -542,10 +542,10 @@
     "select_connector_prompt": "Sélectionnez une connexion dans la liste.",
     "oauth_drive_folder_title": "Dossier Google Drive",
     "oauth_connect_title": "Connecter {provider}",
-    "oauth_drive_folder_body_html": "Apollia ne pourra voir, lire et écrire QUE dans le dossier que vous indiquez ici (scope <code>drive.file</code>, gratuit, sans audit CASA). Vos autres fichiers Drive lui resteront invisibles. Le dossier est créé automatiquement à la première écriture s'il n'existe pas encore. Modifiable plus tard sur la fiche Google, dans Connexions.",
-    "oauth_drive_folder_expert_html": "Pour permettre à vos agents d'accéder à tout votre Drive, il faut passer en <strong>Mode Expert</strong> (votre propre app Google Cloud avec les scopes étendus) - voir la fiche Google dans Connexions après la connexion.",
+    "oauth_drive_folder_body_html": "Apollia ne pourra voir, lire et écrire QUE dans le dossier que vous indiquez ici (scope <code>drive.file</code>, gratuit, sans audit CASA). Vos autres fichiers Drive lui resteront invisibles. Le dossier est créé automatiquement à la première écriture s'il n'existe pas encore. Vous pourrez le changer plus tard sur la fiche du compte, dans Connexions.",
+    "oauth_drive_folder_expert_html": "L'accès à tout votre Drive n'est pas proposé : vos agents atteignent ce dossier et rien d'autre.",
     "oauth_drive_folder_path_label_html": "Chemin du dossier (séparé par <code>/</code>)",
-    "oauth_drive_folder_examples_html": "Exemples : <code>Apollia</code> (défaut), <code>Documents/Apollia</code>, <code>Travail/IA</code>. Vide = garder le défaut <code>Apollia</code>. Modifiable plus tard sur la fiche Google, dans Connexions.",
+    "oauth_drive_folder_examples_html": "Exemples : <code>Apollia</code> (défaut), <code>Documents/Apollia</code>, <code>Travail/IA</code>. Vide = garder le défaut <code>Apollia</code>. Vous pourrez le changer plus tard sur la fiche du compte, dans Connexions.",
     "oauth_policy_refused_title": "Refusé par la politique de l'organisation",
     "oauth_policy_refused_body": "Votre organisation n'autorise pas les connexions à des services en ligne sur ce poste. Rien n'a été envoyé à {provider}.",
     "oauth_policy_refused_contact": "Pour une exception, adressez-vous à la personne qui gère la politique de votre organisation.",
@@ -564,9 +564,9 @@
     "oauth_admin_approval_request_copy": "Copier la demande",
     "oauth_admin_approval_request_copied": "Demande copiée",
     "oauth_missing_client_title": "Identifiant OAuth manquant",
-    "oauth_missing_client_body_html": "Aucun client OAuth n'est configuré pour {provider}, Apollia s'est donc arrêté plutôt que d'ouvrir un écran de consentement qui n'aboutirait pas. Créez-le dans la console {console}, puis ouvrez sa fiche dans Connexions pour l'ajouter. Aucune variable d'environnement n'est nécessaire.",
+    "oauth_missing_client_body_html": "Aucun client OAuth n'est configuré pour {provider}, Apollia s'est donc arrêté plutôt que d'ouvrir un écran de consentement qui n'aboutirait pas. Créez-le dans la console {console}, puis, mode développeur activé, ajoutez-le sur la fiche {provider} dans Connexions. Aucune variable d'environnement n'est nécessaire.",
     "oauth_missing_secret_title": "Secret client OAuth manquant",
-    "oauth_missing_secret_body_html": "{provider} délivre un <code>client_secret</code> avec l'identifiant client, et l'exige à l'échange du jeton. Apollia s'est arrêté ici plutôt que de vous envoyer sur un écran de consentement qui n'aurait pas abouti. Ajoutez le secret sur sa fiche, dans Connexions.",
+    "oauth_missing_secret_body_html": "{provider} délivre un <code>client_secret</code> avec l'identifiant client, et l'exige à l'échange du jeton. Apollia s'est arrêté ici plutôt que de vous envoyer sur un écran de consentement qui n'aurait pas abouti. Mode développeur activé, ajoutez le secret sur la fiche {provider} dans Connexions.",
     "needs_client_title": "Configuration requise avant de connecter",
     "needs_client_body": "Aucun client OAuth n'est encore configuré pour {provider}. Ajoutez le vôtre pour connecter un compte. Cela prend quelques minutes dans la console du fournisseur, une seule fois.",
     "oauth_preparing": "Préparation du flow OAuth…",
@@ -763,7 +763,7 @@
         "nothing": "Rien de plus : elle marche dès l'ajout"
       },
       "add": "Ajouter",
-      "open": "Ouvrir sa page",
+      "open": "Ouvrir sa fiche",
       "back": "Retour à la recherche"
     },
     "add_flow": {
@@ -863,7 +863,8 @@
           "token": "sa clé de connexion au compte {name}",
           "secret": "le secret {name}",
           "agent_access": "l'outil {name} de l'agent {agent}",
-          "source": "la source {name} et son index"
+          "source": "la source {name} et son index",
+          "onedrive_choice": "le dossier ou fichier OneDrive {name} choisi pour qu'elle le lise"
         }
       },
       "agents": {

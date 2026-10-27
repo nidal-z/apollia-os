@@ -38,6 +38,10 @@ pub enum FileWriteError {
     )]
     SandboxViolation { path: String },
 
+    /// Path lands in a folder whose connection is in pause.
+    #[error("path '{path}' {}", crate::sandbox_path::PAUSED_REASON)]
+    Paused { path: String },
+
     /// I/O error while writing the file.
     #[error("I/O error on '{path}': {cause}")]
     IoError { path: String, cause: String },
@@ -97,12 +101,14 @@ impl FileWrite {
     /// Returns an error if the path is invalid, the journal fails, or the
     /// file cannot be written.
     pub async fn run(&self, input: FileWriteInput) -> Result<(), FileWriteError> {
-        let resolved_path =
-            self.sandbox
-                .resolve(&input.path)
-                .map_err(|_| FileWriteError::SandboxViolation {
-                    path: input.path.clone(),
-                })?;
+        let resolved_path = self.sandbox.for_call().resolve(&input.path).map_err(|e| {
+            let path = input.path.clone();
+            if e.is_paused() {
+                FileWriteError::Paused { path }
+            } else {
+                FileWriteError::SandboxViolation { path }
+            }
+        })?;
 
         // Create parent directories if they don't exist
         if let Some(parent) = resolved_path.parent() {

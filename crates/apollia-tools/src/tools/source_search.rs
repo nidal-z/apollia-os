@@ -3,8 +3,10 @@
 //! The tool reaches the index of each source through the handle of the
 //! registry actor of `apollia-sources`. It is built with the sources the
 //! resolved agent has checked, and searches those and no other: a source the
-//! agent names outside them is refused before any index is read. Nothing a
-//! source holds enters a prompt unless the agent calls this tool.
+//! agent names outside them is refused before any index is read. A source
+//! whose connection the user paused is not searched either: the answer names
+//! it as paused. Nothing a source holds enters a prompt unless the agent calls
+//! this tool.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -46,6 +48,9 @@ pub struct SourceSearchOutput {
     pub results: Vec<SearchHit>,
     /// The sources searched that are not indexed yet.
     pub not_indexed: Vec<String>,
+    /// The sources asked for that are not searched because the user paused
+    /// their connection; resumed, they are searched again.
+    pub paused: Vec<String>,
 }
 
 /// Errors of a search, before or during it.
@@ -83,6 +88,8 @@ impl SourceSearchError {
 pub struct SourceSearchTool {
     registry: SourceRegistryHandle,
     sources: Vec<String>,
+    paused: Vec<String>,
+    live: Option<crate::LiveSourcePauses>,
 }
 
 impl SourceSearchTool {
@@ -90,7 +97,46 @@ impl SourceSearchTool {
     /// through `registry`.
     #[must_use]
     pub fn new(registry: SourceRegistryHandle, sources: Vec<String>) -> Self {
-        Self { registry, sources }
+        Self {
+            registry,
+            sources,
+            paused: Vec::new(),
+            live: None,
+        }
+    }
+
+    /// The same tool, where `paused`, the sources held by a connection the
+    /// user paused, are answered paused instead of searched.
+    #[must_use]
+    pub fn with_paused(mut self, paused: Vec<String>) -> Self {
+        self.paused = paused
+            .into_iter()
+            .filter(|id| self.sources.contains(id))
+            .collect();
+        self
+    }
+
+    /// The same tool, where the sources held by a connection the user paused
+    /// are read from `live` at each call, in place of [`Self::with_paused`]:
+    /// a source paused while the turn runs is answered paused from the next
+    /// call on.
+    #[must_use]
+    pub fn with_live_pauses(mut self, live: crate::LiveSourcePauses) -> Self {
+        self.live = Some(live);
+        self
+    }
+
+    /// The sources in pause for one call: read now when they are read at each
+    /// call, else those given when the tool was built.
+    fn paused_now(&self) -> Vec<String> {
+        match &self.live {
+            Some(live) => live
+                .sources()
+                .into_iter()
+                .filter(|id| self.sources.contains(id))
+                .collect(),
+            None => self.paused.clone(),
+        }
     }
 
     /// The sources this tool may search.
@@ -142,7 +188,19 @@ impl SourceSearchTool {
             }
             limit => limit.map(|l| l as usize),
         };
-        let targets = self.targets(input.sources)?;
+        let paused_now = self.paused_now();
+        let (paused, targets): (Vec<String>, Vec<String>) = self
+            .targets(input.sources)?
+            .into_iter()
+            .partition(|id| paused_now.contains(id));
+        if targets.is_empty() {
+            return Ok(SourceSearchOutput {
+                mode: SearchMode::KeywordsOnly,
+                results: Vec::new(),
+                not_indexed: Vec::new(),
+                paused,
+            });
+        }
         let vector = query_vector(&query).await;
         let outcome = self
             .registry
@@ -158,6 +216,7 @@ impl SourceSearchTool {
             mode: outcome.mode,
             results: outcome.hits,
             not_indexed: outcome.not_indexed,
+            paused,
         })
     }
 
@@ -168,7 +227,8 @@ impl SourceSearchTool {
             version: "1.0.0".to_string(),
             description: "Search the documents of the sources checked for this agent (indexed \
                 folders and files), by keywords and by meaning when an embeddings model is \
-                installed. Only the checked sources are reachable. Nothing from a source \
+                installed. Only the checked sources are reachable; a source whose connection the \
+                user paused is answered in `paused` and not searched. Nothing from a source \
                 reaches the conversation unless this tool is called."
                 .to_string(),
             kind: ToolKind::Native,
@@ -219,9 +279,14 @@ impl SourceSearchTool {
                         "type": "array",
                         "items": { "type": "string" },
                         "description": "Sources searched that are not indexed yet."
+                    },
+                    "paused": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Sources not searched because the user paused their connection."
                     }
                 },
-                "required": ["mode", "results", "not_indexed"]
+                "required": ["mode", "results", "not_indexed", "paused"]
             })),
             sandbox_profile: SandboxProfile::ReadOnly,
             tags: vec![

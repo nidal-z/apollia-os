@@ -285,6 +285,10 @@ pub struct BuiltInChatAgent {
     /// Workspace directory injected into the system prompt so the LLM knows its
     /// effective working directory (project workspace or ~/.apollia/ for free chat).
     workspace_path: Option<std::path::PathBuf>,
+    /// The folders granted to the agent and those in pause, read once for
+    /// the turn: the decision on a file tool names the folder its path lands
+    /// in from them, without opening a store at each call.
+    folders: apollia_tools::FolderRoots,
     /// Aggregated MCP tool index for deferred mode.
     ///
     /// `Some` only when the session runs in deferred mode: `build_tool_specs`

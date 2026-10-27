@@ -23,7 +23,8 @@ pub use mail::{
     FolderCount, FolderUids, MailFolder, MailMessage, MailQuery, MailSummary, DEFAULT_FOLDER,
 };
 pub use store::{
-    ConnectionProbe, ImapAccountStore, RemovedMailbox, IMAP_INDEX_FILE, IMAP_SECRET_SERVICE,
+    same_address, ConnectionProbe, ImapAccountStore, RemovedMailbox, IMAP_INDEX_FILE,
+    IMAP_SECRET_SERVICE,
 };
 
 #[cfg(test)]

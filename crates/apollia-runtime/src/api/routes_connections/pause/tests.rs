@@ -66,6 +66,7 @@ fn search_call() -> AccessCall<'static> {
         agent_id: "scribe",
         access_id: NOTION_SEARCH,
         argument: None,
+        reaches: &[],
         family: ActionFamily::Read,
         unattended: false,
         granted_for_run: false,
@@ -203,4 +204,42 @@ async fn test_without_governance_nothing_is_paused() {
     // THEN it is refused as unavailable and the server stays on
     assert_eq!(refused.unwrap_err().0, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(enabled(&state), Some(true));
+}
+
+// A resumed connection is announced in its new state, as its pause was, so
+// a page that shows it changes without reading the list again.
+#[tokio::test]
+async fn test_a_resume_is_announced_as_the_pause_is() {
+    // GIVEN a mailbox in pause, and a reader of the bus
+    let dir = tempfile::tempdir().unwrap();
+    let state = runtime(&dir);
+    set_paused(&state, Vec::new(), "imap:ada@example.org", true)
+        .await
+        .unwrap();
+    let mut events = state.event_sender.subscribe();
+
+    // WHEN it is resumed
+    let resumed = set_paused(&state, Vec::new(), "imap:ada@example.org", false)
+        .await
+        .unwrap();
+
+    // THEN the bus carries its new state, the one the list shows
+    let announced = loop {
+        match events.try_recv() {
+            Ok(apollia_core::RuntimeEvent::ConnectionStateChanged {
+                id, state, reason, ..
+            }) => break Some((id, state, reason)),
+            Ok(_) => continue,
+            Err(_) => break None,
+        }
+    };
+    assert_eq!(
+        announced,
+        Some((
+            "imap:ada@example.org".to_string(),
+            resumed.status,
+            resumed.reason.clone()
+        ))
+    );
+    assert_ne!(resumed.status, ConnectionStatus::Paused);
 }

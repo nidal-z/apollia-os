@@ -117,6 +117,24 @@ impl SourceAccess {
         self
     }
 
+    /// The same access, where the sources `paused` names, held by a
+    /// connection the user paused, are answered paused by the search instead
+    /// of searched.
+    #[must_use]
+    pub fn with_paused_sources(mut self, paused: Vec<String>) -> Self {
+        self.search = self.search.map(|search| search.with_paused(paused));
+        self
+    }
+
+    /// The same access, where the search reads from `live`, at each call,
+    /// which of its sources a paused connection holds
+    /// ([`SourceSearchTool::with_live_pauses`]).
+    #[must_use]
+    pub fn with_live_source_pauses(mut self, live: crate::LiveSourcePauses) -> Self {
+        self.search = self.search.map(|search| search.with_live_pauses(live));
+        self
+    }
+
     /// The access of an agent whose only possible source is its memory.
     #[must_use]
     pub fn memory_only(memory: bool) -> Self {

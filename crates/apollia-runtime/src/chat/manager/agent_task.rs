@@ -184,7 +184,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
     // The folders granted to the agent are the roots of its file tools.
     let (granted, folders) =
         super::dispatcher::granted_folders(tools, wiring.chat_tools_config.as_deref());
-    let planning_folders = folders.read.clone();
+    let wired_folders = folders.clone();
     spec.granted_tools = granted;
     let mcp_index: Vec<ToolIndexSnapshot> = match (wiring.mcp_loading, &wiring.mcp_handle) {
         (LoadingMode::Deferred, Some(handle)) => handle.get_tool_index().await,
@@ -263,7 +263,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
                 .map(|composer| Composition { composer, depth }),
             governance: wiring.governance,
             unattended,
-            planning_folders,
+            folders: wired_folders,
             plan_template,
             ..SessionWiring::default()
         },

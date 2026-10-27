@@ -41,6 +41,8 @@ fn dispatcher_config(
     NativeDispatcherConfig {
         sandbox_roots: vec![sandbox.clone()],
         write_roots: vec![sandbox],
+        paused_folders: Vec::new(),
+        live_pauses: None,
         agent_id: "test-agent".to_string(),
         venv_base_dir: venv,
         memory_namespace: None,

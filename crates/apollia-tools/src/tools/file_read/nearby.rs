@@ -5,9 +5,12 @@
 //! the root of the folder) gets "not found" and guesses again. Naming where a
 //! file of that name is lets the next attempt, or a new plan, take the right
 //! path at once. The search is bounded in depth and in entries visited, skips
-//! hidden folders, and never leaves the granted folders.
+//! hidden folders, never leaves the granted folders, and neither enters nor
+//! names what the sandbox does not serve: a folder in pause stays unsaid.
 
 use std::path::{Path, PathBuf};
+
+use crate::sandbox_path::SandboxRoot;
 
 /// How deep under a granted folder the search goes.
 const MAX_DEPTH: usize = 5;
@@ -17,13 +20,14 @@ const MAX_VISITED: usize = 5_000;
 const MAX_FOUND: usize = 3;
 
 /// The sentence appended to "not found", empty when no file of that name is
-/// in the granted folders. Paths under `anchor` are given relative to it, the
-/// way the agent writes them.
-pub(super) fn suggestion(anchor: &Path, roots: &[PathBuf], missing: &str) -> String {
+/// in the folders `sandbox` serves. Paths under its anchor are given relative
+/// to it, the way the agent writes them.
+pub(super) fn suggestion(sandbox: &SandboxRoot, missing: &str) -> String {
     let Some(name) = Path::new(missing).file_name().and_then(|n| n.to_str()) else {
         return String::new();
     };
-    let found = find(roots, name);
+    let anchor = sandbox.path();
+    let found = find(sandbox, name);
     if found.is_empty() {
         return String::new();
     }
@@ -40,13 +44,19 @@ pub(super) fn suggestion(anchor: &Path, roots: &[PathBuf], missing: &str) -> Str
     )
 }
 
-/// The files named `name`, compared without case, under `roots`, breadth
-/// first so the shallowest come first.
-fn find(roots: &[PathBuf], name: &str) -> Vec<PathBuf> {
+/// The files named `name`, compared without case, under the roots of
+/// `sandbox` and served by it, breadth first so the shallowest come first. A
+/// link is never followed into a folder; a directory it does not serve is not
+/// entered.
+fn find(sandbox: &SandboxRoot, name: &str) -> Vec<PathBuf> {
     let mut found = Vec::new();
     let mut visited = 0usize;
-    let mut queue: std::collections::VecDeque<(PathBuf, usize)> =
-        roots.iter().map(|root| (root.clone(), 0)).collect();
+    let mut queue: std::collections::VecDeque<(PathBuf, usize)> = sandbox
+        .roots()
+        .iter()
+        .filter(|root| sandbox.serves(root))
+        .map(|root| (root.clone(), 0))
+        .collect();
     while let Some((dir, depth)) = queue.pop_front() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
@@ -64,10 +74,11 @@ fn find(roots: &[PathBuf], name: &str) -> Vec<PathBuf> {
                 continue;
             };
             if kind.is_dir() {
-                if depth < MAX_DEPTH && !entry_name.starts_with('.') {
-                    queue.push_back((entry.path(), depth + 1));
+                let path = entry.path();
+                if depth < MAX_DEPTH && !entry_name.starts_with('.') && sandbox.serves(&path) {
+                    queue.push_back((path, depth + 1));
                 }
-            } else if entry_name.eq_ignore_ascii_case(name) {
+            } else if entry_name.eq_ignore_ascii_case(name) && sandbox.serves(&entry.path()) {
                 found.push(entry.path());
             }
         }
@@ -89,7 +100,8 @@ mod tests {
         std::fs::write(root.join("conditions.pdf"), b"%PDF").expect("write");
 
         // WHEN the guessed path is not found
-        let said = suggestion(&root, std::slice::from_ref(&root), "Quotes/conditions.pdf");
+        let sandbox = SandboxRoot::new(root.clone()).expect("sandbox");
+        let said = suggestion(&sandbox, "Quotes/conditions.pdf");
 
         // THEN the sentence names where the file is, as the agent writes paths
         assert_eq!(
@@ -106,9 +118,34 @@ mod tests {
         std::fs::write(root.join("other.pdf"), b"%PDF").expect("write");
 
         // WHEN a path to an absent file is not found
-        let said = suggestion(&root, std::slice::from_ref(&root), "missing.pdf");
+        let sandbox = SandboxRoot::new(root.clone()).expect("sandbox");
+        let said = suggestion(&sandbox, "missing.pdf");
 
         // THEN nothing is appended
         assert!(said.is_empty());
+    }
+
+    #[test]
+    fn test_a_file_in_a_folder_in_pause_is_not_named() {
+        // GIVEN a granted folder holding a folder in pause, the only one with
+        // a file of the name asked for, and a link to it
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path().canonicalize().expect("canonical");
+        std::fs::create_dir_all(root.join("inner")).expect("mkdir");
+        std::fs::write(root.join("inner/n.md"), b"secret").expect("write");
+        std::fs::create_dir_all(root.join("other")).expect("mkdir");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(root.join("inner/n.md"), root.join("other/n.md"))
+            .expect("symlink");
+        let sandbox = SandboxRoot::new(
+            crate::SandboxSpec::from(root.clone()).with_paused(vec![root.join("inner")]),
+        )
+        .expect("sandbox");
+
+        // WHEN a path to that name is not found
+        let said = suggestion(&sandbox, "n.md");
+
+        // THEN nothing is named
+        assert!(said.is_empty(), "{said}");
     }
 }
