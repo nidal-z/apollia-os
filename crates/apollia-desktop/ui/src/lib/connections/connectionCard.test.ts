@@ -61,6 +61,25 @@ describe("repairAction", () => {
     expect(repairAction(local)?.kind).toBe("restart");
   });
 
+  test("a Microsoft account blocked until an administrator approves is repaired by that approval, not by the rule", () => {
+    // GIVEN Microsoft kept blocked with the approval page to send, and a
+    // connection the organisation's policy blocks
+    const address = "https://login.microsoftonline.com/organizations/adminconsent?client_id=c4f95bc5";
+    const approval = connection({
+      id: "native:microsoft",
+      kind: "native",
+      status: "blocked",
+      reason: { key: "admin_approval_required", address },
+    });
+    const policy = connection({ status: "blocked", reason: { key: "forbidden_by_policy" } });
+
+    // WHEN the action that repairs each is asked
+    // THEN the first is the administrator's approval, its word Retry; the
+    // second still shows the rule
+    expect(repairAction(approval)).toEqual({ kind: "admin_approval", labelKey: "common.retry" });
+    expect(repairAction(policy)?.kind).toBe("rule");
+  });
+
   test("a working, paused or never checked connection offers no repair", () => {
     // GIVEN a connection in each of those states, and a mailbox that cannot be reached
     const states = [

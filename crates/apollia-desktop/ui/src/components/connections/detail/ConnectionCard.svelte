@@ -51,6 +51,7 @@
   import AccountDriveFolder from "./AccountDriveFolder.svelte";
   import AccountOneDriveChoices from "./AccountOneDriveChoices.svelte";
   import NativeClientSection from "./NativeClientSection.svelte";
+  import OauthAdminApproval from "../oauth/OauthAdminApproval.svelte";
   import McpServerSettingsEditor from "../../integrations/McpServerSettingsEditor.svelte";
 
   interface Props {
@@ -76,7 +77,7 @@
      * password, the folder, the rule. A service is started or signed in again
      * on the card itself.
      */
-    onrepair: (kind: Exclude<RepairKind, "restart">) => void;
+    onrepair: (kind: Exclude<RepairKind, "restart" | "admin_approval">) => void;
     /** "Try": a conversation limited to the tools of this connection. */
     ontry?: () => void;
     /** Connect another account of the same provider, for an account. */
@@ -195,6 +196,11 @@
       });
       return;
     }
+    if (kind === "admin_approval") {
+      // Once the administrator approved, connecting again is what lifts the block.
+      onrepair("sign_in");
+      return;
+    }
     if (kind !== "restart") {
       onrepair(kind);
       return;
@@ -284,6 +290,12 @@
     />
     {#if connection.status === "paused"}
       <p class="text-caption text-muted-foreground">{$t("connections.card.paused_note")}</p>
+    {/if}
+    {#if repair?.kind === "admin_approval" && connection.reason?.address}
+      <OauthAdminApproval
+        providerShort={provider === "google" ? "Google" : "Microsoft"}
+        address={connection.reason.address}
+      />
     {/if}
     {#if repair}
       <Button

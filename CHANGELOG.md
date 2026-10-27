@@ -130,8 +130,9 @@ OAuth client is entered has moved, into developer mode.
 - When a work account's organisation requires an administrator to approve
   Apollia, the sign-in window shows the approval address and a request
   written for the administrator, both ready to copy, and the connection reads
-  **Blocked by your organisation**. The block lifts as soon as an account
-  connects.
+  **Blocked by your organisation**. Its card in **Connections** shows the same
+  address and request, with **Retry** to connect again, in place of **See the
+  rule**. The block lifts as soon as an account connects.
 
 #### API
 

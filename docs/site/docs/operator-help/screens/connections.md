@@ -29,7 +29,7 @@ Each line carries the state of its connection:
 | **Working** | The last check found it working, or for a service, its last use. | None needed. |
 | **Needs repair** | Something must be done first. The reason is written in plain words, for example *the account must sign in again* or *the folder is no longer where it was*. | The one action that repairs it: **Sign in again**, **Enter the password**, **Choose the folder** or **Start again**. |
 | **Paused** | You paused it. Its agents keep their accesses, and none of its tools runs. | **Resume**. |
-| **Blocked by your organisation** | Your organisation's policy forbids it, or an administrator must approve it first. | **See the rule**. |
+| **Blocked by your organisation** | Your organisation's policy forbids it, or an administrator must approve it first. | **See the rule**, or, when an administrator must approve it, the approval address and the request to copy, and **Retry**. |
 | **Not checked yet** | Nothing has tried it since it was added. | **Check**. |
 
 A state found by a check, a use or a sign-in says when it was found, such as *checked 5 min ago*. **Paused** and **Not checked yet** carry no time. A state changes on screen as soon as Apollia finds it, without reloading the page.

@@ -13,9 +13,11 @@ import type { Connection } from "$lib/types";
 /**
  * What repairs a connection: sign in again (a native account, or a remote
  * service that asks for it), enter the password again (a mailbox), choose the folder
- * again (a folder), see the rule that blocks it, or start a service again.
+ * again (a folder), see the rule that blocks it, start a service again, or
+ * send the administrator's approval and connect again (an organisation that
+ * requires it).
  */
-export type RepairKind = "sign_in" | "password" | "folder" | "rule" | "restart";
+export type RepairKind = "sign_in" | "password" | "folder" | "rule" | "restart" | "admin_approval";
 
 /** The one action that repairs a connection, and the key of its word. */
 export interface RepairAction {
@@ -29,6 +31,7 @@ const REPAIR_LABEL: Record<RepairKind, string> = {
   folder: "connections.card.repair.folder",
   rule: "connections.card.repair.rule",
   restart: "connections.card.repair.restart",
+  admin_approval: "common.retry",
 };
 
 function action(kind: RepairKind): RepairAction {
@@ -42,6 +45,11 @@ function action(kind: RepairKind): RepairAction {
 export function repairAction(
   connection: Pick<Connection, "kind" | "status" | "reason" | "remote">,
 ): RepairAction | null {
+  // An organisation that requires its administrator's approval is not a
+  // rule of Apollia: what repairs it is the approval page kept with it.
+  if (connection.kind === "native" && connection.reason?.key === "admin_approval_required" && connection.reason.address) {
+    return action("admin_approval");
+  }
   if (connection.status === "blocked") return action("rule");
   if (connection.status !== "needs_repair") return null;
   switch (connection.reason?.key) {
