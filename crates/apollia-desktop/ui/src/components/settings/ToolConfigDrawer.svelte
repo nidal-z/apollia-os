@@ -242,6 +242,7 @@
               value="auto"
               checked={webSearch.backend === "auto"}
               onchange={(v) => (webSearch.backend = v as WebSearchBackend)}
+              data-testid="web-search-backend-auto"
             >
               {$t("settings.tool_config.web_search.backend_auto")}
             </RadioItem>
@@ -249,6 +250,7 @@
               value="duckduckgo"
               checked={webSearch.backend === "duckduckgo"}
               onchange={(v) => (webSearch.backend = v as WebSearchBackend)}
+              data-testid="web-search-backend-duckduckgo"
             >
               {$t("settings.tool_config.web_search.backend_ddg_only")}
             </RadioItem>
@@ -256,6 +258,7 @@
               value="brave"
               checked={webSearch.backend === "brave"}
               onchange={(v) => (webSearch.backend = v as WebSearchBackend)}
+              data-testid="web-search-backend-brave"
             >
               {$t("settings.tool_config.web_search.backend_brave_only")}
             </RadioItem>

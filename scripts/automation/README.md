@@ -220,7 +220,7 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   (the walk with developer mode off and on, empty/error states, dialogs opened
   then cancelled, mutating controls driven to the boundary). `master-det.json`
   runs the 18 books of `regen_master.py`'s `ORDER` in one boot and is the
-  release gate (4961 steps); `just automation-verdict` reads its report.
+  release gate (5349 steps); `just automation-verdict` reads its report.
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`,
   and four books written against the coverage report below, none of them in
   `regen_master.py`'s `ORDER` yet because none has been through a runtime round:

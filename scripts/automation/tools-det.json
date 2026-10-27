@@ -6,7 +6,8 @@
     "tools-filter is a bind:value on the toolbar Input (BuiltinToolsCatalog.svelte): the query feeds rowMatches, a query matching only web_search hides the other cards, a no-match query swaps tools-list for the no_results EmptyState, and an empty query restores everything. Component state, nothing persisted, no dirty flag.",
     "brave-api-key-delete: remove() (CredentialField.svelte:94-105) calls deleteCredential, which drops the key from the store (toolGovernance.ts:103-115). ToolConfigDrawer receives `tool` as a snapshot prop (BuiltinToolsCatalog.svelte drawerTool, ToolConfigDrawer braveConfigured), so the row keeps reading configured after the delete; the edit/save path right after re-creates the same key, and the credential inventory asserted later (credential-row-web_search-brave.api_key) is what proves the round trip. Net state after the block: key present, value brave-automation-key-not-real, as before.",
     "brave-api-key-test is played through a stubbed IPC: runTest -> testCredential -> governance_test_credential (CredentialField.svelte:107-121, toolGovernance.ts:118-125) performs a real Brave search with the stored key (commands/tool_governance.rs:490-520), which offline returns ok:false only after the HTTP timeout. The block stubs the command twice, once each: a reject with a raw string lands in the catch of runTest and renders the CredentialErrorNotice under brave-api-key-test-result (its raw detail sits behind a collapsed Disclosure and its friendly text is localized, so that path is asserted by presence, which nothing rendered before the click); then a resolve shaped like CredentialTestResultDto (commands/tool_governance.rs, ok:true latency_ms:12) renders the success line, asserted by the locale-invariant fragment '(12 ms)' of settings.credential.test_valid_ms. The command is cleared afterwards; nothing is written, the seeded credential is untouched, and the delete/re-create round trip that follows runs as before.",
-    "The built-in tools live on the Connections screen, under the entry connections-builtin-tools. The contract of a tool shows with the developer mode on only: the off half asserts tool-inspect-web_search and tool-id-web_search absent, the contract block runs in the on half. A sheet replaces the list on the whole page and the route keeps its selection while the settings open over it (Connections.svelte:492-531, `selection` is state of the route and the settings are a layer above it), so every return to the list, to open the built-in tools again or a server row, goes through connections-back first."
+    "The built-in tools live on the Connections screen, under the entry connections-builtin-tools. The contract of a tool shows with the developer mode on only: the off half asserts tool-inspect-web_search and tool-id-web_search absent, the contract block runs in the on half. A sheet replaces the list on the whole page and the route keeps its selection while the settings open over it (Connections.svelte:492-531, `selection` is state of the route and the settings are a layer above it), so every return to the list, to open the built-in tools again or a server row, goes through connections-back first.",
+    "web-search-backend-duckduckgo and web-search-backend-auto sit on the label of each RadioItem (ToolConfigDrawer.svelte), whose click reaches the radio button that carries onclick; the group itself (web-search-backend-group, a div role=radiogroup) has no handler. The book picks DuckDuckGo, then Brave, before the unsaved screenshot and puts back auto, the default the seed leaves (toolCatalog.ts WEB_SEARCH_DEFAULT_CONFIG), before the drawer is saved, so the stored backend does not change."
   ],
   "dynamicTestids": [
     "credential-row-web_search-brave.api_key",
@@ -413,7 +414,12 @@
     },
     {
       "kind": "click",
-      "testid": "web-search-backend-group",
+      "testid": "web-search-backend-duckduckgo",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "web-search-backend-brave",
       "timeoutMs": 3000
     },
     {
@@ -423,6 +429,11 @@
     {
       "kind": "screenshot",
       "label": "10-tool-config-edited-unsaved"
+    },
+    {
+      "kind": "click",
+      "testid": "web-search-backend-auto",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
