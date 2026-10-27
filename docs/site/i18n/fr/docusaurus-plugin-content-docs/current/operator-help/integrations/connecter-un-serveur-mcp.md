@@ -6,70 +6,71 @@ sidebar_position: 5
 
 # Connecter un serveur MCP depuis le catalogue
 
-> Pour tout operator qui veut activer un serveur MCP du catalogue (Notion, Linear, Atlassian, Stripe, Heure, etc.) en quelques clics.
+> Pour tout opérateur qui veut ajouter un service du catalogue (Notion, Linear, Atlassian, Stripe, Heure, etc.) en quelques clics, et choisir quels agents peuvent s'en servir.
 
 ## Prérequis
 
 - Apollia lancé, page **Connexions** accessible.
-- Vous savez quel service vous voulez brancher. Le catalogue s'ouvre sur la sélection qu'Apollia fournit, listée dans la [Vue d'ensemble des intégrations](vue-d-ensemble-integrations.md) ; le registre MCP public est à un clic de plus.
-- Pour les services authentifiés, vos identifiants (clé API ou compte OAuth chez le fournisseur).
+- Vous savez quel service vous voulez brancher. La sélection proposée par Apollia est listée dans la [Vue d'ensemble des intégrations](vue-d-ensemble-integrations.md) ; le catalogue public est à un clic de plus.
+- Pour les services qui en demandent, votre clé ou votre compte chez le fournisseur.
 
-## Étapes
+## Trouver le service
 
-1. Dans la barre latérale, ouvrez **Connexions**, puis cliquez sur **Ajouter une connexion** en haut de la page. Une feuille s'ouvre sur son onglet **Catalogue des connexions**.
+1. Dans la barre latérale, ouvrez **Connexions**, puis cliquez sur **Ajouter une connexion**. Une fenêtre s'ouvre sur une seule recherche.
+2. Tapez le nom du service. Les réponses viennent en quatre groupes :
+   - **Proposés par Apollia** : les comptes Microsoft 365 et Google Workspace, puis les services sélectionnés par Apollia, chacun marqué **Officiel** ou **Communauté**.
+   - **Sur cet ordinateur** : un dossier, une boîte mail.
+   - **Catalogue public** : interrogé seulement quand vous cliquez sur **Explorer tout**. Tout le monde peut y publier et Apollia n'a pas vérifié ses entrées, donc chacune est marquée **Non vérifié**.
+   - **Brancher un service par son adresse** : toujours en dernier, pour un service que vous joignez par son adresse. Voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
+3. Cliquez sur le service. Sa carte dit **Ce qu'elle demande** : une connexion à votre compte dans votre navigateur, une clé, quelques réglages, un téléchargement sur cet ordinateur, ou que le service est joint par internet. Cliquez sur **Ajouter**. Un service déjà ajouté propose plutôt **Ouvrir sa page**.
 
-   ![La feuille qui ajoute une connexion, ouverte sur son onglet catalogue avec sa liste d'entrées](/img/operator-help/integration-connecter-un-serveur-mcp-1.png)
+## L'ajouter en trois étapes
 
-2. Cherchez l'entrée souhaitée, ou filtrez la liste avec **Officiels** et **Communauté**, puis cliquez dessus. Si elle n'est pas dans la sélection, cliquez sur **Explorer tout** pour charger le catalogue public. Une fenêtre s'ouvre : deux gestes vous reviennent, choisir l'entrée et accepter un avertissement, et le reste se fait tout seul.
+Les étapes s'affichent en haut de la fenêtre : **Brancher**, **Qui peut s'en servir**, **Essai**. **Annuler** avant la fin de la première étape vous ramène à la recherche, et rien n'est ajouté.
 
-### L'avertissement
+### Brancher
 
-La fenêtre s'ouvre sur **Avant d'ajouter cette connexion** : vos agents pourront utiliser ce que propose le service, une action qui envoie, modifie ou supprime quelque chose vous demande d'abord votre accord, ce qu'ils lisent ou envoient passe par le service selon ses propres conditions, et vous pouvez retirer la connexion à tout moment. Il n'y a rien à cocher. Cliquez sur **Ajouter** ; votre accord est inscrit au **Journal**.
+Pour un service du catalogue, sa carte montrait déjà **Avant d'ajouter cette connexion**, au-dessus de **Ajouter** : vos agents pourront utiliser ce que propose le service, une action qui envoie, modifie ou supprime quelque chose vous demande d'abord votre accord, ce qu'ils lisent ou envoient passe par le service selon ses propres conditions, et vous pouvez retirer la connexion à tout moment. Cliquer sur **Ajouter** a donné votre accord, et il est inscrit au **Journal**.
 
-À l'écran : l'avertissement, avec les boutons Annuler et Ajouter.
+Apollia ne demande ensuite que ce dont le service a besoin :
 
-### L'authentification, seulement quand la connexion en a besoin
+- **Rien** : le service est ajouté tout de suite.
+- **Une clé** : collez-la dans le champ. Elle est rangée dans le coffre de secrets de cet ordinateur, jamais dans les réglages de la connexion.
+- **Une connexion à un compte** : cliquez sur le bouton de connexion, votre navigateur ouvre la page de consentement du fournisseur, autorisez, et le retour est automatique. Quand le service publie ses permissions, **Ce que la connexion accordera** les liste avant que vous vous connectiez. Choisir celles à accorder est réservé au mode développeur.
 
-Apollia détecte ce que la connexion exige. Trois cas possibles :
+Un composant dont le service a besoin est d'abord téléchargé si nécessaire, et son intégrité est vérifiée avant son installation.
 
-- **Aucune authentification** : cette étape n'apparaît pas, la connexion est ajoutée directement.
-- **Clé API ou jeton statique** : un champ apparaît pour chaque valeur, masqué quand c'est un secret. Collez votre clé, puis cliquez sur **Ajouter**.
-- **OAuth** : un bouton **Se connecter à [Provider]** apparaît, avec les **Permissions demandées** quand le serveur les publie ; décochez celles que vous ne voulez pas accorder. Cliquez sur le bouton, votre navigateur ouvre la page de consentement, autorisez, le retour est automatique. Cliquez ensuite sur **Ajouter**.
+### Qui peut s'en servir
 
-À l'écran : l'étape d'authentification dans le cas OAuth, avec le bouton Se connecter à [Provider] et la liste des permissions demandées au-dessus.
+**Quels agents peuvent se servir de cette connexion ?** **Apollia, dans le Chat** vient en premier et coché ; les autres agents de cet ordinateur sont listés, à cocher. Les agents cochés reçoivent tous les outils de la connexion. Un outil qui écrit, envoie ou exécute du code, et un outil que personne n'a classé, demandent toujours votre accord avant de s'exécuter. Cliquez sur **Continuer**.
 
-### L'essai, tout seul
+Vous pourrez le changer ensuite, sur la fiche de la connexion avec **Donner à un agent**, ou sur la fiche de chaque agent.
 
-Il n'y a pas de bouton de test à cliquer. Une fois ajoutée, la connexion est essayée aussitôt, et un composant dont elle a besoin est d'abord téléchargé si nécessaire. La fenêtre affiche le résultat :
+### Essai
 
-- **Connexion ajoutée et fonctionnelle**, en vert, avec le nombre d'outils disponibles.
-- **La connexion est ajoutée, mais son essai a échoué**, en rouge, avec un message précis (clé invalide, adresse injoignable, etc.). La connexion reste ajoutée : cliquez sur **Réessayer** pour l'essayer de nouveau, ou sur **Retirer** pour l'enlever.
+Apollia essaie la connexion aussitôt et montre le résultat :
 
-Un refus dit qui a refusé : la politique de votre organisation, par exemple.
+- **Connexion ajoutée et fonctionnelle**, avec le nombre d'outils disponibles.
+- **La connexion est ajoutée, mais son essai a échoué**, avec un message clair. La connexion reste ajoutée : **Réessayer** essaie à nouveau, **Retirer** l'enlève.
 
-À l'écran : le résultat de l'essai, en vert, avec le nombre d'outils disponibles.
+Un refus dit qui a refusé, la politique de votre organisation par exemple.
 
-### Des exemples à essayer
-
-Sous le résultat, **Que pouvez-vous faire maintenant ?** affiche quelques cartes d'exemples, chacune avec un bouton **Essayer** qui ouvre une conversation avec Apollia limitée aux outils de cette connexion. Cliquez sur **Fermer** pour quitter la fenêtre.
-
-À l'écran : les cartes d'exemples, portant chacune un bouton Essayer, et le bouton Fermer.
+Sous le résultat, **Que pouvez-vous faire maintenant ?** propose quelques exemples, chacun avec un bouton **Essayer** qui ouvre une conversation avec Apollia limitée aux outils de cette connexion.
 
 ## Vérification
 
-- La connexion apparaît dans la liste de **Connexions** avec un badge **actif**.
-- Sa fiche liste, dans l'onglet **Outils**, les outils déclarés par le serveur, avec leur description.
-- Cliquez sur **Essayer** sur l'une des cartes d'exemples. L'outil correspondant est appelé.
+- La connexion figure dans la liste **Connexions**. Son état indique **Fonctionne**, ou **Pas encore vérifiée** jusqu'à son premier usage ou sa première vérification.
+- Sa fiche liste les outils du service, chacun avec sa famille, et sous **Agents qui s'en servent**, les agents que vous avez cochés.
+- Cliquez sur **Essayer** sur la fiche et demandez quelque chose que le service sait faire. L'outil correspondant est appelé.
 
-> **Note - chargement différé :** par défaut, `[mcp] tool_loading = "deferred"`. Les schémas d'outils du serveur ne sont pas tous placés devant le modèle au démarrage : quand les outils accordés à un agent sont au plus `tool_search_limit`, ils sont tous déclarés, au-dessus l'agent appelle `tool_search` pour trouver ce qu'il lui faut. Le nombre d'outils affiché dans l'UI reste complet dans les deux cas. Voir [Configurer le chargement différé des outils MCP](configure-deferred-mcp-loading.md).
+> **Note :** un service démarre à sa première utilisation et s'arrête après un temps sans usage. Ses outils restent listés entre les deux. Voir [Configurer le chargement différé des outils MCP](configure-deferred-mcp-loading.md).
 
-## Si ça ne marche pas
+## En cas de problème
 
-- **L'essai échoue avec « Authentification refusée »** : votre clé ou token est invalide ou révoqué. Cliquez sur **Retirer**, puis ajoutez de nouveau la connexion en collant la valeur sans espaces parasites.
-- **L'essai échoue avec « Service introuvable »** : le serveur n'est pas joignable. Vérifiez votre connexion ou le statut du fournisseur, puis cliquez sur **Réessayer**.
-- **Le serveur ajouté n'expose aucun outil** : le serveur démarre mais ne déclare rien. Voir [Tester une connexion MCP](test-an-mcp-connection.md) pour relancer le test, puis vérifier les logs côté fournisseur.
-- **Vous voulez brancher un serveur qui n'est pas dans le catalogue** : voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
-- **L'agent ne trouve pas l'outil en mode deferred** : `tool_search` ne cherche que parmi les outils accordés à l'agent. Accordez l'outil sur la fiche de l'agent, comme le décrit la ligne suivante.
-- **L'agent dit qu'il n'a pas accès à l'outil** : une connexion ajoutée ici n'est pas accordée à tous les agents. Ouvrez la fiche de l'agent, cliquez sur **Ajuster**, et sous **Accès** utilisez **Accorder une connexion**. Voir [Comprendre la portée d'une intégration](understand-integration-scope.md).
+- **L'essai échoue avec « Authentification refusée »** : la clé est invalide ou révoquée. Cliquez sur **Retirer**, puis ajoutez le service à nouveau et collez la clé sans espace parasite.
+- **L'essai échoue avec « Service introuvable »** : le service a répondu que rien ne se trouve à l'adresse donnée. Vérifiez l'adresse ou le nom du service.
+- **Le service n'expose aucun outil** : il démarre mais ne déclare rien. Lancez [une vérification](test-an-mcp-connection.md), puis regardez les journaux côté fournisseur.
+- **Le service voulu n'est pas dans le catalogue** : voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
+- **Un agent dit qu'il n'a pas accès à l'outil** : il n'a pas été coché sous **Qui peut s'en servir**. Sur la fiche de la connexion, cliquez sur **Donner à un agent**. Voir [Comprendre la portée d'une intégration](understand-integration-scope.md).
 
-> **Référence technique :** [Référence Apollia](/reference) , protocole MCP, transports, trust levels, gouvernance.
+> **Référence technique :** [Référence Apollia](/reference) , protocole MCP, transports, niveaux de confiance, gouvernance.

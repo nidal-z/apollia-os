@@ -6,7 +6,7 @@ sidebar_position: 3
 
 # Connecter Google Workspace
 
-> Pour tout operator qui veut brancher Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms ou Tasks à Apollia.
+> Pour tout opérateur qui veut brancher Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms ou Tasks à Apollia.
 
 Un compte `@gmail.com` personnel convient. Rien ici n'exige un abonnement Workspace, un domaine d'entreprise ou un administrateur.
 
@@ -43,7 +43,7 @@ Si vous voulez chaque écran de la console nommé clic par clic, suivez [Créer 
 <!-- claim:oauth-google-client-json-import -->
 **Dans Apollia.**
 
-1. Ouvrez **Connexions**, cliquez sur **Ajouter une connexion**, et choisissez **Google Workspace** dans le catalogue. Sa fiche s'ouvre sur l'onglet **Comptes**, qui porte la section **Client Google**.
+1. Activez le mode développeur, dans **Réglages**, section **Développeur** : le client ne se saisit que là. Ouvrez ensuite **Connexions**, cliquez sur **Ajouter une connexion**, choisissez **Google Workspace** sous **Proposés par Apollia**, cliquez sur **Ajouter**, puis sur **Se connecter**. Sans client, Apollia s'arrête sur **Identifiant OAuth manquant** ; cliquez sur **Saisir le client OAuth**. La fiche Google Workspace s'ouvre sur sa section **Client Google**.
 2. Cliquez sur **Importer le JSON du client** et choisissez le fichier que vous venez de télécharger. L'identifiant client et le secret client en sont lus. L'identifiant client est rangé dans un fichier de configuration de votre poste ; le secret client est rangé dans le trousseau du système, jamais dans un fichier.
 3. Cliquez sur **Tester le client**. La réponse attendue est **La configuration semble valide.**
 
@@ -58,17 +58,19 @@ Si l'une des deux moitiés manque, Apollia refuse la connexion avant d'ouvrir vo
 
 ## Étapes
 
-1. Dans la barre latérale, ouvrez **Connexions**, puis ouvrez la fiche **Google Workspace** : depuis la liste, ou depuis **Ajouter une connexion** si elle n'y figure pas encore.
+1. Dans la barre latérale, ouvrez **Connexions**, cliquez sur **Ajouter une connexion**, et choisissez **Google Workspace** sous **Proposés par Apollia**. Cliquez sur **Ajouter**.
 
-2. Cliquez sur **Connecter un compte**. Une fenêtre s'ouvre dans Apollia et votre navigateur ouvre automatiquement la page de consentement Google.
+2. À l'étape **Brancher**, cliquez sur **Se connecter**. Une fenêtre s'ouvre dans Apollia et votre navigateur ouvre automatiquement la page de consentement Google.
 
 3. Choisissez le compte Google à utiliser, puis acceptez les autorisations proposées (Mail, Calendar, Drive Workspace, etc.).
 
 4. De retour dans Apollia, la fenêtre détecte automatiquement le retour. Une seconde étape vous propose le dossier racine Drive de l'agent (défaut **Apollia**). Validez en cliquant **Enregistrer** (ou **Garder le défaut** pour garder la valeur proposée).
 
-5. La fenêtre confirme que Google Workspace est ajouté, avec **Essayer** et **Terminé**. Votre compte apparaît sous l'onglet **Comptes** de la fiche.
+5. À **Qui peut s'en servir**, cochez les agents qui peuvent se servir du compte ; **Apollia, dans le Chat** vient coché. Cliquez sur **Continuer**.
 
-   À l'écran : l'onglet Comptes de la fiche Google Workspace, affichant le compte connecté et son bouton Déconnecter.
+6. **Essai** confirme que Google Workspace est ajouté, avec **Essayer** et **Terminé**. Le compte apparaît dans la liste **Connexions**, sur sa propre ligne, avec son adresse.
+
+   À l'écran : la fiche du compte Google dans Connexions, avec son état, ses agents et son dossier Drive.
 
 ## Ce que vous pouvez faire
 
@@ -92,19 +94,19 @@ L'agent peut donc sauvegarder une note `meeting-notes.md` dans son workspace, la
 
 ## Multi-comptes
 
-Vous pouvez connecter plusieurs comptes Google, et chacun apparaît sous l'onglet **Comptes** avec son adresse email. Chaque compte connecté est une connexion à part entière. Ses outils s'accordent à un agent compte par compte, sur la fiche de l'agent, et un appel s'exécute au nom du compte accordé et d'aucun autre.
+Vous pouvez connecter plusieurs comptes Google : sur la fiche d'un compte, **Ajouter un autre compte** connecte le suivant, et chacun a sa propre ligne dans la liste avec son adresse email. Chaque compte connecté est une connexion à part entière. Ses outils se donnent à un agent compte par compte, sur la fiche du compte avec **Donner à un agent** ou sur la fiche de l'agent, et un appel s'exécute au nom du compte donné et d'aucun autre.
 
 ## Vérification
 
-- L'onglet **Comptes** liste le compte, et l'en-tête de la fiche affiche **1 actif(s)**.
+- Le compte a sa ligne dans **Connexions**, et sa fiche indique **Fonctionne** une fois vérifiée ou utilisée.
 - Sur la fiche, cliquez sur **Essayer** et demandez par exemple *« Liste mes 3 derniers événements Calendar »*. Apollia répond avec les outils de cette connexion, et demande votre accord avant de lire le compte.
 - Tentez ensuite *« Envoie un mail à <votre adresse> avec le sujet test »*. Une demande d'accord s'affiche avant l'envoi.
 - Le trousseau de votre système (Keychain sur macOS) contient une entrée `apollia-connector-google` associée à votre adresse email.
 
 ## Si ça ne marche pas
 
-- **La fiche Google Workspace affiche « Configuration requise »** : aucun client OAuth n'est encore configuré. Cliquez sur **Configurer les identifiants** et suivez la section en haut de cette page.
-- **Apollia signale un secret client manquant** : l'identifiant client a été enregistré, mais pas son secret. Réimportez le fichier JSON de la console Google Cloud, qui porte les deux, ou collez le secret dans le champ **Secret client** de la section **Client Google**, sur la fiche Google Workspace.
+- **La fiche Google Workspace affiche « Configuration requise avant de connecter »** : aucun client OAuth n'est encore configuré. Activez le mode développeur et suivez la section en haut de cette page.
+- **Apollia signale un secret client manquant** : l'identifiant client a été enregistré, mais pas son secret. Réimportez le fichier JSON de la console Google Cloud, qui porte les deux, ou collez le secret dans le champ **Secret client** de la section **Client Google**, visible avec le mode développeur activé, dans le **Détail technique** de la fiche du compte ou sur la fiche Google Workspace.
 - **L'écran de consentement Google affiche "Cette app n'est pas vérifiée"** : c'est normal, l'application est la vôtre et reste en statut Testing. Cliquez sur **Avancé** puis **Accéder à Apollia** pour continuer.
 - **La connexion s'arrête sur « Refusé par la politique de l'organisation »** : la politique de votre organisation interdit les connexions à des services en ligne sur ce poste, et rien n'a été envoyé à Google. Seule la personne qui gère cette politique peut accorder une exception ; rien dans Apollia ne la lève.
 - **Vous voulez la lecture complète Gmail ou Drive** : ces scopes sont restricted (audit Google CASA). Aucun outil Apollia ne les exploite encore, voir « À propos des scopes restricted » ci-dessous.
@@ -119,8 +121,8 @@ Votre écran de consentement OAuth peut proposer les scopes *restricted* (`gmail
 
 **Alternative.** Si Google Cloud Console vous semble lourd, un serveur MCP Gmail communautaire (cherchez `mcp-server-gmail`) tourne localement avec vos credentials et expose les outils Gmail via MCP. Voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
 
-## Déconnecter un compte
+## Retirer un compte
 
-Sur la fiche Google Workspace, sous l'onglet **Comptes**, cliquez sur **Déconnecter** à côté du compte concerné et confirmez. Le token est supprimé du coffre de secrets local. Pour révoquer également côté Google, allez sur https://myaccount.google.com/permissions et retirez l'application Apollia.
+Sur la fiche du compte, cliquez sur **Retirer** : la fiche liste ce qui part avec lui, puis **Retirer la connexion** confirme. Le token est supprimé du coffre de secrets local. Voir [Mettre en pause ou retirer une connexion](pause-or-remove-a-connection.md). Pour révoquer également côté Google, allez sur https://myaccount.google.com/permissions et retirez l'application Apollia.
 
 > **Référence technique :** [Référence Apollia](/reference) , scopes complets, refresh proactif, multi-comptes, stockage trousseau.

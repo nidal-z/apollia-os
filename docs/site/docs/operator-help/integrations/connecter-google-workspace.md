@@ -43,7 +43,7 @@ If you want each console screen named click by click, follow [Set up a Google OA
 <!-- claim:oauth-google-client-json-import -->
 **In Apollia.**
 
-1. Open **Connections**, click **Add a connection**, and choose **Google Workspace** in the catalogue. Its page opens on the **Accounts** tab, which carries the **Google client** section.
+1. Turn on developer mode, in **Settings**, section **Developer**: the client is entered there only. Then open **Connections**, click **Add a connection**, choose **Google Workspace** under **Offered by Apollia**, click **Add**, then **Sign in**. With no client yet, Apollia stops on **Missing OAuth client ID**; click **Enter the OAuth client**. The Google Workspace card opens on its **Google client** section.
 2. Click **Import the client JSON** and pick the file you just downloaded. The client ID and the client secret are read from it. The client ID is kept in a configuration file of your computer; the client secret is kept in the system keychain, never in a file.
 3. Click **Test the client**. It should answer **Configuration looks valid.**
 
@@ -58,17 +58,19 @@ If either half is missing, Apollia refuses the connection before opening your br
 
 ## Steps
 
-1. In the sidebar, open **Connections**, then open the **Google Workspace** page: from the list, or from **Add a connection** when it is not listed yet.
+1. In the sidebar, open **Connections**, click **Add a connection**, and choose **Google Workspace** under **Offered by Apollia**. Click **Add**.
 
-2. Click **Connect an account**. A window opens inside Apollia and your browser automatically opens the Google consent page.
+2. On the **Connect** step, click **Sign in**. A window opens inside Apollia and your browser automatically opens the Google consent page.
 
 3. Pick the Google account to use, then accept the permissions offered (Mail, Calendar, Drive Workspace, and so on).
 
 4. Back in Apollia, the window detects the return automatically. A second step offers you the agent Drive root folder (default **Apollia**). Confirm by clicking **Save** (or **Keep the default** to keep the value offered).
 
-5. The window confirms that Google Workspace is added, with **Try** and **Done**. Your account appears under the **Accounts** tab of the page.
+5. On **Who can use it**, check the agents that may use the account; **Apollia, in the Chat** comes checked. Click **Continue**.
 
-   On screen: the Accounts tab of the Google Workspace page, showing the connected account and its Disconnect button.
+6. **Try it** confirms that Google Workspace is added, with **Try** and **Done**. The account appears in the **Connections** list, on a line of its own, with its address.
+
+   On screen: the card of the Google account in Connections, with its state, its agents and its Drive folder.
 
 ## What you can do
 
@@ -92,19 +94,19 @@ So the agent can save a `meeting-notes.md` note in its workspace, read it back l
 
 ## Multiple accounts
 
-You can connect several Google accounts, and each appears under the **Accounts** tab with its email address. Each connected account is a connection of its own. Its tools are granted to an agent account by account, on the agent's sheet, and a call runs as the account that was granted and as no other.
+You can connect several Google accounts: on the card of an account, **Add another account** connects the next one, and each has its own line of the list with its email address. Each connected account is a connection of its own. Its tools are given to an agent account by account, on the card of the account with **Give to an agent** or on the agent's sheet, and a call runs as the account that was given and as no other.
 
 ## Verification
 
-- The **Accounts** tab lists the account, and the page header reads **1 active**.
-- On the page, click **Try** and ask for example *"List my last 3 Calendar events"*. Apollia answers with the tools of this connection, and asks for your agreement before it reads the account.
+- The account has its line in **Connections**, and its card reads **Working** once checked or used.
+- On the card, click **Try** and ask for example *"List my last 3 Calendar events"*. Apollia answers with the tools of this connection, and asks for your agreement before it reads the account.
 - Then try *"Send a mail to <your address> with the subject test"*. A consent request appears before sending.
 - Your system keychain (Keychain on macOS) holds an `apollia-connector-google` entry tied to your email address.
 
 ## If it does not work
 
-- **The Google Workspace page reads "Setup required"**: no OAuth client is configured yet. Click **Set up credentials** and follow the section at the top of this page.
-- **Apollia says the client secret is missing**: the client ID was saved but not its secret. Re-import the JSON file from the Google Cloud console, which carries both, or paste the secret into the **Client secret** field of the **Google client** section, on the Google Workspace page.
+- **The Google Workspace card reads "Setup required before connecting"**: no OAuth client is configured yet. Turn on developer mode and follow the section at the top of this page.
+- **Apollia says the client secret is missing**: the client ID was saved but not its secret. Re-import the JSON file from the Google Cloud console, which carries both, or paste the secret into the **Client secret** field of the **Google client** section, shown with developer mode on, in the **Technical detail** of the account's card or on the Google Workspace card.
 - **The Google consent screen shows "This app is not verified"**: expected, since the application is yours and sits in Testing status. Click **Advanced** then **Go to Apollia** to continue.
 - **Connecting stops with "Refused by your organisation's policy"**: your organisation's policy denies connections to online services on this computer, and nothing was sent to Google. Only the person who manages that policy can grant an exception; nothing in Apollia lifts it.
 - **You want full Gmail or Drive read access**: those scopes are restricted (Google CASA audit). No Apollia tool uses them yet, see "About the restricted scopes" below.
@@ -119,8 +121,8 @@ Your OAuth consent screen can offer the *restricted* scopes (`gmail.readonly`, `
 
 **Alternative.** If the Google Cloud console feels heavy, a community Gmail MCP server (search for `mcp-server-gmail`) runs locally with your credentials and exposes the Gmail tools through MCP. See [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
 
-## Disconnecting an account
+## Removing an account
 
-On the Google Workspace page, under the **Accounts** tab, click **Disconnect** next to the account concerned and confirm. The token is deleted from the local secret store. To revoke on the Google side too, go to https://myaccount.google.com/permissions and remove the Apollia application.
+On the card of the account, click **Remove**: the card lists what goes with it, then **Remove the connection** confirms. The token is deleted from the local secret store. See [Pause or remove a connection](pause-or-remove-a-connection.md). To revoke on the Google side too, go to https://myaccount.google.com/permissions and remove the Apollia application.
 
 > **Technical reference:** [Apollia reference](/reference) , full scopes, proactive refresh, multiple accounts, keychain storage.

@@ -23,7 +23,13 @@ Every tool exposed by a connector or an MCP belongs to an **action family**, and
 | **Read personal data**, **Write or delete**, **Send outside** | **Your consent is asked**: a card appears, you decide. | Reading a connected account, `gcal.list_events`, `outlook.search`. Writes and deletions, `gcal.create_event`, `gcal.delete_event`. Sends, `gmail.send`, `outlook.send`. |
 | **Run code** | **Consent every time**. | A command or a script the agent wants to run. |
 
-The card carries three answers, **Once**, **Always for this agent** and **Refuse**. There is no scope to pick and nothing to type. **Always for this agent** holds for the agent that asked and for the action family of the tool; you find it, and withdraw it, on the **Permissions** screen. A refusal accepts an optional reason, passed to the agent. For code, the lasting answer is **Always allow this command**: it is offered with developer mode on, for a single simple command, and every other run asks again. A tool its server does not describe is treated as sensitive and asked each time.
+The card carries three answers, **Once**, **Always for this agent** and **Refuse**. There is no scope to pick and nothing to type. **Always for this agent** holds for the agent that asked and for the action family of the tool; you find it, and withdraw it, on the **Permissions** screen. A refusal accepts an optional reason, passed to the agent. For code, the lasting answer is **Always allow this command**: it is offered with developer mode on, for a single simple command, and every other run asks again. A tool its server does not describe is treated as sensitive and asked each time, with no **Always for this agent**.
+
+## Where the family of a tool comes from
+
+- For a service of Apollia's selection, the selection gives each tool its family.
+- For any other service, the family comes from what the server declares about the tool: a tool it declares read-only is a read (a read of personal data behind an account), a tool it declares destructive is a write or delete. This holds whether the agent is shown the tool up front or finds it through `tool_search`, so a read-only tool of such a service runs without asking, or can be answered **Always for this agent** when it reads an account.
+- On the card of such a service, in **Connections**, **Change** next to a tool gives it another family, and **Apply** records it. Your choice prevails over what the server declares, is kept across restarts, and is written in the **Activity log** with the family before and after. A tool of Apollia's selection cannot be changed this way. Removing the service erases the families you chose: a service added again starts from what its server declares.
 
 There is no MCP-specific approvals screen, and there is no queue of MCP requests to go through. A tool exposed by an MCP server goes through the same gate as a native tool, the one the execution loop opens: the card in the conversation while you are there, the **To review** screen for an agent task that is waiting. Everything the rest of this help centre says about approving an action applies to it unchanged.
 
@@ -38,7 +44,7 @@ Open **Permissions** in the sidebar. The screen lists the agents, and for each o
 
 To withdraw several at once, **Revoke all** asks what is withdrawn (the fine rules, the "always" consents or both) and for which scope (every agent or one agent), then shows how many are concerned. It asks for no typed confirmation. Every withdrawal is recorded in the **Activity log**.
 
-There is no approval level per server. In **Connections**, the **Settings** tab of a server holds its launch settings, its timeouts and **Disconnect**, and nothing about approval: a tool is decided by its action family, whichever server it comes from.
+There is no approval level per server. In **Connections**, the card of a service holds its settings, its timeouts, **Pause** and **Remove**, and nothing about approval: a tool is decided by its action family, whichever server it comes from.
 
 An "always" appears on its own, when you answer **Always for this agent** to a consent request. A fine rule can be written by hand from this screen, through **Add a fine rule**, with developer mode on.
 
@@ -49,23 +55,22 @@ is written in the signed policy IT may deploy on the computer, as
 `connections.remote = "deny"`, and the runtime checks it.
 
 - **No policy**: you are free. No connection is refused for being online.
-- **A policy with `connections.remote = "deny"`**: adding a connection to an online service is refused, a Google or Microsoft account or a remote MCP server alike. The dialog says "Refused by your organisation's policy" and nothing is sent.
+- **A policy with `connections.remote = "deny"`**: adding a connection to an online service is refused, a Google or Microsoft account or a remote MCP server alike. The window says that your organisation's policy refuses it, and nothing is sent.
 
-The policy is read when Apollia starts. A connection it forbids is not started: it is listed under **Forbidden by the policy** in **Connections**, and a call to one of its tools is refused. A policy can also forbid a kind of action or a tool by name, and that refusal holds whatever you answered before.
+The policy is read when Apollia starts. A connection it forbids is not started: it reads **Blocked by your organisation** in **Connections**, where **See the rule** on its card opens **Permissions**, and a call to one of its tools is refused. A policy can also forbid a kind of action or a tool by name, and that refusal holds whatever you answered before.
 
 ## What an MCP server can and cannot ask of you
 
 The specification lets a server call back to its client three ways. Apollia
-answers none of them today, and advertises one.
+answers none of them, and advertises none.
 
-- **Roots**, announced but not answered: Apollia advertises the capability during the handshake, and nothing answers a `roots/list` request. No directory is declared, so this is not a filesystem boundary and must not be read as one. What actually bounds a local server is the command and the arguments you gave it.
+- **Roots**, not implemented: a server is told of no directory, so nothing here is a filesystem boundary. What actually bounds a local server is the command and the arguments you gave it.
 - **Sampling**, not implemented: a server cannot ask Apollia to make an LLM call on its behalf.
 - **Elicitation**, not implemented: a server cannot ask you for structured input.
 
-The last two are not advertised during the handshake, so a server discovers
+None of the three is advertised during the handshake, so a server discovers
 their absence at connection time rather than by sending a request that goes
-unanswered. Roots is the one case where the announcement runs ahead of the
-implementation.
+unanswered.
 
 ## Verification
 
@@ -77,6 +82,7 @@ implementation.
 
 - **A tool that only reads asks for your agreement**: it reads a connected account, which is personal data, or its server did not describe it and it is treated as sensitive. Answer **Always for this agent** to stop the question for that agent.
 - **A sensitive tool runs without asking**: you answered **Always for this agent** on its family one day. Open **Permissions** and withdraw it.
-- **A connection stops answering after a policy was deployed**: check whether it is listed under **Forbidden by the policy** in **Connections**. If it is not, look at the server itself, through [Test an MCP connection](test-an-mcp-connection.md).
+- **A connection stops answering after a policy was deployed**: check whether it reads **Blocked by your organisation** in **Connections**. If it does not, look at the connection itself, through [Check a connection and repair it](test-an-mcp-connection.md).
+- **A tool keeps asking although it only reads**: its server does not describe it. If it is a service outside Apollia's selection, give it the family **Read** with **Change** on the card of the connection.
 
 > **Technical reference:** [Apollia reference](/reference) , full governance, audit trail, rule format in `governance.db`.

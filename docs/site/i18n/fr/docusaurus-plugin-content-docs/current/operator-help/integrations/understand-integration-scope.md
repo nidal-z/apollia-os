@@ -6,33 +6,41 @@ sidebar_position: 2
 
 # Comprendre la portée d'une intégration
 
-> Pour tout operator qui se demande pourquoi un agent peut appeler un outil alors qu'un autre ne peut pas, ou comment scoper une intégration à un agent précis.
+> Pour tout opérateur qui se demande pourquoi un agent peut appeler un outil alors qu'un autre ne peut pas, ou comment scoper une intégration à un agent précis.
 
 ## Prérequis
 
 - Au moins une intégration connectée (connecteur natif ou serveur MCP).
 - Au moins un agent installé.
 
-## Les trois filtres qui contrôlent un appel d'outil
+## Les quatre filtres qui contrôlent un appel d'outil
 
-Quand un agent tente d'utiliser un outil, Apollia applique trois filtres :
+Quand un agent tente d'utiliser un outil, Apollia applique quatre filtres :
 
 1. **Les accès de l'agent** listent les outils qui lui sont accordés, par famille d'action. Un outil qui n'en fait pas partie n'est pas accessible à cet agent.
 2. **La règle de sa famille d'action** (voir [Comprendre les permissions MCP](understand-mcp-permissions.md)) décide si l'outil s'exécute sans demander ou demande d'abord votre accord.
 <!-- claim:organisation-policy-gates-connecting-not-calling -->
-3. **La politique de l'organisation**, quand votre organisation en a déployé une, signée. Elle est lue au démarrage d'Apollia et passe avant tout le reste : un type d'action, un outil ou une connexion qu'elle refuse reste refusé, quels que soient les accès et quoi que vous répondiez. Une connexion qu'elle interdit est listée sous **Interdites par la politique** dans **Connexions**. Quand elle interdit les connexions distantes, l'ajout d'une connexion à un service en ligne est refusé dans la fenêtre, avant que le flux OAuth d'un compte Google ou Microsoft ne démarre. Sans politique, rien n'est refusé à cette étape.
+3. **La politique de l'organisation**, quand votre organisation en a déployé une, signée. Elle est lue au démarrage d'Apollia et passe avant tout le reste : un type d'action, un outil ou une connexion qu'elle refuse reste refusé, quels que soient les accès et quoi que vous répondiez. Une connexion qu'elle interdit indique **Bloquée par l'organisation** dans **Connexions**. Quand elle interdit les connexions distantes, l'ajout d'une connexion à un service en ligne est refusé dans la fenêtre, avant que le flux OAuth d'un compte Google ou Microsoft ne démarre. Sans politique, rien n'est refusé à cette étape.
 
-Si l'un des trois refuse, l'outil ne s'exécute pas.
+4. **La pause de la connexion.** Une connexion que vous avez mise en pause garde les accès de ses agents, mais aucun de ses outils ne s'exécute : l'appel est refusé avec la raison que sa connexion est en pause. Voir [Mettre en pause ou retirer une connexion](pause-or-remove-a-connection.md).
+
+Si l'un des quatre refuse, l'outil ne s'exécute pas.
 
 ## Côté agent
 
-Ouvrez **Agents**, puis la fiche d'un agent. Ses sections sont **Mission et exemples**, **Modèle**, **Accès**, **Sources consultées** et **Activité**. **Accès** montre ce que l'agent a le droit de faire :
+Ouvrez **Agents**, puis la fiche d'un agent. Son onglet **Fiche** porte les sections **Mission et exemples**, **Modèle**, **Accès** et **Sources consultées** ; **Activité** est un onglet à part. **Accès** montre ce que l'agent a le droit de faire :
 
 - Les outils accordés à l'agent, regroupés par famille d'action (**Lire**, **Écrire ou supprimer**, **Envoyer vers l'extérieur**, etc.).
 - La règle de chaque famille : **Sans demander**, **Votre accord est demandé** ou **Accord à chaque fois**.
 - Un badge **Distant** sur un accès qui vient d'une connexion distante.
 
 Cette liste se modifie sur la fiche elle-même. Cliquez sur **Ajuster** : chaque accès devient un interrupteur, **Accorder un outil, un agent ou un workflow** en ajoute un, et **Accorder une connexion** accorde les outils d'une connexion, famille par famille. Cliquez sur **Enregistrer** ; chaque changement est noté au **Journal**.
+
+Un agent qui suit l'accès **Par défaut**, celui que reçoit tout nouvel agent, le garde quand vous lui donnez une connexion : ce que vous donnez est marqué **En plus**, et le défaut est toujours relu à chaque exécution. Un accès dont la connexion est en pause est marqué **En pause**.
+
+## Côté connexion
+
+La fiche d'une connexion, dans **Connexions**, répond à l'autre question : quels agents s'en servent. **Agents qui s'en servent** les liste, avec **Par défaut** pour ceux qui la tiennent par l'accès par défaut. **Donner à un agent** donne ses outils à plusieurs agents d'un coup ; les sensibles demandent toujours votre accord. Chaque don est noté au **Journal**, agent par agent. Les agents cochés à l'ajout de la connexion, sous **Qui peut s'en servir**, la reçoivent de la même façon.
 
 ## Côté sources
 
