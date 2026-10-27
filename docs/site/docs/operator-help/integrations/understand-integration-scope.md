@@ -20,7 +20,7 @@ When an agent tries to use a tool, Apollia applies four filters:
 1. **The agent's accesses** list the tools granted to it, by action family. A tool that is not among them is not reachable by that agent.
 2. **The rule of its action family** (see [Understand MCP permissions](understand-mcp-permissions.md)) decides whether the tool runs without asking or asks for your agreement first.
 <!-- claim:organisation-policy-gates-connecting-not-calling -->
-3. **The organisation policy**, when your organisation has deployed a signed one. It is read when Apollia starts and it comes before everything else: a kind of action, a tool or a connection it refuses stays refused, whatever the accesses and whatever you answer. A connection it forbids reads **Blocked by your organisation** in **Connections**, with the reason *forbidden by the policy*. When it denies remote connections, adding a connection to an online service is refused in the dialog, before the OAuth flow of a Google or Microsoft account starts. Without a policy, nothing is refused at this step.
+3. **The organisation policy**, when your organisation has deployed a signed one. It is read when Apollia starts and it comes before everything else: a kind of action, a tool or a connection it refuses stays refused, whatever the accesses and whatever you answer. A connection it forbids reads **Blocked by your organisation** in **Connections**. When it denies remote connections, adding a connection to an online service is refused in the dialog, before the OAuth flow of a Google or Microsoft account starts. Without a policy, nothing is refused at this step.
 
 4. **The pause of the connection.** A connection you paused keeps its agents' accesses, but none of its tools runs: the call is refused with the reason that its connection is paused. See [Pause or remove a connection](pause-or-remove-a-connection.md).
 
@@ -28,7 +28,7 @@ If any of the four refuses, the tool does not run.
 
 ## On the agent side
 
-Open **Agents**, then the sheet of an agent. Its sections are **Mission and examples**, **Model**, **Accesses**, **Sources** and **Activity**. **Accesses** shows what the agent is allowed to do:
+Open **Agents**, then the sheet of an agent. Its **Sheet** tab holds the sections **Mission and examples**, **Model**, **Accesses** and **Sources**; **Activity** is a tab of its own. **Accesses** shows what the agent is allowed to do:
 
 - The tools granted to the agent, grouped by action family (**Read**, **Write or delete**, **Send outside**, and so on).
 - The rule of each family: **Without asking**, **Your consent is asked** or **Consent every time**.

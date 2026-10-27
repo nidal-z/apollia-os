@@ -30,13 +30,13 @@ The steps show at the top of the window: **Connect**, **Who can use it**, **Try 
 
 ### Connect
 
-The window opens on **Before adding this connection**: your agents will be able to use what the service offers, an action that sends, changes or deletes something asks for your agreement first, what they read or send goes through the service under its own terms, and you can remove the connection at any time. Click **Add**; your agreement is recorded in the **Activity log**.
+For a service of the catalogue, its card already showed **Before adding this connection**, above **Add**: your agents will be able to use what the service offers, an action that sends, changes or deletes something asks for your agreement first, what they read or send goes through the service under its own terms, and you can remove the connection at any time. Clicking **Add** gave your agreement, and it is recorded in the **Activity log**.
 
 Then Apollia asks only what the service needs:
 
 - **Nothing**: the service is added straight away.
 - **A key**: paste it in the field. It is kept in the secret store of this computer, never in the settings of the connection.
-- **A sign-in**: click the sign-in button, your browser opens the consent page of the provider, authorize, and the return is automatic. When the service publishes its permissions, the list shows them, and you can untick the ones you do not want to grant.
+- **A sign-in**: click the sign-in button, your browser opens the consent page of the provider, authorize, and the return is automatic. When the service publishes its permissions, **What the sign-in will grant** lists them before you sign in. Choosing which ones to grant is for developer mode only.
 
 A component the service needs is downloaded first when required, and its integrity is checked before it is installed.
 
@@ -68,7 +68,7 @@ Under the result, **What can you do now?** offers a few examples, each with a **
 ## If it does not work
 
 - **The trial fails with "Authentication refused"**: the key is invalid or revoked. Click **Remove**, then add the service again and paste the key without stray spaces.
-- **The trial fails with "Service not found"**: the service cannot be reached. Check your connection or the provider's status, then click **Retry**.
+- **The trial fails with "Service not found"**: the service answered that nothing is at the address it was given. Check the address or the name of the service.
 - **The service exposes no tool**: it starts but declares nothing. Run [a check](test-an-mcp-connection.md), then look at the logs on the provider side.
 - **The service you want is not in the catalogue**: see [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
 - **An agent says it has no access to the tool**: it was not checked under **Who can use it**. On the card of the connection, click **Give to an agent**. See [Understand the scope of an integration](understand-integration-scope.md).

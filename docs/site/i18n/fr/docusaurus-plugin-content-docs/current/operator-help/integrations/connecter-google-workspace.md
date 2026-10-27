@@ -6,7 +6,7 @@ sidebar_position: 3
 
 # Connecter Google Workspace
 
-> Pour tout operator qui veut brancher Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms ou Tasks à Apollia.
+> Pour tout opérateur qui veut brancher Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms ou Tasks à Apollia.
 
 Un compte `@gmail.com` personnel convient. Rien ici n'exige un abonnement Workspace, un domaine d'entreprise ou un administrateur.
 

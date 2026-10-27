@@ -16,8 +16,7 @@ from its card. Google Workspace stays as it was in 0.3.0.
 
 - **One page for every connection.** Accounts, mailboxes, folders and
   services share one list and one card. Each connection says whether it works,
-  since when, why not, and the one action that repairs it; what needs repair
-  comes first.
+  why not, and the one action that repairs it; what needs repair comes first.
 - **One window to add a connection.** A single search answers from Apollia's
   selection, this computer, the public catalogue and a service's address, and
   every addition goes through the same three steps: connect it, choose which
@@ -44,8 +43,10 @@ from its card. Google Workspace stays as it was in 0.3.0.
 - Five states: **Working**, **Needs repair** with its reason in plain words,
   **Paused**, **Blocked by your organisation**, and **Not checked yet** for a
   connection nothing has tried, listed with the others rather than at the top.
-  Each state carries the time it was found, is kept across restarts, and
-  reaches the page as soon as it changes.
+  A state found by a check or a use says when it was found; **Paused**,
+  **Not checked yet** and a block waiting for an administrator's approval
+  carry no time. A state is kept across restarts and reaches the page as soon
+  as it changes.
 - **Check** tries a connection of any kind on request: an account signs in, a
   mailbox opens, a folder is looked for, a service is started and asked for its
   tools.
@@ -56,9 +57,9 @@ from its card. Google Workspace stays as it was in 0.3.0.
   even while the new one is read.
 - **Pause** and **Resume** on every kind of connection. While paused, its
   agents keep their accesses, a call of one of its tools is refused with the
-  reason and written in the Activity log, the agent's sheet marks the access
-  **Paused**, and a service is stopped and never started again, at launch or on
-  request. The pause holds across a restart.
+  reason and, except for a mailbox, written in the Activity log, the agent's
+  sheet marks the access **Paused**, and a service is stopped and never
+  started again, at launch or on request. The pause holds across a restart.
 - **Remove** lists what goes with the connection, its settings, the files
   installed for it, its sign-in, its secrets, the tools each agent held through
   it, and for a folder its source and index, then erases them and names
@@ -69,11 +70,12 @@ from its card. Google Workspace stays as it was in 0.3.0.
   connection is added on top, marked **On top** on its sheet.
 - **Activity over 7 days** on the card, when it was last used and how many
   actions each agent took with it, and **See in the journal**, which opens the
-  Activity log on that connection alone.
+  Activity log on that connection alone. A mailbox shares its tools with every
+  other mailbox, so its activity is not counted on its own.
 - The tools of a service added outside Apollia's selection can be given
   another action family with **Change**. The choice prevails over what the
-  server declares, survives the service being added again, and is written in
-  the Activity log with the family before and after.
+  server declares, is kept across restarts until the service is removed, and
+  is written in the Activity log with the family before and after.
 - The technical detail of a connection, its identifier, origin and raw
   reason, shows in developer mode only.
 
@@ -119,9 +121,10 @@ from its card. Google Workspace stays as it was in 0.3.0.
   browse the drive, choose folders and files, remove a choice. Agents read
   only inside what is chosen, and nothing at all until something is.
 - When a work account's organisation requires an administrator to approve
-  Apollia, the connection reads **Blocked by your organisation**, with the
-  approval address and a request written for the administrator, both ready to
-  copy. The block lifts as soon as an account connects.
+  Apollia, the sign-in window shows the approval address and a request
+  written for the administrator, both ready to copy, and the connection reads
+  **Blocked by your organisation**. The block lifts as soon as an account
+  connects.
 
 #### API
 
@@ -168,7 +171,8 @@ from its card. Google Workspace stays as it was in 0.3.0.
   Microsoft registration, is entered in developer mode, in the technical
   detail of the card.
 - A connection the organisation policy forbids reads **Blocked by your
-  organisation** with its reason, in place of a separate list.
+  organisation**, and **See the rule** on its card opens **Permissions**, in
+  place of a separate list.
 - `confirm()` dialogs on the Connections page are replaced by confirmations
   in the page.
 

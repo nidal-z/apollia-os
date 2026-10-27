@@ -134,9 +134,13 @@ do not commit it to a repository.
 
 ## Step 5. Hand the client to Apollia
 
-1. In Apollia, open **Connections**, click **Add a connection** and choose
-   **Google Workspace**. Its page opens on the **Accounts** tab, which carries
-   the **Google client** section.
+1. In Apollia, turn on developer mode, in **Settings**, section
+   **Developer**: the **Google client** section shows only in developer mode.
+   Then open **Connections**, click **Add a connection**, choose **Google
+   Workspace** under **Offered by Apollia**, click **Add**, then **Sign in**.
+   With no client yet, Apollia stops on **Missing OAuth client ID**; click
+   **Enter the OAuth client**. The Google Workspace card opens on its **Google
+   client** section.
 2. Click **Import the client JSON** and select the file you downloaded. The
    client ID and the client secret are read from it: the client ID is written to
    `~/.apollia/oauth-clients.toml`, the client secret to the system keychain,
@@ -148,7 +152,7 @@ secret** fields of the same section accept them directly. The client ID ends in
 `.apps.googleusercontent.com` and the secret starts with `GOCSPX-`.
 
 You are done in the console. To connect an account, stay on the **Google
-Workspace** page and follow
+Workspace** card and follow
 [Connect Google Workspace](/operator-help/integrations/connect-google-workspace).
 
 ## What Testing status costs you

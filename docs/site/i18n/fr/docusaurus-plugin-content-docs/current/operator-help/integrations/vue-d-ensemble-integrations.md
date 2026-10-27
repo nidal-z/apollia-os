@@ -6,7 +6,7 @@ sidebar_position: 1
 
 # Vue d'ensemble des intégrations
 
-> Pour tout operator qui veut comprendre les deux mécanismes d'extension d'Apollia, connecteurs natifs et serveurs MCP, et savoir par où commencer.
+> Pour tout opérateur qui veut comprendre les deux mécanismes d'extension d'Apollia, connecteurs natifs et serveurs MCP, et savoir par où commencer.
 
 ## Prérequis
 
@@ -26,7 +26,7 @@ Maintenus directement par Apollia pour les services qui n'exposent pas (encore) 
 - Toute écriture demande votre accord avant de s'exécuter.
 - Plusieurs comptes peuvent être connectés. Chacun est une connexion à part entière, accordée à un agent compte par compte.
 
-**Les deux ne coûtent pas la même chose à démarrer.** Bon à savoir avant de cliquer, car la différence n'apparaît qu'une fois sur la page du connecteur :
+**Les deux ne coûtent pas la même chose à démarrer.** Bon à savoir avant de cliquer, car la différence n'apparaît qu'une fois la connexion commencée :
 
 | | Ce qu'il faut pour connecter |
 |---|---|
@@ -37,11 +37,11 @@ Ce n'est pas un oubli côté Google. Google exige un écran de consentement vér
 
 ### Serveurs MCP
 
-Le standard ouvert Model Context Protocol. Processus tiers, locaux (stdio via `npx` ou `uvx`) ou distants (HTTP/SSE), qui exposent des outils consommables par n'importe quel client MCP. **Ajouter une connexion** ouvre une seule fenêtre avec une seule recherche, dont les réponses viennent en quatre groupes : **Proposés par Apollia** (les comptes Google Workspace et Microsoft 365, puis la sélection de services, chaque entrée avec son libellé, sa description et un badge **Officiel** ou **Communauté**), **Sur cet ordinateur** (un dossier, une boîte mail), le **Catalogue public** et **Brancher un service par son adresse**. Le registre MCP public n'est lu que si vous cliquez sur **Explorer tout**, et ses entrées sont marquées **Non vérifié** ; il est paginé au fil du défilement, sa taille est donc celle du registre le jour où vous le consultez.
+Le standard ouvert Model Context Protocol. Processus tiers, locaux (stdio via `npx` ou `uvx`) ou distants (HTTP/SSE), qui exposent des outils consommables par n'importe quel client MCP. **Ajouter une connexion** ouvre une seule fenêtre avec une seule recherche, dont les réponses viennent en quatre groupes : **Proposés par Apollia** (les comptes Google Workspace et Microsoft 365, puis la sélection de services, chaque entrée avec son libellé, sa description et un badge **Officiel** ou **Communauté**), **Sur cet ordinateur** (un dossier, une boîte mail), le **Catalogue public** et **Brancher un service par son adresse**. Le registre MCP public n'est lu que si vous cliquez sur **Explorer tout**, et ses entrées sont marquées **Non vérifié** ; elles s'affichent par lots, et **Afficher N de plus** sous la liste montre les suivantes.
 
 Apollia lit sa sélection dans un index signé, en ligne, à l'ouverture de la fenêtre : une entrée peut ainsi être ajoutée ou corrigée sans nouvelle version d'Apollia. Un index dont la signature ne tient pas est refusé, et la copie déjà gardée sur cet ordinateur, ou la sélection intégrée à Apollia, est montrée à la place. Le réglage `[mcp] catalogue_enabled = false` coupe l'index en ligne. La sélection contient ces entrées :
 
-Notion, Linear, Atlassian (Jira + Confluence), Stripe, Figma (Dev Mode), Sentry, Cloudflare, PostgreSQL, Heure, Récupération web, Mémoire (graphe de connaissances), Recherche Brave.
+Notion, Linear, Atlassian (Jira + Confluence), Stripe, Figma (Dev Mode), Sentry, Cloudflare, PostgreSQL, Heure, Récupération web, Mémoire (graphe de connaissances), Recherche Brave, Navigateur web.
 
 Vous pouvez aussi ajouter votre propre serveur, avec **Brancher un service par son adresse**, toujours en dernier dans la fenêtre. Avec le mode développeur activé, le même formulaire accepte aussi une commande locale. Modifier le catalogue lui-même n'est pas possible depuis l'interface.
 

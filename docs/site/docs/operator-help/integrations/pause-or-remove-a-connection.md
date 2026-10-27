@@ -28,7 +28,7 @@ sidebar_position: 6.5
 
 While it is paused:
 
-- An agent that calls one of its tools is refused, and told that the connection is paused. The refusal is written in the **Activity log**: *An action of the agent was refused: its connection is paused*.
+- An agent that calls one of its tools is refused, and told that the connection is paused. For an account, a folder or a service, the refusal is written in the **Activity log**: *An action of the agent was refused: its connection is paused*. A mailbox refuses the call without a line in the log.
 - The sheet of each agent that holds it marks the access **Paused**.
 - A service is stopped and never started again, neither at the next launch of Apollia nor on request. In the Chat, the **@** picker no longer offers its resources.
 - The pause holds across a restart of Apollia.

@@ -43,7 +43,7 @@ Restart Apollia after changing `tool_loading`: the mode is read once, when Apoll
 
 ## When a server runs
 
-Apollia starts no server when it launches, and its launch waits for none. Each server starts at the first call of one of its tools, and the call waits for it to answer. After a while without a call it stops, and starts again at the next call.
+Apollia's launch waits for no server. At launch, it starts only the servers whose tools it does not know yet, in the background (see below). Every other server starts at the first call of one of its tools, and the call waits for it to answer. After a while without a call it stops, and starts again at the next call.
 
 ```toml
 [mcp]
@@ -61,7 +61,7 @@ A server whose tools Apollia does not know yet is started at launch, in the back
 
 ## Verification
 
-Watch the daemon logs. Each server that starts emits one line carrying a tool count, and the event name tells you which mode ran: `mcp.tools.index.discovered` in `deferred` mode, `mcp.tools.discovered` in `eager` mode. There is no per-tool listing in either mode, and no message naming a server as it loads.
+Watch the daemon logs. Each server that starts emits one line carrying its name and its tool count, and the event name tells you which mode ran: `mcp.tools.index.discovered` in `deferred` mode, `mcp.tools.discovered` in `eager` mode. There is no per-tool listing in either mode.
 
 In `deferred` mode, one more line is written when the assistant's tool list is built: `mcp.deferred.index_advertised` if the whole index fitted inside `tool_search_limit` and was declared up front, `mcp.deferred.index_reachable_through_search_only` if it did not and `tool_search` is the only way in. Both carry the indexed count and the limit, which is what tells you which side of the bound you are on.
 

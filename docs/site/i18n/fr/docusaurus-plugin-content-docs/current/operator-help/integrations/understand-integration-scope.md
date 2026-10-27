@@ -6,7 +6,7 @@ sidebar_position: 2
 
 # Comprendre la portée d'une intégration
 
-> Pour tout operator qui se demande pourquoi un agent peut appeler un outil alors qu'un autre ne peut pas, ou comment scoper une intégration à un agent précis.
+> Pour tout opérateur qui se demande pourquoi un agent peut appeler un outil alors qu'un autre ne peut pas, ou comment scoper une intégration à un agent précis.
 
 ## Prérequis
 
@@ -20,7 +20,7 @@ Quand un agent tente d'utiliser un outil, Apollia applique quatre filtres :
 1. **Les accès de l'agent** listent les outils qui lui sont accordés, par famille d'action. Un outil qui n'en fait pas partie n'est pas accessible à cet agent.
 2. **La règle de sa famille d'action** (voir [Comprendre les permissions MCP](understand-mcp-permissions.md)) décide si l'outil s'exécute sans demander ou demande d'abord votre accord.
 <!-- claim:organisation-policy-gates-connecting-not-calling -->
-3. **La politique de l'organisation**, quand votre organisation en a déployé une, signée. Elle est lue au démarrage d'Apollia et passe avant tout le reste : un type d'action, un outil ou une connexion qu'elle refuse reste refusé, quels que soient les accès et quoi que vous répondiez. Une connexion qu'elle interdit indique **Bloquée par l'organisation** dans **Connexions**, avec la raison *interdite par la politique*. Quand elle interdit les connexions distantes, l'ajout d'une connexion à un service en ligne est refusé dans la fenêtre, avant que le flux OAuth d'un compte Google ou Microsoft ne démarre. Sans politique, rien n'est refusé à cette étape.
+3. **La politique de l'organisation**, quand votre organisation en a déployé une, signée. Elle est lue au démarrage d'Apollia et passe avant tout le reste : un type d'action, un outil ou une connexion qu'elle refuse reste refusé, quels que soient les accès et quoi que vous répondiez. Une connexion qu'elle interdit indique **Bloquée par l'organisation** dans **Connexions**. Quand elle interdit les connexions distantes, l'ajout d'une connexion à un service en ligne est refusé dans la fenêtre, avant que le flux OAuth d'un compte Google ou Microsoft ne démarre. Sans politique, rien n'est refusé à cette étape.
 
 4. **La pause de la connexion.** Une connexion que vous avez mise en pause garde les accès de ses agents, mais aucun de ses outils ne s'exécute : l'appel est refusé avec la raison que sa connexion est en pause. Voir [Mettre en pause ou retirer une connexion](pause-or-remove-a-connection.md).
 
@@ -28,7 +28,7 @@ Si l'un des quatre refuse, l'outil ne s'exécute pas.
 
 ## Côté agent
 
-Ouvrez **Agents**, puis la fiche d'un agent. Ses sections sont **Mission et exemples**, **Modèle**, **Accès**, **Sources consultées** et **Activité**. **Accès** montre ce que l'agent a le droit de faire :
+Ouvrez **Agents**, puis la fiche d'un agent. Son onglet **Fiche** porte les sections **Mission et exemples**, **Modèle**, **Accès** et **Sources consultées** ; **Activité** est un onglet à part. **Accès** montre ce que l'agent a le droit de faire :
 
 - Les outils accordés à l'agent, regroupés par famille d'action (**Lire**, **Écrire ou supprimer**, **Envoyer vers l'extérieur**, etc.).
 - La règle de chaque famille : **Sans demander**, **Votre accord est demandé** ou **Accord à chaque fois**.

@@ -30,13 +30,13 @@ Les étapes s'affichent en haut de la fenêtre : **Brancher**, **Qui peut s'en s
 
 ### Brancher
 
-La fenêtre s'ouvre sur **Avant d'ajouter cette connexion** : vos agents pourront utiliser ce que propose le service, une action qui envoie, modifie ou supprime quelque chose vous demande d'abord votre accord, ce qu'ils lisent ou envoient passe par le service selon ses propres conditions, et vous pouvez retirer la connexion à tout moment. Cliquez sur **Ajouter** ; votre accord est inscrit au **Journal**.
+Pour un service du catalogue, sa carte montrait déjà **Avant d'ajouter cette connexion**, au-dessus de **Ajouter** : vos agents pourront utiliser ce que propose le service, une action qui envoie, modifie ou supprime quelque chose vous demande d'abord votre accord, ce qu'ils lisent ou envoient passe par le service selon ses propres conditions, et vous pouvez retirer la connexion à tout moment. Cliquer sur **Ajouter** a donné votre accord, et il est inscrit au **Journal**.
 
 Apollia ne demande ensuite que ce dont le service a besoin :
 
 - **Rien** : le service est ajouté tout de suite.
 - **Une clé** : collez-la dans le champ. Elle est rangée dans le coffre de secrets de cet ordinateur, jamais dans les réglages de la connexion.
-- **Une connexion à un compte** : cliquez sur le bouton de connexion, votre navigateur ouvre la page de consentement du fournisseur, autorisez, et le retour est automatique. Quand le service publie ses permissions, la liste **Permissions demandées** les montre, et vous pouvez décocher celles que vous ne voulez pas accorder.
+- **Une connexion à un compte** : cliquez sur le bouton de connexion, votre navigateur ouvre la page de consentement du fournisseur, autorisez, et le retour est automatique. Quand le service publie ses permissions, **Ce que la connexion accordera** les liste avant que vous vous connectiez. Choisir celles à accorder est réservé au mode développeur.
 
 Un composant dont le service a besoin est d'abord téléchargé si nécessaire, et son intégrité est vérifiée avant son installation.
 
@@ -68,7 +68,7 @@ Sous le résultat, **Que pouvez-vous faire maintenant ?** propose quelques exemp
 ## En cas de problème
 
 - **L'essai échoue avec « Authentification refusée »** : la clé est invalide ou révoquée. Cliquez sur **Retirer**, puis ajoutez le service à nouveau et collez la clé sans espace parasite.
-- **L'essai échoue avec « Service introuvable »** : le service ne peut pas être joint. Vérifiez votre connexion ou l'état du fournisseur, puis cliquez sur **Réessayer**.
+- **L'essai échoue avec « Service introuvable »** : le service a répondu que rien ne se trouve à l'adresse donnée. Vérifiez l'adresse ou le nom du service.
 - **Le service n'expose aucun outil** : il démarre mais ne déclare rien. Lancez [une vérification](test-an-mcp-connection.md), puis regardez les journaux côté fournisseur.
 - **Le service voulu n'est pas dans le catalogue** : voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
 - **Un agent dit qu'il n'a pas accès à l'outil** : il n'a pas été coché sous **Qui peut s'en servir**. Sur la fiche de la connexion, cliquez sur **Donner à un agent**. Voir [Comprendre la portée d'une intégration](understand-integration-scope.md).

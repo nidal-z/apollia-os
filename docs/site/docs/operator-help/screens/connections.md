@@ -32,7 +32,7 @@ Each line carries the state of its connection:
 | **Blocked by your organisation** | Your organisation's policy forbids it, or an administrator must approve it first. | **See the rule**. |
 | **Not checked yet** | Nothing has tried it since it was added. | **Check**. |
 
-Every state carries the time it was found, such as *checked 5 min ago*. A state changes on screen as soon as Apollia finds it, without reloading the page.
+A state found by a check or a use says when it was found, such as *checked 5 min ago*. **Paused**, **Not checked yet** and a block waiting for an administrator's approval carry no time. A state changes on screen as soon as Apollia finds it, without reloading the page.
 
 ## The card
 
@@ -40,7 +40,7 @@ Every state carries the time it was found, such as *checked 5 min ago*. A state 
 - **Try** opens a conversation with Apollia limited to the tools of this connection.
 - **Pause** and **Resume**, then **Remove**, which lists what goes with the connection before you confirm. See [Pause or remove a connection](/operator-help/integrations/pause-or-remove-a-connection).
 - **Agents that use it** lists the agents that hold its tools, **By default** marking those that hold it through the access every new agent gets. **Give to an agent** gives it to several agents at once.
-- **Activity over 7 days**: when it was last used and how many actions each agent took with it. **See in the journal** opens the **Activity log** on this connection alone.
+- **Activity over 7 days**: when it was last used and how many actions each agent took with it. **See in the journal** opens the **Activity log** on this connection alone. A mailbox shares its tools with every other mailbox, so its activity is not counted on its own.
 - The tools of the connection, each with its family (read, write or delete, send outside, and so on). For a service added from outside Apollia's selection, **Change** lets you give a tool another family.
 - For a service, its settings, such as its arguments, its secrets and its timeouts. How it is launched shows with developer mode on.
 - For a Microsoft account, the OneDrive folders and files Apollia may read. For a Google account, the Drive folder its agents work in. For an account, **Add another account** connects a second one of the same provider.

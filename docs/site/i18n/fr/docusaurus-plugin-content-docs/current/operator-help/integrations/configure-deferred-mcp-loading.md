@@ -6,7 +6,7 @@ sidebar_position: 8
 
 # Configurer le chargement différé des outils MCP
 
-> Pour tout operator qui veut contrôler quand les outils MCP sont chargés en mémoire : au démarrage (eager) ou à la demande de l'agent (deferred).
+> Pour tout opérateur qui veut contrôler quand les outils MCP sont chargés en mémoire : au démarrage (eager) ou à la demande de l'agent (deferred).
 
 ## Prérequis
 
@@ -43,7 +43,7 @@ Redémarrez Apollia après avoir changé `tool_loading` : le mode est lu une foi
 
 ## Quand un serveur tourne
 
-Apollia ne démarre aucun serveur à son lancement, et son lancement n'en attend aucun. Chaque serveur démarre au premier appel de l'un de ses outils, et l'appel attend qu'il réponde. Après un temps sans appel, il s'arrête, et redémarre à l'appel suivant.
+Le lancement d'Apollia n'attend aucun serveur. Au lancement, il ne démarre que les serveurs dont il ne connaît pas encore les outils, en arrière-plan (voir plus bas). Tout autre serveur démarre au premier appel de l'un de ses outils, et l'appel attend qu'il réponde. Après un temps sans appel, il s'arrête, et redémarre à l'appel suivant.
 
 ```toml
 [mcp]
@@ -61,7 +61,7 @@ Un serveur dont Apollia ne connaît pas encore les outils est démarré au lance
 
 ## Vérification
 
-Observez les logs du daemon. Chaque serveur qui démarre émet une ligne portant un compte d'outils, et le nom d'événement dit quel mode a tourné : `mcp.tools.index.discovered` en mode `deferred`, `mcp.tools.discovered` en mode `eager`. Il n'y a de listing outil par outil dans aucun des deux modes, et aucun message ne nomme un serveur pendant son chargement.
+Observez les logs du daemon. Chaque serveur qui démarre émet une ligne portant son nom et son compte d'outils, et le nom d'événement dit quel mode a tourné : `mcp.tools.index.discovered` en mode `deferred`, `mcp.tools.discovered` en mode `eager`. Il n'y a de listing outil par outil dans aucun des deux modes.
 
 En mode `deferred`, une ligne de plus est écrite quand la liste d'outils de l'assistant est construite : `mcp.deferred.index_advertised` si l'index entier tenait dans `tool_search_limit` et a été déclaré d'emblée, `mcp.deferred.index_reachable_through_search_only` sinon, `tool_search` étant alors le seul chemin. Les deux portent le nombre indexé et la borne, ce qui vous dit de quel côté du seuil vous êtes.
 

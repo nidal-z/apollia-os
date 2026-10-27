@@ -16,7 +16,7 @@ sidebar_position: 9
 
 ## Étapes
 
-1. Dans **Connexions**, cliquez sur **Ajouter une connexion**. Dans la fenêtre, choisissez **Brancher un service par son adresse**, toujours en dernier dans la liste quelle que soit la recherche, puis cliquez sur **Ajouter**.
+1. Dans **Connexions**, cliquez sur **Ajouter une connexion**. Dans la fenêtre, choisissez **Brancher un service par son adresse**, toujours en dernier dans la liste quelle que soit la recherche. Son formulaire s'ouvre aussitôt.
 2. Remplissez le formulaire, comme décrit plus bas.
 3. Cliquez sur **Tester**. Apollia tente une vraie connexion et compte les outils déclarés par le serveur.
 4. Cliquez sur **Installer**. L'ajout se poursuit comme pour toute connexion : **Qui peut s'en servir**, où vous cochez les agents qui reçoivent ses outils, puis **Essai**. Voir [Connecter un serveur MCP depuis le catalogue](connecter-un-serveur-mcp.md).
@@ -65,7 +65,7 @@ Apollia peut chercher sur votre réseau local les serveurs MCP qui s'annoncent v
 
 - **Présentation** : un serveur ajouté ainsi apparaît dans la liste sans le logo ni la description que portent les entrées de la sélection d'Apollia.
 - **Approbation** : le serveur ne porte aucun réglage d'approbation qui lui soit propre. Chaque outil qu'il publie se décide sur sa famille d'action : ce que le serveur déclare dans les annotations de l'outil distingue une lecture d'une écriture, et un outil qu'il ne décrit pas est traité comme sensible. Sur la fiche, **Changer** donne une autre famille à un outil quand vous en savez davantage ; le changement est inscrit au **Journal**. Un agent qui appelle un outil sensible demande d'abord, et vous répondez une fois, toujours pour cet agent, ou vous refusez.
-- **Roots** : Apollia annonce la capacité pendant la poignée de main, et ne répond à aucune requête `roots/list`. Aucun répertoire n'est déclaré : roots ne borne donc rien aujourd'hui. Ce qui borne un serveur stdio, c'est la commande et les arguments que vous lui avez donnés, et c'est pourquoi le chemin passé dans **Arguments** est le vrai périmètre.
+- **Roots** : non implémenté. Apollia n'annonce pas la capacité pendant la poignée de main et ne déclare aucun répertoire : roots ne borne donc rien. Ce qui borne un serveur stdio, c'est la commande et les arguments que vous lui avez donnés, et c'est pourquoi le chemin passé dans **Arguments** est le vrai périmètre.
 - **Sampling et elicitation** : non implémentés. Apollia n'annonce pas ces deux capacités pendant la poignée de main, si bien qu'un serveur qui les supporte n'essaiera pas de rappeler par ce biais.
 
 ## Quand le serveur tourne
@@ -75,9 +75,9 @@ Le serveur n'est pas gardé en marche. Il démarre au premier appel de l'un de s
 ## Si ça ne marche pas
 
 - **« Commande introuvable » en stdio** : votre binaire n'est pas dans le PATH d'Apollia. Donnez le chemin absolu ou ajustez votre PATH avant de lancer Apollia.
-- **« Connexion refusée » en HTTP ou SSE** : URL ou port incorrects, ou pare-feu qui bloque la sortie. Vérifiez l'accessibilité depuis votre machine avec `curl <url>`.
+- **« Erreur réseau - le service n'a pas répondu à temps. » en HTTP ou SSE** : URL ou port incorrects, ou pare-feu qui bloque la sortie. Vérifiez l'accessibilité depuis votre machine avec `curl <url>`.
 - **OAuth en boucle** : votre serveur annonce mal son endpoint de métadonnées, ou un scope a été refusé. Apollia refuse d'emblée les serveurs d'autorisation non conformes (PKCE S256 obligatoire). Vérifiez les journaux côté serveur.
-- **« Aucun outil détecté »** : la poignée de main réussit mais le serveur ne déclare pas la capacité `tools` dans son `InitializeResult`. Vérifiez l'implémentation côté serveur.
+- **Le test affiche « 0 outil(s) détecté(s). »** : la poignée de main réussit mais le serveur ne liste aucun outil dans sa réponse à `tools/list`. Vérifiez l'implémentation côté serveur.
 
 ## Faire apparaître votre serveur dans le catalogue
 

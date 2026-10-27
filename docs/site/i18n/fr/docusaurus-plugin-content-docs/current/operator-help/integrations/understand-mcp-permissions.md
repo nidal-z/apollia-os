@@ -6,7 +6,7 @@ sidebar_position: 7
 
 # Comprendre les permissions MCP
 
-> Pour tout operator qui veut savoir pourquoi un outil demande une approbation, comment retirer un accord, et ce que la politique de votre organisation interdit.
+> Pour tout opérateur qui veut savoir pourquoi un outil demande une approbation, comment retirer un accord, et ce que la politique de votre organisation interdit.
 
 ## Prérequis
 
@@ -29,7 +29,7 @@ La carte porte trois réponses, **Une fois**, **Toujours pour cet agent** et **R
 
 - Pour un service de la sélection d'Apollia, la sélection donne sa famille à chaque outil.
 - Pour tout autre service, la famille vient de ce que le serveur déclare sur l'outil : un outil qu'il déclare en lecture seule est une lecture (une lecture de données personnelles derrière un compte), un outil qu'il déclare destructeur est une écriture ou suppression. Cela vaut que l'outil soit montré d'emblée à l'agent ou trouvé par `tool_search` : un outil en lecture seule d'un tel service s'exécute donc sans demander, ou peut recevoir **Toujours pour cet agent** quand il lit un compte.
-- Sur la fiche d'un tel service, dans **Connexions**, **Changer** à côté d'un outil lui donne une autre famille, et **Appliquer** l'enregistre. Votre choix l'emporte sur ce que déclare le serveur, reste quand le service est ajouté à nouveau, et est inscrit au **Journal** avec la famille d'avant et celle d'après. Un outil de la sélection d'Apollia ne se change pas ainsi.
+- Sur la fiche d'un tel service, dans **Connexions**, **Changer** à côté d'un outil lui donne une autre famille, et **Appliquer** l'enregistre. Votre choix l'emporte sur ce que déclare le serveur, tient d'un redémarrage à l'autre, et est inscrit au **Journal** avec la famille d'avant et celle d'après. Un outil de la sélection d'Apollia ne se change pas ainsi. Retirer le service efface les familles que vous avez choisies : un service ajouté à nouveau repart de ce que déclare son serveur.
 
 Il n'existe pas d'écran d'approbations propre au MCP, ni de file d'attente de demandes MCP à traiter. Un outil exposé par un serveur MCP passe par la même porte qu'un outil natif, celle qu'ouvre la boucle d'exécution : la carte dans la conversation si vous y êtes, l'écran **À valider** pour une tâche d'agent en attente. Tout ce que le reste de ce centre d'aide dit sur l'approbation d'une action s'y applique sans changement.
 
@@ -56,22 +56,22 @@ sur le poste, sous la forme `connections.remote = "deny"`, et c'est le runtime
 qui la vérifie.
 
 - **Aucune politique** : vous êtes libre. Aucune connexion n'est refusée parce qu'elle est en ligne.
-- **Une politique avec `connections.remote = "deny"`** : ajouter une connexion à un service en ligne est refusé, qu'il s'agisse d'un compte Google ou Microsoft ou d'un serveur MCP distant. La fenêtre affiche « Refusé par la politique de l'organisation » et rien n'est envoyé.
+- **Une politique avec `connections.remote = "deny"`** : ajouter une connexion à un service en ligne est refusé, qu'il s'agisse d'un compte Google ou Microsoft ou d'un serveur MCP distant. La fenêtre dit que la politique de votre organisation le refuse, et rien n'est envoyé.
 
-La politique est lue au démarrage d'Apollia. Une connexion qu'elle interdit n'est pas démarrée : elle indique **Bloquée par l'organisation** dans **Connexions**, avec la raison *interdite par la politique*, et un appel à l'un de ses outils est refusé. Une politique peut aussi interdire un type d'action ou un outil nommé, et ce refus tient quoi que vous ayez répondu auparavant.
+La politique est lue au démarrage d'Apollia. Une connexion qu'elle interdit n'est pas démarrée : elle indique **Bloquée par l'organisation** dans **Connexions**, où **Voir la règle** sur sa fiche ouvre **Autorisations**, et un appel à l'un de ses outils est refusé. Une politique peut aussi interdire un type d'action ou un outil nommé, et ce refus tient quoi que vous ayez répondu auparavant.
 
 ## Ce qu'un serveur MCP peut, et ne peut pas, vous demander
 
 La spécification permet à un serveur de rappeler son client de trois façons.
-Apollia n'en honore aucune aujourd'hui, et en annonce une.
+Apollia n'en honore aucune, et n'en annonce aucune.
 
-- **Roots**, annoncé mais sans réponse : Apollia déclare la capacité pendant la poignée de main, et rien ne répond à une requête `roots/list`. Aucun répertoire n'est déclaré : ce n'est donc pas une frontière filesystem et il ne faut pas la lire comme telle. Ce qui borne réellement un serveur local, c'est la commande et les arguments que vous lui avez donnés.
+- **Roots**, non implémenté : aucun répertoire n'est indiqué à un serveur, donc rien ici n'est une frontière du système de fichiers. Ce qui borne réellement un serveur local, c'est la commande et les arguments que vous lui avez donnés.
 - **Sampling**, non implémenté : un serveur ne peut pas demander à Apollia de faire un appel LLM pour lui.
 - **Elicitation**, non implémenté : un serveur ne peut pas vous demander une saisie structurée.
 
-Les deux dernières ne sont pas annoncées pendant la poignée de main : un serveur
+Aucune des trois n'est annoncée pendant la poignée de main : un serveur
 découvre donc leur absence à la connexion, et non en envoyant une requête qui
-reste sans réponse. Roots est le seul cas où l'annonce devance l'implémentation.
+reste sans réponse.
 
 ## Vérification
 

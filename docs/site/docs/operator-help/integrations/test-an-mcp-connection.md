@@ -38,11 +38,11 @@ The card offers the one action that repairs the connection, under its state:
 
 | Reason | Action | What it does |
 |---|---|---|
-| *the account must sign in again* | **Sign in again** | Opens the sign-in to the account, as when it was added. A remote service that signs in through its own page does the same. |
+| *the account must sign in again*, or *an administrator must approve it first* | **Sign in again** | Opens the sign-in to the account, as when it was added. A remote service that signs in through its own page does the same. |
 | *the server refuses the password* | **Enter the password** | Opens the mailbox form on that address, for a new app password. |
 | *the folder is no longer where it was* | **Choose the folder** | Lets you pick the folder again. The connection stays the same, so its agents keep their accesses. |
-| *unreachable* or *its operations fail* | **Start again** | Starts a service of this computer again. |
-| *forbidden by the policy*, or *an administrator must approve it first* | **See the rule** | Opens **Permissions**, where the rule that blocks it is shown. |
+| *unreachable* or *its operations fail* | **Start again** | Starts the service again. |
+| None shown: the state reads **Blocked by your organisation** | **See the rule** | Opens **Permissions**. |
 
 Once a folder is chosen again, the agents search its new content straight away: nothing from the former folder comes back in their answers, even while the new one is still being read.
 

@@ -32,7 +32,7 @@ Chaque ligne porte l'état de sa connexion :
 | **Bloquée par l'organisation** | La politique de votre organisation l'interdit, ou un administrateur doit d'abord l'approuver. | **Voir la règle**. |
 | **Pas encore vérifiée** | Rien ne l'a essayée depuis son ajout. | **Vérifier**. |
 
-Chaque état porte l'heure à laquelle il a été constaté, par exemple *vérifiée il y a 5 min*. Un état change à l'écran dès qu'Apollia le constate, sans recharger la page.
+Un état constaté par une vérification ou un usage dit quand il l'a été, par exemple *vérifiée il y a 5 min*. **En pause**, **Pas encore vérifiée** et un blocage qui attend l'accord d'un administrateur ne portent pas d'heure. Un état change à l'écran dès qu'Apollia le constate, sans recharger la page.
 
 ## La fiche
 
@@ -40,7 +40,7 @@ Chaque état porte l'heure à laquelle il a été constaté, par exemple *vérif
 - **Essayer** ouvre une conversation avec Apollia limitée aux outils de cette connexion.
 - **Mettre en pause** et **Reprendre**, puis **Retirer**, qui liste ce qui part avec la connexion avant que vous confirmiez. Voir [Mettre en pause ou retirer une connexion](/operator-help/integrations/pause-or-remove-a-connection).
 - **Agents qui s'en servent** liste les agents qui tiennent ses outils, **Par défaut** marquant ceux qui la tiennent par l'accès que reçoit tout nouvel agent. **Donner à un agent** la donne à plusieurs agents d'un coup.
-- **Activité sur 7 jours** : sa dernière utilisation et le nombre d'actions de chaque agent avec elle. **Voir dans le Journal** ouvre le **Journal** sur cette seule connexion.
+- **Activité sur 7 jours** : sa dernière utilisation et le nombre d'actions de chaque agent avec elle. **Voir dans le Journal** ouvre le **Journal** sur cette seule connexion. Une boîte mail partage ses outils avec toutes les autres, son activité n'est donc pas comptée à part.
 - Les outils de la connexion, chacun avec sa famille (lecture, écriture ou suppression, envoi vers l'extérieur, etc.). Pour un service ajouté hors de la sélection d'Apollia, **Changer** permet de donner une autre famille à un outil.
 - Pour un service, ses réglages, comme ses arguments, ses secrets et ses délais. Sa façon d'être lancé apparaît avec le mode développeur activé.
 - Pour un compte Microsoft, les dossiers et fichiers OneDrive qu'Apollia peut lire. Pour un compte Google, le dossier Drive où travaillent ses agents. Pour un compte, **Ajouter un autre compte** en connecte un second du même fournisseur.

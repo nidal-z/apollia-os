@@ -160,9 +160,13 @@ commitez jamais dans un dépôt.
 
 ## Étape 5. Transmettre le client à Apollia
 
-1. Dans Apollia, ouvrez **Connexions**, cliquez sur **Ajouter une connexion**
-   et choisissez **Google Workspace**. Sa fiche s'ouvre sur l'onglet
-   **Comptes**, qui porte la section **Client Google**.
+1. Dans Apollia, activez le mode développeur, dans **Réglages**, section
+   **Développeur** : la section **Client Google** n'apparaît qu'en mode
+   développeur. Ouvrez ensuite **Connexions**, cliquez sur **Ajouter une
+   connexion**, choisissez **Google Workspace** sous **Proposés par Apollia**,
+   cliquez sur **Ajouter**, puis sur **Se connecter**. Sans client, Apollia
+   s'arrête sur **Identifiant OAuth manquant** ; cliquez sur **Saisir le client
+   OAuth**. La fiche Google Workspace s'ouvre sur sa section **Client Google**.
 2. Cliquez sur **Importer le JSON du client** et sélectionnez le fichier
    téléchargé. Le client ID et le client secret en sont extraits : le client
    ID est écrit dans `~/.apollia/oauth-clients.toml`, le client secret dans le

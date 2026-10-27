@@ -26,7 +26,7 @@ Maintained directly by Apollia for services that do not (yet) expose an official
 - Every write asks for your agreement before it runs.
 - Several accounts can be connected. Each one is a connection of its own, granted to an agent account by account.
 
-**The two do not cost the same to start.** Worth knowing before you click, because the difference shows up only once you are on the connector page:
+**The two do not cost the same to start.** Worth knowing before you click, because the difference shows up only once you start connecting:
 
 | | What it takes to connect |
 |---|---|
@@ -37,11 +37,11 @@ This is not an oversight on the Google side. Google requires a verified consent 
 
 ### MCP servers
 
-The open Model Context Protocol standard. Third-party processes, local (stdio via `npx` or `uvx`) or remote (HTTP/SSE), which expose tools consumable by any MCP client. **Add a connection** opens one window with a single search, whose answers come in four groups: **Offered by Apollia** (the Google Workspace and Microsoft 365 accounts, then the selection of services, each entry with its label, its description and an **Official** or **Community** badge), **On this computer** (a folder, a mailbox), the **Public catalogue** and **Connect a service by its address**. The public MCP registry is read only when you click **Explore all**, and its entries are marked **Not verified**; it is paginated as you scroll, so its size is whatever the registry holds on the day you look.
+The open Model Context Protocol standard. Third-party processes, local (stdio via `npx` or `uvx`) or remote (HTTP/SSE), which expose tools consumable by any MCP client. **Add a connection** opens one window with a single search, whose answers come in four groups: **Offered by Apollia** (the Google Workspace and Microsoft 365 accounts, then the selection of services, each entry with its label, its description and an **Official** or **Community** badge), **On this computer** (a folder, a mailbox), the **Public catalogue** and **Connect a service by its address**. The public MCP registry is read only when you click **Explore all**, and its entries are marked **Not verified**; they show in batches, and **Show N more** under the list shows the next ones.
 
 Apollia reads its selection from a signed index, online, when the window opens, so an entry can be added or corrected without a new version of Apollia. An index whose signature does not hold is refused, and the copy already kept on this computer, or the selection built into Apollia, is shown instead. The setting `[mcp] catalogue_enabled = false` turns the online index off. The selection holds these entries:
 
-Notion, Linear, Atlassian (Jira + Confluence), Stripe, Figma (Dev Mode), Sentry, Cloudflare, PostgreSQL, Time, Fetch, Memory (Knowledge Graph), Brave Search.
+Notion, Linear, Atlassian (Jira + Confluence), Stripe, Figma (Dev Mode), Sentry, Cloudflare, PostgreSQL, Time, Fetch, Memory (Knowledge Graph), Brave Search, Web Browser.
 
 You can also add your own server, with **Connect a service by its address**, always last in the window. With developer mode on, the same form also takes a local command. Changing the catalogue itself is not possible from the interface.
 

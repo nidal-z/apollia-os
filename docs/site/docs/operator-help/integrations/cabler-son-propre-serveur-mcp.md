@@ -16,7 +16,7 @@ sidebar_position: 9
 
 ## Steps
 
-1. In **Connections**, click **Add a connection**. In the window, choose **Connect a service by its address**, always last in the list whatever you search, then click **Add**.
+1. In **Connections**, click **Add a connection**. In the window, choose **Connect a service by its address**, always last in the list whatever you search. Its form opens at once.
 2. Fill in the form, as described below.
 3. Click **Test**. Apollia attempts a real connection and counts the tools declared by the server.
 4. Click **Install**. The addition continues as for any connection: **Who can use it**, where you check the agents that get its tools, then **Try it**. See [Connect an MCP server from the catalogue](connecter-un-serveur-mcp.md).
@@ -65,7 +65,7 @@ Apollia can scan your local network for MCP servers that advertise themselves th
 
 - **Presentation**: a server added this way appears in the list without the logo and the description that the entries of Apollia's selection carry.
 - **Approval**: the server carries no approval setting of its own. Each tool it publishes is decided on its action family: what the server declares in the tool's annotations sorts a read from a write, and a tool it does not describe is treated as sensitive. On the card, **Change** gives a tool another family when you know better; the change is written in the **Activity log**. An agent that calls a sensitive tool asks first, and you answer once, always for this agent, or refuse.
-- **Roots**: Apollia advertises the capability during the handshake, and answers no `roots/list` request. No directory is declared, so roots bounds nothing today. What bounds a stdio server is the command and the arguments you gave it, which is why the filesystem path you pass in **Arguments** is the real perimeter.
+- **Roots**: not implemented. Apollia does not advertise the capability during the handshake and declares no directory, so roots bounds nothing. What bounds a stdio server is the command and the arguments you gave it, which is why the filesystem path you pass in **Arguments** is the real perimeter.
 - **Sampling and elicitation**: not implemented. Apollia does not advertise these two capabilities during the handshake, so a server that supports them will not try to call back through them.
 
 ## When the server runs
@@ -75,9 +75,9 @@ The server is not kept running. It starts at the first call of one of its tools 
 ## If it does not work
 
 - **"Command not found" on stdio**: your binary is not in Apollia's PATH. Give the absolute path or adjust your PATH before launching Apollia.
-- **"Connection refused" on HTTP or SSE**: wrong URL or port, or a firewall blocking outbound traffic. Check that the server is reachable from your machine with `curl <url>`.
+- **"Network error - the service did not respond in time." on HTTP or SSE**: wrong URL or port, or a firewall blocking outbound traffic. Check that the server is reachable from your machine with `curl <url>`.
 - **OAuth loop**: your server advertises its metadata endpoint incorrectly, or a scope was refused. Apollia rejects non-conformant authorization servers fail-fast (PKCE S256 is mandatory). Check the server-side logs.
-- **"No tool detected"**: the handshake succeeds but the server does not declare the `tools` capability in its `InitializeResult`. Check the server-side implementation.
+- **The test reads "0 tool(s) detected."**: the handshake succeeds but the server lists no tool in its answer to `tools/list`. Check the server-side implementation.
 
 ## Getting your server to show up in the catalogue
 
