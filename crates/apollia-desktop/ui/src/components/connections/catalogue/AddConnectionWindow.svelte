@@ -5,7 +5,8 @@
    * computer, the public catalogue, a service by its address), and beside
    * them the card of the chosen entry, then, once Add is pressed, the one flow
    * of its addition in the card's place. The public catalogue is read only when
-   * it is asked for, and is marked as not verified. A source that did not
+   * it is asked for, or searched by the text typed, and is marked as not
+   * verified. A source that did not
    * answer says so in a banner under the search; it never reads as an empty
    * catalogue.
    */
@@ -372,6 +373,12 @@
                   {$t("connections.catalogue_back_to_selection")}
                 </Button>
               {:else}
+                {#if group.entries.length > 0}
+                  <!-- What the registry's own search found for the text typed. -->
+                  <ul class="space-y-1.5">
+                    {#each group.entries.slice(0, limit) as entry (entry.key)}{@render row(entry)}{/each}
+                  </ul>
+                {/if}
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <p class="text-caption text-muted-foreground">{$t("connections.add_window.public_ask")}</p>
                   <Button

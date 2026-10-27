@@ -20261,8 +20261,9 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description Keyword forwarded to the registry. A search always asks the network;
-                 *     without one, a fresh cache answers.
+                 * @description Keyword forwarded to the registry's own search. A search always asks
+                 *     the network and falls back to the cache; without one, the cache answers
+                 *     even when stale, and the whole registry is read again behind it.
                  */
                 search?: string;
             };

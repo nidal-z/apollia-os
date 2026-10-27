@@ -890,6 +890,7 @@ mod tests {
             tool_registry_handle: Some(tool_registry),
             audit_journal: None,
             connection_governance: Default::default(),
+            mcp_registry: None,
             governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),

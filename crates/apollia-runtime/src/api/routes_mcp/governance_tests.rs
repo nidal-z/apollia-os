@@ -146,6 +146,7 @@ pub(crate) async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness 
         tool_registry_handle: Some(tool_registry),
         audit_journal: Some(journal.clone()),
         connection_governance: ConnectionGovernance::new(admission, Some(journal.clone())),
+        mcp_registry: None,
         governance: None,
         inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),

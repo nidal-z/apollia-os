@@ -156,6 +156,7 @@ async fn harness(servers: &[McpServerConfig]) -> Harness {
         tool_registry_handle: Some(tool_registry),
         audit_journal: None,
         connection_governance: ConnectionGovernance::without_policy(None),
+        mcp_registry: None,
         governance: None,
         inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),

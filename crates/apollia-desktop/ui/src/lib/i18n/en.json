@@ -745,7 +745,7 @@
       },
       "public_unverified": "Not verified",
       "public_note": "Anyone can publish in the public catalogue. Apollia has not checked these entries.",
-      "public_ask": "The public catalogue is asked only when you ask for it.",
+      "public_ask": "The public catalogue is asked only when you explore it or search for a service.",
       "address_name": "A service by its address",
       "address_description": "The address a service gives you to connect it to Apollia",
       "no_results": "Nothing answers \"{query}\" here. Search the public catalogue, or connect a service by its address.",

@@ -254,6 +254,7 @@ fn build_chat_app_state(
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        mcp_registry: None,
         governance: Some(governance),
         inference_governance: Default::default(),
         backend: MockBackend,

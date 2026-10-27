@@ -266,6 +266,12 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Runtime data directory (`~/.apollia`), used by the STT reload route to
     /// locate `stt_transcriptions.db` when rebuilding the engine.
     pub data_dir: PathBuf,
+    /// The public MCP registry catalogue, with the actor that reads the
+    /// whole registry in the background, under `data_dir`.
+    ///
+    /// `None` in unit tests: the registry routes then answer from the cache or
+    /// a first tranche, and nothing refreshes behind them.
+    pub mcp_registry: Option<apollia_mcp::registry::McpRegistry>,
     /// Handle to the MCP client manager actor.
     ///
     /// `Some` when at least one MCP server is configured in `mcp.db` and connected.
@@ -382,6 +388,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             tool_registry_handle: self.tool_registry_handle.clone(),
             audit_journal: self.audit_journal.clone(),
             connection_governance: self.connection_governance.clone(),
+            mcp_registry: self.mcp_registry.clone(),
             governance: self.governance.clone(),
             inference_governance: self.inference_governance.clone(),
             obs_config: self.obs_config.clone(),
@@ -829,6 +836,7 @@ mod tests {
             tool_registry_handle: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            mcp_registry: None,
             governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),

@@ -8,12 +8,23 @@
 //! same catalogue through the same cache: the desktop wizard through its IPC
 //! commands, and any caller without a desktop through
 //! `GET /api/v1/mcp/registry`.
+//!
+//! The registry holds some twenty thousand entries, two hundred pages that
+//! take minutes to read. A caller is never made to wait for them: a cache,
+//! even stale, answers at once, and without one a first tranche of a few pages
+//! does. The whole registry is read by [`McpRegistry`], an actor that runs one
+//! refresh at a time in the background.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use tokio::time::Instant;
+
+mod catalogue;
+
+pub use catalogue::McpRegistry;
 
 /// Client for the MCP Registry API (`registry.modelcontextprotocol.io`).
 ///
@@ -25,6 +36,24 @@ pub struct McpRegistryClient {
     http: reqwest::Client,
     cache_path: PathBuf,
     base_url: String,
+    tranche_budget: Duration,
+}
+
+/// What [`McpRegistryClient::read_catalogue`] answers: the servers to show,
+/// and whether the whole registry should be read again behind them.
+#[derive(Debug, Clone)]
+pub struct CatalogueRead {
+    /// Latest version of each server, from the cache or the first tranche.
+    pub servers: Vec<RegistryServer>,
+    /// The cache is stale, or absent and only a first tranche was read.
+    pub needs_refresh: bool,
+}
+
+/// Servers read from a run of registry pages.
+struct Tranche {
+    servers: Vec<RegistryServer>,
+    /// The last page said there was nothing after it.
+    complete: bool,
 }
 
 /// A server entry from the MCP Registry list response.
@@ -304,14 +333,14 @@ impl McpRegistryClient {
             http,
             cache_path: cache_dir.join("mcp-registry.json"),
             base_url: base_url_from_env(),
+            tranche_budget: Self::FIRST_TRANCHE_BUDGET,
         })
     }
 
     /// Create a registry client that targets `base_url` instead of the official registry.
     ///
     /// The base URL must not include a trailing slash (e.g. `http://localhost:8080`).
-    #[cfg(test)]
-    fn with_base_url(
+    pub fn with_base_url(
         cache_dir: &Path,
         base_url: impl Into<String>,
     ) -> Result<Self, RegistryClientError> {
@@ -320,59 +349,109 @@ impl McpRegistryClient {
         Ok(client)
     }
 
+    /// The same client, with `budget` for a first tranche instead of
+    /// [`Self::FIRST_TRANCHE_BUDGET`].
+    #[cfg(test)]
+    fn with_tranche_budget(mut self, budget: Duration) -> Self {
+        self.tranche_budget = budget;
+        self
+    }
+
     /// Return the path of the local cache file.
     pub fn cache_path(&self) -> &Path {
         &self.cache_path
     }
 
-    /// Fetch all MCP servers from the registry, with offline fallback.
-    ///
-    /// When the registry is reachable the full paginated list is returned and
-    /// the local cache is updated. When the registry is unreachable the cached
-    /// data is returned with a `warn` log. When neither source is available
-    /// [`RegistryClientError::Offline`] is returned.
-    ///
-    /// `search` is an optional keyword filter forwarded to the registry API.
-    /// Cache TTL: skip network fetch if cache is younger than this.
-    const CACHE_TTL: Duration = Duration::from_secs(15 * 60); // 15 minutes
+    /// A cache younger than this is not read again behind the caller.
+    const CACHE_TTL: Duration = Duration::from_secs(15 * 60);
 
-    pub async fn fetch_servers(
-        &self,
-        search: Option<&str>,
-    ) -> Result<Vec<RegistryServer>, RegistryClientError> {
-        // Stale-while-revalidate: if cache is fresh enough, return it immediately.
-        if search.is_none() {
-            if let Some(age) = self.cache_age() {
-                if age < Self::CACHE_TTL {
-                    if let Ok(cached) = self.read_cache() {
-                        tracing::debug!(
-                            age_secs = age.as_secs(),
-                            servers = cached.len(),
-                            "mcp.registry.cache.hit"
-                        );
-                        return Ok(Self::dedup_latest(cached));
-                    }
-                }
-            }
+    /// Pages read before answering a caller that has no cache, or a search.
+    /// The registry answers a page in under a second, so this stays well
+    /// inside the fifteen seconds a caller over the runtime link waits.
+    const FIRST_TRANCHE_PAGES: usize = 5;
+
+    /// Time a first tranche may take, whatever the number of pages read.
+    const FIRST_TRANCHE_BUDGET: Duration = Duration::from_secs(8);
+
+    /// The catalogue, read without waiting for the whole registry.
+    ///
+    /// A cache answers at once, even a stale one, and says whether it is
+    /// stale. Without a cache, a first tranche of the registry answers; it is
+    /// kept as the cache only when it holds the whole registry. Without a
+    /// cache and without the network, [`RegistryClientError::Offline`].
+    pub async fn read_catalogue(&self) -> Result<CatalogueRead, RegistryClientError> {
+        if let Ok(cached) = self.read_cache() {
+            let age = self.cache_age();
+            let needs_refresh = age.is_none_or(|age| age >= Self::CACHE_TTL);
+            tracing::debug!(
+                age_secs = age.map(|a| a.as_secs()),
+                servers = cached.len(),
+                stale = needs_refresh,
+                "mcp.registry.cache.hit"
+            );
+            return Ok(CatalogueRead {
+                servers: Self::dedup_latest(cached),
+                needs_refresh,
+            });
         }
 
-        let servers = match self.fetch_from_network(search).await {
-            Ok(servers) => {
-                if let Err(e) = self.write_cache(&servers) {
-                    tracing::warn!(error = %e, "mcp.registry.cache.update.failed");
-                }
-                servers
+        let tranche = self.first_tranche(None).await.map_err(|e| {
+            tracing::warn!(error = %e, detail = "no local cache either", "mcp.registry.unreachable");
+            match e {
+                RegistryClientError::HttpError(_) => RegistryClientError::Offline,
+                other => other,
             }
+        })?;
+        if tranche.complete {
+            if let Err(e) = self.write_cache(&tranche.servers) {
+                tracing::warn!(error = %e, "mcp.registry.cache.update.failed");
+            }
+        }
+        Ok(CatalogueRead {
+            servers: Self::dedup_latest(tranche.servers),
+            needs_refresh: !tranche.complete,
+        })
+    }
+
+    /// The servers the registry finds for `term`, from its own search.
+    ///
+    /// A search reads a first tranche of results and never replaces the cache,
+    /// which holds the whole registry. When the registry does not answer, the
+    /// cached entries whose name, title or description hold `term` answer.
+    pub async fn search(&self, term: &str) -> Result<Vec<RegistryServer>, RegistryClientError> {
+        match self.first_tranche(Some(term)).await {
+            Ok(tranche) => Ok(Self::dedup_latest(tranche.servers)),
             Err(network_err) => {
                 tracing::warn!(
                     error = %network_err,
-                    detail = "falling back to the local cache",
+                    detail = "searching the local cache",
                     "mcp.registry.unreachable"
                 );
-                self.read_cache()?
+                let cached = self.read_cache()?;
+                let found = cached
+                    .into_iter()
+                    .filter(|entry| matches_term(entry, term))
+                    .collect();
+                Ok(Self::dedup_latest(found))
             }
-        };
-        Ok(Self::dedup_latest(servers))
+        }
+    }
+
+    /// Read the whole registry and keep it as the cache.
+    ///
+    /// Returns the number of entries kept. Minutes long on the public registry:
+    /// [`McpRegistry`] runs it in the background, never in front of a caller.
+    pub async fn refresh(&self) -> Result<usize, RegistryClientError> {
+        let tranche = self.fetch_pages(None, Self::MAX_PAGES, None).await?;
+        self.write_cache(&tranche.servers)?;
+        Ok(tranche.servers.len())
+    }
+
+    /// The first pages of the registry, within the tranche budget.
+    async fn first_tranche(&self, search: Option<&str>) -> Result<Tranche, RegistryClientError> {
+        let deadline = Instant::now() + self.tranche_budget;
+        self.fetch_pages(search, Self::FIRST_TRANCHE_PAGES, Some(deadline))
+            .await
     }
 
     /// Returns the age of the cache file, or `None` if it doesn't exist.
@@ -456,20 +535,36 @@ impl McpRegistryClient {
         }
     }
 
-    /// Fetch all pages from the network, following `nextCursor` until exhausted.
+    /// Fetch up to `max_pages` pages, following `nextCursor`, and stop at
+    /// `deadline` when one is given.
     ///
     /// Pages that fail to parse (e.g. invalid control characters in JSON) are
-    /// skipped; the servers fetched so far are still returned.
-    async fn fetch_from_network(
+    /// skipped; the servers fetched so far are still returned. A page that
+    /// does not arrive before the deadline ends the run like a failed one.
+    async fn fetch_pages(
         &self,
         search: Option<&str>,
-    ) -> Result<Vec<RegistryServer>, RegistryClientError> {
+        max_pages: usize,
+        deadline: Option<Instant>,
+    ) -> Result<Tranche, RegistryClientError> {
         let mut all_servers: Vec<RegistryServer> = Vec::new();
         let mut cursor: Option<String> = None;
         let mut page = 0usize;
+        let mut complete = false;
 
         loop {
-            let body = match self.fetch_page_body(search, cursor.as_deref()).await {
+            let fetch = self.fetch_page_body(search, cursor.as_deref());
+            let fetched = match deadline {
+                Some(at) => tokio::time::timeout_at(at, fetch)
+                    .await
+                    .unwrap_or_else(|_| {
+                        PageFetch::Fatal(
+                            "the registry did not answer within the budget".to_string(),
+                        )
+                    }),
+                None => fetch.await,
+            };
+            let body = match fetched {
                 PageFetch::Body(body) => body,
                 PageFetch::Fatal(e) if all_servers.is_empty() => {
                     return Err(RegistryClientError::HttpError(e));
@@ -490,8 +585,12 @@ impl McpRegistryClient {
                     all_servers.extend(servers);
                     page += 1;
                     match next {
-                        Some(c) if page < Self::MAX_PAGES => cursor = Some(c),
-                        _ => break,
+                        Some(c) if page < max_pages => cursor = Some(c),
+                        Some(_) => break,
+                        None => {
+                            complete = true;
+                            break;
+                        }
                     }
                 }
                 PageParse::SkipTo {
@@ -500,7 +599,7 @@ impl McpRegistryClient {
                 } => {
                     cursor = Some(next);
                     page = next_page;
-                    if page >= Self::MAX_PAGES {
+                    if page >= max_pages {
                         break;
                     }
                 }
@@ -517,10 +616,14 @@ impl McpRegistryClient {
         tracing::info!(
             servers = all_servers.len(),
             pages = page,
+            complete,
             "mcp.registry.fetch.completed"
         );
 
-        Ok(all_servers)
+        Ok(Tranche {
+            servers: all_servers,
+            complete,
+        })
     }
 
     /// Parse one registry page body into a [`PageParse`] outcome.
@@ -575,6 +678,21 @@ impl McpRegistryClient {
             std::fs::read_to_string(&self.cache_path).map_err(|_| RegistryClientError::Offline)?;
         serde_json::from_str(&json).map_err(|e| RegistryClientError::ParseError(e.to_string()))
     }
+}
+
+/// Whether the name, title or description of `entry` holds `term`, case
+/// ignored: the search of a cache when the registry does not answer.
+fn matches_term(entry: &RegistryServer, term: &str) -> bool {
+    let term = term.to_lowercase();
+    let detail = &entry.server;
+    [
+        Some(detail.name.as_str()),
+        detail.title.as_deref(),
+        detail.description.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|text| text.to_lowercase().contains(&term))
 }
 
 #[cfg(test)]
@@ -672,7 +790,7 @@ mod tests {
         let client = McpRegistryClient::with_base_url(tmp.path(), mock_server.uri()).unwrap();
 
         // WHEN fetching all servers
-        let servers = client.fetch_servers(None).await.unwrap();
+        let servers = client.read_catalogue().await.unwrap().servers;
 
         // THEN both entries are present
         assert_eq!(servers.len(), 2);
@@ -699,7 +817,7 @@ mod tests {
         let client = McpRegistryClient::with_base_url(tmp.path(), mock_server.uri()).unwrap();
 
         // WHEN searching for "notion"
-        let servers = client.fetch_servers(Some("notion")).await.unwrap();
+        let servers = client.search("notion").await.unwrap();
 
         // THEN only the notion server is returned
         assert_eq!(servers.len(), 1);
@@ -724,7 +842,7 @@ mod tests {
         let client = McpRegistryClient::with_base_url(tmp.path(), mock_server.uri()).unwrap();
 
         // WHEN the fetch succeeds
-        let _ = client.fetch_servers(None).await.unwrap();
+        let _ = client.read_catalogue().await.unwrap().servers;
 
         // THEN the cache file exists and contains valid JSON
         assert!(client.cache_path().exists());
@@ -747,7 +865,7 @@ mod tests {
         let client = McpRegistryClient::with_base_url(tmp.path(), "http://127.0.0.1:1").unwrap();
 
         // WHEN fetching servers
-        let servers = client.fetch_servers(None).await.unwrap();
+        let servers = client.read_catalogue().await.unwrap().servers;
 
         // THEN cached data is returned
         assert_eq!(servers.len(), 1);
@@ -777,7 +895,7 @@ mod tests {
         let client = McpRegistryClient::with_base_url(tmp.path(), mock_server.uri()).unwrap();
 
         // WHEN the full list is asked for
-        let servers = client.fetch_servers(None).await.unwrap();
+        let servers = client.read_catalogue().await.unwrap().servers;
 
         // THEN the cached list is returned and the registry received no request
         assert_eq!(servers.len(), 1);
@@ -798,7 +916,7 @@ mod tests {
         let client = McpRegistryClient::with_base_url(tmp.path(), "http://127.0.0.1:1").unwrap();
 
         // WHEN fetching servers
-        let result = client.fetch_servers(None).await;
+        let result = client.read_catalogue().await;
 
         // THEN Offline error is returned
         assert!(matches!(result, Err(RegistryClientError::Offline)));
@@ -835,7 +953,7 @@ mod tests {
         let client = McpRegistryClient::with_base_url(tmp.path(), mock_server.uri()).unwrap();
 
         // WHEN fetching all servers
-        let servers = client.fetch_servers(None).await.unwrap();
+        let servers = client.read_catalogue().await.unwrap().servers;
 
         // THEN servers from both pages are concatenated
         assert_eq!(servers.len(), 2);

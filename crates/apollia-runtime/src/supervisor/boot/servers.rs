@@ -114,6 +114,7 @@ impl Supervisor {
             tool_registry_handle: Some(core.tool_registry_handle.clone()),
             audit_journal: governance.audit_journal.clone(),
             connection_governance: governance.connection.clone(),
+            mcp_registry: mcp_registry(&self.config.data_dir),
             governance: Some(governance.handle.clone()),
             inference_governance: crate::governance::InferenceGovernance::new(Arc::clone(
                 &core.org_policy,
@@ -192,5 +193,17 @@ pub(super) fn spawn_timeout_watcher(
         .following(live.clone());
         tokio::spawn(watcher.run());
         info!("supervisor.timeout_watcher.started");
+    }
+}
+
+/// The registry catalogue of `data_dir`, its refresher started. `None` when
+/// the registry client cannot be built: the routes then read without it.
+fn mcp_registry(data_dir: &std::path::Path) -> Option<apollia_mcp::registry::McpRegistry> {
+    match apollia_mcp::registry::McpRegistryClient::new(data_dir) {
+        Ok(client) => Some(apollia_mcp::registry::McpRegistry::spawn(client)),
+        Err(error) => {
+            tracing::warn!(error = %error, "mcp.registry.client.failed");
+            None
+        }
     }
 }
