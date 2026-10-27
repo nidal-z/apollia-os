@@ -419,6 +419,8 @@
     "connections": "Connections",
     "open_sidebar": "Open navigation",
     "close_sidebar": "Close navigation",
+    "fold_sidebar": "Fold the menu",
+    "unfold_sidebar": "Unfold the menu",
     "sidebar_label": "Main navigation",
     "developer_group": "Developer mode",
     "sidebar": {

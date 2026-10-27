@@ -123,6 +123,12 @@ export const sidebarState: Readable<SidebarState> = derived(
   },
 );
 
+/**
+ * Whether the user can fold and unfold the menu: in a wide window only. A
+ * medium window keeps the rail and a narrow one the drawer, whatever is asked.
+ */
+export const sidebarFoldable: Readable<boolean> = derived(viewport, ($v) => $v === "lg");
+
 /** `true` when the sidebar is rendered as an overlay AND open. */
 export const drawerOpen: Readable<boolean> = derived(
   [sidebarState, drawerOpenInternal],

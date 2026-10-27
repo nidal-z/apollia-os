@@ -340,6 +340,28 @@
     },
     {
       "kind": "click",
+      "testid": "topbar-sidebar-fold",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "01b-chat-menu-folded"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-sidebar-fold",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "sidebar-primary-rank"
+    },
+    {
+      "kind": "click",
       "testid": "nav-agents",
       "timeoutMs": 3000
     },

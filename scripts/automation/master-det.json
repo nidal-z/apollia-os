@@ -335,6 +335,26 @@
     },
     {
       "kind": "click",
+      "testid": "topbar-sidebar-fold"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "01b-chat-menu-folded"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-sidebar-fold"
+    },
+    {
+      "kind": "expect",
+      "testid": "sidebar-primary-rank"
+    },
+    {
+      "kind": "click",
       "testid": "nav-agents"
     },
     {

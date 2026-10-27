@@ -10,7 +10,11 @@
     CircleHelp,
     Menu,
     PanelLeft,
+    PanelLeftClose,
+    PanelLeftOpen,
     PanelRight,
+    PanelRightClose,
+    PanelRightOpen,
     Search,
   } from "lucide-svelte";
   import { detailSidebar, guideVisible } from "$lib/stores/detailSidebar";
@@ -19,7 +23,7 @@
   import { zLayer } from "$lib/design/tokens";
   import { keycapsFor } from "$lib/navigation/shortcuts";
   import { commandPaletteOpen } from "$lib/stores/commandPalette";
-  import { sidebarState, layoutActions } from "$lib/stores/layout";
+  import { sidebarState, sidebarFoldable, layoutActions } from "$lib/stores/layout";
   import { runningTasks } from "$lib/stores/tasks";
   import { OperatorBreadcrumb } from "$lib/components/layout";
   import { StatusDot } from "$lib/components/operator";
@@ -62,6 +66,26 @@
         data-testid="topbar-sidebar-toggle"
       >
         <Menu size={17} strokeWidth={1.5} />
+      </button>
+    {:else if $sidebarFoldable}
+      <!-- A wide window: the menu folds into its rail and unfolds again, on
+           every screen, at the user's choice only. -->
+      <button
+        type="button"
+        class="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        onclick={() => layoutActions.toggleSidebar()}
+        aria-label={$sidebarState === "expanded" ? $t("nav.fold_sidebar") : $t("nav.unfold_sidebar")}
+        aria-expanded={$sidebarState === "expanded"}
+        title={$sidebarState === "expanded" ? $t("nav.fold_sidebar") : $t("nav.unfold_sidebar")}
+        data-testid="topbar-sidebar-fold"
+      >
+        {#if $navPosition === "right"}
+          {#if $sidebarState === "expanded"}<PanelRightClose size={16} strokeWidth={1.75} />{:else}<PanelRightOpen size={16} strokeWidth={1.75} />{/if}
+        {:else if $sidebarState === "expanded"}
+          <PanelLeftClose size={16} strokeWidth={1.75} />
+        {:else}
+          <PanelLeftOpen size={16} strokeWidth={1.75} />
+        {/if}
       </button>
     {/if}
 
