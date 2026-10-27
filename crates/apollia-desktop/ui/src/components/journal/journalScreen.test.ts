@@ -108,8 +108,8 @@ describe("journal screen - how it is reached", () => {
 
     // WHEN the journal is looked for in each
     // THEN the sidebar lists it among the primary entries, and both others lead to it
-    expect(sidebar).toMatch(/route: "journal"\s+as Route, Icon: ScrollText,\s+labelKey: "nav\.sidebar\.journal"/);
-    expect(palette).toContain('nav("nav.journal", "journal", "nav.journal", ScrollText');
+    expect(sidebar).toMatch(/route: "journal"\s+as Route, Icon: History,\s+labelKey: "nav\.sidebar\.journal"/);
+    expect(palette).toContain('nav("nav.journal", "journal", "nav.journal", History');
     expect(main).toContain('{:else if shownRoute === "journal"}');
   });
 });

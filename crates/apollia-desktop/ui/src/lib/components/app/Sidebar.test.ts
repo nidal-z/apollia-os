@@ -396,17 +396,18 @@ describe("Sidebar - the count of what waits for the user", () => {
 });
 
 describe("Sidebar - the menu on the chat screen", () => {
-  test("on the chat, the menu stands back as a rail and keeps every entry", async () => {
+  test("on the chat, the menu keeps the width it has on every other screen", async () => {
     // GIVEN the whole menu, drawn on another screen
     const whole = await renderSidebar(false);
 
     // WHEN the chat is the screen shown
     currentRoute.set("chat");
-    const rail = renderToString(Sidebar).body;
+    const onChat = renderToString(Sidebar).body;
 
-    // THEN the same entries are drawn, in the narrow column of the rail
-    expect(drawnRoutes(rail)).toEqual(drawnRoutes(whole));
-    expect(whole).not.toContain("w-16 flex-shrink-0");
-    expect(rail).toContain("w-16 flex-shrink-0");
+    // THEN it is the same column, with the same entries: the chat does not
+    // fold it into a rail of its own accord
+    expect(drawnRoutes(onChat)).toEqual(drawnRoutes(whole));
+    expect(onChat).not.toContain("w-16 flex-shrink-0");
+    expect(onChat).toContain('data-state="column"');
   });
 });

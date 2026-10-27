@@ -66,7 +66,7 @@
       {#if active}
         <span class="active-bar"></span>
       {/if}
-      <Icon size={17} strokeWidth={1.5} />
+      <Icon size={18} strokeWidth={1.75} />
       {#if count > 0}
         <span class="absolute -right-0.5 -top-0.5 min-w-3.5 rounded-full bg-primary px-1 py-px text-center text-overline font-semibold leading-none text-primary-foreground" data-testid="nav-{route}-count">{count > 9 ? "9+" : count}</span>
       {/if}
@@ -89,7 +89,7 @@
     data-rank={rank}
     data-testid="nav-{route}"
   >
-    <Icon size={rank === "primary" ? 17 : 15} strokeWidth={1.5} class="shrink-0" />
+    <Icon size={16} strokeWidth={1.75} class="shrink-0" />
     <span class="truncate">{label}</span>
     {#if count > 0}
       <span class="ml-auto min-w-5 rounded-full border border-border bg-background px-1.5 py-0.5 text-center text-overline font-semibold leading-none text-primary" data-testid="nav-{route}-count">{count}</span>

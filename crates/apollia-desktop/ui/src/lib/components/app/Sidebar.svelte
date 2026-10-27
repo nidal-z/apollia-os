@@ -1,8 +1,8 @@
 <script lang="ts" module>
   import type { Route } from "$lib/stores/navigation";
   import {
-    MessageSquare, Bot, ShieldCheck, Plug, Code, Settings, KeyRound,
-    Repeat, Brain, Database, Activity, Mic, Library, ScrollText, Layers,
+    MessageSquare, Bot, ListChecks, Plug, Terminal, Settings, ShieldCheck,
+    Zap, Sparkles, Database, Activity, Mic, BookOpen, History, Layers,
   } from "lucide-svelte";
 
   type Badge = "none" | "chat" | "approvals";
@@ -27,9 +27,9 @@
     { route: "chat"           as Route, Icon: MessageSquare,   labelKey: "nav.sidebar.chat",           badge: "chat"      },
     { route: "agents"         as Route, Icon: Bot,             labelKey: "nav.sidebar.agents",         badge: "none"      },
     { route: "integrations"   as Route, Icon: Plug,            labelKey: "nav.sidebar.integrations",   badge: "none"      },
-    { route: "llm"            as Route, Icon: Brain,           labelKey: "nav.sidebar.llm",            badge: "none"      },
-    { route: "inbox"          as Route, Icon: ShieldCheck,     labelKey: "nav.sidebar.inbox",          badge: "approvals" },
-    { route: "developer"      as Route, Icon: Code,            labelKey: "nav.sidebar.developer",      badge: "none", developer: true },
+    { route: "llm"            as Route, Icon: Sparkles,           labelKey: "nav.sidebar.llm",            badge: "none"      },
+    { route: "inbox"          as Route, Icon: ListChecks,      labelKey: "nav.sidebar.inbox",          badge: "approvals" },
+    { route: "developer"      as Route, Icon: Terminal,            labelKey: "nav.sidebar.developer",      badge: "none", developer: true },
   ];
 
   /** The primary entries shown for a given developer mode. */
@@ -50,11 +50,11 @@
   // The second rank: what is consulted now and then, drawn quieter than the
   // first. It is the same with the developer mode off and on.
   export const SECONDARY_NAV: readonly NavEntry[] = [
-    { route: "library"        as Route, Icon: Library,    labelKey: "nav.sidebar.library" },
-    { route: "automations"    as Route, Icon: Repeat,     labelKey: "nav.sidebar.automations" },
+    { route: "library"        as Route, Icon: BookOpen,    labelKey: "nav.sidebar.library" },
+    { route: "automations"    as Route, Icon: Zap,     labelKey: "nav.sidebar.automations" },
     { route: "batches"        as Route, Icon: Layers,     labelKey: "nav.sidebar.batches" },
-    { route: "authorizations" as Route, Icon: KeyRound,   labelKey: "nav.sidebar.authorizations" },
-    { route: "journal"        as Route, Icon: ScrollText, labelKey: "nav.sidebar.journal" },
+    { route: "authorizations" as Route, Icon: ShieldCheck,   labelKey: "nav.sidebar.authorizations" },
+    { route: "journal"        as Route, Icon: History, labelKey: "nav.sidebar.journal" },
     { route: "settings"       as Route, Icon: Settings,   labelKey: "nav.sidebar.settings" },
   ];
 
