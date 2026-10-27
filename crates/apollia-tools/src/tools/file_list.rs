@@ -109,7 +109,8 @@ impl FileList {
         let dir = input.dir.as_deref().unwrap_or(".");
         let recursive = input.recursive.unwrap_or(false);
 
-        let resolved = self.sandbox.resolve(dir).map_err(|e| {
+        let sandbox = self.sandbox.for_call();
+        let resolved = sandbox.resolve(dir).map_err(|e| {
             let path = dir.to_string();
             if e.is_paused() {
                 FileListError::Paused { path }
@@ -138,7 +139,7 @@ impl FileList {
         }
 
         let mut entries = Vec::new();
-        collect_entries(&self.sandbox, &resolved, &resolved, recursive, &mut entries).await?;
+        collect_entries(&sandbox, &resolved, &resolved, recursive, &mut entries).await?;
         entries.sort_by(|a, b| a.name.cmp(&b.name));
 
         Ok(FileListOutput { entries })
@@ -200,8 +201,8 @@ impl FileList {
 ///
 /// Entry names are relative to `base_dir`. Entries within each directory are
 /// collected before descending, so the sort applied by the caller covers all
-/// levels uniformly. An entry the sandbox does not serve (a folder in pause, or
-/// a link that leaves every root) is neither listed nor entered.
+/// levels uniformly. A link is listed and never followed. Any other entry the
+/// sandbox does not serve (a folder in pause) is neither listed nor entered.
 fn collect_entries<'a>(
     sandbox: &'a SandboxRoot,
     base_dir: &'a std::path::Path,
@@ -235,13 +236,15 @@ fn collect_entries<'a>(
         local.sort_by(|a, b| a.0.cmp(&b.0));
 
         for (abs_path, entry) in &local {
-            if !sandbox.serves(abs_path) {
-                continue;
-            }
+            // The metadata of the entry itself: a link is listed by its own
+            // name and size, and never followed, wherever it points.
             let meta = entry.metadata().await.map_err(|e| FileListError::IoError {
                 path: abs_path.display().to_string(),
                 cause: e.to_string(),
             })?;
+            if !meta.file_type().is_symlink() && !sandbox.serves(abs_path) {
+                continue;
+            }
 
             let name = abs_path
                 .strip_prefix(base_dir)

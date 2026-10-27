@@ -5,12 +5,14 @@
 //! the quotes. Each guess failed a step, and each failed step cost a new plan,
 //! about a minute of a batch item. The planner is now given the files it can
 //! reach, with the path to write for each, bounded so a large folder does not
-//! fill its prompt. A folder in pause nested in a granted one is not entered:
-//! the planner is not told the name of a file the tools would refuse.
+//! fill its prompt. The listing names only what the sandbox of the file tools
+//! serves: a folder in pause nested in a granted one is not entered, and a
+//! link into it is not named, so the planner is not told the name of a file
+//! the tools would refuse.
 
 use std::path::{Path, PathBuf};
 
-use apollia_tools::sandbox_path::real_path;
+use apollia_tools::SandboxRoot;
 
 /// How deep under a granted folder the listing goes.
 const MAX_DEPTH: usize = 4;
@@ -22,13 +24,9 @@ const MAX_FILES: usize = 200;
 /// the file tools resolve them; paths under another folder are absolute.
 pub(super) fn planning_note(folders: &apollia_tools::FolderRoots) -> Option<String> {
     let anchor = folders.anchor()?;
-    let paused: Vec<PathBuf> = folders
-        .paused
-        .iter()
-        .filter_map(|folder| real_path(folder))
-        .collect();
+    let sandbox = SandboxRoot::new(folders.sandbox(folders.read.clone())).ok()?;
     let mut walk = Walk {
-        paused: &paused,
+        sandbox: &sandbox,
         files: Vec::new(),
         more: 0,
     };
@@ -58,10 +56,10 @@ pub(super) fn planning_note(folders: &apollia_tools::FolderRoots) -> Option<Stri
     Some(note)
 }
 
-/// A listing in progress: the folders in pause it does not enter, where they
-/// really are, and what it found.
+/// A listing in progress: the sandbox of the file tools, which says what it
+/// may enter and name, and what it found.
 struct Walk<'a> {
-    paused: &'a [PathBuf],
+    sandbox: &'a SandboxRoot,
     files: Vec<PathBuf>,
     more: usize,
 }
@@ -81,21 +79,20 @@ impl Walk<'_> {
             let Ok(kind) = entry.file_type() else {
                 continue;
             };
+            let path = entry.path();
+            if !self.sandbox.serves(&path) {
+                continue;
+            }
             if kind.is_dir() {
-                if depth < MAX_DEPTH && !self.in_pause(&entry.path()) {
-                    self.dir(&entry.path(), depth + 1);
+                if depth < MAX_DEPTH {
+                    self.dir(&path, depth + 1);
                 }
             } else if self.files.len() < MAX_FILES {
-                self.files.push(entry.path());
+                self.files.push(path);
             } else {
                 self.more += 1;
             }
         }
-    }
-
-    fn in_pause(&self, dir: &Path) -> bool {
-        !self.paused.is_empty()
-            && real_path(dir).is_some_and(|real| self.paused.iter().any(|p| real.starts_with(p)))
     }
 }
 
@@ -146,6 +143,32 @@ mod tests {
         // THEN the file of the sound folder is named, none of the folder in pause
         assert!(note.contains("- o.md"), "{note}");
         assert!(!note.contains("secret.md"), "{note}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_the_planner_is_not_told_a_link_into_a_folder_in_pause() {
+        // GIVEN a granted folder holding a folder in pause, and a link to a
+        // file of it from the sound folder
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path().to_path_buf();
+        std::fs::create_dir_all(root.join("inner")).expect("mkdir");
+        std::fs::write(root.join("o.md"), b"x").expect("write");
+        std::fs::write(root.join("inner/secret.md"), b"x").expect("write");
+        std::os::unix::fs::symlink(root.join("inner/secret.md"), root.join("alias.md"))
+            .expect("symlink");
+
+        // WHEN the note is written
+        let note = planning_note(&apollia_tools::FolderRoots {
+            read: vec![root.clone()],
+            paused: vec![root.join("inner")],
+            ..Default::default()
+        })
+        .expect("a note");
+
+        // THEN the link, which the tools would refuse, is not named
+        assert!(note.contains("- o.md"), "{note}");
+        assert!(!note.contains("alias.md"), "{note}");
     }
 
     #[test]

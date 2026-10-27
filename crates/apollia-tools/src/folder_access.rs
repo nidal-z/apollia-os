@@ -224,3 +224,6 @@ mod tests;
 
 #[cfg(test)]
 mod paused_tests;
+
+#[cfg(test)]
+mod walk_tests;

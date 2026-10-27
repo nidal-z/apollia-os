@@ -640,8 +640,13 @@ tout autre. Les outils de fichiers ne reposent pas sur cette seule décision,
 puisqu'un parcours d'un dossier sain ne nomme aucun dossier imbriqué : un
 dossier en pause est retiré de leur bac à sable, il n'est pas une racine et
 aucune racine qui le contient n'y descend, si bien qu'aucun chemin, lien,
-liste ou recherche récursive n'y lit ni n'y écrit. `source_search` ne le
-cherche pas non plus : il rend la source sous `paused` et cherche les autres. L'exécuteur des boîtes refuse lui aussi à
+liste ou recherche récursive n'y lit ni n'y écrit, et un parcours ne nomme
+rien de ce qu'il a trouvé en passant par lui, pas plus que la suggestion donnée
+pour un fichier introuvable. `source_search` ne le cherche pas non plus : il
+rend la source sous `paused` et cherche les autres. Les outils d'un tour sont
+construits à son début : ils relisent donc à chacun de leurs appels les pauses
+que publie la gouvernance, comme la décision, si bien qu'un dossier mis en
+pause pendant qu'un agent travaille est retiré dès son appel suivant. L'exécuteur des boîtes refuse lui aussi à
 chaque appel une boîte en pause, comme il refuse une boîte interdite. Une
 connexion en pause se lit en pause dans la liste, quel que soit l'état gardé
 pour elle avant.

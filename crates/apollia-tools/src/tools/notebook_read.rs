@@ -173,7 +173,7 @@ impl NotebookRead {
         &self,
         input: NotebookReadInput,
     ) -> Result<NotebookReadOutput, NotebookReadError> {
-        let resolved = self.sandbox.resolve(&input.path).map_err(|e| {
+        let resolved = self.sandbox.for_call().resolve(&input.path).map_err(|e| {
             let path = input.path.clone();
             if e.is_paused() {
                 NotebookReadError::Paused { path }

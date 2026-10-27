@@ -4,6 +4,8 @@
 //! preventing path traversal attacks and unauthorized filesystem access.
 
 use std::path::{Component, Path, PathBuf};
+
+use crate::pauses::LivePauses;
 use thiserror::Error;
 
 /// Error type for sandbox path validation.
@@ -50,6 +52,9 @@ pub const PAUSED_REASON: &str = "is in a folder whose connection is paused: noth
 /// a statement about a disk that may not be mounted, not a request to make one.
 /// A folder in pause is a subtree taken out of every root that holds it: a path
 /// that lands in it is refused for the pause, and a walk does not enter it.
+/// With [`SandboxSpec::with_live_pauses`], the folders in pause are read again
+/// at each call ([`SandboxRoot::for_call`]), so a folder paused while the turn
+/// runs is out from the next call on.
 ///
 /// `From<PathBuf>` and `From<Vec<PathBuf>>` mean a caller with a single root
 /// writes what it always wrote. An empty vector is rejected at construction
@@ -59,6 +64,7 @@ pub struct SandboxSpec {
     anchor: PathBuf,
     extra: Vec<PathBuf>,
     paused: Vec<PathBuf>,
+    live: Option<LivePauses>,
 }
 
 impl SandboxSpec {
@@ -66,6 +72,14 @@ impl SandboxSpec {
     #[must_use]
     pub fn with_paused(mut self, paused: Vec<PathBuf>) -> Self {
         self.paused = paused;
+        self
+    }
+
+    /// The same roots, the folders in pause read from `live` at each call
+    /// instead of the ones given to [`Self::with_paused`]. `None` keeps those.
+    #[must_use]
+    pub fn with_live_pauses(mut self, live: Option<LivePauses>) -> Self {
+        self.live = live;
         self
     }
 }
@@ -76,6 +90,7 @@ impl From<PathBuf> for SandboxSpec {
             anchor,
             extra: Vec::new(),
             paused: Vec::new(),
+            live: None,
         }
     }
 }
@@ -98,6 +113,7 @@ impl From<Vec<PathBuf>> for SandboxSpec {
             anchor,
             extra: roots,
             paused: Vec::new(),
+            live: None,
         }
     }
 }
@@ -120,6 +136,8 @@ pub struct SandboxRoot {
     /// The folders in pause, where [`real_path`] lands them: no path in one
     /// is served, unless a root nested in it holds the path.
     paused: Vec<PathBuf>,
+    /// Where the folders in pause are read again at each call, if anywhere.
+    live: Option<LivePauses>,
 }
 
 impl SandboxRoot {
@@ -144,6 +162,7 @@ impl SandboxRoot {
             anchor,
             extra,
             paused,
+            live,
         } = spec.into();
 
         if anchor.as_os_str().is_empty() {
@@ -172,17 +191,33 @@ impl SandboxRoot {
             }
             roots.push(root.canonicalize().unwrap_or(root));
         }
-        let paused = paused
-            .iter()
-            .filter(|folder| !folder.as_os_str().is_empty())
-            .map(|folder| real_path(folder).unwrap_or_else(|| folder.clone()))
-            .collect();
+        let paused = match &live {
+            Some(live) => real_folders(&live.folders()),
+            None => real_folders(&paused),
+        };
 
         Ok(Self {
             canonical,
             roots,
             paused,
+            live,
         })
+    }
+
+    /// The sandbox one call of a tool works in: the folders in pause read
+    /// now, once for the whole call, when they are read at each call; the
+    /// same sandbox otherwise.
+    #[must_use]
+    pub fn for_call(&self) -> Self {
+        let Some(live) = &self.live else {
+            return self.clone();
+        };
+        Self {
+            canonical: self.canonical.clone(),
+            roots: self.roots.clone(),
+            paused: real_folders(&live.folders()),
+            live: None,
+        }
     }
 
     /// Resolve a relative path within the sandbox.
@@ -228,6 +263,17 @@ impl SandboxRoot {
     #[must_use]
     pub fn serves(&self, path: &Path) -> bool {
         self.contain_within_root(path, "").is_ok()
+    }
+
+    /// A filter over the paths a walk from `base` finds, as it names them:
+    /// see [`Walk`].
+    #[must_use]
+    pub fn walk(&self, base: &Path) -> Walk<'_> {
+        Walk {
+            sandbox: self,
+            base: base.to_path_buf(),
+            dirs: std::collections::HashMap::new(),
+        }
     }
 
     /// Canonicalize the existing portion of `resolved` and re-check confinement.
@@ -287,6 +333,50 @@ impl SandboxRoot {
     pub fn roots(&self) -> &[PathBuf] {
         &self.roots
     }
+}
+
+/// What a walk from one directory serves of the paths it finds. A path is
+/// served when the sandbox serves where it really lands, and every directory
+/// the walk went through to reach it, as the walk names it, is served too: a
+/// walk that entered a folder in pause, by a link out of it or by its own
+/// name, names nothing found there, wherever its links lead.
+pub struct Walk<'a> {
+    sandbox: &'a SandboxRoot,
+    base: PathBuf,
+    dirs: std::collections::HashMap<PathBuf, bool>,
+}
+
+impl Walk<'_> {
+    /// Whether the walk serves `path`, a path it found under its start.
+    pub fn serves(&mut self, path: &Path) -> bool {
+        let through = path.parent().is_none_or(|parent| self.dir_served(parent));
+        through && self.sandbox.serves(path)
+    }
+
+    /// Whether the walk may go through `dir`: its start, or a directory under
+    /// it the sandbox serves, reached through served directories.
+    fn dir_served(&mut self, dir: &Path) -> bool {
+        if dir == self.base || !dir.starts_with(&self.base) {
+            return true;
+        }
+        if let Some(known) = self.dirs.get(dir) {
+            return *known;
+        }
+        let served =
+            self.sandbox.serves(dir) && dir.parent().is_none_or(|parent| self.dir_served(parent));
+        self.dirs.insert(dir.to_path_buf(), served);
+        served
+    }
+}
+
+/// Each folder of `folders` where it really lands on disk, as written when it
+/// cannot be resolved.
+fn real_folders(folders: &[PathBuf]) -> Vec<PathBuf> {
+    folders
+        .iter()
+        .filter(|folder| !folder.as_os_str().is_empty())
+        .map(|folder| real_path(folder).unwrap_or_else(|| folder.clone()))
+        .collect()
 }
 
 /// Where a path given to a file tool points before any link is followed: a

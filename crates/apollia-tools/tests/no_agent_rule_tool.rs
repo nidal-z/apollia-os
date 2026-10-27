@@ -39,6 +39,7 @@ fn widest_config(root: &Path) -> NativeDispatcherConfig {
         sandbox_roots: vec![root.to_path_buf()],
         write_roots: vec![root.to_path_buf()],
         paused_folders: Vec::new(),
+        live_pauses: None,
         agent_id: "third-party-agent".to_string(),
         venv_base_dir: root.join("venvs"),
         memory_namespace: Some("third-party-agent".to_string()),

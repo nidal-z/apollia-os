@@ -237,3 +237,69 @@ async fn test_a_folder_whose_connection_is_paused_is_not_searched() {
     assert!(named.not_indexed.is_empty());
     assert!(named.results.is_empty());
 }
+
+// A folder paused during the turn is not searched by the search built for
+// that turn: it reads the pauses at each call, as the decision does.
+#[tokio::test]
+async fn test_a_folder_paused_during_the_turn_is_not_searched() {
+    // GIVEN two folders checked for Apollia, nothing in pause when the turn
+    //       starts, and the search of that turn
+    let dir = tempfile::tempdir().unwrap();
+    let registry = SourceRegistryHandle::open(&DataFile::System.path(dir.path())).unwrap();
+    let contracts = folder(&registry, "Contracts").await;
+    let invoices = folder(&registry, "Invoices").await;
+    check_for_apollia(dir.path(), &[contracts.as_str(), invoices.as_str()]);
+    let governance =
+        crate::governance::GovernanceHandle::spawn(crate::governance::GovernanceSources {
+            governance_db: Some(DataFile::Governance.path(dir.path())),
+            config_path: Some(dir.path().join("apollia.toml")),
+            policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
+            journal: None,
+            events: None,
+            forbidden_connections: Default::default(),
+        });
+    let cfg = Arc::new(ChatToolsConfig {
+        data_dir: dir.path().to_path_buf(),
+        brave_api_key: None,
+        tools_config: apollia_core::ToolsConfig::default(),
+        tool_turn_temperature: None,
+        source_registry: Some(registry),
+        governance: Some(governance.clone()),
+    });
+    let access = source_access(Some(&cfg), APOLLIA_CHAT_AGENT_ID).await;
+    let search = access.search.as_ref().unwrap();
+
+    // WHEN the connection of the first folder is paused during the turn, then
+    //      Apollia searches every source
+    assert!(governance
+        .set_paused("folder:folder-Contracts", true)
+        .await
+        .unwrap());
+    let every = search
+        .run(SourceSearchInput {
+            query: "lease".to_owned(),
+            sources: None,
+            limit: None,
+        })
+        .await
+        .unwrap();
+
+    // THEN the paused folder is answered paused and never searched
+    assert_eq!(every.paused, std::slice::from_ref(&contracts));
+    assert_eq!(every.not_indexed, std::slice::from_ref(&invoices));
+
+    // AND once resumed, it is searched again at the next call
+    assert!(governance
+        .set_paused("folder:folder-Contracts", false)
+        .await
+        .unwrap());
+    let resumed = search
+        .run(SourceSearchInput {
+            query: "lease".to_owned(),
+            sources: None,
+            limit: None,
+        })
+        .await
+        .unwrap();
+    assert!(resumed.paused.is_empty());
+}

@@ -190,7 +190,7 @@ impl NotebookEdit {
         &self,
         input: NotebookEditInput,
     ) -> Result<NotebookEditOutput, NotebookEditError> {
-        let resolved = self.sandbox.resolve(&input.path).map_err(|e| {
+        let resolved = self.sandbox.for_call().resolve(&input.path).map_err(|e| {
             let path = input.path.clone();
             if e.is_paused() {
                 NotebookEditError::Paused { path }

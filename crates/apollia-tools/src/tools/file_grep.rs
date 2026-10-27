@@ -131,8 +131,9 @@ impl FileGrep {
     /// - `InvalidRegex` if `pattern` is not a valid regex.
     /// - `IoError` on any I/O failure during traversal.
     pub async fn run(&self, input: FileGrepInput) -> Result<FileGrepOutput, FileGrepError> {
+        let sandbox = self.sandbox.for_call();
         let base = match &input.path {
-            Some(p) => self.sandbox.resolve(p).map_err(|e| {
+            Some(p) => sandbox.resolve(p).map_err(|e| {
                 let path = p.clone();
                 if e.is_paused() {
                     FileGrepError::Paused { path }
@@ -140,7 +141,7 @@ impl FileGrep {
                     FileGrepError::SandboxViolation { path }
                 }
             })?,
-            None => self.sandbox.path().to_path_buf(),
+            None => sandbox.path().to_path_buf(),
         };
 
         let max_results = input.max_results.unwrap_or(100).min(500) as usize;
@@ -162,7 +163,7 @@ impl FileGrep {
 
         let params = GrepParams {
             base,
-            sandbox: self.sandbox.clone(),
+            sandbox,
             glob_filter,
             regex,
             context_lines,
@@ -270,9 +271,9 @@ impl FileGrep {
 
 /// Collect all candidate files under `base`, optionally filtered by a glob pattern.
 ///
-/// Files outside the sandbox root, and files the sandbox does not serve (in a
-/// folder in pause, or reached through a link that leaves every root), are
-/// silently excluded and never read. Only regular files are returned.
+/// Files outside the sandbox root, and files the walk does not serve (in a
+/// folder in pause, found through one, or reached through a link that leaves
+/// every root), are silently excluded and never read. Only regular files are returned.
 fn collect_files(
     base: &Path,
     sandbox: &SandboxRoot,
@@ -286,9 +287,10 @@ fn collect_files(
         .map_err(|e| FileGrepError::IoError(format!("glob pattern error: {e}")))?;
 
     let mut files = Vec::new();
+    let mut walk = sandbox.walk(base);
     for entry in entries {
         let path = entry.map_err(|e| FileGrepError::IoError(e.to_string()))?;
-        if path.is_file() && path.starts_with(sandbox_root) && sandbox.serves(&path) {
+        if path.is_file() && path.starts_with(sandbox_root) && walk.serves(&path) {
             files.push(path);
         }
     }

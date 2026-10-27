@@ -593,8 +593,12 @@ journals it as any other. The file tools do not rest on that decision alone,
 since a walk over a sound folder names no folder nested in it: a folder in
 pause is taken out of their sandbox, it is no root and no root that holds it
 reaches into it, so no path, link or recursive listing or search reads or
-writes in it. `source_search` does not search it either: it answers the
-source under `paused` and searches the others. The mailbox executor refuses a paused
+writes in it, and a walk names nothing it found through it, nor does the
+suggestion given for a file not found. `source_search` does not search it
+either: it answers the source under `paused` and searches the others. The
+tools of a turn are built when it starts, so they read the pauses governance
+publishes again at each of their calls, as the decision does: a folder paused
+while an agent works is out from its next call. The mailbox executor refuses a paused
 mailbox at each call as well, as it refuses a forbidden one. A connection in
 pause reads paused in the list, whatever state was kept for it before.
 

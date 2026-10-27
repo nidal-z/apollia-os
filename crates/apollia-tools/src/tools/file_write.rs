@@ -101,7 +101,7 @@ impl FileWrite {
     /// Returns an error if the path is invalid, the journal fails, or the
     /// file cannot be written.
     pub async fn run(&self, input: FileWriteInput) -> Result<(), FileWriteError> {
-        let resolved_path = self.sandbox.resolve(&input.path).map_err(|e| {
+        let resolved_path = self.sandbox.for_call().resolve(&input.path).map_err(|e| {
             let path = input.path.clone();
             if e.is_paused() {
                 FileWriteError::Paused { path }

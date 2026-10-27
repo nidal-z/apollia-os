@@ -112,8 +112,9 @@ impl FileGlob {
     /// - `InvalidPattern` if `pattern` is syntactically invalid.
     /// - `IoError` on any I/O failure during traversal.
     pub async fn run(&self, input: FileGlobInput) -> Result<FileGlobOutput, FileGlobError> {
+        let sandbox = self.sandbox.for_call();
         let base = match &input.path {
-            Some(p) => self.sandbox.resolve(p).map_err(|e| {
+            Some(p) => sandbox.resolve(p).map_err(|e| {
                 let path = p.clone();
                 if e.is_paused() {
                     FileGlobError::Paused { path }
@@ -121,10 +122,9 @@ impl FileGlob {
                     FileGlobError::SandboxViolation { path }
                 }
             })?,
-            None => self.sandbox.path().to_path_buf(),
+            None => sandbox.path().to_path_buf(),
         };
 
-        let sandbox = self.sandbox.clone();
         let pattern = input.pattern.clone();
 
         // Glob traversal is blocking filesystem I/O: run off the async executor.
@@ -187,8 +187,8 @@ impl FileGlob {
 /// Perform the blocking glob search and return file paths sorted by mtime descending.
 ///
 /// Directories are excluded from results. Entries outside the sandbox root, and
-/// entries the sandbox does not serve (in a folder in pause, or reached through
-/// a link that leaves every root), are silently skipped.
+/// entries the walk does not serve (in a folder in pause, found through one, or
+/// reached through a link that leaves every root), are silently skipped.
 fn glob_files(
     base: &std::path::Path,
     sandbox: &SandboxRoot,
@@ -202,12 +202,13 @@ fn glob_files(
         .map_err(|e| FileGlobError::InvalidPattern(format!("{pattern}: {e}")))?;
 
     let mut entries: Vec<(PathBuf, SystemTime)> = Vec::new();
+    let mut walk = sandbox.walk(base);
 
     for path_result in paths {
         let path = path_result.map_err(|e| FileGlobError::IoError(e.to_string()))?;
 
         // Exclude directories and any path the sandbox does not serve.
-        if path.is_dir() || !path.starts_with(sandbox_root) || !sandbox.serves(&path) {
+        if path.is_dir() || !path.starts_with(sandbox_root) || !walk.serves(&path) {
             continue;
         }
 

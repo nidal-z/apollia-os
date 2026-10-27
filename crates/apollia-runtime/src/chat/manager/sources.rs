@@ -38,12 +38,15 @@ pub(in crate::chat::manager) async fn source_access(
     match crate::agents::sources::checked_sources(&cfg.data_dir, registry, agent_id).await {
         // An agent whose profile is checked may propose facts for it, each
         // one put to the person before it is written.
-        Ok(Some(checked)) => SourceAccess::from_checked(&checked, Some(registry))
-            .with_paused_sources(paused_sources(cfg, &checked))
-            .with_profile_store(
-                apollia_core::paths::DataFile::UserMemory.path(&cfg.data_dir),
-                &memory_namespace(agent_id),
-            ),
+        Ok(Some(checked)) => with_pauses(
+            SourceAccess::from_checked(&checked, Some(registry)),
+            cfg,
+            &checked,
+        )
+        .with_profile_store(
+            apollia_core::paths::DataFile::UserMemory.path(&cfg.data_dir),
+            &memory_namespace(agent_id),
+        ),
         Ok(None) => SourceAccess::default(),
         Err(e) => {
             tracing::event!(
@@ -80,19 +83,44 @@ pub(in crate::chat::manager) fn paused_connections(
     }
 }
 
-/// The sources of `checked` held by a folder connection the user paused (see
-/// [`paused_connections`]).
-fn paused_sources(cfg: &ChatToolsConfig, checked: &[CheckedSource]) -> Vec<String> {
-    let paused = paused_connections(cfg);
+/// `access`, its search told which sources of `checked` a paused folder
+/// connection holds: read from governance at each call, so a folder paused
+/// during the turn is not searched from the next call on; without governance,
+/// read once from `governance.db` (see [`paused_connections`]).
+fn with_pauses(
+    access: SourceAccess,
+    cfg: &ChatToolsConfig,
+    checked: &[CheckedSource],
+) -> SourceAccess {
+    let holders = folder_holders(checked);
+    match cfg.governance.as_ref() {
+        Some(governance) => access.with_live_source_pauses(apollia_tools::LiveSourcePauses::new(
+            governance.pause_reader(),
+            holders,
+        )),
+        None => {
+            let paused = paused_connections(cfg);
+            access.with_paused_sources(
+                holders
+                    .into_iter()
+                    .filter(|(_, connection)| paused.contains(connection))
+                    .map(|(source, _)| source)
+                    .collect(),
+            )
+        }
+    }
+}
+
+/// Each source of `checked` a folder connection holds, with that connection
+/// (`folder:<id>`).
+fn folder_holders(checked: &[CheckedSource]) -> Vec<(String, String)> {
     checked
         .iter()
         .filter_map(|source| match source {
             CheckedSource::Registered(source) => {
                 let folder = source.reference.as_deref()?;
                 let folder = folder.strip_prefix("folder:").unwrap_or(folder);
-                paused
-                    .contains(&format!("folder:{folder}"))
-                    .then(|| source.id.clone())
+                Some((source.id.clone(), format!("folder:{folder}")))
             }
             _ => None,
         })

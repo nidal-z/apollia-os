@@ -89,6 +89,7 @@ pub struct SourceSearchTool {
     registry: SourceRegistryHandle,
     sources: Vec<String>,
     paused: Vec<String>,
+    live: Option<crate::LiveSourcePauses>,
 }
 
 impl SourceSearchTool {
@@ -100,6 +101,7 @@ impl SourceSearchTool {
             registry,
             sources,
             paused: Vec::new(),
+            live: None,
         }
     }
 
@@ -112,6 +114,29 @@ impl SourceSearchTool {
             .filter(|id| self.sources.contains(id))
             .collect();
         self
+    }
+
+    /// The same tool, where the sources held by a connection the user paused
+    /// are read from `live` at each call, in place of [`Self::with_paused`]:
+    /// a source paused while the turn runs is answered paused from the next
+    /// call on.
+    #[must_use]
+    pub fn with_live_pauses(mut self, live: crate::LiveSourcePauses) -> Self {
+        self.live = Some(live);
+        self
+    }
+
+    /// The sources in pause for one call: read now when they are read at each
+    /// call, else those given when the tool was built.
+    fn paused_now(&self) -> Vec<String> {
+        match &self.live {
+            Some(live) => live
+                .sources()
+                .into_iter()
+                .filter(|id| self.sources.contains(id))
+                .collect(),
+            None => self.paused.clone(),
+        }
     }
 
     /// The sources this tool may search.
@@ -163,10 +188,11 @@ impl SourceSearchTool {
             }
             limit => limit.map(|l| l as usize),
         };
+        let paused_now = self.paused_now();
         let (paused, targets): (Vec<String>, Vec<String>) = self
             .targets(input.sources)?
             .into_iter()
-            .partition(|id| self.paused.contains(id));
+            .partition(|id| paused_now.contains(id));
         if targets.is_empty() {
             return Ok(SourceSearchOutput {
                 mode: SearchMode::KeywordsOnly,

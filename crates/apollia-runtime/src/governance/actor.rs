@@ -200,6 +200,15 @@ impl GovernanceHandle {
         Arc::clone(&self.state.borrow())
     }
 
+    /// A reader of the pauses this state publishes, for a tool built for a
+    /// turn to read them again at each of its calls.
+    #[must_use]
+    pub fn pause_reader(&self) -> Arc<dyn apollia_tools::PauseReader> {
+        Arc::new(crate::governance::pauses::PublishedPauses(
+            self.state.clone(),
+        ))
+    }
+
     /// Whether records reach an audit journal.
     #[must_use]
     pub fn journaled(&self) -> bool {

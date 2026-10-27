@@ -47,6 +47,7 @@ pub mod host_env;
 pub mod journal;
 pub mod native_dispatcher;
 pub mod package_repository;
+pub mod pauses;
 pub mod project_repository;
 pub mod registry;
 pub mod sandbox_path;
@@ -95,6 +96,7 @@ pub use package_repository::{
     InstalledPackage, PackageItem, PackageItemKind, PackageRepository, PackageRepositoryError,
     PackageSignature,
 };
+pub use pauses::{LivePauses, LiveSourcePauses, PauseReader};
 pub use project_repository::{
     ProjectDetail, ProjectDocument, ProjectProviderRow, ProjectRepository, ProjectRepositoryError,
     ProjectSummary,

@@ -50,6 +50,7 @@ mod journal;
 mod journal_policy;
 #[cfg(test)]
 mod no_policy;
+mod pauses;
 pub(crate) mod policy_admission;
 pub(crate) mod reach;
 mod record;

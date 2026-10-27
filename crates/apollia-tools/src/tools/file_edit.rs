@@ -138,7 +138,7 @@ impl FileEdit {
         }
 
         // 2. SandboxViolation
-        let resolved = self.sandbox.resolve(&input.path).map_err(|e| {
+        let resolved = self.sandbox.for_call().resolve(&input.path).map_err(|e| {
             let path = input.path.clone();
             if e.is_paused() {
                 FileEditError::Paused { path }
