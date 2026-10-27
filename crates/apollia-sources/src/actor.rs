@@ -15,6 +15,9 @@
 //! indexer reports a full pass over the new folder, a search leaves the
 //! sources made on it out, as not indexed, so the old folder's passages are
 //! never answered.
+//! At start, a folder source whose index holds a document outside the
+//! folder its connection names is held back the same way: a connection
+//! pointed elsewhere before a stop is never answered from the old folder.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -74,6 +77,8 @@ enum Command {
     IndexStatus(String, oneshot::Sender<Result<IndexStatus, SourcesError>>),
     FolderRepointed(String, Reply<Vec<String>>),
     Indexed(String, PathBuf),
+    #[cfg(test)]
+    IndexerServed(oneshot::Sender<()>),
 }
 
 /// Where the index of a source stands, and what it left out.
@@ -328,6 +333,15 @@ impl SourceRegistryHandle {
             .await
     }
 
+    /// Answers once the indexer has served every command the registry sent
+    /// it before; closed at once when no indexer runs.
+    #[cfg(test)]
+    pub(crate) async fn indexer_served(&self) -> oneshot::Receiver<()> {
+        let (reply, done) = oneshot::channel();
+        let _ = self.tx.send(Command::IndexerServed(reply)).await;
+        done
+    }
+
     /// Where the index of the source `id` stands: its state, its counts and
     /// the files it left out.
     ///
@@ -363,10 +377,51 @@ impl Actor {
     /// The actor loop: one command at a time, until every handle is gone.
     fn run(mut self, mut rx: mpsc::Receiver<Command>) {
         tracing::event!(tracing::Level::DEBUG, "sources.registry.started");
+        self.wait_for_moved_folders();
         while let Some(command) = rx.blocking_recv() {
             self.serve(command);
         }
         tracing::event!(tracing::Level::DEBUG, "sources.registry.stopped");
+    }
+
+    /// Records as waiting for their folder the folder sources whose index
+    /// holds a document outside the folder their connection names now: a
+    /// connection pointed elsewhere before a stop, its indexer never told.
+    /// They are searched again once the indexer reports a full pass over
+    /// that folder, which drops what lies outside it. An index that cannot
+    /// be read is held back the same way.
+    fn wait_for_moved_folders(&mut self) {
+        let (Some(data_dir), Ok(sources)) = (self.data_dir.as_deref(), self.store.list()) else {
+            return;
+        };
+        let folders: Vec<Source> = sources
+            .into_iter()
+            .filter(|s| s.kind == SourceKind::Folder)
+            .collect();
+        let roots = crate::indexer::roots_of(&self.system_db, &folders);
+        for (id, root) in roots {
+            let held_outside = match crate::index::index_path(data_dir, &id) {
+                Ok(path) if !path.exists() => false,
+                Ok(path) => SourceIndex::open_at(&path, &id)
+                    .and_then(|index| index.documents())
+                    .map(|documents| {
+                        let root = root.to_string_lossy();
+                        documents
+                            .iter()
+                            .any(|d| !crate::indexer::is_under(&d.path, &root))
+                    })
+                    .unwrap_or(true),
+                Err(_) => true,
+            };
+            if held_outside {
+                tracing::event!(
+                    tracing::Level::INFO,
+                    source = %id,
+                    "sources.registry.folder_moved_while_stopped"
+                );
+                self.repointed.insert(id, Some(root));
+            }
+        }
     }
 
     /// Tells the indexer, when one runs, that the registry changed.
@@ -445,10 +500,17 @@ impl Actor {
                 }
             }
             Command::IndexStatus(id, reply) => {
-                let _ = reply.send(index_status(store, data_dir, &id));
+                let waiting = self.repointed.contains_key(&id);
+                let _ = reply.send(index_status(store, data_dir, &id, waiting));
             }
             Command::FolderRepointed(folder, reply) => {
                 let _ = reply.send(self.folder_repointed(&folder));
+            }
+            #[cfg(test)]
+            Command::IndexerServed(reply) => {
+                if let Some(indexer) = &self.indexer {
+                    indexer.send(IndexerCommand::Served(reply));
+                }
             }
             Command::Indexed(id, root) => {
                 if self.repointed.get(&id) == Some(&Some(root.clone())) {
@@ -517,17 +579,30 @@ impl Actor {
 }
 
 /// Where the index of the source `id` stands. An index never written counts
-/// nothing; reading it never creates it.
+/// nothing; reading it never creates it. A source `waiting` for the folder
+/// its connection names now is being indexed, and its old index is not
+/// shown.
 fn index_status(
     store: &SourceRegistryStore,
     data_dir: Option<&Path>,
     id: &str,
+    waiting: bool,
 ) -> Result<IndexStatus, SourcesError> {
     let source = store
         .get(id)?
         .ok_or_else(|| SourceRegistryError::NotFound(id.to_owned()))?;
     let data_dir = data_dir.ok_or(SourcesError::NoDataDirectory)?;
     let path = crate::index::index_path(data_dir, id)?;
+    if waiting {
+        return Ok(IndexStatus {
+            source: source.id,
+            state: IndexState::Indexing,
+            documents: 0,
+            chunks: 0,
+            skipped: Vec::new(),
+            unread_pages: Vec::new(),
+        });
+    }
     let (documents, chunks, skipped, unread_pages) = if path.exists() {
         let index = SourceIndex::open_at(&path, id)?;
         let (documents, chunks) = index.counts()?;

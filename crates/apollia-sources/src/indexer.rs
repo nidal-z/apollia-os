@@ -58,6 +58,7 @@ pub mod extract;
 mod pass;
 mod watch;
 
+pub(crate) use pass::is_under;
 pub use pass::{PassOutcome, MAX_INDEXED_FILE_BYTES};
 
 /// Capacity of the indexer's channel. A watcher that finds it full asks for
@@ -105,6 +106,9 @@ pub(crate) enum IndexerCommand {
     },
     /// Index every source again against the disk, then answer.
     Refresh(oneshot::Sender<()>),
+    /// Answer, once every command sent before is served.
+    #[cfg(test)]
+    Served(oneshot::Sender<()>),
 }
 
 /// The registry's way to reach the indexer.
@@ -264,6 +268,10 @@ impl<E: PassageEmbedder> Indexer<E> {
                 let _ = reply.send(());
             }
             IndexerCommand::Changed { .. } => {}
+            #[cfg(test)]
+            IndexerCommand::Served(reply) => {
+                let _ = reply.send(());
+            }
         }
     }
 

@@ -62,7 +62,12 @@ async fn test_a_folder_told_repointed_is_indexed_at_once_and_its_old_content_nev
         .await
         .unwrap();
     let right_after = found(&world, &id, "Lyon").await;
-    stub.entered.notified().await;
+    let served = world.registry.indexer_served().await;
+    tokio::select! {
+        biased;
+        () = stub.entered.notified() => {}
+        _ = served => panic!("the new folder was not read without a sweep"),
+    }
     let while_indexing = found(&world, &id, "Lyon").await;
     stub.gated.store(false, Ordering::SeqCst);
     stub.gate.add_permits(64);
@@ -132,6 +137,73 @@ async fn test_a_folder_told_repointed_without_an_indexer_is_never_searched_in_th
 
     // THEN the old index is not answered
     assert_eq!(found(&world, &id, "Lyon").await, (BTreeSet::new(), true));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_a_folder_repointed_before_a_stop_is_never_searched_in_the_old_one_after_a_restart() {
+    // GIVEN a folder source indexed over a folder about Lyon, its connection
+    // pointed at another folder about Nantes, and Apollia stopped before any
+    // indexer heard of it
+    let stub = Stub::new("e5-small");
+    let (world, id, _other, other_root) = indexed_with_another_folder(&stub).await;
+    repoint(&world, &other_root);
+    let system_db = world.data.path().join("system.db");
+    let world = World {
+        registry: SourceRegistryHandle::open(&system_db).unwrap(),
+        ..world
+    };
+
+    // WHEN Apollia starts again, before its indexer runs, while its first
+    // pass reads the new folder, and once that pass is over
+    let before_start = found(&world, &id, "Lyon").await;
+    stub.take_seen();
+    stub.gated.store(true, Ordering::SeqCst);
+    world.start(&stub).await;
+    stub.entered.notified().await;
+    let while_indexing = found(&world, &id, "Lyon").await;
+    stub.gated.store(false, Ordering::SeqCst);
+    stub.gate.add_permits(64);
+    world.refresh().await;
+
+    // THEN the old folder is never answered, and the index holds the new
+    // folder's file alone
+    assert_eq!(before_start, (BTreeSet::new(), true));
+    assert!(while_indexing.0.is_empty(), "{while_indexing:?}");
+    assert_eq!(found(&world, &id, "Lyon").await, (BTreeSet::new(), false));
+    assert_eq!(
+        found(&world, &id, "Nantes").await,
+        (BTreeSet::from([key(&other_root.join("new.txt"))]), false)
+    );
+    assert_eq!(
+        world.documents(&id),
+        BTreeSet::from([key(&other_root.join("new.txt"))])
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_the_index_state_of_a_folder_waiting_for_its_new_folder_shows_none_of_the_old_one() {
+    // GIVEN a folder source with an index of its folder about Lyon, and no
+    // indexer running
+    let stub = Stub::new("e5-small");
+    let (world, id, _other, other_root) = indexed_with_another_folder(&stub).await;
+    let world = World {
+        registry: SourceRegistryHandle::open(&world.data.path().join("system.db")).unwrap(),
+        ..world
+    };
+
+    // WHEN its connection is pointed at another folder and the registry told
+    repoint(&world, &other_root);
+    world
+        .registry
+        .folder_repointed(&first_connection(&world))
+        .await
+        .unwrap();
+    let status = world.registry.index_status(&id).await.unwrap();
+
+    // THEN it is shown as being indexed, with nothing of the old index
+    assert_eq!(status.state, IndexState::Indexing);
+    assert_eq!((status.documents, status.chunks), (0, 0));
+    assert!(status.skipped.is_empty() && status.unread_pages.is_empty());
 }
 
 /// The stored identifier of the one folder connection of `world`.
