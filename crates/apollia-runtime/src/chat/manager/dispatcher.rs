@@ -84,15 +84,20 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
 }
 
 /// The access an executor checks and the folders the file tools reach, from
-/// the granted `tools` and the folders stored beside `cfg`'s data directory.
-/// Without a configuration no folder is reachable.
+/// the granted `tools` and the folders stored beside `cfg`'s data directory,
+/// a folder whose connection is in pause left out. Without a configuration
+/// no folder is reachable.
 pub(in crate::chat::manager) fn granted_folders(
     tools: Vec<String>,
     cfg: Option<&ChatToolsConfig>,
 ) -> (Vec<String>, apollia_tools::FolderRoots) {
     match cfg {
-        Some(cfg) => apollia_tools::granted_folders(tools, &cfg.data_dir),
-        None => apollia_tools::resolve_folder_access(tools, &[]),
+        Some(cfg) => apollia_tools::granted_folders(
+            tools,
+            &cfg.data_dir,
+            &super::sources::paused_connections(cfg),
+        ),
+        None => apollia_tools::resolve_folder_access(tools, &[], &Default::default()),
     }
 }
 

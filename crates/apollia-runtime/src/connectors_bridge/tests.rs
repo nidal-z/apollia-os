@@ -323,6 +323,7 @@ fn decision_on(
             agent_id: "clerk",
             access_id: id,
             argument: None,
+            reaches: &[],
             family: connector_descriptor(id).family,
             unattended: false,
             granted_for_run: false,

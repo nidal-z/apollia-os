@@ -55,6 +55,7 @@ async fn test_unreadable_store_keeps_disabled_tools_and_refuses() {
         agent_id: "apollia",
         access_id: "file_write",
         argument: None,
+        reaches: &[],
         family: apollia_tools::ActionFamily::WriteOrDelete,
         unattended: false,
         granted_for_run: false,

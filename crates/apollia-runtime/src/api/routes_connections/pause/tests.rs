@@ -66,6 +66,7 @@ fn search_call() -> AccessCall<'static> {
         agent_id: "scribe",
         access_id: NOTION_SEARCH,
         argument: None,
+        reaches: &[],
         family: ActionFamily::Read,
         unattended: false,
         granted_for_run: false,

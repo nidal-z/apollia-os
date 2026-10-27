@@ -51,6 +51,7 @@ mod journal_policy;
 #[cfg(test)]
 mod no_policy;
 pub(crate) mod policy_admission;
+pub(crate) mod reach;
 mod record;
 mod tool_attributes;
 
@@ -82,6 +83,7 @@ pub use policy_admission::{
     PolicyAdmission, CONNECTION_DENIED_REASON, CONNECTION_NOT_ALLOWED_REASON,
     POLICY_REFUSAL_PREFIX, REMOTE_DENIED_REASON,
 };
+pub use reach::call_reaches;
 pub use record::{
     governance_run_id, package_run_id, AccessChange, ExportFilters, GovernanceEvent,
     GovernanceRecord, OverrideChange, PurgeAnchor, RunCut, GLOBAL_RULES_RUN_ID,

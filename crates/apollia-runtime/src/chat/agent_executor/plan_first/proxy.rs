@@ -162,12 +162,20 @@ impl GrantedToolProxy {
     /// counts as a consent for the run; an answer already given to this very
     /// call, or a grant of one call, lets a call that would ask go through.
     fn decide(&self, tool_name: &str, input: &serde_json::Value, call_key: &str) -> AccessDecision {
-        let data_dir = apollia_core::paths::data_dir();
+        let data_dir = self.governance.data_dir();
         let argument = crate::governance::call_argument(tool_name, input, data_dir.as_deref());
+        let reaches = crate::governance::call_reaches(
+            &self.agent_id,
+            tool_name,
+            input,
+            data_dir.as_deref(),
+            &self.governance.state().paused,
+        );
         let decision = self.governance.decide(&AccessCall {
             agent_id: &self.agent_id,
             access_id: tool_name,
             argument: argument.as_deref(),
+            reaches: &reaches,
             family: self.family_of(tool_name),
             unattended: self.unattended,
             granted_for_run: locked(&self.authorized).contains(tool_name),

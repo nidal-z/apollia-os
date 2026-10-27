@@ -140,15 +140,25 @@ pub fn listed_connection_of(access_id: &str) -> Option<String> {
 }
 
 /// The connection in pause that `call` reads, as the connection list names
-/// it. A mailbox tool is shared by every mailbox: the one it reads is the
-/// argument of the call, see [`call_argument`].
+/// it and as it was paused: one of the connections the call reaches (a
+/// folder a file tool or `code_context` reads, see [`super::call_reaches`]),
+/// else the connection of its tool. A mailbox tool is shared by every
+/// mailbox: the one it reads is the argument of the call, see
+/// [`call_argument`], matched whatever the case of its address.
 fn paused_connection_of(state: &GovernanceState, call: &AccessCall<'_>) -> Option<String> {
+    if let Some(paused) = call
+        .reaches
+        .iter()
+        .find_map(|id| crate::connections::paused_entry(&state.paused, id))
+    {
+        return Some(paused);
+    }
     let connection = if call.access_id.starts_with(IMAP_TOOL_PREFIX) {
         call.argument.map(crate::connections::imap_connection_id)
     } else {
         listed_connection_of(call.access_id)
     };
-    connection.filter(|id| state.paused.contains(id))
+    connection.and_then(|id| crate::connections::paused_entry(&state.paused, &id))
 }
 
 /// The argument a call of `access_id` with `input` is decided on: for a

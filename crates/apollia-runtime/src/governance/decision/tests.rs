@@ -9,6 +9,7 @@ fn call<'a>(access_id: &'a str, family: ActionFamily, argument: Option<&'a str>)
         agent_id: AGENT,
         access_id,
         argument,
+        reaches: &[],
         family,
         unattended: false,
         granted_for_run: false,
@@ -744,4 +745,78 @@ fn test_a_mailbox_tool_is_refused_by_the_pause_of_the_mailbox_it_reads() {
         }
     );
     assert!(!matches!(on_other, AccessDecision::Denied { .. }));
+}
+
+// The mailbox store finds an address whatever its case: the decision matches
+// the paused mailbox the same way, and names it as it was paused.
+#[test]
+fn test_a_paused_mailbox_is_matched_whatever_the_case_of_its_address() {
+    // GIVEN the mailbox `Ada@Example.org` in pause
+    let state = GovernanceState {
+        paused: ["imap:Ada@Example.org".to_owned()].into_iter().collect(),
+        ..GovernanceState::default()
+    };
+
+    // WHEN a search names it in lower case
+    let decision = decide(
+        &state,
+        &call(
+            "imap.search",
+            ActionFamily::ReadPersonal,
+            Some("ada@example.org"),
+        ),
+        NOW,
+    );
+
+    // THEN the call is refused by its pause
+    assert_eq!(
+        decision,
+        AccessDecision::Denied {
+            reason: DecisionReason::Paused {
+                connection_id: "imap:Ada@Example.org".to_owned()
+            }
+        }
+    );
+}
+
+// A shared tool's call is refused by the pause of a connection it reaches,
+// and only by a paused one.
+#[test]
+fn test_a_call_is_refused_by_the_pause_of_a_folder_it_reaches() {
+    // GIVEN one folder in pause
+    let state = GovernanceState {
+        paused: ["folder:f1".to_owned()].into_iter().collect(),
+        ..GovernanceState::default()
+    };
+    let in_paused = ["folder:f1".to_owned()];
+    let in_other = ["folder:f2".to_owned()];
+
+    // WHEN a read reaching it, and one reaching another folder, are decided
+    let on_paused = decide(
+        &state,
+        &AccessCall {
+            reaches: &in_paused,
+            ..call("file_read", ActionFamily::Read, Some("/f1/a.md"))
+        },
+        NOW,
+    );
+    let on_other = decide(
+        &state,
+        &AccessCall {
+            reaches: &in_other,
+            ..call("file_read", ActionFamily::Read, Some("/f2/a.md"))
+        },
+        NOW,
+    );
+
+    // THEN the first is refused by the pause of its folder, the second runs
+    assert_eq!(
+        on_paused,
+        AccessDecision::Denied {
+            reason: DecisionReason::Paused {
+                connection_id: "folder:f1".to_owned()
+            }
+        }
+    );
+    assert!(on_other.is_allowed());
 }

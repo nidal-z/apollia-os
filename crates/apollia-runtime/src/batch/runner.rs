@@ -315,6 +315,7 @@ pub(crate) fn decide_original_write(
         agent_id: agent,
         access_id: SOURCE_WRITE_ACCESS,
         argument: Some(location),
+        reaches: &[],
         family: ActionFamily::WriteOrDelete,
         unattended: false,
         granted_for_run: true,

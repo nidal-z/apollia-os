@@ -225,7 +225,8 @@ async fn run_tool(
             message: reason.to_owned(),
         });
     }
-    if paused.contains(&crate::connections::imap_connection_id(&account.email)) {
+    let connection = crate::connections::imap_connection_id(&account.email);
+    if crate::connections::paused_entry(paused, &connection).is_some() {
         tracing::event!(
             tracing::Level::INFO,
             tool = %tool,
@@ -279,7 +280,6 @@ async fn run_with(
     }
 }
 
-/// The mailbox `requested` names, or the only one connected.
 /// The address of the mailbox a call with `input` reads: the one `account`
 /// names, else the only mailbox connected in `data_dir`; `None` when neither
 /// says, and the executor answers why.
@@ -298,6 +298,7 @@ pub fn mailbox_of_call(input: &Value, data_dir: Option<&std::path::Path>) -> Opt
     (accounts.len() == 1).then(|| accounts.remove(0).email)
 }
 
+/// The mailbox `requested` names, or the only one connected.
 fn resolve_account(
     store: &ImapAccountStore,
     requested: Option<&str>,

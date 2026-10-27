@@ -580,10 +580,19 @@ A pause is read by the next decision, without a restart.
 A pause takes nothing away: the accesses of the agents, the configuration and
 the secrets of the connection stay as they are. An MCP server in pause is
 also stopped and its `enabled` flag in `mcp.db` switched off, so it is not
-started again, at the next start or on request. The mailbox tools are shared
-by every mailbox, so their executor refuses a paused mailbox at each call,
-as it refuses a forbidden one. A connection in pause reads paused in the list,
-whatever state was kept for it before.
+started again, at the next start or on request.
+
+Some tools are shared by several connections, and the call says which one it
+reaches. A mailbox tool reaches the mailbox the call names, or the only one
+connected, matched whatever the case of its address; a file tool reaches the
+folder that holds the absolute path it is given; `code_context` reaches the
+code folder it names, or every code folder of the agent. The decision refuses
+such a call when what it reaches is in pause, and journals it as any other.
+A folder in pause is also no root of the file tools, so a relative path never
+lands in it, and `source_search` does not search it: it answers the source
+under `paused` and searches the others. The mailbox executor refuses a paused
+mailbox at each call as well, as it refuses a forbidden one. A connection in
+pause reads paused in the list, whatever state was kept for it before.
 
 ## Connectors {#connectors}
 

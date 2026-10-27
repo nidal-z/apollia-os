@@ -60,6 +60,7 @@ impl ToolGovernance {
             agent_id,
             access_id: tool,
             argument: argument.as_deref(),
+            reaches: &[],
             family,
             unattended: true,
             granted_for_run: self.granted_for_run.contains(tool),

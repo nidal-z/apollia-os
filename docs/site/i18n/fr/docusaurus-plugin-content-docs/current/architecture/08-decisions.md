@@ -626,10 +626,21 @@ ne lève. Une pause est lue par la décision suivante, sans redémarrage.
 Une pause ne retire rien : les accès des agents, la configuration et les
 secrets de la connexion restent tels quels. Un serveur MCP en pause est aussi
 arrêté et son drapeau `enabled` de `mcp.db` éteint, pour qu'il ne soit pas
-redémarré, ni au démarrage suivant ni à la demande. Les outils de boîte mail
-sont partagés par toutes les boîtes : leur exécuteur refuse à chaque appel une
-boîte en pause, comme il refuse une boîte interdite. Une connexion en pause se
-lit en pause dans la liste, quel que soit l'état gardé pour elle avant.
+redémarré, ni au démarrage suivant ni à la demande.
+
+Certains outils sont partagés par plusieurs connexions, et l'appel dit celle
+qu'il atteint. Un outil de boîte mail atteint la boîte que l'appel nomme, ou la
+seule connectée, reconnue quelle que soit la casse de son adresse ; un outil de
+fichiers atteint le dossier qui contient le chemin absolu qu'on lui donne ;
+`code_context` atteint le dossier de code qu'il nomme, ou chaque dossier de
+code de l'agent. La décision refuse un tel appel quand ce qu'il atteint est en
+pause, et le journalise comme tout autre. Un dossier en pause n'est pas non
+plus une racine des outils de fichiers, si bien qu'un chemin relatif n'y
+aboutit jamais, et `source_search` ne le cherche pas : il rend la source sous
+`paused` et cherche les autres. L'exécuteur des boîtes refuse lui aussi à
+chaque appel une boîte en pause, comme il refuse une boîte interdite. Une
+connexion en pause se lit en pause dans la liste, quel que soit l'état gardé
+pour elle avant.
 
 ## Connecteurs {#connectors}
 

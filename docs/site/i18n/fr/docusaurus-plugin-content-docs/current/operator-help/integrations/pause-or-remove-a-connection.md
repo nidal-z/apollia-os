@@ -29,7 +29,7 @@ sidebar_position: 6.5
 Pendant la pause :
 
 - Un agent qui appelle l'un de ses outils essuie un refus, avec la raison : la connexion est en pause. Le refus est inscrit au **Journal** : *Une action de l'agent a été refusée : sa connexion est en pause*, pour une boîte mail comme pour un compte, un dossier ou un service.
-- Un dossier n'est pas cherché : un agent qui cherche dans ses sources apprend que celle-ci est en pause, et les autres sources qu'il tient sont cherchées.
+- Un dossier n'est ni lu ni cherché : un agent qui y lit, liste ou écrit un fichier, ou qui demande le contexte d'un dossier de code qu'il tient, essuie un refus avec la raison que la connexion est en pause, et la même ligne au **Journal** ; un agent qui cherche dans ses sources apprend que celle-ci est en pause, et les autres sources qu'il tient sont cherchées.
 - La fiche de chaque agent qui la tient marque l'accès **En pause**.
 - Un service est arrêté et n'est plus jamais démarré, ni au lancement suivant d'Apollia, ni à la demande. Dans le Chat, le sélecteur **@** ne propose plus ses ressources.
 - La pause tient après un redémarrage d'Apollia.

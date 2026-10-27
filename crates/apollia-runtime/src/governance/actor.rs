@@ -127,6 +127,9 @@ pub struct GovernanceHandle {
     tx: Option<mpsc::Sender<Command>>,
     state: watch::Receiver<Arc<GovernanceState>>,
     journal: Option<AuditJournalHandle>,
+    /// The data directory beside `governance.db`, where a call's arguments
+    /// are read against the connections they reach.
+    data_dir: Option<PathBuf>,
 }
 
 impl GovernanceHandle {
@@ -143,6 +146,11 @@ impl GovernanceHandle {
         let (state_tx, state) = watch::channel(Arc::new(initial));
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         let journal = sources.journal.clone();
+        let data_dir = sources
+            .governance_db
+            .as_deref()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf);
         let actor = GovernanceActor {
             fingerprint: fingerprint(&sources),
             sources,
@@ -153,6 +161,7 @@ impl GovernanceHandle {
             tx: Some(tx),
             state,
             journal,
+            data_dir,
         }
     }
 
@@ -166,7 +175,23 @@ impl GovernanceHandle {
             tx: None,
             state,
             journal,
+            data_dir: None,
         }
+    }
+
+    /// The same handle, its calls' arguments read in `data_dir`.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn reading_in(mut self, data_dir: &Path) -> Self {
+        self.data_dir = Some(data_dir.to_path_buf());
+        self
+    }
+
+    /// The data directory a call's arguments are read in: the one beside
+    /// `governance.db`, else the runtime's own.
+    #[must_use]
+    pub fn data_dir(&self) -> Option<PathBuf> {
+        self.data_dir.clone().or_else(apollia_core::paths::data_dir)
     }
 
     /// The state the next decision reads.

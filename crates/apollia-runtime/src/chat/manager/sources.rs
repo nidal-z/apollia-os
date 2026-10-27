@@ -58,12 +58,13 @@ pub(in crate::chat::manager) async fn source_access(
     }
 }
 
-/// The sources of `checked` held by a folder connection the user paused, as
-/// governance holds the pauses (its actor, else the `governance.db` beside
-/// `cfg`'s data directory). Pauses that cannot be read pause nothing here: the
-/// decision on every sensitive call refuses it then.
-fn paused_sources(cfg: &ChatToolsConfig, checked: &[CheckedSource]) -> Vec<String> {
-    let paused = match cfg.governance.as_ref() {
+/// The connections in pause, as governance holds them (its actor, else the
+/// `governance.db` beside `cfg`'s data directory). Pauses that cannot be read
+/// pause nothing here: the decision on every sensitive call refuses it then.
+pub(in crate::chat::manager) fn paused_connections(
+    cfg: &ChatToolsConfig,
+) -> std::collections::HashSet<String> {
+    match cfg.governance.as_ref() {
         Some(handle) => handle.state().paused.clone(),
         None => apollia_permissions::read_paused_connections(
             &apollia_core::paths::DataFile::Governance.path(&cfg.data_dir),
@@ -76,7 +77,13 @@ fn paused_sources(cfg: &ChatToolsConfig, checked: &[CheckedSource]) -> Vec<Strin
             );
             Default::default()
         }),
-    };
+    }
+}
+
+/// The sources of `checked` held by a folder connection the user paused (see
+/// [`paused_connections`]).
+fn paused_sources(cfg: &ChatToolsConfig, checked: &[CheckedSource]) -> Vec<String> {
+    let paused = paused_connections(cfg);
     checked
         .iter()
         .filter_map(|source| match source {

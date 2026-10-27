@@ -165,7 +165,38 @@ pub const INSTALLED_FILES_DIR: &str = "connections";
 /// Identifier of the connection of the mailbox at `email`.
 #[must_use]
 pub fn imap_connection_id(email: &str) -> String {
-    format!("imap:{email}")
+    format!("{IMAP_CONNECTION_PREFIX}{email}")
+}
+
+/// Prefix of the identifier of the connection of a mailbox.
+const IMAP_CONNECTION_PREFIX: &str = "imap:";
+
+/// Whether the connection identifiers `a` and `b` name the same connection:
+/// equal, or two mailboxes at the same address in another case, matched as
+/// the store of the mailboxes finds one
+/// ([`apollia_connectors::imap::same_address`]).
+#[must_use]
+pub fn same_connection(a: &str, b: &str) -> bool {
+    if a == b {
+        return true;
+    }
+    match (
+        a.strip_prefix(IMAP_CONNECTION_PREFIX),
+        b.strip_prefix(IMAP_CONNECTION_PREFIX),
+    ) {
+        (Some(a), Some(b)) => apollia_connectors::imap::same_address(a, b),
+        _ => false,
+    }
+}
+
+/// The entry of `paused` that names the connection `id`, as it was paused
+/// (see [`same_connection`]).
+#[must_use]
+pub fn paused_entry(paused: &std::collections::HashSet<String>, id: &str) -> Option<String> {
+    if paused.contains(id) {
+        return Some(id.to_owned());
+    }
+    paused.iter().find(|p| same_connection(p, id)).cloned()
 }
 
 /// `true` unless `host` is a loopback address: a mailbox server on this

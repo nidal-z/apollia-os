@@ -220,6 +220,7 @@ async fn test_unattended_off_chat_write_waits_and_never_runs() {
         agent_id: "ledger-clerk",
         access_id: "file_write",
         argument: Some("/tmp/report.txt"),
+        reaches: &[],
         family: apollia_tools::ActionFamily::WriteOrDelete,
         unattended: true,
         granted_for_run: false,

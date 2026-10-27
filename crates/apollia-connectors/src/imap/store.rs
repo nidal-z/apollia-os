@@ -23,6 +23,14 @@ use super::error::ImapError;
 /// is the address.
 pub const IMAP_SECRET_SERVICE: &str = "apollia-imap";
 
+/// Whether `a` and `b` name the same mailbox: an address is found whatever
+/// the case it is written in, so that every reader of a mailbox (the store,
+/// the executor, the decision on a call) matches it the same way.
+#[must_use]
+pub fn same_address(a: &str, b: &str) -> bool {
+    a.trim().eq_ignore_ascii_case(b.trim())
+}
+
 /// File name of the connection list in the data directory.
 pub const IMAP_INDEX_FILE: &str = "imap-accounts.json";
 
@@ -108,7 +116,7 @@ impl ImapAccountStore {
     pub fn get(&self, email: &str) -> Result<ImapAccount, ImapError> {
         self.list()?
             .into_iter()
-            .find(|a| a.email.eq_ignore_ascii_case(email))
+            .find(|a| same_address(&a.email, email))
             .ok_or_else(|| ImapError::NotFound {
                 email: email.to_owned(),
             })
@@ -161,7 +169,7 @@ impl ImapAccountStore {
             .map_err(ImapError::Secret)?;
         index
             .accounts
-            .retain(|a| !a.email.eq_ignore_ascii_case(&account.email));
+            .retain(|a| !same_address(&a.email, &account.email));
         index.accounts.push(account.clone());
         if let Err(err) = self.write_index(&index) {
             if let Err(rollback) = self.secrets.delete(IMAP_SECRET_SERVICE, &account.email) {
@@ -200,7 +208,7 @@ impl ImapAccountStore {
         let position = index
             .accounts
             .iter()
-            .position(|a| a.email.eq_ignore_ascii_case(email))
+            .position(|a| same_address(&a.email, email))
             .ok_or_else(|| ImapError::NotFound {
                 email: email.to_owned(),
             })?;

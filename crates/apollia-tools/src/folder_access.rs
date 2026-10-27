@@ -11,9 +11,13 @@
 //!   `notebook_edit`) is also a write root.
 //!
 //! The roots keep the order in which the folders were added, so the first one
-//! anchors a relative path. An agent with no folder granted has no root, and
-//! its file tools refuse with a message that says what to do.
+//! anchors a relative path. A folder whose connection is in pause is no root:
+//! nothing of it is read or written until it is resumed, and the decision on
+//! a call that names a path in it refuses the call for the pause. An agent
+//! with no folder granted has no root, and its file tools refuse with a
+//! message that says what to do.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use apollia_core::paths::DataFile;
@@ -68,17 +72,24 @@ impl FolderRoots {
     }
 }
 
+/// Prefix of the identifier of the connection of a stored folder, as the
+/// connection list and the pauses name it (`folder:<id>`).
+const FOLDER_CONNECTION_PREFIX: &str = "folder:";
+
 /// The access list an executor checks, and the roots of the file tools, from
-/// `access` and the stored `folders` (oldest first).
+/// `access` and the stored `folders` (oldest first), leaving out of the roots
+/// every folder whose connection is in `paused` (`folder:<id>`).
 ///
 /// Each granted folder tool becomes the native it names, so the model calls
 /// `file_read` and the call is checked against one list; the folder access
 /// itself, which no executor answers, is taken out. An access to a folder no
-/// longer stored grants nothing.
+/// longer stored grants nothing. A folder in pause keeps its tools, so that a
+/// call naming it is refused for the pause rather than for a missing tool.
 #[must_use]
 pub fn resolve_folder_access(
     access: Vec<String>,
     folders: &[FolderConnection],
+    paused: &HashSet<String>,
 ) -> (Vec<String>, FolderRoots) {
     let granted: Vec<(&str, &str)> = access
         .iter()
@@ -91,7 +102,8 @@ pub fn resolve_folder_access(
             .filter(|(id, _)| *id == folder.id)
             .map(|(_, tool)| *tool)
             .collect();
-        if tools.is_empty() {
+        if tools.is_empty() || paused.contains(&format!("{FOLDER_CONNECTION_PREFIX}{}", folder.id))
+        {
             continue;
         }
         roots.read.push(PathBuf::from(&folder.path));
@@ -116,9 +128,14 @@ pub fn resolve_folder_access(
 }
 
 /// [`resolve_folder_access`] over the folders stored in the `system.db` of
-/// `data_dir`. A store that cannot be read grants no folder.
+/// `data_dir`, those in `paused` left out of the roots. A store that cannot be
+/// read grants no folder.
 #[must_use]
-pub fn granted_folders(access: Vec<String>, data_dir: &Path) -> (Vec<String>, FolderRoots) {
+pub fn granted_folders(
+    access: Vec<String>,
+    data_dir: &Path,
+    paused: &HashSet<String>,
+) -> (Vec<String>, FolderRoots) {
     let path = DataFile::System.path(data_dir);
     let folders = if path.exists() {
         match FolderConnectionStore::open(&path).and_then(|store| store.list()) {
@@ -136,7 +153,7 @@ pub fn granted_folders(access: Vec<String>, data_dir: &Path) -> (Vec<String>, Fo
     } else {
         Vec::new()
     };
-    resolve_folder_access(access, &folders)
+    resolve_folder_access(access, &folders, paused)
 }
 
 #[cfg(test)]
