@@ -11,6 +11,11 @@
 //! - **Following the files.** The watcher reports each change; the pass that
 //!   follows reads again only the files whose date and then fingerprint
 //!   changed, and drops the documents whose file is gone ([`pass`]).
+//! - **A folder chosen again.** A source whose folder connection now names
+//!   another folder forgets its old index and the watch over the old folder,
+//!   and is indexed in the new one: at once when the registry is told
+//!   (`SourceRegistryHandle::folder_repointed`), else at the next sweep,
+//!   which reads the folder connections once for every source.
 //! - **After a restart.** The first pass compares the disk with what the
 //!   index holds, so changes made while Apollia was stopped are caught.
 //! - **With one model.** When the default embeddings model changes, every
@@ -88,6 +93,9 @@ pub trait PassageEmbedder: Send + Sync + 'static {
 pub(crate) enum IndexerCommand {
     /// The registry changed: read it again.
     Sync,
+    /// The folder connection of these sources now names another folder:
+    /// read where they are again and index them there at once.
+    Repointed(Vec<String>),
     /// Files of `source` changed on the disk.
     Changed {
         /// The source.
@@ -234,20 +242,29 @@ impl<E: PassageEmbedder> Indexer<E> {
             tokio::select! {
                 command = self.rx.recv() => match command {
                     None => break,
-                    Some(IndexerCommand::Sync) => self.sweep(false).await,
-                    Some(IndexerCommand::Refresh(reply)) => {
-                        self.sweep(true).await;
-                        let _ = reply.send(());
-                    }
                     Some(IndexerCommand::Changed { source, paths }) => {
                         self.changed(source, paths).await;
                     }
+                    Some(command) => self.serve(command).await,
                 },
                 Some(()) = self.rescan_rx.recv() => self.sweep(true).await,
                 _ = ticker.tick() => self.sweep(false).await,
             }
         }
         tracing::event!(tracing::Level::INFO, "sources.indexer.stopped");
+    }
+
+    /// Serves a command other than a change of files.
+    async fn serve(&mut self, command: IndexerCommand) {
+        match command {
+            IndexerCommand::Sync => self.sweep(false).await,
+            IndexerCommand::Repointed(ids) => self.repointed(ids).await,
+            IndexerCommand::Refresh(reply) => {
+                self.sweep(true).await;
+                let _ = reply.send(());
+            }
+            IndexerCommand::Changed { .. } => {}
+        }
     }
 
     /// The default model, `None` when there is none to use.
@@ -291,46 +308,81 @@ impl<E: PassageEmbedder> Indexer<E> {
         for id in gone {
             self.untrack(&id);
         }
+        let roots = self.resolve(&wanted).await;
         for source in wanted {
-            let moved = self.moved(&source).await;
-            if moved {
-                self.untrack(&source.id);
-            }
-            let new = !self.tracked.contains_key(&source.id);
-            if new && !self.track(&source).await {
-                continue;
-            }
-            if new || all || model_changed {
-                self.full_pass(&source.id, model.clone()).await;
-            }
+            let root = roots.get(&source.id).cloned();
+            self.follow(&source, root, all || model_changed, model.clone())
+                .await;
         }
     }
 
-    /// Where the files of `source` are now, read under `spawn_blocking`.
-    async fn resolve(&self, source: &Source) -> Option<PathBuf> {
-        let system_db = self.system_db.clone();
-        let source = source.clone();
-        tokio::task::spawn_blocking(move || root_of(&system_db, &source))
-            .await
-            .ok()
-            .flatten()
-    }
-
-    /// Whether the kept `source` now resolves to another folder than the
-    /// one it was first read from, as a repointed folder connection does.
-    /// Its old index then no longer describes it.
-    async fn moved(&self, source: &Source) -> bool {
-        let Some(kept) = self.tracked.get(&source.id).map(|t| t.root.clone()) else {
-            return false;
+    /// Follows the sources `ids` to the folder their connection names now,
+    /// without waiting for the sweep: a source that moved forgets its old
+    /// index and the watch over its old folder, and each one is indexed
+    /// again against the disk.
+    async fn repointed(&mut self, ids: Vec<String>) {
+        let Some(sources) = self.registry.list().await else {
+            return;
         };
-        self.resolve(source).await.is_some_and(|root| root != kept)
+        let wanted: Vec<Source> = sources
+            .into_iter()
+            .filter(|s| matches!(s.kind, SourceKind::Folder | SourceKind::File))
+            .filter(|s| ids.contains(&s.id))
+            .collect();
+        let model = match &self.model {
+            Some(model) => model.clone(),
+            None => self.current_model().await,
+        };
+        let roots = self.resolve(&wanted).await;
+        for source in wanted {
+            let root = roots.get(&source.id).cloned();
+            self.follow(&source, root, true, model.clone()).await;
+        }
     }
 
-    /// Starts keeping `source`: resolves where its files are and watches
-    /// them. `false`, its state set to `error`, when its files cannot be
+    /// Keeps `source` in step with `root`, where its files are now: a root
+    /// changed since it was first read drops its old index and watch, a
+    /// source not kept yet starts being kept, and a full pass runs over a
+    /// new one, or over any one when `again` is set.
+    async fn follow(
+        &mut self,
+        source: &Source,
+        root: Option<PathBuf>,
+        again: bool,
+        model: Option<String>,
+    ) {
+        let moved = match (self.tracked.get(&source.id), &root) {
+            (Some(kept), Some(root)) => kept.root != *root,
+            _ => false,
+        };
+        if moved {
+            self.untrack(&source.id);
+        }
+        let new = !self.tracked.contains_key(&source.id);
+        if new && !self.track(source, root).await {
+            return;
+        }
+        if new || again {
+            self.full_pass(&source.id, model).await;
+        }
+    }
+
+    /// Where the files of each of `sources` are now, read in one go under
+    /// `spawn_blocking`: the folder connections are read once, whatever
+    /// the number of sources.
+    async fn resolve(&self, sources: &[Source]) -> HashMap<String, PathBuf> {
+        let system_db = self.system_db.clone();
+        let sources = sources.to_vec();
+        tokio::task::spawn_blocking(move || roots_of(&system_db, &sources))
+            .await
+            .unwrap_or_default()
+    }
+
+    /// Starts keeping `source`, whose files are at `root`, and watches
+    /// them. `false`, its state set to `error`, when its files could not be
     /// found.
-    async fn track(&mut self, source: &Source) -> bool {
-        let Some(root) = self.resolve(source).await else {
+    async fn track(&mut self, source: &Source, root: Option<PathBuf>) -> bool {
+        let Some(root) = root else {
             tracing::event!(
                 tracing::Level::WARN,
                 source = %source.id,
@@ -371,10 +423,11 @@ impl<E: PassageEmbedder> Indexer<E> {
         };
         self.registry.set_state(id, IndexState::Indexing).await;
         let scopes = vec![root.clone()];
-        let outcome = self.pass(id, root, scopes, model.clone()).await;
+        let outcome = self.pass(id, root.clone(), scopes, model.clone()).await;
         self.registry
             .set_state(id, state_after(outcome.as_ref(), model.as_deref()))
             .await;
+        self.registry.indexed(id, root).await;
     }
 
     /// Reads again the files the watcher reported for `source`, with the
@@ -410,14 +463,7 @@ impl<E: PassageEmbedder> Indexer<E> {
                 .await;
         }
         for command in later {
-            match command {
-                IndexerCommand::Sync => self.sweep(false).await,
-                IndexerCommand::Refresh(reply) => {
-                    self.sweep(true).await;
-                    let _ = reply.send(());
-                }
-                IndexerCommand::Changed { .. } => {}
-            }
+            self.serve(command).await;
         }
     }
 
@@ -562,20 +608,39 @@ fn scopes_of(root: &Path, paths: Vec<PathBuf>) -> Vec<PathBuf> {
     scopes
 }
 
-/// Where the files of `source` are: the folder of its connection, or its
-/// file. `None` when the connection is gone or the store cannot be read.
-fn root_of(system_db: &Path, source: &Source) -> Option<PathBuf> {
-    let reference = source.reference.as_deref()?;
-    let path = match source.kind {
-        SourceKind::Folder => {
-            let id = reference.strip_prefix("folder:").unwrap_or(reference);
-            let store = FolderConnectionStore::open(system_db).ok()?;
-            PathBuf::from(store.get(id).ok()??.path)
-        }
-        SourceKind::File => PathBuf::from(reference),
-        _ => return None,
+/// Where the files of each of `sources` are: the folder of its connection,
+/// or its file. The folder connections are read once, and only when a folder
+/// source is among them. A source whose connection is gone, or whose store
+/// cannot be read, is left out.
+pub(crate) fn roots_of(system_db: &Path, sources: &[Source]) -> HashMap<String, PathBuf> {
+    let folders: HashMap<String, String> = if sources.iter().any(|s| s.kind == SourceKind::Folder) {
+        FolderConnectionStore::open(system_db)
+            .and_then(|store| store.list())
+            .map(|all| all.into_iter().map(|c| (c.id, c.path)).collect())
+            .unwrap_or_default()
+    } else {
+        HashMap::new()
     };
-    Some(std::fs::canonicalize(&path).unwrap_or(path))
+    let mut roots = HashMap::new();
+    for source in sources {
+        let Some(reference) = source.reference.as_deref() else {
+            continue;
+        };
+        let path = match source.kind {
+            SourceKind::Folder => {
+                let id = reference.strip_prefix("folder:").unwrap_or(reference);
+                let Some(path) = folders.get(id) else {
+                    continue;
+                };
+                PathBuf::from(path)
+            }
+            SourceKind::File => PathBuf::from(reference),
+            _ => continue,
+        };
+        let path = std::fs::canonicalize(&path).unwrap_or(path);
+        roots.insert(source.id.clone(), path);
+    }
+    roots
 }
 
 #[cfg(test)]

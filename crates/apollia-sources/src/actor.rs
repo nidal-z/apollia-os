@@ -9,12 +9,19 @@
 //! ([`crate::indexer`]), the actor tells it of every source added or removed;
 //! the indexer reaches back through a weak link, so it stops with the
 //! registry.
+//!
+//! A folder connection pointed at another folder is told to the actor
+//! ([`SourceRegistryHandle::folder_repointed`]): from then on, and until the
+//! indexer reports a full pass over the new folder, a search leaves the
+//! sources made on it out, as not indexed, so the old folder's passages are
+//! never answered.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use apollia_core::source_registry::{
-    IndexState, NewSource, Source, SourceRegistryError, SourceRegistryStore,
+    IndexState, NewSource, Source, SourceKind, SourceRegistryError, SourceRegistryStore,
 };
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
@@ -65,6 +72,8 @@ enum Command {
     AttachIndexer(IndexerHandle),
     RefreshIndexes(oneshot::Sender<()>),
     IndexStatus(String, oneshot::Sender<Result<IndexStatus, SourcesError>>),
+    FolderRepointed(String, Reply<Vec<String>>),
+    Indexed(String, PathBuf),
 }
 
 /// Where the index of a source stands, and what it left out.
@@ -113,6 +122,14 @@ impl RegistryLink {
             .ask(|reply| Command::SetIndexState(id, state, reply))
             .await;
     }
+
+    /// Reports that the index of the source `id` was built again over the
+    /// files at `root`.
+    pub(crate) async fn indexed(&self, id: &str, root: PathBuf) {
+        if let Some(tx) = self.0.upgrade() {
+            let _ = tx.send(Command::Indexed(id.to_owned(), root)).await;
+        }
+    }
 }
 
 /// A clonable handle to the registry actor.
@@ -141,6 +158,8 @@ impl SourceRegistryHandle {
             system_db: path.to_path_buf(),
             data_dir,
             indexer: None,
+            repointed: HashMap::new(),
+            indexed: HashMap::new(),
         };
         std::thread::Builder::new()
             .name("apollia-source-registry".to_owned())
@@ -294,6 +313,21 @@ impl SourceRegistryHandle {
         Ok(done)
     }
 
+    /// Tells the registry that the folder connection `folder` (its stored
+    /// identifier, with or without `folder:`) now names another folder, and
+    /// returns the folder sources made on it. Before this answers, a search
+    /// no longer reads their old index; the indexer, when one runs, follows
+    /// them to the new folder without waiting for its sweep, and they are
+    /// searched again once it has indexed it.
+    ///
+    /// # Errors
+    /// As [`SourceRegistryStore::list`], or [`SourcesError::Stopped`].
+    pub async fn folder_repointed(&self, folder: &str) -> Result<Vec<String>, SourcesError> {
+        let folder = folder.strip_prefix("folder:").unwrap_or(folder).to_owned();
+        self.ask(|reply| Command::FolderRepointed(folder, reply))
+            .await
+    }
+
     /// Where the index of the source `id` stands: its state, its counts and
     /// the files it left out.
     ///
@@ -317,6 +351,12 @@ struct Actor {
     system_db: PathBuf,
     data_dir: Option<PathBuf>,
     indexer: Option<IndexerHandle>,
+    /// The sources whose folder connection was pointed elsewhere, with the
+    /// folder it names now, until the indexer reports a pass over it.
+    repointed: HashMap<String, Option<PathBuf>>,
+    /// The folder each source was last fully indexed over, as the indexer
+    /// reported it during this run.
+    indexed: HashMap<String, PathBuf>,
 }
 
 impl Actor {
@@ -370,6 +410,8 @@ impl Actor {
                         "sources.registry.deleted"
                     );
                     remove_index_of(data_dir, &id);
+                    self.repointed.remove(&id);
+                    self.indexed.remove(&id);
                 }
                 let _ = reply.send(deleted);
                 if ok {
@@ -386,11 +428,7 @@ impl Actor {
                 let _ = reply.send(checked);
             }
             Command::Search(query, reply) => {
-                let outcome = match data_dir {
-                    Some(dir) => search_sources(dir, &query).map_err(SourcesError::from),
-                    None => Err(SourcesError::NoDataDirectory),
-                };
-                let _ = reply.send(outcome);
+                let _ = reply.send(self.search(query));
             }
             Command::SetIndexState(id, state, reply) => {
                 let _ = reply.send(store.set_index_state(&id, state));
@@ -409,7 +447,72 @@ impl Actor {
             Command::IndexStatus(id, reply) => {
                 let _ = reply.send(index_status(store, data_dir, &id));
             }
+            Command::FolderRepointed(folder, reply) => {
+                let _ = reply.send(self.folder_repointed(&folder));
+            }
+            Command::Indexed(id, root) => {
+                if self.repointed.get(&id) == Some(&Some(root.clone())) {
+                    self.repointed.remove(&id);
+                }
+                self.indexed.insert(id, root);
+            }
         }
+    }
+
+    /// Searches the indexes `query` names, the sources whose folder was
+    /// pointed elsewhere and not yet indexed there counted as not indexed.
+    fn search(&self, query: SourcesQuery) -> Result<SourcesSearchOutcome, SourcesError> {
+        let data_dir = self
+            .data_dir
+            .as_deref()
+            .ok_or(SourcesError::NoDataDirectory)?;
+        let (waiting, sources): (Vec<String>, Vec<String>) = query
+            .sources
+            .into_iter()
+            .partition(|id| self.repointed.contains_key(id));
+        let query = SourcesQuery { sources, ..query };
+        let mut outcome = search_sources(data_dir, &query)?;
+        outcome.not_indexed.extend(waiting);
+        Ok(outcome)
+    }
+
+    /// Records the folder sources made on the connection `folder` as
+    /// waiting for the folder it names now, unless the indexer already
+    /// indexed them over it, and hands them to the indexer.
+    fn folder_repointed(&mut self, folder: &str) -> Result<Vec<String>, SourceRegistryError> {
+        let sources: Vec<Source> = self
+            .store
+            .list()?
+            .into_iter()
+            .filter(|s| s.kind == SourceKind::Folder)
+            .filter(|s| {
+                s.reference
+                    .as_deref()
+                    .map(|r| r.strip_prefix("folder:").unwrap_or(r))
+                    == Some(folder)
+            })
+            .collect();
+        let roots = crate::indexer::roots_of(&self.system_db, &sources);
+        let ids: Vec<String> = sources.into_iter().map(|s| s.id).collect();
+        for id in &ids {
+            let root = roots.get(id).cloned();
+            if root.is_some() && self.indexed.get(id) == root.as_ref() {
+                continue;
+            }
+            self.repointed.insert(id.clone(), root);
+        }
+        tracing::event!(
+            tracing::Level::INFO,
+            folder = %folder,
+            sources = ids.len(),
+            "sources.registry.folder_repointed"
+        );
+        if let Some(indexer) = &self.indexer {
+            if !ids.is_empty() {
+                indexer.send(IndexerCommand::Repointed(ids.clone()));
+            }
+        }
+        Ok(ids)
     }
 }
 
