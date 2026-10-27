@@ -13193,7 +13193,7 @@
           "kind": "folder",
           "label": "Automation card folder",
           "account": null,
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": false,
           "official": false,
           "state": "connected",
@@ -13206,10 +13206,40 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:folder:automation-card/read_file",
+              "id": "conn:folder:automation-card/file_edit",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:folder:automation-card/file_glob",
               "family": "read",
               "familySource": "builtin",
               "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-card/file_grep",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-card/file_list",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-card/file_read",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-card/file_write",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ],
           "path": "/automation/card"
@@ -13231,13 +13261,11 @@
             "enabled": true,
             "byDefault": false,
             "tools": [
-              "conn:folder:automation-card/read_file"
+              "conn:folder:automation-card/file_read"
             ]
           }
         ],
-        "sharedWith": [
-          "automation-agent"
-        ]
+        "sharedWith": []
       }
     },
     {
@@ -13316,7 +13344,7 @@
         "kind": "folder",
         "label": "Automation card folder",
         "account": null,
-        "provenance": "custom",
+        "provenance": "selection",
         "remote": false,
         "official": false,
         "state": "connected",
@@ -13329,10 +13357,40 @@
         "package": null,
         "tools": [
           {
-            "id": "conn:folder:automation-card/read_file",
+            "id": "conn:folder:automation-card/file_edit",
+            "family": "write_or_delete",
+            "familySource": "builtin",
+            "prechecked": false
+          },
+          {
+            "id": "conn:folder:automation-card/file_glob",
             "family": "read",
             "familySource": "builtin",
             "prechecked": true
+          },
+          {
+            "id": "conn:folder:automation-card/file_grep",
+            "family": "read",
+            "familySource": "builtin",
+            "prechecked": true
+          },
+          {
+            "id": "conn:folder:automation-card/file_list",
+            "family": "read",
+            "familySource": "builtin",
+            "prechecked": true
+          },
+          {
+            "id": "conn:folder:automation-card/file_read",
+            "family": "read",
+            "familySource": "builtin",
+            "prechecked": true
+          },
+          {
+            "id": "conn:folder:automation-card/file_write",
+            "family": "write_or_delete",
+            "familySource": "builtin",
+            "prechecked": false
           }
         ],
         "path": "/automation/card"
@@ -13638,7 +13696,7 @@
             "enabled": true,
             "byDefault": false,
             "tools": [
-              "conn:folder:automation-card/read_file"
+              "conn:folder:automation-card/file_read"
             ]
           },
           {
@@ -13647,7 +13705,7 @@
             "enabled": true,
             "byDefault": false,
             "tools": [
-              "conn:folder:automation-card/read_file"
+              "conn:folder:automation-card/file_read"
             ]
           }
         ],
@@ -13732,7 +13790,7 @@
           "kind": "folder",
           "label": "Automation quiet folder",
           "account": null,
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": false,
           "official": false,
           "state": "connected",
@@ -13742,10 +13800,40 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:folder:automation-quiet/read_file",
+              "id": "conn:folder:automation-quiet/file_edit",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:folder:automation-quiet/file_glob",
               "family": "read",
               "familySource": "builtin",
               "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-quiet/file_grep",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-quiet/file_list",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-quiet/file_read",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-quiet/file_write",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ],
           "path": "/automation/quiet"
@@ -13755,7 +13843,7 @@
           "kind": "folder",
           "label": "Automation broken folder",
           "account": null,
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": false,
           "official": false,
           "state": "connected",
@@ -13768,10 +13856,40 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:folder:automation-broken/read_file",
+              "id": "conn:folder:automation-broken/file_edit",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:folder:automation-broken/file_glob",
               "family": "read",
               "familySource": "builtin",
               "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_grep",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_list",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_read",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_write",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ],
           "path": "/automation/broken"
@@ -13779,31 +13897,9 @@
         {
           "id": "imap:ada@example.com",
           "kind": "imap",
-          "label": "ada@example.com",
+          "label": "imap.example.com",
           "account": "ada@example.com",
-          "provenance": "custom",
-          "remote": false,
-          "official": false,
-          "state": "connected",
-          "status": "working",
-          "reason": null,
-          "checkedAt": "2026-01-01T00:00:00Z",
-          "package": null,
-          "tools": [
-            {
-              "id": "imap.search",
-              "family": "read_personal",
-              "familySource": "builtin",
-              "prechecked": true
-            }
-          ]
-        },
-        {
-          "id": "native:microsoft:ada@example.com",
-          "kind": "native",
-          "label": "Microsoft 365",
-          "account": "ada@example.com",
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": true,
           "official": false,
           "state": "connected",
@@ -13813,10 +13909,162 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:microsoft:ada@example.com/mail.read",
+              "id": "imap.list_folders",
               "family": "read_personal",
               "familySource": "builtin",
-              "prechecked": true
+              "prechecked": false
+            },
+            {
+              "id": "imap.search",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "imap.read",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            }
+          ]
+        },
+        {
+          "id": "imap:ada.work@example.com",
+          "kind": "imap",
+          "label": "imap.example.com",
+          "account": "ada.work@example.com",
+          "provenance": "selection",
+          "remote": true,
+          "official": false,
+          "state": "connected",
+          "status": "working",
+          "reason": null,
+          "checkedAt": "2026-01-01T00:00:00Z",
+          "package": null,
+          "tools": [
+            {
+              "id": "imap.list_folders",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "imap.search",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "imap.read",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            }
+          ]
+        },
+        {
+          "id": "native:microsoft:ada@example.com",
+          "kind": "native",
+          "label": "Microsoft",
+          "account": "ada@example.com",
+          "provenance": "selection",
+          "remote": true,
+          "official": false,
+          "state": "connected",
+          "status": "working",
+          "reason": null,
+          "checkedAt": "2026-01-01T00:00:00Z",
+          "package": null,
+          "tools": [
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.search",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.get",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.send",
+              "family": "send_external",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.reply",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.list_folders",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.move",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.list_events",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.get_event",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.create_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.update_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.delete_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.search",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.get_metadata",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.download",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.list_recent",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ]
         }
@@ -13837,6 +14085,20 @@
         "toolPrefix": "conn:folder:automation-broken/"
       },
       "reject": "automation: journal unreadable by stubInvoke"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_connection_agents",
+      "argsMatch": {
+        "connectionId": "imap:ada@example.com"
+      },
+      "resolve": {
+        "connection": "imap:ada@example.com",
+        "agents": [],
+        "sharedWith": [
+          "imap:ada.work@example.com"
+        ]
+      }
     },
     {
       "kind": "stubInvoke",
@@ -13943,11 +14205,16 @@
       "kind": "waitFor",
       "testid": "connection-detail-title",
       "timeoutMs": 3000,
-      "contains": "ada@example.com"
+      "contains": "imap.example.com"
     },
     {
       "kind": "waitFor",
       "testid": "connection-activity-shared",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-agents-shared",
       "timeoutMs": 3000
     },
     {
@@ -14246,12 +14513,22 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "oauth-admin-approval-copy",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "oauth-admin-approval-request",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
+      "testid": "oauth-admin-approval-request-copy",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "oauth-admin-approval-request-copy",
       "timeoutMs": 3000
     },
@@ -14695,8 +14972,8 @@
             {
               "id": "mcp:io-apollia-seed-stub/echo",
               "family": "read",
-              "familySource": "builtin",
-              "prechecked": true
+              "familySource": "server",
+              "prechecked": false
             }
           ]
         }
@@ -14935,7 +15212,7 @@
           "kind": "folder",
           "label": "Automation broken folder",
           "account": null,
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": false,
           "official": false,
           "state": "connected",
@@ -14948,10 +15225,40 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:folder:automation-broken/read_file",
+              "id": "conn:folder:automation-broken/file_edit",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:folder:automation-broken/file_glob",
               "family": "read",
               "familySource": "builtin",
               "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_grep",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_list",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_read",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_write",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ],
           "path": "/automation/broken"
@@ -14959,9 +15266,9 @@
         {
           "id": "native:microsoft:ada@example.com",
           "kind": "native",
-          "label": "Microsoft 365",
+          "label": "Microsoft",
           "account": "ada@example.com",
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": true,
           "official": false,
           "state": "connected",
@@ -14971,10 +15278,94 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:microsoft:ada@example.com/mail.read",
+              "id": "conn:microsoft:ada@example.com/outlook.search",
               "family": "read_personal",
               "familySource": "builtin",
-              "prechecked": true
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.get",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.send",
+              "family": "send_external",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.reply",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.list_folders",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.move",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.list_events",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.get_event",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.create_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.update_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.delete_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.search",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.get_metadata",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.download",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.list_recent",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ]
         }
@@ -27046,7 +27437,12 @@
     },
     {
       "kind": "click",
-      "testid": "web-search-backend-group",
+      "testid": "web-search-backend-duckduckgo",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "web-search-backend-brave",
       "timeoutMs": 3000
     },
     {
@@ -27056,6 +27452,11 @@
     {
       "kind": "screenshot",
       "label": "10-tool-config-edited-unsaved"
+    },
+    {
+      "kind": "click",
+      "testid": "web-search-backend-auto",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",

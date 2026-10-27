@@ -5,7 +5,8 @@
     "The two image sets are SEPARATE per locale, under /img/operator-help/{en,fr}/. The English pages reference en/, the French ones fr/, checked: 85 references on each side.",
     "So this script publishes into en/ ONLY. An earlier note claimed there was a single shared set: that was true before the move to per-locale directories, and false since. The symptom it produced: the English pages showed French captures, because a single set had been copied into both directories.",
     "The prelude switches the interface to English (settings > appearance > language-en) before the first capture. Do not remove it: without it the run photographs whatever language the previous run left.",
-    "The three captures of the permission rules are taken on the Authorizations screen (route authorizations), where the rules, the standing consents and their withdrawal moved: the list with the rules for every agent, the revoke-all dialog, then the detail of the first agent."
+    "The three captures of the permission rules are taken on the Authorizations screen (route authorizations), where the rules, the standing consents and their withdrawal moved: the list with the rules for every agent, the revoke-all dialog, then the detail of the first agent.",
+    "The second shot of setting up a channel shows a channel card as it stands: the card (ChannelRow.svelte, a <li>) has no handler of its own, its actions sit on its test button and its menu, so the book waits for the first card instead of clicking it."
   ],
   "stopOnError": false,
   "dynamicTestids": [
@@ -1635,7 +1636,7 @@
       "label": "notifications-configurer-un-canal-1"
     },
     {
-      "kind": "click",
+      "kind": "waitFor",
       "testidPrefix": "channel-card-",
       "nth": 0,
       "timeoutMs": 8000

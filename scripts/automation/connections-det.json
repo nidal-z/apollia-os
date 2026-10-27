@@ -3486,7 +3486,7 @@
           "kind": "folder",
           "label": "Automation card folder",
           "account": null,
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": false,
           "official": false,
           "state": "connected",
@@ -3499,10 +3499,40 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:folder:automation-card/read_file",
+              "id": "conn:folder:automation-card/file_edit",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:folder:automation-card/file_glob",
               "family": "read",
               "familySource": "builtin",
               "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-card/file_grep",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-card/file_list",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-card/file_read",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-card/file_write",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ],
           "path": "/automation/card"
@@ -3524,13 +3554,11 @@
             "enabled": true,
             "byDefault": false,
             "tools": [
-              "conn:folder:automation-card/read_file"
+              "conn:folder:automation-card/file_read"
             ]
           }
         ],
-        "sharedWith": [
-          "automation-agent"
-        ]
+        "sharedWith": []
       }
     },
     {
@@ -3609,7 +3637,7 @@
         "kind": "folder",
         "label": "Automation card folder",
         "account": null,
-        "provenance": "custom",
+        "provenance": "selection",
         "remote": false,
         "official": false,
         "state": "connected",
@@ -3622,10 +3650,40 @@
         "package": null,
         "tools": [
           {
-            "id": "conn:folder:automation-card/read_file",
+            "id": "conn:folder:automation-card/file_edit",
+            "family": "write_or_delete",
+            "familySource": "builtin",
+            "prechecked": false
+          },
+          {
+            "id": "conn:folder:automation-card/file_glob",
             "family": "read",
             "familySource": "builtin",
             "prechecked": true
+          },
+          {
+            "id": "conn:folder:automation-card/file_grep",
+            "family": "read",
+            "familySource": "builtin",
+            "prechecked": true
+          },
+          {
+            "id": "conn:folder:automation-card/file_list",
+            "family": "read",
+            "familySource": "builtin",
+            "prechecked": true
+          },
+          {
+            "id": "conn:folder:automation-card/file_read",
+            "family": "read",
+            "familySource": "builtin",
+            "prechecked": true
+          },
+          {
+            "id": "conn:folder:automation-card/file_write",
+            "family": "write_or_delete",
+            "familySource": "builtin",
+            "prechecked": false
           }
         ],
         "path": "/automation/card"
@@ -3931,7 +3989,7 @@
             "enabled": true,
             "byDefault": false,
             "tools": [
-              "conn:folder:automation-card/read_file"
+              "conn:folder:automation-card/file_read"
             ]
           },
           {
@@ -3940,7 +3998,7 @@
             "enabled": true,
             "byDefault": false,
             "tools": [
-              "conn:folder:automation-card/read_file"
+              "conn:folder:automation-card/file_read"
             ]
           }
         ],
@@ -4025,7 +4083,7 @@
           "kind": "folder",
           "label": "Automation quiet folder",
           "account": null,
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": false,
           "official": false,
           "state": "connected",
@@ -4035,10 +4093,40 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:folder:automation-quiet/read_file",
+              "id": "conn:folder:automation-quiet/file_edit",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:folder:automation-quiet/file_glob",
               "family": "read",
               "familySource": "builtin",
               "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-quiet/file_grep",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-quiet/file_list",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-quiet/file_read",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-quiet/file_write",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ],
           "path": "/automation/quiet"
@@ -4048,7 +4136,7 @@
           "kind": "folder",
           "label": "Automation broken folder",
           "account": null,
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": false,
           "official": false,
           "state": "connected",
@@ -4061,10 +4149,40 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:folder:automation-broken/read_file",
+              "id": "conn:folder:automation-broken/file_edit",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:folder:automation-broken/file_glob",
               "family": "read",
               "familySource": "builtin",
               "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_grep",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_list",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_read",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_write",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ],
           "path": "/automation/broken"
@@ -4072,31 +4190,9 @@
         {
           "id": "imap:ada@example.com",
           "kind": "imap",
-          "label": "ada@example.com",
+          "label": "imap.example.com",
           "account": "ada@example.com",
-          "provenance": "custom",
-          "remote": false,
-          "official": false,
-          "state": "connected",
-          "status": "working",
-          "reason": null,
-          "checkedAt": "2026-01-01T00:00:00Z",
-          "package": null,
-          "tools": [
-            {
-              "id": "imap.search",
-              "family": "read_personal",
-              "familySource": "builtin",
-              "prechecked": true
-            }
-          ]
-        },
-        {
-          "id": "native:microsoft:ada@example.com",
-          "kind": "native",
-          "label": "Microsoft 365",
-          "account": "ada@example.com",
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": true,
           "official": false,
           "state": "connected",
@@ -4106,10 +4202,162 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:microsoft:ada@example.com/mail.read",
+              "id": "imap.list_folders",
               "family": "read_personal",
               "familySource": "builtin",
-              "prechecked": true
+              "prechecked": false
+            },
+            {
+              "id": "imap.search",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "imap.read",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            }
+          ]
+        },
+        {
+          "id": "imap:ada.work@example.com",
+          "kind": "imap",
+          "label": "imap.example.com",
+          "account": "ada.work@example.com",
+          "provenance": "selection",
+          "remote": true,
+          "official": false,
+          "state": "connected",
+          "status": "working",
+          "reason": null,
+          "checkedAt": "2026-01-01T00:00:00Z",
+          "package": null,
+          "tools": [
+            {
+              "id": "imap.list_folders",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "imap.search",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "imap.read",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            }
+          ]
+        },
+        {
+          "id": "native:microsoft:ada@example.com",
+          "kind": "native",
+          "label": "Microsoft",
+          "account": "ada@example.com",
+          "provenance": "selection",
+          "remote": true,
+          "official": false,
+          "state": "connected",
+          "status": "working",
+          "reason": null,
+          "checkedAt": "2026-01-01T00:00:00Z",
+          "package": null,
+          "tools": [
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.search",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.get",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.send",
+              "family": "send_external",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.reply",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.list_folders",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.move",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.list_events",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.get_event",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.create_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.update_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.delete_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.search",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.get_metadata",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.download",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.list_recent",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ]
         }
@@ -4130,6 +4378,20 @@
         "toolPrefix": "conn:folder:automation-broken/"
       },
       "reject": "automation: journal unreadable by stubInvoke"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_connection_agents",
+      "argsMatch": {
+        "connectionId": "imap:ada@example.com"
+      },
+      "resolve": {
+        "connection": "imap:ada@example.com",
+        "agents": [],
+        "sharedWith": [
+          "imap:ada.work@example.com"
+        ]
+      }
     },
     {
       "kind": "stubInvoke",
@@ -4236,11 +4498,16 @@
       "kind": "waitFor",
       "testid": "connection-detail-title",
       "timeoutMs": 6000,
-      "contains": "ada@example.com"
+      "contains": "imap.example.com"
     },
     {
       "kind": "waitFor",
       "testid": "connection-activity-shared",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-agents-shared",
       "timeoutMs": 4000
     },
     {
@@ -4539,12 +4806,22 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "oauth-admin-approval-copy",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "oauth-admin-approval-request",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
+      "testid": "oauth-admin-approval-request-copy",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "oauth-admin-approval-request-copy",
       "timeoutMs": 3000
     },
@@ -4988,8 +5265,8 @@
             {
               "id": "mcp:io-apollia-seed-stub/echo",
               "family": "read",
-              "familySource": "builtin",
-              "prechecked": true
+              "familySource": "server",
+              "prechecked": false
             }
           ]
         }
@@ -5226,7 +5503,7 @@
           "kind": "folder",
           "label": "Automation broken folder",
           "account": null,
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": false,
           "official": false,
           "state": "connected",
@@ -5239,10 +5516,40 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:folder:automation-broken/read_file",
+              "id": "conn:folder:automation-broken/file_edit",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:folder:automation-broken/file_glob",
               "family": "read",
               "familySource": "builtin",
               "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_grep",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_list",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_read",
+              "family": "read",
+              "familySource": "builtin",
+              "prechecked": true
+            },
+            {
+              "id": "conn:folder:automation-broken/file_write",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ],
           "path": "/automation/broken"
@@ -5250,9 +5557,9 @@
         {
           "id": "native:microsoft:ada@example.com",
           "kind": "native",
-          "label": "Microsoft 365",
+          "label": "Microsoft",
           "account": "ada@example.com",
-          "provenance": "custom",
+          "provenance": "selection",
           "remote": true,
           "official": false,
           "state": "connected",
@@ -5262,10 +5569,94 @@
           "package": null,
           "tools": [
             {
-              "id": "conn:microsoft:ada@example.com/mail.read",
+              "id": "conn:microsoft:ada@example.com/outlook.search",
               "family": "read_personal",
               "familySource": "builtin",
-              "prechecked": true
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.get",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.send",
+              "family": "send_external",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.reply",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.list_folders",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook.move",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.list_events",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.get_event",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.create_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.update_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/outlook_cal.delete_event",
+              "family": "write_or_delete",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.search",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.get_metadata",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.download",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
+            },
+            {
+              "id": "conn:microsoft:ada@example.com/onedrive.list_recent",
+              "family": "read_personal",
+              "familySource": "builtin",
+              "prechecked": false
             }
           ]
         }
@@ -5448,9 +5839,9 @@
     "The MCP OAuth branch of the wizard is reached on catalogue-entry-com.notion/mcp, the curated remote entry (enrichments.json remote_url https://mcp.notion.com/mcp, no oauth_pre_registered_client_id_env, so mcp_oauth_resolve_client_id never runs). test_mcp_connection is answered once with the McpConnectionTestResponse OauthRequired arm (commands/mcp.rs, kind + www_authenticate) and mcp_oauth_discover once with an McpOAuthDiscoveryResult (commands/mcp/oauth.rs: as_url, scopes_supported, scope_descriptions, registration_supported), which is what puts probeMode on oauth (AddFlow.svelte acceptWarning, then the probe of catalogueSetup.svelte.ts and its discovery). Developer mode is off in this section, so the scopes read as their descriptions in auth-oauth-permissions (WizardStepAuth.svelte), the identifiers of auth-oauth-scopes being shown in developer mode only. mcp_oauth_login is armed once before each click: a string reject for the first auth-oauth-signin-btn (auth-oauth-error shows the message), an McpOAuthAccount resolve (sub, email, scopes) for the second (auth-oauth-success names the email), and a string reject for auth-oauth-reconnect-btn, whose proof is a fresh auth-oauth-error next to the success card that stays (startOAuthSignin keeps oauthAccount on failure). The flow is left by wizard-cancel-btn without adding, and the three commands are cleared.",
     "The Google Drive folder step is reached through NativeOauthDialog on the Google connector. oauth_list_client_ids is answered with two OauthClientIdStatus rows (commands/integrations/credentials.rs) whose google row has source file and a secret, so needsOauthSetup is false; the route is remounted through the chat so refreshNativeStatus reads the stub. oauth_start_flow is answered once with an OauthStartFlow (auth_url, state, callback_port) and oauth_complete_flow once with an OauthCompletedAccount whose provider is google (commands/integrations.rs: provider, account_id, granted_scopes), which is the branch that sets step drive_folder (NativeOauthDialog.svelte completeFlow). oauth_set_drive_folder is answered first by a reject {kind: internal, detail} whose argsMatch carries the exact accountId and folderPath the dialog must send (the account of the completed flow, the path filled in oauth-drive-folder-input), which is the proof of the fill (formatTauriError renders kind: detail in oauth-drive-folder-error); a catch-all reject behind it reads differently and keeps the real command from ever writing drive prefs when the path did not reach the call. The command is cleared, then answered once with resolve null, on which the dialog gives the account to the flow and closes. All four commands are cleared and the route is remounted so the real client-id status is back on screen.",
     "The removal of a folder connection is played against stubs, since the seed ships no folder connection and a real one would be removed for good. list_connections is answered with one folder connection and the route is remounted through the chat so the list reads it. remove_connection is answered only for that identifier: with dryRun true by the list of what goes (a source and the tool of an agent), which connection-remove-items must read before anything is confirmed, and with dryRun false by a removal that left one source behind, which the toast connection-remove-left must name. A catch-all reject behind them keeps the confirmation open, and the step waiting for it to go fails, if the card removed without the dry run first or without the confirmation. The confirmation is cancelled once, then confirmed. The stubs are cleared and the route is remounted, so the real list is back on screen.",
-    "The closing section reads the page as it now stands through stubs only, each imitating a type of lib/ipc/connections.ts or lib/types: list_connections answers Connection rows (camelCase, status, reason, checkedAt, tools with family and familySource), get_connection_agents a ConnectionAgents, get_connection_activity a ConnectionActivity, grant_connection a ConnectionAgents, list_agents AgentListItem rows, add_folder_connection a Connection, add_imap_mailbox a MailboxAccount, list_imap_providers an ImapProviders, onedrive_* the OneDriveChoice and OneDriveEntry of lib/ipc/onedrive.ts, oauth_start_flow an OauthStartResult and oauth_complete_flow an OauthCompleteResult or the admin_approval_required error. No row of the seed is the target of a gesture there, and every stub is cleared before the book ends.",
+    "The closing section reads the page as it now stands through stubs only, each imitating a type of lib/ipc/connections.ts or lib/types: list_connections answers Connection rows (camelCase, status, reason, checkedAt, tools with family and familySource), get_connection_agents a ConnectionAgents, get_connection_activity a ConnectionActivity, grant_connection a ConnectionAgents, list_agents AgentListItem rows, add_folder_connection a Connection, add_imap_mailbox a MailboxAccount, list_imap_providers an ImapProviders, onedrive_* the OneDriveChoice and OneDriveEntry of lib/ipc/onedrive.ts, oauth_start_flow an OauthStartResult and oauth_complete_flow an OauthCompleteResult or the admin_approval_required error. No row of the seed is the target of a gesture there, and every stub is cleared before the book ends. Each Connection row carries the fields connections/assemble.rs gives its kind: a folder, a mailbox and a native account are provenance selection, a folder lists the six file tools under conn:folder:<id>/ with the reading ones prechecked (connections/folders.rs folder_connection), a mailbox is labelled by its provider or else its host (imap.example.com here) and is remote unless that host is a loopback, with the three imap.* tools as read_personal and not prechecked, and a Microsoft account is labelled Microsoft with its operations under conn:microsoft:<account>/, none prechecked. sharedWith is only ever filled for a mailbox, with the identifiers of the other mailboxes (connections/agents.rs holders): the folder card reads it empty, and connection-agents-shared is proven on the card of a mailbox while a second one is connected. The activity dates are fixed in the past (2026-01-02) although the card asks for the last seven days: the runner has no relative date and the application in automation mode does not freeze its clock, so the card reads that last use as months old; the anchors do not depend on it.",
     "The folder of the closing section is added by the flow (catalogue-folder, add-flow-folder-pick) with plugin:dialog|open and add_folder_connection answered, and grant_connection refused once, which is the wizard-grant-error of the trial; wizard-done-btn then opens its card, whose sections read the stubs armed before (connection-agents, connection-activity), and connection-activity-journal opens the journal narrowed to it (journal-filter-connection).",
-    "The Microsoft account of the closing section is a stubbed row: its card adds an account (oauth-add-account-microsoft) three times, signed in (oauth-done, onconnected is not given from a card), refused by the provider with admin_approval_required (oauth-admin-approval and its address and request), and declined by a work account, delivered as the oauth://error event the dialog listens to (oauth-admin-approval-possible, then its retry). The two copy buttons are waited for and not clicked: they write the system clipboard of the machine playing the book.",
+    "The Microsoft account of the closing section is a stubbed row: its card adds an account (oauth-add-account-microsoft) three times, signed in (oauth-done, onconnected is not given from a card), refused by the provider with admin_approval_required (oauth-admin-approval and its address and request), and declined by a work account, delivered as the oauth://error event the dialog listens to (oauth-admin-approval-possible, then its retry). Both copy buttons are clicked, as the other -det books click theirs: each writes the system clipboard of the machine playing the book, and its outcome line (copied or failed) has no anchor, so the click is the proof that the handler runs.",
     "The offers of the Chat are reached without a model: get_chat_session of seed-session-1 is patched with a user turn and an answer whose connection_lookup step returns three matches (ChatMessageView and ToolCallView of lib/types/chat.ts). The patch also says the session is processing, so that granting, which asks to play the request again, settles without regenerating (answerRequested is null while busy) and connection-offer-done shows; an entry the selection does not hold is the connection-offer-error of an addition."
   ]
 }
