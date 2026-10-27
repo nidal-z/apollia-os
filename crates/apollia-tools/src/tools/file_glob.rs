@@ -203,19 +203,27 @@ fn glob_files(
 
     let mut entries: Vec<(PathBuf, SystemTime)> = Vec::new();
     let mut walk = sandbox.walk(base);
+    // Every file the glob yields counts, served or not: a walk that keeps
+    // finding files it may not name (a cycle of links through a folder in
+    // pause) still ends at the limit instead of running unbounded.
+    let mut yielded = 0usize;
 
     for path_result in paths {
         let path = path_result.map_err(|e| FileGlobError::IoError(e.to_string()))?;
 
-        // Exclude directories and any path the sandbox does not serve.
-        if path.is_dir() || !path.starts_with(sandbox_root) || !walk.serves(&path) {
+        if path.is_dir() {
             continue;
         }
-
-        if entries.len() >= MAX_GLOB_RESULTS {
+        yielded += 1;
+        if yielded > MAX_GLOB_RESULTS {
             return Err(FileGlobError::GlobLimitExceeded {
                 limit: MAX_GLOB_RESULTS,
             });
+        }
+
+        // Exclude any path the sandbox does not serve.
+        if !path.starts_with(sandbox_root) || !walk.serves(&path) {
+            continue;
         }
 
         let mtime = std::fs::metadata(&path)

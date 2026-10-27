@@ -120,6 +120,47 @@ async fn a_walk_names_nothing_it_found_through_the_folder_in_pause() {
 
 #[cfg(unix)]
 #[tokio::test]
+async fn a_glob_through_a_cycle_into_the_folder_in_pause_ends_at_its_limit() {
+    // GIVEN `inner` in pause, a link from the sound folder into it and a link
+    // in it back to the sound folder, so the glob walks a cycle whose every
+    // file goes through the folder in pause
+    let dir = tempfile::tempdir().expect("tempdir");
+    let outer = dir.path().join("outer");
+    let inner = outer.join("inner");
+    std::fs::create_dir_all(&inner).expect("mkdir");
+    std::fs::write(outer.join("o.md"), "outer note").expect("write");
+    std::fs::write(inner.join("n.md"), SECRET).expect("write");
+    std::os::unix::fs::symlink(&inner, outer.join("lnk")).expect("symlink");
+    std::os::unix::fs::symlink(&outer, inner.join("up")).expect("symlink");
+    let stored = |id: &str, path: &Path| FolderConnection {
+        id: id.to_owned(),
+        path: path.to_string_lossy().into_owned(),
+        label: id.to_owned(),
+        added_at: "2026-10-27T00:00:00Z".to_owned(),
+    };
+    let (_, roots) = resolve_folder_access(
+        vec![folder_access_name("outer", "file_read")],
+        &[stored("outer", &outer), stored("inner", &inner)],
+        &pause_of_inner(),
+    );
+    let glob = FileGlob::new(roots.sandbox(roots.read.clone())).expect("file_glob");
+
+    // WHEN the sound folder is globbed for every note
+    let outcome = glob.execute(json!({ "pattern": "**/*.md" })).await;
+
+    // THEN the glob stops at its limit, as it does with nothing in pause, and
+    // names nothing of the folder in pause
+    let said = match outcome {
+        Ok(value) => value.to_string(),
+        Err(error) => error.to_string(),
+    };
+    assert!(said.contains("10000"), "{said}");
+    assert!(!said.contains("inner/"), "{said}");
+    assert!(!said.contains("SECRETZZ"), "{said}");
+}
+
+#[cfg(unix)]
+#[tokio::test]
 async fn a_link_out_of_every_root_is_listed_and_not_followed() {
     // GIVEN the same tree, nothing in pause
     let tree = tree(&HashSet::new());
