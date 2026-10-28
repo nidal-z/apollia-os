@@ -833,6 +833,38 @@ mod tests {
         let parsed: Result<Vec<ConnectorEnrichment>, _> =
             serde_json::from_str(include_str!("enrichments.json"));
         let enrichments = parsed.expect("the embedded catalogue parses");
+        // The entries that classified their tools before the selection grew:
+        // each keeps classifying at least one, so an entry cannot lose its
+        // families and its examples together unnoticed.
+        const CLASSIFYING: &[&str] = &[
+            "@notionhq/notion-mcp-server",
+            "@modelcontextprotocol/server-brave-search",
+            "@modelcontextprotocol/server-filesystem",
+            "@modelcontextprotocol/server-memory",
+            "@modelcontextprotocol/server-puppeteer",
+            "@playwright/mcp",
+            "app.linear/mcp",
+            "com.atlassian/rovo-mcp",
+            "com.stripe/mcp",
+            "com.figma/mcp",
+            "io.sentry/mcp",
+            "com.cloudflare/mcp",
+            "@modelcontextprotocol/server-postgres",
+            "@modelcontextprotocol/server-sqlite",
+            "@modelcontextprotocol/server-git",
+            "mcp-server-time",
+            "mcp-server-fetch",
+        ];
+        for id in CLASSIFYING {
+            let entry = enrichments
+                .iter()
+                .find(|e| e.package_identifier == *id)
+                .unwrap_or_else(|| panic!("{id} is no longer in the catalogue"));
+            assert!(
+                !entry.tool_families.is_empty(),
+                "{id} no longer classifies its tools"
+            );
+        }
         // WHEN the listed entries are inspected
         for entry in enrichments.iter().filter(|e| e.is_listed()) {
             // THEN an entry that classifies tools (an entry whose editor

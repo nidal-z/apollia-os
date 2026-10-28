@@ -4402,7 +4402,7 @@
       },
       "description": {
         "en": "Search projects, issues, merge requests and pipelines on GitLab.com.",
-        "fr": "Chercher projets, tickets, merge requests et pipelines sur GitLab.com."
+        "fr": "Chercher projets, tickets, demandes de fusion et pipelines sur GitLab.com."
       },
       "category": "development",
       "icon_name": "gitlab",
@@ -4573,7 +4573,7 @@
       "category": "infrastructure",
       "icon_name": "netlify",
       "trust_level": "verified_official",
-      "auth_help_url": "https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/",
+      "auth_help_url": "https://docs.netlify.com/build/build-with-ai/agent-setup-guides/agent-setup-overview/#mcp-server-support",
       "auth_help_text": {
         "en": "Sign in with your Netlify account when Apollia opens the browser; no key to copy.",
         "fr": "Connectez-vous avec votre compte Netlify quand Apollia ouvre le navigateur ; aucune clé à copier."
@@ -4647,7 +4647,7 @@
       },
       "description": {
         "en": "Query product analytics, feature flags, experiments and errors in PostHog.",
-        "fr": "Interroger analyses produit, feature flags, expériences et erreurs PostHog."
+        "fr": "Interroger analyses produit, drapeaux de fonctionnalité, expériences et erreurs PostHog."
       },
       "category": "analytics",
       "icon_name": "posthog",
