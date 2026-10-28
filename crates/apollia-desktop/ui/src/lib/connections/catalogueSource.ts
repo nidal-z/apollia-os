@@ -5,7 +5,9 @@
  * Opening the catalogue reads the selection Apollia offers: the one compiled
  * into the application, refreshed from the signed online index when it
  * answers in time, else the copy already kept. The public registry is asked
- * only through `exploreAll`, the handler of the "Explore all" button.
+ * only through `exploreAll`, the handler of the "Explore all" button, and
+ * through `search`, when a text is typed: the registry's own search then
+ * finds what the first pages it gave do not hold.
  */
 import { fetchMcpCurated, fetchMcpRegistry } from "$lib/ipc/connections";
 import { vendorLabel } from "$lib/connections/vendor";
@@ -31,15 +33,24 @@ export interface CatalogueView {
 export interface CatalogueFetchers {
   /** The selection Apollia ships, read without network. */
   curated: () => Promise<RegistryServerView[]>;
-  /** The selection and the public catalogue. */
-  registry: () => Promise<RegistryServerView[]>;
+  /** The selection and the public catalogue, or what its search finds for `search`. */
+  registry: (search?: string) => Promise<RegistryServerView[]>;
 }
+
+/** Fewer letters than this are not sent to the registry's search. */
+export const MIN_SEARCH_LENGTH = 2;
 
 export interface CatalogueSource {
   /** The selection; never asks the public catalogue. */
   selection: () => Promise<CatalogueView>;
-  /** The selection and the public catalogue: the only path that asks it. */
+  /** The selection and the public catalogue. */
   exploreAll: () => Promise<CatalogueView>;
+  /**
+   * What the registry's search finds for `term`, joined to the public
+   * catalogue the window shows at `tier`. A term shorter than
+   * `MIN_SEARCH_LENGTH` asks nothing.
+   */
+  search: (term: string, tier: CatalogueTier) => Promise<CatalogueView>;
 }
 
 const IPC_FETCHERS: CatalogueFetchers = {
@@ -55,11 +66,31 @@ const IPC_FETCHERS: CatalogueFetchers = {
  */
 export function createCatalogueSource(fetchers: CatalogueFetchers = IPC_FETCHERS): CatalogueSource {
   let curated: RegistryServerView[] | null = null;
+  let curatedRead: Promise<RegistryServerView[] | null> | null = null;
   let full: RegistryServerView[] | null = null;
+  const found = new Map<string, RegistryServerView[]>();
+  let lastTerm = "";
 
   async function readSelection(): Promise<CatalogueFailure[]> {
-    if (curated === null) curated = await fetchers.curated().catch(() => null);
+    if (curated === null) {
+      curatedRead ??= fetchers.curated().catch(() => null);
+      curated = await curatedRead;
+      curatedRead = null;
+    }
     return curated === null ? ["selection"] : [];
+  }
+
+  /** The public entries to show: the catalogue read, then what the last search found, the selection left out. */
+  function publicOf(entries: readonly RegistryServerView[]): RegistryServerView[] {
+    const offered = new Set((curated ?? []).map((e) => e.name));
+    const seen = new Set<string>();
+    const merged: RegistryServerView[] = [];
+    for (const e of [...entries, ...(found.get(lastTerm) ?? [])]) {
+      if (offered.has(e.name) || seen.has(e.name)) continue;
+      seen.add(e.name);
+      merged.push(e);
+    }
+    return merged;
   }
 
   async function selection(): Promise<CatalogueView> {
@@ -72,18 +103,29 @@ export function createCatalogueSource(fetchers: CatalogueFetchers = IPC_FETCHERS
     if (full === null) full = await fetchers.registry().catch(() => null);
     const shown = curated ?? [];
     if (full === null) {
-      return { tier: "curated", selection: shown, publicEntries: [], failures: [...failures, "public"] };
+      return { tier: "curated", selection: shown, publicEntries: publicOf([]), failures: [...failures, "public"] };
     }
-    const offered = new Set(shown.map((e) => e.name));
+    return { tier: "full", selection: shown, publicEntries: publicOf(full), failures };
+  }
+
+  async function search(term: string, tier: CatalogueTier): Promise<CatalogueView> {
+    const failures = await readSelection();
+    lastTerm = term.trim();
+    if (lastTerm.length >= MIN_SEARCH_LENGTH && !found.has(lastTerm)) {
+      const answer = await fetchers.registry(lastTerm).catch(() => null);
+      if (answer === null) failures.push("public");
+      else found.set(lastTerm, answer);
+    }
+    const shownTier: CatalogueTier = tier === "full" && full !== null ? "full" : "curated";
     return {
-      tier: "full",
-      selection: shown,
-      publicEntries: full.filter((e) => !offered.has(e.name)),
+      tier: shownTier,
+      selection: curated ?? [],
+      publicEntries: publicOf(shownTier === "full" ? (full ?? []) : []),
       failures,
     };
   }
 
-  return { selection, exploreAll };
+  return { selection, exploreAll, search };
 }
 
 /** Lower case, without diacritics, so a search typed without accents finds an accented word. */

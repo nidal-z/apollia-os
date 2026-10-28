@@ -100,6 +100,7 @@ pub(crate) fn app_state(data_dir: PathBuf) -> AppState<MockBackend> {
         tool_registry_handle: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        mcp_registry: None,
         governance: None,
         inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),

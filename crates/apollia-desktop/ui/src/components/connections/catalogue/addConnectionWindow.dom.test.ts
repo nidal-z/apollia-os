@@ -101,3 +101,37 @@ describe("a row of the add window is chosen by a click on its anchor", () => {
     expect(onchoose).toHaveBeenCalledWith(key);
   });
 });
+
+describe("what the registry's search finds shows before Explore all", () => {
+  test("the public group lists the found service and keeps Explore all", async () => {
+    // GIVEN the window on the selection, a text typed, and the service the
+    //       registry's search found for it
+    const farAway: RegistryServerView = {
+      ...NOTION,
+      name: "io.github.someone/far-away",
+      title: "Far away",
+      trust_level: "community",
+      remotes: [],
+    };
+    if (mounted) unmount(mounted);
+    target.innerHTML = "";
+
+    // WHEN the window shows it
+    mounted = mount(AddConnectionWindow as never, {
+      target,
+      props: {
+        open: true, query: "far", chosen: null, adding: false, resume: null, selection: [NOTION],
+        publicEntries: [farAway], failures: [], catalogueTier: "curated", loading: false, agents: [],
+        installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose,
+        onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop,
+        onadded: noop, ondone: noop, onsignin: noop, ontry: noop, ontryprompt: noop, onopenrule: noop,
+      } as never,
+    });
+    await settle();
+
+    // THEN its row is in the public group, beside the button that explores the rest
+    const group = document.querySelector('[data-testid="catalogue-group-public"]');
+    expect(group?.querySelector(`[data-testid="${CSS.escape("catalogue-entry-io.github.someone/far-away")}"]`)).not.toBeNull();
+    expect(group?.querySelector('[data-testid="catalogue-explore-all"]')).not.toBeNull();
+  });
+});

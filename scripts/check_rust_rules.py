@@ -308,6 +308,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
     "crates/apollia-llm/src/repository.rs": 1,
     "crates/apollia-llm/src/retry.rs": 1,
+    # The registry is the subject: a fake registry holds a port-0 bind for the
+    # whole test and holds back pages until the test opens its gate, and one
+    # deadline fails a read that waits for those pages instead of hanging.
+    "crates/apollia-mcp/src/registry/catalogue.rs": 2,
     "crates/apollia-mcp/src/transport/http.rs": 3,
     "crates/apollia-mcp/src/transport/sse.rs": 3,
     "crates/apollia-mcp/src/transport/stdio.rs": 1,
@@ -328,6 +332,8 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # stand-in holds a port-0 bind for the whole test, and the silent-port
     # test releases one to obtain a port nothing listens on.
     "crates/apollia-runtime/src/api/routes_chat/prompt_template/tests.rs": 2,
+    # The same fake registry and deadline, behind the registry route.
+    "crates/apollia-runtime/src/api/routes_mcp_registry.rs": 2,
     "crates/apollia-runtime/src/api/server.rs": 13,
     # The mailbox and the whole-bus event streams never end: each probe reads
     # its first frame under a deadline, which is what fails it rather than a

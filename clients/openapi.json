@@ -9508,7 +9508,7 @@
           {
             "name": "search",
             "in": "query",
-            "description": "Keyword forwarded to the registry. A search always asks the network;\nwithout one, a fresh cache answers.",
+            "description": "Keyword forwarded to the registry's own search. A search always asks\nthe network and falls back to the cache; without one, the cache answers\neven when stale, and the whole registry is read again behind it.",
             "required": false,
             "schema": {
               "type": "string"

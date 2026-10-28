@@ -151,6 +151,7 @@ async fn build_webhook_state(
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        mcp_registry: None,
         governance: None,
         inference_governance: Default::default(),
         backend: MockBackend,

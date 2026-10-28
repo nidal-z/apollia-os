@@ -83,7 +83,7 @@ describe("opening the catalogue never asks the public catalogue", () => {
   });
 });
 
-describe("Explore all is the one gesture that asks the public catalogue", () => {
+describe("Explore all is the one gesture that reads the public catalogue", () => {
   test("it asks once, then answers from what it read", async () => {
     // GIVEN an opened catalogue
     const source = createCatalogueSource();
@@ -116,6 +116,116 @@ describe("Explore all is the one gesture that asks the public catalogue", () => 
     // THEN the first shows the selection and names the failure, the second the full list
     expect(failed).toEqual({ tier: "curated", selection: CURATED, publicEntries: [], failures: ["public"] });
     expect(retried).toEqual({ tier: "full", selection: CURATED, publicEntries: [FULL[1]], failures: [] });
+  });
+});
+
+describe("a typed text is searched by the registry itself", () => {
+  const farAway = entry({ name: "io.github.someone/far-away", title: "Far away", trust_level: "community" });
+
+  function searchingSource() {
+    const registry = vi.fn(async (search?: string) => (search === undefined ? FULL : [farAway, CURATED[0]]));
+    return { registry, source: createCatalogueSource({ curated: async () => CURATED, registry }) };
+  }
+
+  test("a search finds a service the first pages do not hold, and joins the public group", async () => {
+    // GIVEN the public catalogue read by Explore all, which does not hold the service
+    const { registry, source } = searchingSource();
+    await source.exploreAll();
+
+    // WHEN its name is typed
+    const view = await source.search("far", "full");
+
+    // THEN the registry was searched for the text, and the service joins the
+    //      public entries after the catalogue read, the selection left out
+    expect(registry).toHaveBeenCalledWith("far");
+    expect(view.tier).toBe("full");
+    expect(view.publicEntries.map((e) => e.name)).toEqual([FULL[1].name, farAway.name]);
+    expect(view.failures).toEqual([]);
+  });
+
+  test("before Explore all, what the search finds is the public group", async () => {
+    // GIVEN a window on the selection
+    const { registry, source } = searchingSource();
+    await source.selection();
+
+    // WHEN a text is typed, then typed again
+    const view = await source.search("  far ", "curated");
+    await source.search("far", "curated");
+
+    // THEN the search alone fills the public group, asked once for the text
+    expect(view.tier).toBe("curated");
+    expect(view.publicEntries).toEqual([farAway]);
+    expect(registry).toHaveBeenCalledTimes(1);
+  });
+
+  test("a search cleared drops what it found, also from Explore all", async () => {
+    // GIVEN the public catalogue read, and a service found by a search
+    const { source } = searchingSource();
+    await source.exploreAll();
+    await source.search("far", "full");
+
+    // WHEN the text is cleared, then Explore all is shown again
+    const cleared = await source.search("", "full");
+    const explored = await source.exploreAll();
+
+    // THEN the found service is gone from both
+    expect(cleared.publicEntries.map((e) => e.name)).toEqual([FULL[1].name]);
+    expect(explored.publicEntries.map((e) => e.name)).toEqual([FULL[1].name]);
+  });
+
+  test("a text shorter than two letters asks nothing", async () => {
+    // GIVEN a window on the selection
+    const { registry, source } = searchingSource();
+
+    // WHEN a single letter, then nothing, is typed
+    const one = await source.search("f", "curated");
+    const none = await source.search("", "curated");
+
+    // THEN the registry was never asked, and no public entry is shown
+    expect(registry).not.toHaveBeenCalled();
+    expect(one.publicEntries).toEqual([]);
+    expect(none.publicEntries).toEqual([]);
+  });
+
+  test("a search that fails names the public catalogue and is tried again", async () => {
+    // GIVEN a registry whose search fails once
+    const registry = vi.fn<(search?: string) => Promise<RegistryServerView[]>>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue([farAway]);
+    const source = createCatalogueSource({ curated: async () => CURATED, registry });
+
+    // WHEN the same text is searched twice
+    const failed = await source.search("far", "curated");
+    const retried = await source.search("far", "curated");
+
+    // THEN the first names the failure, the second shows what it found
+    expect(failed.failures).toEqual(["public"]);
+    expect(failed.selection).toEqual(CURATED);
+    expect(retried.failures).toEqual([]);
+    expect(retried.publicEntries).toEqual([farAway]);
+  });
+
+  test("the screen searches only from a typed text, after a pause", () => {
+    // GIVEN the source of the Connections screen
+    const route = readFileSync(new URL("../../routes/Connections.svelte", import.meta.url), "utf8");
+
+    // WHEN its calls to the search are listed, in the whole route and in the
+    //      one function that searches
+    const searchCalls = route.match(/catalogueSource\.search\(/g) ?? [];
+    const searchStart = route.indexOf("async function searchRegistry");
+    const searcher = route.slice(searchStart, route.indexOf("\n  }\n", searchStart));
+    const openHandler = route.slice(
+      route.indexOf("function handleOpenCatalogue"),
+      route.indexOf("\n  }\n", route.indexOf("function handleOpenCatalogue")),
+    );
+
+    // THEN one function searches (once, and again at the tier Explore all
+    //      left), behind the pause on the typed text, and opening the window does not
+    expect(searchCalls.length).toBeGreaterThan(0);
+    expect(searcher.match(/catalogueSource\.search\(/g) ?? []).toHaveLength(searchCalls.length);
+    expect(route).toMatch(/setTimeout\(\(\) => void searchRegistry\(term\), SEARCH_PAUSE_MS\)/);
+    expect(route).toMatch(/term\.length < MIN_SEARCH_LENGTH/);
+    expect(openHandler).not.toMatch(/search/i);
   });
 });
 

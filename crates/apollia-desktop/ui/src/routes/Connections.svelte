@@ -46,6 +46,7 @@
     type StateChange,
   } from "$lib/connections/pageSources";
   import {
+    MIN_SEARCH_LENGTH,
     createCatalogueSource,
     type CatalogueFailure,
     type CatalogueTier,
@@ -173,8 +174,10 @@
   let registryLoading = $state(false);
   let catalogueTier = $state<CatalogueTier>("none");
   // Opening reads the selection only; the public catalogue is asked by
-  // "Explore all" and nothing else.
+  // "Explore all", and its search by a text typed in the window.
   const catalogueSource = createCatalogueSource();
+  /** Time a typed text rests before the registry's search is asked. */
+  const SEARCH_PAUSE_MS = 350;
   /** The sign-in dialog was opened by the flow of the window, not by a card. */
   let oauthForAdd = $state(false);
 
@@ -281,6 +284,41 @@
       registryLoading = false;
     }
   }
+
+  /**
+   * Ask the registry's own search for `term`, once the typing rests, so a
+   * service past the pages the registry first gave is found. The answer is
+   * shown only when the text is still the one searched, and at the tier the
+   * window shows by then: "Explore all" may have answered during the wait,
+   * and the answer is then read again at its tier, from what is already held.
+   */
+  async function searchRegistry(term: string): Promise<void> {
+    let tier = untrack(() => catalogueTier);
+    let view = await catalogueSource.search(term, tier);
+    while (stillSearched(term) && tier !== untrack(() => catalogueTier)) {
+      tier = untrack(() => catalogueTier);
+      view = await catalogueSource.search(term, tier);
+    }
+    if (!stillSearched(term)) return;
+    showView(view);
+  }
+
+  function stillSearched(term: string): boolean {
+    return addWindow.open && addWindow.query.trim() === term;
+  }
+
+  $effect(() => {
+    const term = addWindow.query.trim();
+    if (!addWindow.open) return;
+    if (term.length < MIN_SEARCH_LENGTH) {
+      // Asks nothing: what an earlier search found leaves with its text, and
+      // the catalogue read by "Explore all" stays.
+      if (untrack(() => publicEntries.length) > 0) void searchRegistry(term);
+      return;
+    }
+    const pause = setTimeout(() => void searchRegistry(term), SEARCH_PAUSE_MS);
+    return () => clearTimeout(pause);
+  });
 
   async function handleExploreAll(): Promise<void> {
     if (registryLoading) return;

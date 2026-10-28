@@ -229,8 +229,11 @@ export function fetchMcpCurated(): Promise<RegistryServerView[]> {
   return invoke<RegistryServerView[]>("fetch_mcp_curated");
 }
 
-export function fetchMcpRegistry(): Promise<RegistryServerView[]> {
-  return invoke<RegistryServerView[]>("fetch_mcp_registry");
+/** The public catalogue, or what the registry's own search finds for `search`. */
+export function fetchMcpRegistry(search?: string): Promise<RegistryServerView[]> {
+  return search === undefined
+    ? invoke<RegistryServerView[]>("fetch_mcp_registry")
+    : invoke<RegistryServerView[]>("fetch_mcp_registry", { search });
 }
 
 // ── Native OAuth connectors ─────────────────────────────────────────────────
