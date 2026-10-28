@@ -113,7 +113,7 @@
         "fr": "Rechercher sur le web via l'API Brave Search."
       },
       "category": "search",
-      "icon_name": "search",
+      "icon_name": "brave",
       "trust_level": "community_verified",
       "auth_help_url": "https://brave.com/search/api/",
       "auth_help_text": {
@@ -351,7 +351,7 @@
         "fr": "Lire, écrire et gérer des fichiers sur le système de fichiers local."
       },
       "category": "data",
-      "icon_name": "folder",
+      "icon_name": "modelcontextprotocol",
       "trust_level": "community_verified",
       "auth_help_url": null,
       "auth_help_text": {
@@ -405,7 +405,7 @@
         "fr": "Graphe de connaissances persistant pour stocker et retrouver de l'information structurée."
       },
       "category": "data",
-      "icon_name": "brain",
+      "icon_name": "modelcontextprotocol",
       "trust_level": "community_verified",
       "auth_help_url": null,
       "auth_help_text": null,
@@ -1670,7 +1670,7 @@
         "fr": "Contrôler un navigateur Chrome headless pour le scraping et l'automatisation web."
       },
       "category": "development",
-      "icon_name": "globe",
+      "icon_name": "puppeteer",
       "trust_level": "community_verified",
       "auth_help_url": null,
       "auth_help_text": null,
@@ -2552,7 +2552,7 @@
         "fr": "Exécuter des requêtes lecture seule sur une base PostgreSQL."
       },
       "category": "data",
-      "icon_name": "database",
+      "icon_name": "postgresql",
       "trust_level": "community_verified",
       "auth_help_url": null,
       "auth_help_text": {
@@ -2922,7 +2922,7 @@
         "fr": "Ouvrir et interroger un fichier SQLite local."
       },
       "category": "data",
-      "icon_name": "database",
+      "icon_name": "sqlite",
       "trust_level": "community_verified",
       "auth_help_url": null,
       "auth_help_text": null,
@@ -2989,7 +2989,7 @@
         "fr": "Obtenir l'heure actuelle, convertir entre fuseaux horaires."
       },
       "category": "utility",
-      "icon_name": "clock",
+      "icon_name": "modelcontextprotocol",
       "trust_level": "community_verified",
       "auth_help_url": null,
       "auth_help_text": null,
@@ -3352,7 +3352,7 @@
         "fr": "Récupérer une URL et renvoyer son contenu en texte ou markdown."
       },
       "category": "search",
-      "icon_name": "download",
+      "icon_name": "modelcontextprotocol",
       "trust_level": "community_verified",
       "auth_help_url": null,
       "auth_help_text": null,
@@ -3802,6 +3802,1001 @@
           }
         }
       ]
+    },
+    {
+      "package_identifier": "com.paypal.mcp/mcp",
+      "registry_names": [
+        "com.paypal.mcp/mcp"
+      ],
+      "operator_label": {
+        "en": "PayPal",
+        "fr": "PayPal"
+      },
+      "description": {
+        "en": "Create invoices, look up orders and transactions, and follow disputes in PayPal.",
+        "fr": "Créer des factures, consulter commandes et transactions, suivre les litiges PayPal."
+      },
+      "category": "finance",
+      "icon_name": "paypal",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://developer.paypal.com/tools/mcp-server/",
+      "auth_help_text": {
+        "en": "Sign in with your PayPal account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte PayPal quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.paypal.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.gocardless/gc-mcp",
+      "registry_names": [
+        "com.gocardless/gc-mcp"
+      ],
+      "operator_label": {
+        "en": "GoCardless",
+        "fr": "GoCardless"
+      },
+      "description": {
+        "en": "Read and manage payments, mandates, subscriptions, refunds and payouts in GoCardless.",
+        "fr": "Lire et gérer paiements, mandats, abonnements, remboursements et versements GoCardless."
+      },
+      "category": "finance",
+      "icon_name": "landmark",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://github.com/gocardless/gc-mcp",
+      "auth_help_text": {
+        "en": "Sign in with your GoCardless account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte GoCardless quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.gocardless.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.paddle/mcp",
+      "registry_names": [
+        "com.paddle/mcp"
+      ],
+      "operator_label": {
+        "en": "Paddle",
+        "fr": "Paddle"
+      },
+      "description": {
+        "en": "Query pricing, subscriptions, payments and revenue reports in Paddle Billing.",
+        "fr": "Interroger tarifs, abonnements, paiements et rapports de revenus de Paddle Billing."
+      },
+      "category": "finance",
+      "icon_name": "paddle",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://mcp.paddle.com/",
+      "auth_help_text": {
+        "en": "Sign in with your Paddle account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Paddle quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.paddle.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.close/close-mcp",
+      "registry_names": [
+        "com.close/close-mcp"
+      ],
+      "operator_label": {
+        "en": "Close",
+        "fr": "Close"
+      },
+      "description": {
+        "en": "Search leads, contacts and opportunities, and log activities in the Close CRM.",
+        "fr": "Chercher prospects, contacts et opportunités, et noter des activités dans le CRM Close."
+      },
+      "category": "crm",
+      "icon_name": "users",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://help.close.com/docs/mcp-server",
+      "auth_help_text": {
+        "en": "Sign in with your Close account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Close quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.close.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.attio/mcp",
+      "registry_names": [],
+      "operator_label": {
+        "en": "Attio",
+        "fr": "Attio"
+      },
+      "description": {
+        "en": "Look up people and companies, search the pipeline, and log notes and tasks in Attio.",
+        "fr": "Retrouver personnes et entreprises, chercher dans le pipeline, noter notes et tâches dans Attio."
+      },
+      "category": "crm",
+      "icon_name": "users",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://attio.com/apps/mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Attio account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Attio quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.attio.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.intercom/mcp",
+      "registry_names": [],
+      "operator_label": {
+        "en": "Intercom",
+        "fr": "Intercom"
+      },
+      "description": {
+        "en": "Search conversations, contacts and companies of your Intercom workspace.",
+        "fr": "Chercher conversations, contacts et entreprises de votre espace Intercom."
+      },
+      "category": "support",
+      "icon_name": "intercom",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://developers.intercom.com/docs/guides/mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Intercom account when Apollia opens the browser. Intercom serves this connection to workspaces hosted in the United States only.",
+        "fr": "Connectez-vous avec votre compte Intercom quand Apollia ouvre le navigateur. Intercom ne sert cette connexion qu'aux espaces hébergés aux États-Unis."
+      },
+      "remote_url": "https://mcp.intercom.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.monday/monday.com",
+      "registry_names": [
+        "com.monday/monday.com"
+      ],
+      "operator_label": {
+        "en": "monday.com",
+        "fr": "monday.com"
+      },
+      "description": {
+        "en": "Read and update boards, items and updates in monday.com.",
+        "fr": "Lire et mettre à jour tableaux, éléments et mises à jour monday.com."
+      },
+      "category": "productivity",
+      "icon_name": "kanban",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://developer.monday.com/apps/docs/mondaycom-mcp-integration",
+      "auth_help_text": {
+        "en": "Sign in with your monday.com account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte monday.com quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.monday.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "net.todoist/mcp",
+      "registry_names": [
+        "net.todoist/mcp"
+      ],
+      "operator_label": {
+        "en": "Todoist",
+        "fr": "Todoist"
+      },
+      "description": {
+        "en": "Add, find and complete tasks and projects in Todoist.",
+        "fr": "Ajouter, retrouver et terminer tâches et projets Todoist."
+      },
+      "category": "productivity",
+      "icon_name": "todoist",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://www.todoist.com/help/articles/use-todoist-with-mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Todoist account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Todoist quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://ai.todoist.net/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.clickup/mcp",
+      "registry_names": [],
+      "operator_label": {
+        "en": "ClickUp",
+        "fr": "ClickUp"
+      },
+      "description": {
+        "en": "Create and search tasks, docs and comments, and track time in ClickUp.",
+        "fr": "Créer et chercher tâches, documents et commentaires, suivre le temps passé dans ClickUp."
+      },
+      "category": "productivity",
+      "icon_name": "clickup",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://help.clickup.com/hc/en-us/articles/33335772678423",
+      "auth_help_text": {
+        "en": "Sign in with your ClickUp account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte ClickUp quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.clickup.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.zapier/mcp",
+      "registry_names": [
+        "com.zapier/mcp"
+      ],
+      "operator_label": {
+        "en": "Zapier",
+        "fr": "Zapier"
+      },
+      "description": {
+        "en": "Run the actions you enable in Zapier across thousands of connected apps.",
+        "fr": "Lancer les actions que vous activez dans Zapier, sur des milliers d'applications reliées."
+      },
+      "category": "productivity",
+      "icon_name": "zapier",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://docs.zapier.com/mcp/home",
+      "auth_help_text": {
+        "en": "Sign in with your Zapier account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Zapier quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.zapier.com/api/v1/connect",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "freemium",
+        "note_i18n": {
+          "en": "Each action run counts as a Zapier task, within the quota of your plan.",
+          "fr": "Chaque action lancée compte comme une tâche Zapier, dans le quota de votre offre."
+        }
+      }
+    },
+    {
+      "package_identifier": "com.typeform/typeform",
+      "registry_names": [
+        "com.typeform/typeform"
+      ],
+      "operator_label": {
+        "en": "Typeform",
+        "fr": "Typeform"
+      },
+      "description": {
+        "en": "Build and edit forms, and read and analyze responses in Typeform.",
+        "fr": "Créer et modifier des formulaires, lire et analyser les réponses Typeform."
+      },
+      "category": "productivity",
+      "icon_name": "typeform",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://www.typeform.com/developers/get-started/mcp/",
+      "auth_help_text": {
+        "en": "Sign in with your Typeform account when Apollia opens the browser. An account hosted in the EU uses its own address, https://api.eu.typeform.com/mcp, to add as a service by its address.",
+        "fr": "Connectez-vous avec votre compte Typeform quand Apollia ouvre le navigateur. Un compte hébergé dans l'UE a sa propre adresse, https://api.eu.typeform.com/mcp, à ajouter comme service par son adresse."
+      },
+      "remote_url": "https://api.typeform.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.pandadoc.mcp/mcp",
+      "registry_names": [
+        "com.pandadoc.mcp/mcp"
+      ],
+      "operator_label": {
+        "en": "PandaDoc",
+        "fr": "PandaDoc"
+      },
+      "description": {
+        "en": "Create, send and track documents and signatures in PandaDoc.",
+        "fr": "Créer, envoyer et suivre documents et signatures PandaDoc."
+      },
+      "category": "documents",
+      "icon_name": "file-text",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://developers.pandadoc.com/docs/getting-started-with-mcp",
+      "auth_help_text": {
+        "en": "Sign in with your PandaDoc account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte PandaDoc quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.pandadoc.com/v1/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.dropbox/mcp",
+      "registry_names": [],
+      "operator_label": {
+        "en": "Dropbox",
+        "fr": "Dropbox"
+      },
+      "description": {
+        "en": "Browse, search, read and organize files and shared links in Dropbox.",
+        "fr": "Parcourir, chercher, lire et ranger fichiers et liens partagés Dropbox."
+      },
+      "category": "storage",
+      "icon_name": "dropbox",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://help.dropbox.com/integrations/connect-dropbox-mcp-server",
+      "auth_help_text": {
+        "en": "Sign in with your Dropbox account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Dropbox quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.dropbox.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "io.github.cloudinary/asset-management-mcp",
+      "registry_names": [
+        "io.github.cloudinary/asset-management-mcp"
+      ],
+      "operator_label": {
+        "en": "Cloudinary",
+        "fr": "Cloudinary"
+      },
+      "description": {
+        "en": "Upload, search, organize and transform images, videos and files in Cloudinary.",
+        "fr": "Envoyer, chercher, ranger et transformer images, vidéos et fichiers Cloudinary."
+      },
+      "category": "storage",
+      "icon_name": "cloudinary",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://cloudinary.com/documentation/cloudinary_llm_mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Cloudinary account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Cloudinary quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://asset-management.mcp.cloudinary.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.canva.mcp/mcp",
+      "registry_names": [
+        "com.canva.mcp/mcp"
+      ],
+      "operator_label": {
+        "en": "Canva",
+        "fr": "Canva"
+      },
+      "description": {
+        "en": "Create, search, edit and export designs and assets in Canva.",
+        "fr": "Créer, chercher, modifier et exporter designs et ressources Canva."
+      },
+      "category": "design",
+      "icon_name": "palette",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://canva.dev/docs/mcp/",
+      "auth_help_text": {
+        "en": "Sign in with your Canva account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Canva quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.canva.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.miro/mcp",
+      "registry_names": [],
+      "operator_label": {
+        "en": "Miro",
+        "fr": "Miro"
+      },
+      "description": {
+        "en": "Read boards and create diagrams, notes and frames in Miro.",
+        "fr": "Lire des tableaux et créer diagrammes, notes et cadres dans Miro."
+      },
+      "category": "design",
+      "icon_name": "miro",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://developers.miro.com/docs/mcp-intro",
+      "auth_help_text": {
+        "en": "Sign in with your Miro account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Miro quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.miro.com/",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.webflow/mcp",
+      "registry_names": [
+        "com.webflow/mcp"
+      ],
+      "operator_label": {
+        "en": "Webflow",
+        "fr": "Webflow"
+      },
+      "description": {
+        "en": "Manage sites, pages, collections and content of your Webflow sites.",
+        "fr": "Gérer sites, pages, collections et contenus de vos sites Webflow."
+      },
+      "category": "design",
+      "icon_name": "webflow",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://developers.webflow.com/mcp/reference/overview",
+      "auth_help_text": {
+        "en": "Sign in with your Webflow account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Webflow quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.webflow.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.wix/mcp",
+      "registry_names": [
+        "com.wix/mcp"
+      ],
+      "operator_label": {
+        "en": "Wix",
+        "fr": "Wix"
+      },
+      "description": {
+        "en": "Manage your Wix sites and business data: store, bookings, contacts.",
+        "fr": "Gérer vos sites Wix et leurs données : boutique, réservations, contacts."
+      },
+      "category": "design",
+      "icon_name": "wix",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://dev.wix.com/docs/sdk/articles/use-the-wix-mcp/about-the-wix-mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Wix account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Wix quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.wix.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.airtable/mcp",
+      "registry_names": [
+        "com.airtable/mcp"
+      ],
+      "operator_label": {
+        "en": "Airtable",
+        "fr": "Airtable"
+      },
+      "description": {
+        "en": "Read, create and update records in your Airtable bases.",
+        "fr": "Lire, créer et mettre à jour les enregistrements de vos bases Airtable."
+      },
+      "category": "data",
+      "icon_name": "airtable",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://support.airtable.com/docs/using-the-airtable-mcp-server",
+      "auth_help_text": {
+        "en": "Sign in with your Airtable account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Airtable quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.airtable.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.supabase/mcp",
+      "registry_names": [
+        "com.supabase/mcp"
+      ],
+      "operator_label": {
+        "en": "Supabase",
+        "fr": "Supabase"
+      },
+      "description": {
+        "en": "Manage Supabase projects: tables, SQL queries, migrations and logs.",
+        "fr": "Gérer des projets Supabase : tables, requêtes SQL, migrations et journaux."
+      },
+      "category": "data",
+      "icon_name": "supabase",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://supabase.com/docs/guides/getting-started/mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Supabase account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Supabase quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.supabase.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.neon/mcp",
+      "registry_names": [
+        "com.neon/mcp"
+      ],
+      "operator_label": {
+        "en": "Neon",
+        "fr": "Neon"
+      },
+      "description": {
+        "en": "Manage Neon Postgres projects and branches, and run SQL queries.",
+        "fr": "Gérer projets et branches Postgres Neon, et lancer des requêtes SQL."
+      },
+      "category": "data",
+      "icon_name": "neon",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://neon.com/docs/ai/neon-mcp-server",
+      "auth_help_text": {
+        "en": "Sign in with your Neon account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Neon quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.neon.tech/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "io.prisma/mcp",
+      "registry_names": [
+        "io.prisma/mcp"
+      ],
+      "operator_label": {
+        "en": "Prisma Postgres",
+        "fr": "Prisma Postgres"
+      },
+      "description": {
+        "en": "Create and manage Prisma Postgres databases and their backups.",
+        "fr": "Créer et gérer des bases Prisma Postgres et leurs sauvegardes."
+      },
+      "category": "data",
+      "icon_name": "prisma",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://www.prisma.io/docs/ai/tools/mcp-server",
+      "auth_help_text": {
+        "en": "Sign in with your Prisma account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Prisma quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.prisma.io/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.gitlab/mcp",
+      "registry_names": [
+        "com.gitlab/mcp"
+      ],
+      "operator_label": {
+        "en": "GitLab",
+        "fr": "GitLab"
+      },
+      "description": {
+        "en": "Search projects, issues, merge requests and pipelines on GitLab.com.",
+        "fr": "Chercher projets, tickets, merge requests et pipelines sur GitLab.com."
+      },
+      "category": "development",
+      "icon_name": "gitlab",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://docs.gitlab.com/user/gitlab_duo/model_context_protocol/mcp_server/",
+      "auth_help_text": {
+        "en": "Sign in with your GitLab.com account when Apollia opens the browser. A self-managed GitLab answers at its own address, to add as a service by its address.",
+        "fr": "Connectez-vous avec votre compte GitLab.com quand Apollia ouvre le navigateur. Un GitLab auto-hébergé répond à sa propre adresse, à ajouter comme service par son adresse."
+      },
+      "remote_url": "https://gitlab.com/api/v4/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.postman/postman-mcp-server",
+      "registry_names": [
+        "com.postman/postman-mcp-server"
+      ],
+      "operator_label": {
+        "en": "Postman",
+        "fr": "Postman"
+      },
+      "description": {
+        "en": "Work with Postman workspaces, collections, environments and API specifications.",
+        "fr": "Travailler avec les espaces, collections, environnements et spécifications d'API Postman."
+      },
+      "category": "development",
+      "icon_name": "postman",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://go.postman.co/settings/me/api-keys",
+      "auth_help_text": {
+        "en": "Create a Postman API key in your account settings and paste it with the Bearer prefix.",
+        "fr": "Créez une clé d'API Postman dans les réglages de votre compte et collez-la avec le préfixe Bearer."
+      },
+      "remote_url": "https://mcp.postman.com/mcp",
+      "remote_transport": "streamable-http",
+      "remote_headers": [
+        {
+          "name": "Authorization",
+          "description": "Postman API key (Bearer PMAK-*).",
+          "is_required": true,
+          "is_secret": true
+        }
+      ],
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "co.huggingface/hf-mcp-server",
+      "registry_names": [
+        "co.huggingface/hf-mcp-server"
+      ],
+      "operator_label": {
+        "en": "Hugging Face",
+        "fr": "Hugging Face"
+      },
+      "description": {
+        "en": "Search models, datasets, Spaces and papers on the Hugging Face Hub.",
+        "fr": "Chercher modèles, jeux de données, Spaces et articles sur le Hub Hugging Face."
+      },
+      "category": "development",
+      "icon_name": "huggingface",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://huggingface.co/settings/mcp",
+      "auth_help_text": {
+        "en": "Nothing to sign in to for public search. The tools of your own account are chosen on your Hugging Face MCP settings page.",
+        "fr": "Aucune connexion pour la recherche publique. Les outils de votre propre compte se choisissent sur votre page de réglages MCP Hugging Face."
+      },
+      "remote_url": "https://huggingface.co/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "dev.jam/jam",
+      "registry_names": [
+        "dev.jam/jam"
+      ],
+      "operator_label": {
+        "en": "Jam",
+        "fr": "Jam"
+      },
+      "description": {
+        "en": "Read Jam bug recordings: video, console, network requests and logs.",
+        "fr": "Lire les enregistrements de bugs Jam : vidéo, console, requêtes réseau et journaux."
+      },
+      "category": "development",
+      "icon_name": "bug",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://jam.dev/mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Jam account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Jam quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.jam.dev/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.microsoft/learn-mcp",
+      "registry_names": [],
+      "operator_label": {
+        "en": "Microsoft Learn",
+        "fr": "Microsoft Learn"
+      },
+      "description": {
+        "en": "Search and read the official Microsoft documentation and its code samples.",
+        "fr": "Chercher et lire la documentation officielle de Microsoft et ses exemples de code."
+      },
+      "category": "search",
+      "icon_name": "book-open",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://learn.microsoft.com/en-us/training/support/mcp",
+      "auth_help_text": {
+        "en": "Nothing to sign in to: the service answers without an account.",
+        "fr": "Aucune connexion à faire : le service répond sans compte."
+      },
+      "remote_url": "https://learn.microsoft.com/api/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.vercel/vercel-mcp",
+      "registry_names": [
+        "com.vercel/vercel-mcp"
+      ],
+      "operator_label": {
+        "en": "Vercel",
+        "fr": "Vercel"
+      },
+      "description": {
+        "en": "Browse Vercel projects and deployments, read build logs and search the documentation.",
+        "fr": "Parcourir projets et déploiements Vercel, lire les journaux de build, chercher dans la documentation."
+      },
+      "category": "infrastructure",
+      "icon_name": "vercel",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://vercel.com/docs/mcp/vercel-mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Vercel account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Vercel quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.vercel.com",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.netlify/mcp",
+      "registry_names": [],
+      "operator_label": {
+        "en": "Netlify",
+        "fr": "Netlify"
+      },
+      "description": {
+        "en": "Create, deploy and manage Netlify sites and their settings.",
+        "fr": "Créer, déployer et gérer des sites Netlify et leurs réglages."
+      },
+      "category": "infrastructure",
+      "icon_name": "netlify",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/",
+      "auth_help_text": {
+        "en": "Sign in with your Netlify account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Netlify quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://netlify-mcp.netlify.app/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.railway/mcp",
+      "registry_names": [
+        "com.railway/mcp"
+      ],
+      "operator_label": {
+        "en": "Railway",
+        "fr": "Railway"
+      },
+      "description": {
+        "en": "Manage Railway projects, services, variables and deployments.",
+        "fr": "Gérer projets, services, variables et déploiements Railway."
+      },
+      "category": "infrastructure",
+      "icon_name": "railway",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://docs.railway.com/reference/mcp-server",
+      "auth_help_text": {
+        "en": "Sign in with your Railway account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Railway quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.railway.com/",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.amplitude/mcp-server",
+      "registry_names": [
+        "com.amplitude/mcp-server"
+      ],
+      "operator_label": {
+        "en": "Amplitude",
+        "fr": "Amplitude"
+      },
+      "description": {
+        "en": "Search charts, dashboards and events, and get insights from your Amplitude data.",
+        "fr": "Chercher graphiques, tableaux de bord et événements, et tirer des enseignements de vos données Amplitude."
+      },
+      "category": "analytics",
+      "icon_name": "chart",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://amplitude.com/docs/amplitude-ai/amplitude-mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Amplitude account when Apollia opens the browser. A project hosted in the EU answers at https://mcp.eu.amplitude.com/mcp, to add as a service by its address.",
+        "fr": "Connectez-vous avec votre compte Amplitude quand Apollia ouvre le navigateur. Un projet hébergé dans l'UE répond à https://mcp.eu.amplitude.com/mcp, à ajouter comme service par son adresse."
+      },
+      "remote_url": "https://mcp.amplitude.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.posthog/mcp",
+      "registry_names": [],
+      "operator_label": {
+        "en": "PostHog",
+        "fr": "PostHog"
+      },
+      "description": {
+        "en": "Query product analytics, feature flags, experiments and errors in PostHog.",
+        "fr": "Interroger analyses produit, feature flags, expériences et erreurs PostHog."
+      },
+      "category": "analytics",
+      "icon_name": "posthog",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://posthog.com/docs/model-context-protocol",
+      "auth_help_text": {
+        "en": "Sign in with your PostHog account when Apollia opens the browser. A project hosted in the EU answers at https://mcp-eu.posthog.com/mcp, to add as a service by its address.",
+        "fr": "Connectez-vous avec votre compte PostHog quand Apollia ouvre le navigateur. Un projet hébergé dans l'UE répond à https://mcp-eu.posthog.com/mcp, à ajouter comme service par son adresse."
+      },
+      "remote_url": "https://mcp.posthog.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.mixpanel/mcp",
+      "registry_names": [],
+      "operator_label": {
+        "en": "Mixpanel",
+        "fr": "Mixpanel"
+      },
+      "description": {
+        "en": "Run queries and read reports on your Mixpanel product data.",
+        "fr": "Lancer des requêtes et lire des rapports sur vos données produit Mixpanel."
+      },
+      "category": "analytics",
+      "icon_name": "mixpanel",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://docs.mixpanel.com/docs/mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Mixpanel account when Apollia opens the browser; an administrator of the organization enables the connection first. EU and India projects have their own address.",
+        "fr": "Connectez-vous avec votre compte Mixpanel quand Apollia ouvre le navigateur ; un administrateur de l'organisation active d'abord la connexion. Les projets de l'UE et d'Inde ont leur propre adresse."
+      },
+      "remote_url": "https://mcp.mixpanel.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "io.honeycomb/mcp",
+      "registry_names": [
+        "io.honeycomb/mcp"
+      ],
+      "operator_label": {
+        "en": "Honeycomb",
+        "fr": "Honeycomb"
+      },
+      "description": {
+        "en": "Query traces, events, metrics, SLOs and boards in Honeycomb.",
+        "fr": "Interroger traces, événements, métriques, SLO et tableaux Honeycomb."
+      },
+      "category": "analytics",
+      "icon_name": "activity",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://docs.honeycomb.io/integrations/mcp",
+      "auth_help_text": {
+        "en": "Sign in with your Honeycomb account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Honeycomb quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://mcp.honeycomb.io/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "ai.fireflies/fireflies",
+      "registry_names": [
+        "ai.fireflies/fireflies"
+      ],
+      "operator_label": {
+        "en": "Fireflies.ai",
+        "fr": "Fireflies.ai"
+      },
+      "description": {
+        "en": "Search meeting transcripts, summaries and action items recorded by Fireflies.",
+        "fr": "Chercher transcriptions, résumés et actions des réunions enregistrées par Fireflies."
+      },
+      "category": "communication",
+      "icon_name": "mic",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://docs.fireflies.ai/mcp-tools/overview",
+      "auth_help_text": {
+        "en": "Sign in with your Fireflies account when Apollia opens the browser; no key to copy.",
+        "fr": "Connectez-vous avec votre compte Fireflies quand Apollia ouvre le navigateur ; aucune clé à copier."
+      },
+      "remote_url": "https://api.fireflies.ai/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "com.klaviyo/mcp",
+      "registry_names": [],
+      "operator_label": {
+        "en": "Klaviyo",
+        "fr": "Klaviyo"
+      },
+      "description": {
+        "en": "Read campaigns, flows, segments and their performance in Klaviyo.",
+        "fr": "Lire campagnes, flux, segments et leurs performances dans Klaviyo."
+      },
+      "category": "marketing",
+      "icon_name": "mail",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://developers.klaviyo.com/en/docs/klaviyo_mcp_server",
+      "auth_help_text": {
+        "en": "Sign in with your Klaviyo account when Apollia opens the browser; an Owner, Admin or Manager role is required.",
+        "fr": "Connectez-vous avec votre compte Klaviyo quand Apollia ouvre le navigateur ; un rôle Owner, Admin ou Manager est requis."
+      },
+      "remote_url": "https://mcp.klaviyo.com/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "free"
+      }
+    },
+    {
+      "package_identifier": "ai.exa/exa",
+      "registry_names": [
+        "ai.exa/exa"
+      ],
+      "operator_label": {
+        "en": "Exa",
+        "fr": "Exa"
+      },
+      "description": {
+        "en": "Search the web and fetch page contents with the Exa search engine.",
+        "fr": "Chercher sur le web et récupérer le contenu des pages avec le moteur Exa."
+      },
+      "category": "search",
+      "icon_name": "search",
+      "trust_level": "verified_official",
+      "auth_help_url": "https://docs.exa.ai/reference/exa-mcp",
+      "auth_help_text": {
+        "en": "Nothing to sign in to: the service answers without an account.",
+        "fr": "Aucune connexion à faire : le service répond sans compte."
+      },
+      "remote_url": "https://mcp.exa.ai/mcp",
+      "remote_transport": "streamable-http",
+      "cost_model": {
+        "kind": "freemium",
+        "note_i18n": {
+          "en": "Free without an account within a daily limit; beyond it, an Exa plan.",
+          "fr": "Gratuit sans compte dans une limite quotidienne ; au-delà, une offre Exa."
+        }
+      }
     }
   ]
 }

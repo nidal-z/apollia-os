@@ -4,13 +4,17 @@
   "dynamicTestids": [
     "catalogue-entry-@modelcontextprotocol/server-brave-search",
     "catalogue-entry-com.notion/mcp",
+    "catalogue-entry-com.paypal.mcp/mcp",
     "catalogue-entry-io.apollia/seed-failing",
     "catalogue-entry-io.apollia/seed-stub",
+    "catalogue-logo-com.notion/mcp",
+    "catalogue-logo-com.paypal.mcp/mcp",
     "catalogue-native-google",
     "catalogue-native-microsoft",
     "connection-agent-apollia:chat",
     "connection-agent-automation-agent",
     "connection-give-agent-automation-agent",
+    "connection-logo-mcp:com-paypal-mcp-mcp",
     "connections-kind-filter-all",
     "connections-kind-filter-folder",
     "connections-kind-filter-imap",
@@ -41,6 +45,7 @@
     "sidebar-connection-imap:ada@example.com",
     "sidebar-connection-native:microsoft:ada@example.com",
     "sidebar-mcp-automation-stub-mcp",
+    "sidebar-mcp-com-paypal-mcp-mcp",
     "sidebar-mcp-io-apollia-seed-stub"
   ],
   "steps": [
@@ -921,6 +926,51 @@
     {
       "kind": "waitFor",
       "testid": "catalogue-entry-com.notion/mcp",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-logo-com.notion/mcp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "catalogue-search",
+      "text": "payments",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-entry-com.paypal.mcp/mcp",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-logo-com.paypal.mcp/mcp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-com.paypal.mcp/mcp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-card-logo",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13a-catalogue-brand-logos"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-card",
       "timeoutMs": 4000
     },
     {
@@ -5814,6 +5864,78 @@
       "timeoutMs": 8000
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": [
+        {
+          "id": "mcp:com-paypal-mcp-mcp",
+          "kind": "mcp",
+          "label": "com-paypal-mcp-mcp",
+          "account": null,
+          "provenance": "selection",
+          "remote": true,
+          "official": true,
+          "state": "connected",
+          "status": "working",
+          "reason": null,
+          "checkedAt": null,
+          "package": null,
+          "tools": []
+        }
+      ]
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-logo-mcp:com-paypal-mcp-mcp",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mcp-com-paypal-mcp-mcp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-detail-logo",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "45a-connection-brand-logo"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-detail",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "goto",
       "route": "chat"
     },
@@ -5842,6 +5964,7 @@
     "The closing section reads the page as it now stands through stubs only, each imitating a type of lib/ipc/connections.ts or lib/types: list_connections answers Connection rows (camelCase, status, reason, checkedAt, tools with family and familySource), get_connection_agents a ConnectionAgents, get_connection_activity a ConnectionActivity, grant_connection a ConnectionAgents, list_agents AgentListItem rows, add_folder_connection a Connection, add_imap_mailbox a MailboxAccount, list_imap_providers an ImapProviders, onedrive_* the OneDriveChoice and OneDriveEntry of lib/ipc/onedrive.ts, oauth_start_flow an OauthStartResult and oauth_complete_flow an OauthCompleteResult or the admin_approval_required error. No row of the seed is the target of a gesture there, and every stub is cleared before the book ends. Each Connection row carries the fields connections/assemble.rs gives its kind: a folder, a mailbox and a native account are provenance selection, a folder lists the six file tools under conn:folder:<id>/ with the reading ones prechecked (connections/folders.rs folder_connection), a mailbox is labelled by its provider or else its host (imap.example.com here) and is remote unless that host is a loopback, with the three imap.* tools as read_personal and not prechecked, and a Microsoft account is labelled Microsoft with its operations under conn:microsoft:<account>/, none prechecked. sharedWith is only ever filled for a mailbox, with the identifiers of the other mailboxes (connections/agents.rs holders): the folder card reads it empty, and connection-agents-shared is proven on the card of a mailbox while a second one is connected. The activity dates are fixed in the past (2026-01-02) although the card asks for the last seven days: the runner has no relative date and the application in automation mode does not freeze its clock, so the card reads that last use as months old; the anchors do not depend on it.",
     "The folder of the closing section is added by the flow (catalogue-folder, add-flow-folder-pick) with plugin:dialog|open and add_folder_connection answered, and grant_connection refused once, which is the wizard-grant-error of the trial; wizard-done-btn then opens its card, whose sections read the stubs armed before (connection-agents, connection-activity), and connection-activity-journal opens the journal narrowed to it (journal-filter-connection).",
     "The Microsoft account of the closing section is a stubbed row: its card adds an account (oauth-add-account-microsoft) three times, signed in (oauth-done, onconnected is not given from a card), refused by the provider with admin_approval_required (oauth-admin-approval and its address and request), and declined by a work account, delivered as the oauth://error event the dialog listens to (oauth-admin-approval-possible, then its retry). Both copy buttons are clicked, as the other -det books click theirs: each writes the system clipboard of the machine playing the book, and its outcome line (copied or failed) has no anchor, so the click is the proof that the handler runs.",
-    "The offers of the Chat are reached without a model: get_chat_session of seed-session-1 is patched with a user turn and an answer whose connection_lookup step returns three matches (ChatMessageView and ToolCallView of lib/types/chat.ts). The patch also says the session is processing, so that granting, which asks to play the request again, settles without regenerating (answerRequested is null while busy) and connection-offer-done shows; an entry the selection does not hold is the connection-offer-error of an addition."
+    "The offers of the Chat are reached without a model: get_chat_session of seed-session-1 is patched with a user turn and an answer whose connection_lookup step returns three matches (ChatMessageView and ToolCallView of lib/types/chat.ts). The patch also says the session is processing, so that granting, which asks to play the request again, settles without regenerating (answerRequested is null while busy) and connection-offer-done shows; an entry the selection does not hold is the connection-offer-error of an addition.",
+    "The brand logos: the add window draws the logo of a selection entry on its row (catalogue-logo-<name>) and its card (catalogue-card-logo); the list (connection-logo-<id>) and the card of a connection (connection-detail-logo) draw the logo of the entry a server was added from. No seeded server comes from the selection, so the list is answered once by a stubInvoke of list_connections whose resolve imitates the runtime type Connection (crates/apollia-runtime/src/connections/mod.rs) for a server named as the add window names the PayPal entry."
   ]
 }

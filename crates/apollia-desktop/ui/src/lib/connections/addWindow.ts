@@ -43,6 +43,8 @@ export interface GroupInputs {
   query: string;
   /** The words a built-in entry (native, folder, mailbox) is found by, in the interface language. */
   wordsOf: (key: string) => readonly string[];
+  /** The name of a category of the selection, in the interface language. */
+  categoryWords?: (category: string) => readonly string[];
 }
 
 /**
@@ -52,13 +54,18 @@ export interface GroupInputs {
  * since it is what remains when nothing else answers.
  */
 export function addWindowGroups(inputs: GroupInputs): AddGroup[] {
-  const { query, wordsOf } = inputs;
+  const { query, wordsOf, categoryWords = () => [] } = inputs;
   const builtIn = (key: string): boolean => matchesWords(wordsOf(key), query);
+  const found = (entry: RegistryServerView): boolean => {
+    if (matchesCatalogueQuery(entry, query)) return true;
+    const category = entry.enrichment?.category ?? entry.category;
+    return category ? matchesWords(categoryWords(category), query) : false;
+  };
   const apollia: AddEntry[] = [
     ...NATIVE_PROVIDERS.map((provider): AddEntry => ({ key: nativeKey(provider), kind: "native", provider })),
   ].filter((e) => builtIn(e.key));
   for (const entry of inputs.selection) {
-    if (matchesCatalogueQuery(entry, query)) {
+    if (found(entry)) {
       apollia.push({ key: catalogueKey(entry), kind: "catalogue", entry, source: "selection" });
     }
   }
@@ -67,7 +74,7 @@ export function addWindowGroups(inputs: GroupInputs): AddGroup[] {
     { key: "mailbox", kind: "mailbox" } as const,
   ].filter((e) => builtIn(e.key));
   const publicGroup: AddEntry[] = inputs.publicEntries
-    .filter((entry) => matchesCatalogueQuery(entry, query))
+    .filter(found)
     .map((entry) => ({ key: catalogueKey(entry), kind: "catalogue", entry, source: "public" }));
   return [
     { key: "apollia", entries: apollia },

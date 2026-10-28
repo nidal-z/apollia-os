@@ -81,8 +81,11 @@
     "automations-filter-paused",
     "catalogue-entry-@modelcontextprotocol/server-brave-search",
     "catalogue-entry-com.notion/mcp",
+    "catalogue-entry-com.paypal.mcp/mcp",
     "catalogue-entry-io.apollia/seed-failing",
     "catalogue-entry-io.apollia/seed-stub",
+    "catalogue-logo-com.notion/mcp",
+    "catalogue-logo-com.paypal.mcp/mcp",
     "catalogue-native-google",
     "catalogue-native-microsoft",
     "channel-card-det-auto-channel",
@@ -101,6 +104,7 @@
     "connection-agent-apollia:chat",
     "connection-agent-automation-agent",
     "connection-give-agent-automation-agent",
+    "connection-logo-mcp:com-paypal-mcp-mcp",
     "connections-kind-filter-all",
     "connections-kind-filter-folder",
     "connections-kind-filter-imap",
@@ -216,6 +220,7 @@
     "sidebar-connection-imap:ada@example.com",
     "sidebar-connection-native:microsoft:ada@example.com",
     "sidebar-mcp-automation-stub-mcp",
+    "sidebar-mcp-com-paypal-mcp-mcp",
     "sidebar-mcp-io-apollia-seed-stub",
     "theme-dark",
     "theme-light",
@@ -10426,6 +10431,51 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "waitFor",
+      "testid": "catalogue-logo-com.notion/mcp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "catalogue-search",
+      "text": "payments",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-entry-com.paypal.mcp/mcp",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-logo-com.paypal.mcp/mcp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-com.paypal.mcp/mcp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-card-logo",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13a-catalogue-brand-logos"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-card",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "fill",
       "testid": "catalogue-search",
       "text": "",
@@ -15314,6 +15364,78 @@
       "kind": "waitFor",
       "testid": "connections-sidebar-list",
       "timeoutMs": 8000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": [
+        {
+          "id": "mcp:com-paypal-mcp-mcp",
+          "kind": "mcp",
+          "label": "com-paypal-mcp-mcp",
+          "account": null,
+          "provenance": "selection",
+          "remote": true,
+          "official": true,
+          "state": "connected",
+          "status": "working",
+          "reason": null,
+          "checkedAt": null,
+          "package": null,
+          "tools": []
+        }
+      ]
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-logo-mcp:com-paypal-mcp-mcp",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mcp-com-paypal-mcp-mcp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-detail-logo",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "45a-connection-brand-logo"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-detail",
+      "timeoutMs": 4000
     },
     {
       "kind": "goto",

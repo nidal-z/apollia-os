@@ -20,11 +20,14 @@
   import { developerMode } from "$lib/stores/developerMode";
   import BrowseLayout from "$lib/components/operator/BrowseLayout.svelte";
   import ConnectorTile from "../shared/ConnectorTile.svelte";
+  import BrandLogo from "../shared/BrandLogo.svelte";
   import AddEntryCard from "./AddEntryCard.svelte";
   import AddFlow from "../add/AddFlow.svelte";
   import { rankSuggestions } from "../ConnectionSuggestions.svelte";
   import { NATIVE_PROVIDERS, NATIVE_PROVIDER_KEYS } from "$lib/connections/connectionRows";
   import { accentTokenFor } from "$lib/connections/accent";
+  import { brandLogoPath } from "$lib/connections/brandLogo";
+  import { categoryKey } from "$lib/connections/categories";
   import { entryDescription, entryLabel } from "$lib/connections/catalogueText";
   import { installedNameFor, isInstalled, isOfficial } from "$lib/connections/vendor";
   import type { CatalogueFailure, CatalogueTier } from "$lib/connections/catalogueSource";
@@ -144,8 +147,13 @@
     return [];
   }
 
+  function categoryWords(category: string): string[] {
+    const key = categoryKey(category);
+    return key ? [$t(key)] : [];
+  }
+
   const groups = $derived(
-    addWindowGroups({ selection: ranked, publicEntries, query, wordsOf }),
+    addWindowGroups({ selection: ranked, publicEntries, query, wordsOf, categoryWords }),
   );
   const chosenEntry = $derived(findEntry(groups, chosen));
   const searched = $derived(query.trim().length > 0);
@@ -230,6 +238,10 @@
 {/snippet}
 
 {#snippet rowBody(entry: AddEntry)}
+  {@const logo = entry.kind === "catalogue" ? brandLogoPath(entry.entry.enrichment?.icon_name) : null}
+  {#if entry.kind === "catalogue" && logo}
+    <BrandLogo path={logo} data-testid="catalogue-logo-{entry.entry.name}" />
+  {:else}
     <ConnectorTile
       size="md"
       accent={entry.kind === "catalogue" ? accentTokenFor(rowName(entry)) : "hsl(var(--primary))"}
@@ -242,6 +254,7 @@
         {:else}<LinkIcon size={14} />{/if}
       {/snippet}
     </ConnectorTile>
+  {/if}
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-1.5">
         <span class="truncate text-body-sm font-medium text-foreground">{rowName(entry)}</span>

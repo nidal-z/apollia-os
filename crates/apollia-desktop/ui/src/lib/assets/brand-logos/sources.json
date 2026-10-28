@@ -1,0 +1,312 @@
+{
+  "description": "Brand logos of the connection selection, copied file by file from Simple Icons, unmodified apart from the final newline the repository requires. The icons of Simple Icons are released under CC0-1.0 unless the entry names another license; each brand remains a trademark of its owner. A brand Simple Icons does not carry keeps the generic icon.",
+  "simple_icons_version": "16.35.0",
+  "simple_icons_repository": "https://github.com/simple-icons/simple-icons",
+  "logos": [
+    {
+      "icon_name": "airtable",
+      "file": "airtable.svg",
+      "title": "Airtable",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/airtable.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://airtable.com/newsroom"
+    },
+    {
+      "icon_name": "atlassian",
+      "file": "atlassian.svg",
+      "title": "Atlassian",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/atlassian.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://atlassian.design/resources/logo-library"
+    },
+    {
+      "icon_name": "brave",
+      "file": "brave.svg",
+      "title": "Brave",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/brave.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://brave.com/brave-branding-assets"
+    },
+    {
+      "icon_name": "clickup",
+      "file": "clickup.svg",
+      "title": "ClickUp",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/clickup.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://clickup.com/brand"
+    },
+    {
+      "icon_name": "cloudflare",
+      "file": "cloudflare.svg",
+      "title": "Cloudflare",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/cloudflare.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.cloudflare.com/logo/"
+    },
+    {
+      "icon_name": "cloudinary",
+      "file": "cloudinary.svg",
+      "title": "Cloudinary",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/cloudinary.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://cloudinary.com"
+    },
+    {
+      "icon_name": "dropbox",
+      "file": "dropbox.svg",
+      "title": "Dropbox",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/dropbox.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.dropbox.com/branding"
+    },
+    {
+      "icon_name": "figma",
+      "file": "figma.svg",
+      "title": "Figma",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/figma.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.figma.com/using-the-figma-brand/"
+    },
+    {
+      "icon_name": "git",
+      "file": "git.svg",
+      "title": "Git",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/git.svg",
+      "license": "CC-BY-3.0",
+      "brand_source": "https://git-scm.com/community/logos",
+      "attribution": "Git Logo by Jason Long, licensed under the Creative Commons Attribution 3.0 Unported License."
+    },
+    {
+      "icon_name": "github",
+      "file": "github.svg",
+      "title": "GitHub",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/github.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://github.com/logos"
+    },
+    {
+      "icon_name": "gitlab",
+      "file": "gitlab.svg",
+      "title": "GitLab",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/gitlab.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://about.gitlab.com/press/press-kit/"
+    },
+    {
+      "icon_name": "huggingface",
+      "file": "huggingface.svg",
+      "title": "Hugging Face",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/huggingface.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://huggingface.co/brand"
+    },
+    {
+      "icon_name": "intercom",
+      "file": "intercom.svg",
+      "title": "Intercom",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/intercom.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.intercom.com/press"
+    },
+    {
+      "icon_name": "linear",
+      "file": "linear.svg",
+      "title": "Linear",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/linear.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://linear.app"
+    },
+    {
+      "icon_name": "miro",
+      "file": "miro.svg",
+      "title": "Miro",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/miro.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://miro.com"
+    },
+    {
+      "icon_name": "mixpanel",
+      "file": "mixpanel.svg",
+      "title": "Mixpanel",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/mixpanel.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://mixpanel.com"
+    },
+    {
+      "icon_name": "modelcontextprotocol",
+      "file": "modelcontextprotocol.svg",
+      "title": "Model Context Protocol",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/modelcontextprotocol.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://github.com/modelcontextprotocol/docs/blob/573dc60c2e7aab2605b29d0bf27194aa7b02e4fb/logo/light.svg"
+    },
+    {
+      "icon_name": "neon",
+      "file": "neon.svg",
+      "title": "Neon",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/neon.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://neon.com/brand"
+    },
+    {
+      "icon_name": "netlify",
+      "file": "netlify.svg",
+      "title": "Netlify",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/netlify.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.netlify.com/press/"
+    },
+    {
+      "icon_name": "notion",
+      "file": "notion.svg",
+      "title": "Notion",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/notion.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.notion.so"
+    },
+    {
+      "icon_name": "paddle",
+      "file": "paddle.svg",
+      "title": "Paddle",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/paddle.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.paddle.com"
+    },
+    {
+      "icon_name": "paypal",
+      "file": "paypal.svg",
+      "title": "PayPal",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/paypal.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.paypal.com/us"
+    },
+    {
+      "icon_name": "postgresql",
+      "file": "postgresql.svg",
+      "title": "PostgreSQL",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/postgresql.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://wiki.postgresql.org/wiki/Logo"
+    },
+    {
+      "icon_name": "posthog",
+      "file": "posthog.svg",
+      "title": "PostHog",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/posthog.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://posthog.com/handbook/company/brand-assets"
+    },
+    {
+      "icon_name": "postman",
+      "file": "postman.svg",
+      "title": "Postman",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/postman.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.getpostman.com/resources/media-assets/"
+    },
+    {
+      "icon_name": "prisma",
+      "file": "prisma.svg",
+      "title": "Prisma",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/prisma.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://github.com/prisma/presskit/tree/4bcb64181f266723439d955d60afa1c55fefa715"
+    },
+    {
+      "icon_name": "puppeteer",
+      "file": "puppeteer.svg",
+      "title": "Puppeteer",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/puppeteer.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://pptr.dev"
+    },
+    {
+      "icon_name": "railway",
+      "file": "railway.svg",
+      "title": "Railway",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/railway.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://railway.app"
+    },
+    {
+      "icon_name": "sentry",
+      "file": "sentry.svg",
+      "title": "Sentry",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/sentry.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://sentry.io/branding/"
+    },
+    {
+      "icon_name": "sqlite",
+      "file": "sqlite.svg",
+      "title": "SQLite",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/sqlite.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://github.com/sqlite/sqlite/blob/43e862723ec680542ca6f608f9963c0993dd7324/art/sqlite370.eps"
+    },
+    {
+      "icon_name": "stripe",
+      "file": "stripe.svg",
+      "title": "Stripe",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/stripe.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://stripe.com/newsroom/information"
+    },
+    {
+      "icon_name": "supabase",
+      "file": "supabase.svg",
+      "title": "Supabase",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/supabase.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://github.com/supabase/supabase/blob/4031a7549f5d46da7bc79c01d56be4177dc7c114/packages/common/assets/images/supabase-logo-wordmark--light.svg"
+    },
+    {
+      "icon_name": "todoist",
+      "file": "todoist.svg",
+      "title": "Todoist",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/todoist.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://doist.com/press"
+    },
+    {
+      "icon_name": "typeform",
+      "file": "typeform.svg",
+      "title": "Typeform",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/typeform.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.typeform.com"
+    },
+    {
+      "icon_name": "vercel",
+      "file": "vercel.svg",
+      "title": "Vercel",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/vercel.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://vercel.com/geist/brands"
+    },
+    {
+      "icon_name": "webflow",
+      "file": "webflow.svg",
+      "title": "Webflow",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/webflow.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://brand-at.webflow.io/resources#logos"
+    },
+    {
+      "icon_name": "wix",
+      "file": "wix.svg",
+      "title": "Wix",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/wix.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.wix.com/about/design-assets"
+    },
+    {
+      "icon_name": "zapier",
+      "file": "zapier.svg",
+      "title": "Zapier",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/zapier.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://www.figma.com/file/NQFxTCE5pGR3dHZt0DkOyy/Zapier-Brand-Guidelines-%5BExternal%5D?type=design&node-id=101-9701&mode=design"
+    }
+  ]
+}

@@ -735,6 +735,23 @@
     "page_subtitle": "Les comptes, dossiers, services et outils auxquels Apollia accède pour vous.",
     "inactive": {
     },
+    "category": {
+      "productivity": "Productivité et gestion de projet",
+      "search": "Recherche",
+      "data": "Données et bases de données",
+      "development": "Développement",
+      "communication": "Communication et réunions",
+      "finance": "Finance et paiements",
+      "design": "Design et sites web",
+      "infrastructure": "Infrastructure et hébergement",
+      "utility": "Utilitaires",
+      "crm": "CRM et ventes",
+      "support": "Support client",
+      "documents": "Documents et signatures",
+      "storage": "Stockage de fichiers",
+      "analytics": "Analytique et observabilité",
+      "marketing": "Marketing et e-mail"
+    },
     "add_window": {
       "subtitle": "Cherchez ce que vous voulez brancher, puis ouvrez sa fiche pour l'ajouter.",
       "groups": {

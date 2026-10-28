@@ -163,7 +163,10 @@ export interface ConnectorEnrichmentView {
   /** Short description shown in the catalogue. */
   description?: CatalogueText | null;
   category: string;
+  /** The brand's logo by its Simple Icons name, or a generic name (`$lib/connections/brandLogo`). */
   icon_name: string;
+  /** Names of the entry in the MCP registry, the first naming a server added from it. */
+  registry_names?: string[];
   trust_level: TrustLevel;
   auth_help_url: string | null;
   auth_help_text: CatalogueText | null;

@@ -239,3 +239,110 @@ describe("Cancel gives the search back, never the list", () => {
     }
   });
 });
+
+describe("the services added to the selection are found by name and by category", () => {
+  interface SelectionEntry {
+    package_identifier: string;
+    registry_names?: string[];
+    operator_label: Record<string, string>;
+    description?: Record<string, string>;
+    category: string;
+    icon_name: string;
+    trust_level: "verified_official" | "community_verified";
+    remote_url?: string;
+    withdrawn?: boolean;
+    awaiting_registration?: boolean;
+  }
+  const selection = JSON.parse(
+    readFileSync(new URL("../../../../src/mcp/enrichments.json", import.meta.url), "utf8"),
+  ) as SelectionEntry[];
+  const catalogues = {
+    en: JSON.parse(readFileSync(new URL("../i18n/en.json", import.meta.url), "utf8")),
+    fr: JSON.parse(readFileSync(new URL("../i18n/fr.json", import.meta.url), "utf8")),
+  } as Record<"en" | "fr", { connections: { category: Record<string, string> } }>;
+  /** The thirty-seven services of their editors, after the nineteen first entries. */
+  const added = selection.slice(19);
+
+  function viewOf(e: SelectionEntry): RegistryServerView {
+    return entry({
+      name: e.registry_names?.[0] ?? e.package_identifier,
+      title: null,
+      description: null,
+      category: e.category,
+      trust_level: e.trust_level,
+      enrichment: {
+        operator_label: e.operator_label,
+        description: e.description ?? null,
+        category: e.category,
+        icon_name: e.icon_name,
+        registry_names: e.registry_names,
+        trust_level: e.trust_level,
+        auth_help_url: null,
+        auth_help_text: null,
+        auth_help_i18n_key: null,
+        oauth_pre_registered_client_id_env: null,
+      },
+    });
+  }
+
+  const views = selection.filter((e) => !e.withdrawn && !e.awaiting_registration).map(viewOf);
+
+  function found(query: string, locale: "en" | "fr"): string[] {
+    const [apollia] = addWindowGroups({
+      selection: views,
+      publicEntries: [],
+      query,
+      wordsOf: () => [],
+      categoryWords: (c) => {
+        const word = catalogues[locale].connections.category[c];
+        return word ? [word] : [];
+      },
+    });
+    return apollia.entries.flatMap((e) => (e.kind === "catalogue" ? [e.entry.name] : []));
+  }
+
+  test("the added entries are the thirty-seven services of their editors", () => {
+    // GIVEN the selection
+    // WHEN the entries after the nineteen first ones are read
+    // THEN there are thirty-seven, every one official and reached at an address
+    expect(added).toHaveLength(37);
+    for (const e of added) {
+      expect(e.trust_level).toBe("verified_official");
+      expect(e.remote_url?.startsWith("https://")).toBe(true);
+    }
+  });
+
+  test.each(["en", "fr"] as const)("each added entry is found by its name in %s", (locale) => {
+    for (const e of added) {
+      // GIVEN the name an added entry is shown under in the locale
+      const name = e.operator_label[locale];
+      // WHEN it is searched
+      // THEN the entry answers
+      expect(found(name, locale), `${locale}: ${name}`).toContain(viewOf(e).name);
+    }
+  });
+
+  test.each(["en", "fr"] as const)("each added entry is found by the name of its category in %s", (locale) => {
+    for (const e of added) {
+      // GIVEN the name of the category of an added entry in the locale
+      const category = catalogues[locale].connections.category[e.category];
+      expect(category, `${e.package_identifier}: ${e.category} has no name in ${locale}`).toBeTruthy();
+      // WHEN that name is searched
+      // THEN the entry answers among the others of its category
+      expect(found(category, locale), `${locale}: ${category}`).toContain(viewOf(e).name);
+    }
+  });
+
+  test("a word of a category finds that category only, in both languages", () => {
+    // GIVEN the words of a payment search in English and in French
+    // WHEN they are searched
+    const en = found("payments", "en");
+    const fr = found("paiements", "fr");
+    // THEN they find PayPal and the other payment services, not GitLab
+    for (const result of [en, fr]) {
+      expect(result).toContain("com.paypal.mcp/mcp");
+      expect(result).toContain("com.stripe/mcp");
+      expect(result).not.toContain("com.gitlab/mcp");
+    }
+  });
+});
