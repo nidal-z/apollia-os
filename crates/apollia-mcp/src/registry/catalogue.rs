@@ -41,7 +41,8 @@ impl McpRegistry {
     /// With `search`, the registry's own search answers (see
     /// [`McpRegistryClient::search`]). Without, the catalogue answers at once
     /// (see [`McpRegistryClient::read_catalogue`]), and the whole registry is
-    /// read again in the background when that answer was stale or partial.
+    /// read again in the background when that answer was stale, partial, or
+    /// missing.
     pub async fn list(
         &self,
         search: Option<&str>,
@@ -49,11 +50,20 @@ impl McpRegistry {
         if let Some(term) = search {
             return self.client.search(term).await;
         }
-        let read = self.client.read_catalogue().await?;
-        if read.needs_refresh {
-            self.request_refresh();
+        match self.client.read_catalogue().await {
+            Ok(read) => {
+                if read.needs_refresh {
+                    self.request_refresh();
+                }
+                Ok(read.servers)
+            }
+            Err(error) => {
+                // A registry slower than the tranche budget still answers the
+                // refresh, which has no budget: the next read serves its cache.
+                self.request_refresh();
+                Err(error)
+            }
         }
-        Ok(read.servers)
     }
 
     /// Ask for the whole registry to be read again. Returns `false` when a
@@ -99,19 +109,25 @@ mod tests {
     use std::sync::Arc;
     use std::time::{Duration, SystemTime};
 
+    use tokio::sync::Semaphore;
+
     use axum::extract::{Query, State};
     use axum::routing::get;
     use axum::{Json, Router};
     use tempfile::TempDir;
 
     /// A registry of `pages` pages of two servers each, whose pages from
-    /// `slow_from` on wait until the gate opens.
+    /// `slow_from` on wait until the gate opens. With `first_page_permits`,
+    /// each read of the first page also waits for a permit of its own.
     #[derive(Clone)]
     struct FakeRegistry {
         pages: usize,
         slow_from: usize,
         gate: watch::Receiver<bool>,
         first_page_reads: Arc<AtomicUsize>,
+        first_page_seen: Arc<watch::Sender<usize>>,
+        first_page_permits: Option<Arc<Semaphore>>,
+        page_reads: Arc<AtomicUsize>,
         searches: Arc<AtomicUsize>,
     }
 
@@ -119,6 +135,8 @@ mod tests {
         uri: String,
         gate: watch::Sender<bool>,
         first_page_reads: Arc<AtomicUsize>,
+        first_page_seen: watch::Receiver<usize>,
+        page_reads: Arc<AtomicUsize>,
         searches: Arc<AtomicUsize>,
     }
 
@@ -150,8 +168,13 @@ mod tests {
             .get("cursor")
             .and_then(|c| c.trim_start_matches('p').parse().ok())
             .unwrap_or(0usize);
+        fake.page_reads.fetch_add(1, Ordering::SeqCst);
         if page == 0 {
-            fake.first_page_reads.fetch_add(1, Ordering::SeqCst);
+            let reads = fake.first_page_reads.fetch_add(1, Ordering::SeqCst) + 1;
+            fake.first_page_seen.send_replace(reads);
+            if let Some(permits) = &fake.first_page_permits {
+                permits.acquire().await.unwrap().forget();
+            }
         }
         if page >= fake.slow_from {
             let mut gate = fake.gate.clone();
@@ -162,14 +185,27 @@ mod tests {
     }
 
     async fn fake_registry(pages: usize, slow_from: usize) -> Fake {
+        start_fake(pages, slow_from, None).await
+    }
+
+    async fn start_fake(
+        pages: usize,
+        slow_from: usize,
+        first_page_permits: Option<Arc<Semaphore>>,
+    ) -> Fake {
         let (gate, gate_rx) = watch::channel(false);
+        let (seen_tx, first_page_seen) = watch::channel(0);
         let first_page_reads = Arc::new(AtomicUsize::new(0));
+        let page_reads = Arc::new(AtomicUsize::new(0));
         let searches = Arc::new(AtomicUsize::new(0));
         let state = FakeRegistry {
             pages,
             slow_from,
             gate: gate_rx,
             first_page_reads: Arc::clone(&first_page_reads),
+            first_page_seen: Arc::new(seen_tx),
+            first_page_permits,
+            page_reads: Arc::clone(&page_reads),
             searches: Arc::clone(&searches),
         };
         let app = Router::new()
@@ -182,6 +218,8 @@ mod tests {
             uri: format!("http://{addr}"),
             gate,
             first_page_reads,
+            first_page_seen,
+            page_reads,
             searches,
         }
     }
@@ -393,5 +431,108 @@ mod tests {
 
         // THEN it is offline rather than late
         assert!(matches!(read, Err(RegistryClientError::Offline)));
+    }
+
+    #[tokio::test]
+    async fn a_first_page_slower_than_the_budget_still_starts_a_refresh() {
+        // GIVEN no cache, a registry whose first page waits, and a short budget
+        let tmp = TempDir::new().unwrap();
+        let fake = fake_registry(1, 0).await;
+        let registry = McpRegistry::spawn(
+            McpRegistryClient::with_base_url(tmp.path(), &fake.uri)
+                .unwrap()
+                .with_tranche_budget(Duration::from_millis(50)),
+        );
+
+        // WHEN the catalogue is read before the registry answers
+        let first = within("the budget must end the read", registry.list(None)).await;
+
+        // THEN the read is offline, and a refresh was asked all the same
+        assert!(matches!(first, Err(RegistryClientError::Offline)));
+
+        // WHEN the registry answers and that refresh finishes
+        fake.gate.send(true).unwrap();
+        wait_refreshes(&registry, 1).await;
+
+        // THEN the next read is served from the cache the refresh kept
+        let second = registry.list(None).await.unwrap();
+        assert_eq!(names(&second), ["p0-a", "p0-b"]);
+        assert!(tmp.path().join("mcp-registry.json").exists());
+    }
+
+    #[tokio::test]
+    async fn a_first_tranche_stops_at_its_number_of_pages() {
+        // GIVEN no cache and a registry of seven pages, every one quick
+        let tmp = TempDir::new().unwrap();
+        let fake = fake_registry(7, usize::MAX).await;
+        let client = McpRegistryClient::with_base_url(tmp.path(), &fake.uri).unwrap();
+
+        // WHEN the catalogue is read for the first time
+        let read = client.read_catalogue().await.unwrap();
+
+        // THEN five pages were read, not seven, and the rest is left to a refresh
+        assert_eq!(fake.page_reads.load(Ordering::SeqCst), 5);
+        assert_eq!(read.servers.len(), 10);
+        assert!(read.needs_refresh);
+    }
+
+    #[tokio::test]
+    async fn a_partial_first_tranche_is_not_kept_as_the_cache() {
+        // GIVEN no cache and a registry longer than a first tranche
+        let tmp = TempDir::new().unwrap();
+        let fake = fake_registry(7, usize::MAX).await;
+        let client = McpRegistryClient::with_base_url(tmp.path(), &fake.uri).unwrap();
+
+        // WHEN the catalogue is read for the first time
+        let read = client.read_catalogue().await.unwrap();
+
+        // THEN the tranche answers, and no cache holds it
+        assert_eq!(read.servers.len(), 10);
+        assert!(!client.cache_path().exists());
+    }
+
+    #[tokio::test]
+    async fn the_requests_made_during_a_refresh_are_answered_by_it() {
+        // GIVEN a stale cache, and a registry whose first page waits for a
+        // permit per read
+        let tmp = TempDir::new().unwrap();
+        write_cache(&tmp, &["kept"], Duration::from_secs(3600));
+        let permits = Arc::new(Semaphore::new(0));
+        let fake = start_fake(1, usize::MAX, Some(Arc::clone(&permits))).await;
+        let mut seen = fake.first_page_seen.clone();
+        let registry =
+            McpRegistry::spawn(McpRegistryClient::with_base_url(tmp.path(), &fake.uri).unwrap());
+
+        // WHEN the catalogue is read once, read three times more while the
+        // refresh it asked for is held, then that refresh is let through
+        within("the read must not wait", registry.list(None))
+            .await
+            .unwrap();
+        within(
+            "the refresh must reach the registry",
+            seen.wait_for(|n| *n >= 1),
+        )
+        .await
+        .unwrap();
+        for _ in 0..3 {
+            within("the read must not wait", registry.list(None))
+                .await
+                .unwrap();
+        }
+        permits.add_permits(1);
+        wait_refreshes(&registry, 1).await;
+
+        // THEN a new request is the next refresh: the ones made during the
+        // first were dropped with it, so a request made once that new refresh
+        // reached the registry is queued again rather than refused
+        assert!(registry.request_refresh());
+        within(
+            "the new refresh must reach the registry",
+            seen.wait_for(|n| *n >= 2),
+        )
+        .await
+        .unwrap();
+        assert!(registry.request_refresh());
+        assert_eq!(fake.first_page_reads.load(Ordering::SeqCst), 2);
     }
 }

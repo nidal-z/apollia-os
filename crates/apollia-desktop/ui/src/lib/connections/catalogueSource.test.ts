@@ -209,16 +209,20 @@ describe("a typed text is searched by the registry itself", () => {
     // GIVEN the source of the Connections screen
     const route = readFileSync(new URL("../../routes/Connections.svelte", import.meta.url), "utf8");
 
-    // WHEN its calls to the search are listed
+    // WHEN its calls to the search are listed, in the whole route and in the
+    //      one function that searches
     const searchCalls = route.match(/catalogueSource\.search\(/g) ?? [];
+    const searchStart = route.indexOf("async function searchRegistry");
+    const searcher = route.slice(searchStart, route.indexOf("\n  }\n", searchStart));
     const openHandler = route.slice(
       route.indexOf("function handleOpenCatalogue"),
       route.indexOf("\n  }\n", route.indexOf("function handleOpenCatalogue")),
     );
 
-    // THEN one function searches, behind the pause on the typed text, and
-    //      opening the window does not
-    expect(searchCalls).toHaveLength(1);
+    // THEN one function searches (once, and again at the tier Explore all
+    //      left), behind the pause on the typed text, and opening the window does not
+    expect(searchCalls.length).toBeGreaterThan(0);
+    expect(searcher.match(/catalogueSource\.search\(/g) ?? []).toHaveLength(searchCalls.length);
     expect(route).toMatch(/setTimeout\(\(\) => void searchRegistry\(term\), SEARCH_PAUSE_MS\)/);
     expect(route).toMatch(/term\.length < MIN_SEARCH_LENGTH/);
     expect(openHandler).not.toMatch(/search/i);

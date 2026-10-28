@@ -340,6 +340,10 @@ impl McpRegistryClient {
     /// Create a registry client that targets `base_url` instead of the official registry.
     ///
     /// The base URL must not include a trailing slash (e.g. `http://localhost:8080`).
+    ///
+    /// TEST-ONLY: production reads the registry named by the environment (see
+    /// `new`); the route tests of `apollia-runtime` point a client at a fake
+    /// registry, which a `#[cfg(test)]` item of this crate cannot serve.
     pub fn with_base_url(
         cache_dir: &Path,
         base_url: impl Into<String>,
@@ -370,8 +374,10 @@ impl McpRegistryClient {
     /// inside the fifteen seconds a caller over the runtime link waits.
     const FIRST_TRANCHE_PAGES: usize = 5;
 
-    /// Time a first tranche may take, whatever the number of pages read.
-    const FIRST_TRANCHE_BUDGET: Duration = Duration::from_secs(8);
+    /// Time a first tranche may take, whatever the number of pages read:
+    /// under the fifteen seconds of the runtime link, with room for the
+    /// answer to travel back.
+    const FIRST_TRANCHE_BUDGET: Duration = Duration::from_secs(12);
 
     /// The catalogue, read without waiting for the whole registry.
     ///

@@ -288,12 +288,23 @@
   /**
    * Ask the registry's own search for `term`, once the typing rests, so a
    * service past the pages the registry first gave is found. The answer is
-   * shown only when the text is still the one searched.
+   * shown only when the text is still the one searched, and at the tier the
+   * window shows by then: "Explore all" may have answered during the wait,
+   * and the answer is then read again at its tier, from what is already held.
    */
   async function searchRegistry(term: string): Promise<void> {
-    const view = await catalogueSource.search(term, untrack(() => catalogueTier));
-    if (!addWindow.open || addWindow.query.trim() !== term) return;
+    let tier = untrack(() => catalogueTier);
+    let view = await catalogueSource.search(term, tier);
+    while (stillSearched(term) && tier !== untrack(() => catalogueTier)) {
+      tier = untrack(() => catalogueTier);
+      view = await catalogueSource.search(term, tier);
+    }
+    if (!stillSearched(term)) return;
     showView(view);
+  }
+
+  function stillSearched(term: string): boolean {
+    return addWindow.open && addWindow.query.trim() === term;
   }
 
   $effect(() => {
