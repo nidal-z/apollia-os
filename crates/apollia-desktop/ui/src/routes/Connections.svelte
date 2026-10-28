@@ -86,6 +86,7 @@
   import { triggerAutoName } from "$lib/chat/autoName";
   import { reportError } from "$lib/errors/reportError";
   import { enrichmentLabel } from "$lib/connections/catalogueText";
+  import { selectionIconFor } from "$lib/connections/brandLogo";
   import { nativeConnectionId } from "$lib/connections/addFlow";
   import {
     tryConnectorPrompt,
@@ -191,13 +192,17 @@
     return enrichmentMap.get(server.package) ?? null;
   }
 
-  /** The rows of the list, one per connection, a server named by its catalogue label. */
+  /** The rows of the list, one per connection, a server named by its catalogue label and shown with its logo. */
   const rows = $derived(
-    connectionRows(connections, (c) => {
-      if (c.kind !== "mcp") return c.label;
-      const server = servers.find((s) => `mcp:${s.name}` === c.id);
-      return (server && enrichmentLabel(resolveEnrichment(server), $locale)) ?? c.label;
-    }),
+    connectionRows(
+      connections,
+      (c) => {
+        if (c.kind !== "mcp") return c.label;
+        const server = servers.find((s) => `mcp:${s.name}` === c.id);
+        return (server && enrichmentLabel(resolveEnrichment(server), $locale)) ?? c.label;
+      },
+      (c) => selectionIconFor(serverNameOf(c.id), enrichmentMap),
+    ),
   );
   const selectedConnection = $derived.by(() => {
     const sel = selection;
@@ -206,6 +211,8 @@
   });
   /** The name the list gives the chosen connection. */
   const selectedLabel = $derived(rows.find((r) => r.key === selectedConnection?.id)?.label ?? selectedConnection?.label ?? "");
+  /** The icon the list gives the chosen connection. */
+  const selectedIcon = $derived(rows.find((r) => r.key === selectedConnection?.id)?.icon ?? null);
 
   const builtinCount = $derived({
     active: $builtinTools.filter((tool) => tool.enabled).length,
@@ -599,6 +606,7 @@
               <ConnectionCard
                 connection={selectedConnection}
                 label={selectedLabel}
+                iconName={selectedIcon}
                 serverRunning={selectedServerRunning}
                 clientStatus={selectedProvider ? oauthClients.find((c) => c.provider === selectedProvider) : undefined}
                 clientError={oauthClientsError}

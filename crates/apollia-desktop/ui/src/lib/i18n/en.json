@@ -735,6 +735,23 @@
     "page_subtitle": "The accounts, folders, services and tools Apollia reaches for you.",
     "inactive": {
     },
+    "category": {
+      "productivity": "Productivity and project management",
+      "search": "Search",
+      "data": "Data and databases",
+      "development": "Development",
+      "communication": "Communication and meetings",
+      "finance": "Finance and payments",
+      "design": "Design and websites",
+      "infrastructure": "Infrastructure and hosting",
+      "utility": "Utilities",
+      "crm": "CRM and sales",
+      "support": "Customer support",
+      "documents": "Documents and signatures",
+      "storage": "File storage",
+      "analytics": "Analytics and observability",
+      "marketing": "Marketing and email"
+    },
     "add_window": {
       "subtitle": "Search for what you want to connect, then open its card to add it.",
       "groups": {

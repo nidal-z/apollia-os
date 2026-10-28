@@ -42,6 +42,8 @@ export interface ConnectionRow {
   /** Name of the package that brought it, when one did. */
   package: string | null;
   toolCount: number;
+  /** The icon of the selection entry a service was added from, null for none. */
+  icon: string | null;
 }
 
 /** The kind chips over the list: every kind, or one. */
@@ -89,11 +91,13 @@ export function serverNameOf(id: string): string | null {
 /**
  * One row per connection, what needs repair first, then the rest by name and
  * account. `labelFor` names a row (a service's display name); it defaults to
- * the connection's own label.
+ * the connection's own label. `iconFor` gives a row its selection icon; it
+ * defaults to none.
  */
 export function connectionRows(
   connections: readonly Connection[],
   labelFor: (connection: Connection) => string = (c) => c.label,
+  iconFor: (connection: Connection) => string | null = () => null,
 ): ConnectionRow[] {
   return sortRows(
     connections.map((c) => ({
@@ -109,6 +113,7 @@ export function connectionRows(
       checkedAt: c.checkedAt,
       package: c.package,
       toolCount: c.tools.length,
+      icon: iconFor(c),
     })),
   );
 }

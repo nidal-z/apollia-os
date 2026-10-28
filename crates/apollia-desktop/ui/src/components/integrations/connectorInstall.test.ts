@@ -104,7 +104,7 @@ describe("connector install - one identifier for the secret and the config", () 
     // `npx vitest run --reporter=verbose` to see the line.
     console.log(`${divergent.length} / ${REGISTRY_ENTRIES.length} divergents`);
     expect(divergent).toEqual([]);
-    expect(REGISTRY_ENTRIES).toHaveLength(9);
+    expect(REGISTRY_ENTRIES).toHaveLength(36);
   });
 
   test("the key the engine rebuilds is the key the wizard wrote", async () => {

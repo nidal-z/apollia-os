@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * ConnectionListItem - one connection of the list, whatever its kind: its
-   * kind as an icon, its name, the account it acts as or what it brings, the
+   * kind as an icon (the logo of its service when it has one), its name, the account it acts as or what it brings, the
    * package that brought it, and its state on the right, with Check when it
    * was never checked. With the developer
    * mode on, the second line also gives its technical kind and origin.
@@ -12,7 +12,9 @@
   import { Badge } from "$lib/components/ui/badge";
   import { developerMode } from "$lib/stores/developerMode";
   import { KIND_LABEL_KEYS, provenanceLine, serverNameOf, type ConnectionRow } from "$lib/connections/connectionRows";
+  import { brandLogoPath } from "$lib/connections/brandLogo";
   import ConnectionStateBadge from "../shared/ConnectionStateBadge.svelte";
+  import BrandLogo from "../shared/BrandLogo.svelte";
 
   interface Props {
     row: ConnectionRow;
@@ -33,6 +35,8 @@
     row.kind === "native" ? UserRound : row.kind === "imap" ? Mail : row.kind === "folder" ? Folder : Plug,
   );
 
+  const logo = $derived(brandLogoPath(row.icon));
+
   const subLabel = $derived(
     row.account ?? $t("connections.tools_count_label", { values: { count: row.toolCount } }),
   );
@@ -46,12 +50,16 @@
   onclick={onselect}
   data-testid={serverName !== null ? `sidebar-mcp-${serverName}` : `sidebar-connection-${row.key}`}
 >
-  <span
-    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground"
-    title={$t(KIND_LABEL_KEYS[row.kind])}
-  >
-    <Icon size={15} strokeWidth={1.75} aria-hidden="true" />
-  </span>
+  {#if logo}
+    <BrandLogo path={logo} size="list" data-testid="connection-logo-{row.key}" />
+  {:else}
+    <span
+      class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground"
+      title={$t(KIND_LABEL_KEYS[row.kind])}
+    >
+      <Icon size={15} strokeWidth={1.75} aria-hidden="true" />
+    </span>
+  {/if}
   <div class="min-w-0 flex-1">
     <div class="flex min-w-0 items-center gap-2">
       <span class="truncate text-body-sm font-medium text-foreground">{row.label}</span>

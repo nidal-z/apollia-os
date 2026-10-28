@@ -28,6 +28,7 @@
     type RepairKind,
   } from "$lib/connections/connectionCard";
   import { nativeProviderOf, serverNameOf } from "$lib/connections/connectionRows";
+  import { brandLogoPath } from "$lib/connections/brandLogo";
   import { driveFolderFor, listDriveFolders } from "$lib/connections/oauthClient";
   import {
     checkConnection,
@@ -44,6 +45,7 @@
   import type { Connection, McpToolSummaryView } from "$lib/types";
   import { connectionToolName } from "../../agents/sheet/connectionGrant";
   import ConnectionStateBadge from "../shared/ConnectionStateBadge.svelte";
+  import BrandLogo from "../shared/BrandLogo.svelte";
   import McpToolsTab from "./McpToolsTab.svelte";
   import ConnectionAgentsSection from "./ConnectionAgentsSection.svelte";
   import ConnectionActivitySection from "./ConnectionActivitySection.svelte";
@@ -58,6 +60,8 @@
     connection: Connection;
     /** The name the list gives it. */
     label: string;
+    /** The icon of the selection entry it was added from (`brandLogoPath`), null for none. */
+    iconName?: string | null;
     /** The service is running, so its tools can be read with their schema. */
     serverRunning?: boolean;
     /** The OAuth client of an account's provider; `undefined` while it could not be read. */
@@ -87,6 +91,7 @@
   let {
     connection,
     label,
+    iconName = null,
     serverRunning = false,
     clientStatus,
     clientError = null,
@@ -112,6 +117,7 @@
   const gesture = $derived(pauseGesture(connection.status));
   const lines = $derived(removal ? removalLines(removal.removed) : []);
   const meta = $derived(connection.account ?? connection.path ?? "");
+  const logo = $derived(brandLogoPath(iconName));
   const Icon = $derived(
     connection.kind === "native"
       ? UserRound
@@ -241,9 +247,13 @@
 
 <DetailHeader title={label} titleTestid="connection-detail-title" {meta}>
   {#snippet leading()}
-    <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-foreground">
-      <Icon size={18} aria-hidden="true" />
-    </span>
+    {#if logo}
+      <BrandLogo path={logo} size="lg" data-testid="connection-detail-logo" />
+    {:else}
+      <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-foreground">
+        <Icon size={18} aria-hidden="true" />
+      </span>
+    {/if}
   {/snippet}
   {#snippet badges()}
     {#if connection.remote}

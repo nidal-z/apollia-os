@@ -299,8 +299,13 @@ pub struct ConnectorEnrichmentView {
     pub description: Option<LocalizedText>,
     /// Category used for grouping in the catalogue (e.g. `"productivity"`).
     pub category: String,
-    /// Lucide icon name (e.g. `"database"`, `"globe"`).
+    /// The brand's logo by its Simple Icons name (e.g. `"stripe"`), or a
+    /// generic name for a brand the interface carries no logo of.
     pub icon_name: String,
+    /// Names of the entry in the MCP registry, the first being the one a
+    /// server added from it is named after.
+    #[serde(default)]
+    pub registry_names: Vec<String>,
     /// Trust level badge serialised as a snake_case string.
     pub trust_level: TrustLevel,
     /// URL where the user can obtain an API key, if applicable.
@@ -333,6 +338,7 @@ impl From<&ConnectorEnrichment> for ConnectorEnrichmentView {
             description: e.description.clone(),
             category: e.category.clone(),
             icon_name: e.icon_name.clone(),
+            registry_names: e.registry_names.clone(),
             trust_level: e.trust_level.clone(),
             auth_help_url: e.auth_help_url.clone(),
             auth_help_text: e.auth_help_text.clone(),

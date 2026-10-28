@@ -52,7 +52,10 @@ pub struct ConnectorEnrichment {
     pub operator_label: HashMap<String, String>,
     /// Category for grouping in the catalogue (e.g. `"productivity"`, `"data"`).
     pub category: String,
-    /// Lucide icon name (e.g. `"database"`, `"search"`, `"globe"`).
+    /// The brand's logo by its Simple Icons name (e.g. `"stripe"`), which the
+    /// interface ships under `ui/src/lib/assets/brand-logos/`; a brand it
+    /// carries no logo of gets a generic name (e.g. `"database"`) and shows
+    /// the generic icon.
     pub icon_name: String,
     /// Trust level badge shown in the UI.
     pub trust_level: TrustLevel,
@@ -548,18 +551,16 @@ mod tests {
     }
 
     #[test]
-    fn v1_catalog_has_18_entries_with_cost_model() {
-        // GIVEN the v0.1.0 catalog. The Figma cloud OAuth variant was
-        // removed pending automatic OAuth handshake (v0.1.1); Figma
-        // remains accessible via the local Dev Mode entry.
+    fn the_catalog_holds_its_56_entries_each_with_a_cost_model() {
+        // GIVEN the compiled selection: the nineteen first entries and the
+        //       thirty-seven services of their editors added after them
         // WHEN it is loaded
-        let enrichments = load_builtin_enrichments();
-        // THEN it holds nineteen entries, the browser on the Chrome of the
-        //      machine included
+        let enrichments = compiled_enrichments();
+        // THEN it holds fifty-six entries
         assert_eq!(
             enrichments.len(),
-            19,
-            "expected 19 curated entries in the catalog"
+            56,
+            "expected 56 curated entries in the catalog"
         );
         // AND every entry declares a cost model so the UI can show the badge
         for e in &enrichments {
@@ -568,6 +569,57 @@ mod tests {
                 "entry {} is missing cost_model",
                 e.package_identifier
             );
+        }
+    }
+
+    #[test]
+    fn every_listed_remote_entry_is_reachable_and_written_in_both_locales() {
+        // GIVEN the listed entries of the selection reached at an address on
+        //       the network
+        let enrichments = compiled_enrichments();
+        let remote: Vec<&ConnectorEnrichment> = enrichments
+            .iter()
+            .filter(|e| e.is_listed())
+            .filter(|e| {
+                e.remote_url
+                    .as_deref()
+                    .is_some_and(|u| u.starts_with("https://"))
+            })
+            .collect();
+        assert!(remote.len() >= 40, "{} remote entries", remote.len());
+        for entry in remote {
+            let id = entry.package_identifier.as_str();
+            // WHEN its transport, its help and its texts are read
+            // THEN it speaks streamable HTTP, its help is a page of the
+            //      editor, and its name, description and help exist in
+            //      English and French
+            assert_eq!(
+                entry.remote_transport.as_deref(),
+                Some("streamable-http"),
+                "{id}"
+            );
+            assert!(
+                entry
+                    .auth_help_url
+                    .as_deref()
+                    .is_some_and(|u| u.starts_with("https://")),
+                "{id}: no help page"
+            );
+            let description = entry.description.as_ref();
+            let help = entry.auth_help_text.as_ref();
+            for locale in ["en", "fr"] {
+                for (field, text) in [
+                    ("label", entry.operator_label.get(locale)),
+                    ("description", description.and_then(|d| d.get(locale))),
+                    ("help", help.and_then(|h| h.get(locale))),
+                ] {
+                    assert!(
+                        text.is_some_and(|t| !t.trim().is_empty()),
+                        "{id}: {field} missing in {locale}"
+                    );
+                }
+            }
+            assert!(entry.cost_model.is_some(), "{id}: no cost model");
         }
     }
 
@@ -781,15 +833,44 @@ mod tests {
         let parsed: Result<Vec<ConnectorEnrichment>, _> =
             serde_json::from_str(include_str!("enrichments.json"));
         let enrichments = parsed.expect("the embedded catalogue parses");
-        // WHEN the listed entries are inspected
-        for entry in enrichments.iter().filter(|e| e.is_listed()) {
-            // THEN each classifies at least one tool, never as unclassified
-            //      nor exempt, under a tool name a configuration accepts
+        // The entries that classified their tools before the selection grew:
+        // each keeps classifying at least one, so an entry cannot lose its
+        // families and its examples together unnoticed.
+        const CLASSIFYING: &[&str] = &[
+            "@notionhq/notion-mcp-server",
+            "@modelcontextprotocol/server-brave-search",
+            "@modelcontextprotocol/server-filesystem",
+            "@modelcontextprotocol/server-memory",
+            "@modelcontextprotocol/server-puppeteer",
+            "@playwright/mcp",
+            "app.linear/mcp",
+            "com.atlassian/rovo-mcp",
+            "com.stripe/mcp",
+            "com.figma/mcp",
+            "io.sentry/mcp",
+            "com.cloudflare/mcp",
+            "@modelcontextprotocol/server-postgres",
+            "@modelcontextprotocol/server-sqlite",
+            "@modelcontextprotocol/server-git",
+            "mcp-server-time",
+            "mcp-server-fetch",
+        ];
+        for id in CLASSIFYING {
+            let entry = enrichments
+                .iter()
+                .find(|e| e.package_identifier == *id)
+                .unwrap_or_else(|| panic!("{id} is no longer in the catalogue"));
             assert!(
                 !entry.tool_families.is_empty(),
-                "{} classifies no tool",
-                entry.package_identifier
+                "{id} no longer classifies its tools"
             );
+        }
+        // WHEN the listed entries are inspected
+        for entry in enrichments.iter().filter(|e| e.is_listed()) {
+            // THEN an entry that classifies tools (an entry whose editor
+            //      publishes no list of them classifies none, and its tools
+            //      are then asked for) never files one as unclassified nor
+            //      exempt, under a tool name a configuration accepts
             assert!(
                 entry
                     .tool_families
@@ -904,10 +985,13 @@ mod tests {
         let enrichments = load_builtin_enrichments();
         // WHEN the examples of every listed entry are read
         for entry in enrichments.iter().filter(|e| e.is_listed()) {
-            // THEN the entry offers at least one
-            assert!(
-                !entry.examples.is_empty(),
-                "{} offers no example to try it",
+            // THEN an entry that classifies tools offers at least one, and an
+            //      entry that classifies none offers none: it is tried with
+            //      the general question
+            assert_eq!(
+                entry.examples.is_empty(),
+                entry.tool_families.is_empty(),
+                "{} offers examples that do not match its classification",
                 entry.package_identifier
             );
             for example in &entry.examples {
