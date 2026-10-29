@@ -176,7 +176,7 @@ describe("an answer that comes back late is shown only for what the window shows
     //      and the search was not asked again
     expect(byTestid(`catalogue-entry-${FARM.name}`)).not.toBeNull();
     expect(byTestid(`catalogue-entry-${FAR_AWAY.name}`)).not.toBeNull();
-    expect(byTestid("catalogue-back-to-selection")).not.toBeNull();
+    expect(byTestid("catalogue-source-all")?.getAttribute("aria-pressed")).toBe("true");
     expect(searchTerms()).toEqual(["far"]);
   });
 });

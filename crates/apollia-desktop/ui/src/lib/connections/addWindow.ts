@@ -8,6 +8,7 @@
 import type { ProviderId } from "$lib/connections/capabilities";
 import { NATIVE_PROVIDERS } from "$lib/connections/connectionRows";
 import { matchesCatalogueQuery, matchesWords } from "$lib/connections/catalogueSource";
+import type { Usage } from "$lib/connections/usages";
 import type { RegistryServerView } from "$lib/types";
 
 /** The groups of the window, in the order they are shown. */
@@ -100,13 +101,14 @@ export type AddNeed =
   | "folder"
   | "mailbox"
   | "key"
+  | "key_fallback"
   | "values"
   | "download"
   | "online"
   | "address"
   | "nothing";
 
-/** What adding `entry` will ask: a sign-in, a key, values, a download, the network. */
+/** What adding `entry` will ask: a sign-in, a key (or one in reserve), values, a download, the network. */
 export function entryNeeds(entry: AddEntry): AddNeed[] {
   switch (entry.kind) {
     case "native":
@@ -130,13 +132,43 @@ function catalogueNeeds(entry: RegistryServerView): AddNeed[] {
     ...(remote?.headers ?? []),
   ].filter((f) => f.isRequired);
   const needs: AddNeed[] = [];
-  if (fields.some((f) => f.isSecret)) needs.push("key");
+  // A server the selection declares signed in with the account asks the
+  // sign-in first; the key it declares is asked only if the sign-in fails.
+  const signsIn = remote !== null && entry.enrichment?.oauth === true;
+  if (signsIn) needs.push("sign_in");
+  if (fields.some((f) => f.isSecret)) needs.push(signsIn ? "key_fallback" : "key");
   const askedArgs = (pkg?.packageArguments ?? []).some((a) => a.isRequired && a.value === null);
   if (fields.some((f) => !f.isSecret) || askedArgs) needs.push("values");
   if (remote === null && pkg !== null) needs.push("download");
   if (remote !== null) needs.push("online");
   return needs.length > 0 ? needs : ["nothing"];
 }
+
+/** Where the entries shown come from: Apollia's selection, the public catalogue, or both. */
+export type BrowseSource = "verified" | "public" | "all";
+
+export const BROWSE_SOURCES: readonly BrowseSource[] = ["verified", "public", "all"];
+
+/** The orders of the list. */
+export type BrowseSort = "recommended" | "name";
+
+/** One usage kept by the chips above the list, or all of them. */
+export type UsageChoice = Usage | "all";
+
+export interface BrowseState {
+  usage: UsageChoice;
+  source: BrowseSource;
+  sort: BrowseSort;
+  /** Only what is added without a key or a value to type. */
+  keyless: boolean;
+}
+
+export const BROWSE_DEFAULT: BrowseState = {
+  usage: "all",
+  source: "verified",
+  sort: "recommended",
+  keyless: false,
+};
 
 /**
  * Where the window stands. `adding` is set once Add was pressed on the card:
@@ -155,6 +187,8 @@ export interface AddWindowState {
   away: boolean;
   /** The address of a mailbox kept already, whose password the flow asks again. */
   mailbox: string;
+  /** How the list is browsed; kept while a dialog of the flow stands in the window's place. */
+  browse: BrowseState;
 }
 
 export const ADD_WINDOW_CLOSED: AddWindowState = {
@@ -165,6 +199,7 @@ export const ADD_WINDOW_CLOSED: AddWindowState = {
   resume: null,
   away: false,
   mailbox: "",
+  browse: BROWSE_DEFAULT,
 };
 
 /** Each opening starts on an empty search, nothing chosen. */

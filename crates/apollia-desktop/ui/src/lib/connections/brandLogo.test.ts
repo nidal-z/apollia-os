@@ -6,6 +6,7 @@ import {
   brandLogoNames,
   brandLogoPath,
   nativeLogoName,
+  nativeLogoPath,
   selectionEntryFor,
   selectionIconFor,
   svgPath,
@@ -35,6 +36,7 @@ const selection = JSON.parse(readFileSync(new URL("../../../../src/mcp/enrichmen
 const sources = JSON.parse(readFileSync(logo("sources.json"), "utf8")) as {
   simple_icons_version: string;
   logos: LogoSource[];
+  not_carried?: { brand: string; used_by: string; reason: string }[];
 };
 const svgFiles = readdirSync(LOGOS).filter((f) => f.endsWith(".svg")).sort();
 
@@ -112,14 +114,25 @@ describe("brand logos", () => {
     expect(brandLogoNames().filter((n) => !used.has(n))).toEqual([]);
   });
 
-  test("a Google account shows the Google logo, a Microsoft account the generic icon", () => {
-    // GIVEN the two native providers, and no provider
-    // WHEN the logo of an account of each is asked
-    // THEN Google has its bundled logo, Microsoft and no provider have none
+  test("the Google account has its logo, and Microsoft's generic icon is a choice written down", () => {
+    // GIVEN the native accounts, no provider, and the list of logo sources
+    // WHEN the logo of each account is resolved, by its name and by its glyph
+    const google = nativeLogoPath("google");
+    const microsoft = nativeLogoPath("microsoft");
+    // THEN Google names and draws the Simple Icons file of the pinned tag,
+    //      Microsoft and no provider have none, and sources.json says why
     expect(nativeLogoName("google")).toBe("google");
-    expect(brandLogoPath(nativeLogoName("google"))).not.toBeNull();
+    expect(brandLogoPath(nativeLogoName("google"))).toBe(google);
     expect(nativeLogoName("microsoft")).toBeNull();
     expect(nativeLogoName(null)).toBeNull();
+    expect(google).not.toBeNull();
+    expect(google).toBe(svgPath(readFileSync(logo("google.svg"), "utf8")));
+    expect(sources.logos.find((l) => l.icon_name === "google")?.source).toBe(
+      "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/google.svg",
+    );
+    expect(microsoft).toBeNull();
+    const written = sources.not_carried?.find((n) => n.brand === "Microsoft");
+    expect(written?.reason ?? "").toContain("Simple Icons");
   });
 
   test("a path that is not the single path of a Simple Icons file is refused", () => {

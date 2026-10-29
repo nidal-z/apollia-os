@@ -59,7 +59,7 @@ async function french(): Promise<void> {
 }
 
 describe("the folder in the add window", () => {
-  test("the add window offers Folder on this computer, beside the mailbox", async () => {
+  test("the add window offers Folder under files, and the mailbox under communication", async () => {
     // GIVEN the add window, in French
     await french();
 
@@ -69,17 +69,21 @@ describe("the folder in the add window", () => {
         open: true, query: "", chosen: null, selection: [], publicEntries: [], failures: [],
         catalogueTier: "curated", loading: false, agents: [], installedNames: new Set(),
         installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop,
-        onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop,
+        onexploreall: noop, onadd: noop, onmanage: noop,
         adding: false, resume: null, onadded: noop, ondone: noop, onsignin: noop,
         ontry: noop, ontryprompt: noop, onopenrule: noop,
       } as never,
     }).body;
-    const computer = html.slice(html.indexOf('data-testid="catalogue-group-computer"'));
+    const files = html.slice(html.indexOf('data-testid="catalogue-usage-files"'));
+    const communication = html.slice(
+      html.indexOf('data-testid="catalogue-usage-communication"'),
+      html.indexOf('data-testid="catalogue-usage-documents"'),
+    );
 
-    // THEN "Dossier" sits in "Sur cet ordinateur", before the mailbox
-    expect(computer).toContain('data-testid="catalogue-folder"');
-    expect(computer.indexOf("catalogue-folder")).toBeLessThan(computer.indexOf("catalogue-native-mailbox"));
-    expect(text(html)).toContain(fr.connections.add_window.groups.computer);
+    // THEN "Dossier" sits under "Fichiers", the mailbox under "Communication"
+    expect(files).toContain('data-testid="catalogue-folder"');
+    expect(communication).toContain('data-testid="catalogue-native-mailbox"');
+    expect(text(html)).toContain(fr.connections.usage.files);
     expect(text(html)).toContain(fr.connections.folder.name);
   });
 });

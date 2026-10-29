@@ -582,11 +582,8 @@
     "save": "Enregistrer",
     "catalogue_loading": "Chargement du catalogue…",
     "badge_official": "Officiel",
-    "badge_community": "Communauté",
     "badge_rule": "Officiel : publiée par l'éditeur du service, sous un domaine vérifié par le catalogue public, ou marquée ainsi dans la sélection d'Apollia. Tout le reste est communauté.",
     "catalogue_search_placeholder": "Rechercher une connexion…",
-    "catalogue_explore_all": "Explorer tout",
-    "catalogue_back_to_selection": "Revenir à la sélection",
     "badge_installed": "Installé",
     "catalogue_by": "par",
     "custom_intro": "Pour brancher un service à vous, joint à son adresse : un outil interne, un service communautaire, un service en développement. Pour un service du catalogue, utilisez plutôt sa carte.",
@@ -753,26 +750,21 @@
     "add_window": {
       "subtitle": "Cherchez ce que vous voulez brancher, puis ouvrez sa fiche pour l'ajouter.",
       "groups": {
-        "apollia": "Proposés par Apollia",
-        "computer": "Sur cet ordinateur",
-        "public": "Catalogue public",
         "address": "Brancher un service par son adresse"
       },
-      "public_unverified": "Non vérifié",
       "public_note": "Tout le monde peut publier dans le catalogue public. Apollia n'a pas vérifié ces entrées.",
-      "public_ask": "Le catalogue public n'est interrogé que si vous l'explorez ou cherchez un service.",
       "address_name": "Un service par son adresse",
       "address_description": "L'adresse qu'un service vous donne pour le brancher à Apollia",
-      "no_results": "Rien ne répond à « {query} » ici. Cherchez dans le catalogue public, ou branchez un service par son adresse.",
       "show_more": "Afficher {count} de plus",
       "failed_selection": "La sélection d'Apollia n'a pas pu être lue. Ce qui est sur cet ordinateur reste disponible.",
       "failed_public": "Le catalogue public n'a pas répondu. Vérifiez la connexion à internet, puis réessayez.",
       "needs_title": "Ce qu'elle demande",
       "needs": {
-        "sign_in": "Une connexion à votre compte, dans votre navigateur",
+        "sign_in": "Connexion avec votre compte, dans votre navigateur",
         "folder": "Un dossier que vous choisissez sur cet ordinateur",
         "mailbox": "Votre adresse et un mot de passe d'application de votre messagerie",
         "key": "Une clé ou un mot de passe que le service vous donne",
+        "key_fallback": "Une clé possible en secours, si la connexion ne passe pas",
         "values": "Quelques réglages à remplir",
         "download": "Un téléchargement sur cet ordinateur, fait par Apollia",
         "online": "Le service est joint par internet : ce que les agents lui demandent y part",
@@ -781,7 +773,49 @@
       },
       "add": "Ajouter",
       "open": "Ouvrir sa fiche",
-      "back": "Retour à la recherche"
+      "back": "Retour à la recherche",
+      "browse": {
+        "usages_label": "Usages",
+        "source_label": "Source",
+        "sort_label": "Tri",
+        "source": {
+          "verified": "Vérifiés par Apollia",
+          "public": "Catalogue public",
+          "all": "Tout"
+        },
+        "sort": {
+          "recommended": "Recommandés",
+          "name": "Nom"
+        },
+        "keyless": "Sans configuration",
+        "keyless_hint": "Seulement ce qui se branche sans clé à saisir",
+        "badge_verified": "Vérifié",
+        "badge_community": "Communautaire",
+        "community_title": "Catalogue public",
+        "community_note": "Entrées communautaires, publiées par n'importe qui : Apollia ne les a pas vérifiées.",
+        "explore": "Parcourir le catalogue public",
+        "empty_usage": "Aucun service pour cet usage.",
+        "empty": "Aucun service ne répond à ces filtres.",
+        "empty_query": "Rien ne répond à « {query} » avec ces filtres.",
+        "empty_public": "Chercher dans le catalogue public",
+        "empty_address": "Brancher un service par son adresse",
+        "group_toggle": "Replier ou déplier {usage}"
+      },
+      "card": {
+        "usage": "Usage",
+        "auth": "Connexion",
+        "auth_kinds": {
+          "account": "Connexion avec votre compte",
+          "account_or_key": "Connexion avec votre compte, une clé possible en secours",
+          "key": "Une clé à saisir",
+          "values": "Quelques réglages à saisir",
+          "folder": "Un dossier de cet ordinateur",
+          "mailbox": "Adresse et mot de passe d'application",
+          "keyless": "Sans clé à saisir"
+        },
+        "abilities_title": "Ce que vos agents pourront faire",
+        "examples_title": "Exemples de demandes"
+      }
     },
     "add_flow": {
       "steps": {
@@ -950,6 +984,21 @@
       "title": "Branchez ce que vos agents peuvent atteindre",
       "body": "Un compte, une boîte mail, un dossier ou un service : chaque connexion ouvre à vos agents ce dont ils ont besoin. Commencez par l'un de ceux-ci, ou cherchez dans la sélection.",
       "suggestions": "Suggestions de la sélection"
+    },
+    "usage": {
+      "all": "Tous usages",
+      "communication": "Communication",
+      "documents": "Docs et notes",
+      "projects": "Projets et tâches",
+      "sales": "Ventes et clients",
+      "payments": "Paiement",
+      "development": "Développement",
+      "data": "Données",
+      "design": "Design et sites",
+      "analytics": "Analytique",
+      "files": "Fichiers",
+      "web": "Web et recherche",
+      "other": "Autres"
     }
   },
   "integrations": {

@@ -136,11 +136,11 @@ function screens(): Record<string, Rendered> {
     folderCard: { component: ConnectionCard, props: cardProps(CONNECTIONS[3], "Invoices") },
     addSheet: {
       component: AddConnectionWindow,
-      props: { open: true, query: "", chosen: null, selection: [], publicEntries: [], failures: [], catalogueTier: "none", loading: true, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, adding: false, resume: null, onadded: noop, ondone: noop, onsignin: noop, ontry: noop, ontryprompt: noop, onopenrule: noop },
+      props: { open: true, query: "", chosen: null, selection: [], publicEntries: [], failures: [], catalogueTier: "none", loading: true, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onadd: noop, onmanage: noop, adding: false, resume: null, onadded: noop, ondone: noop, onsignin: noop, ontry: noop, ontryprompt: noop, onopenrule: noop },
     },
     addAddressCard: {
       component: AddConnectionWindow,
-      props: { open: true, query: "", chosen: "address", selection: [], publicEntries: [], failures: [], catalogueTier: "curated", loading: false, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, adding: false, resume: null, onadded: noop, ondone: noop, onsignin: noop, ontry: noop, ontryprompt: noop, onopenrule: noop },
+      props: { open: true, query: "", chosen: "address", selection: [], publicEntries: [], failures: [], catalogueTier: "curated", loading: false, agents: [], installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop, onexploreall: noop, onadd: noop, onmanage: noop, adding: false, resume: null, onadded: noop, ondone: noop, onsignin: noop, ontry: noop, ontryprompt: noop, onopenrule: noop },
     },
     customConnection: { component: AddressForm, props: { oncancel: noop, onsubmit: noop } },
   };

@@ -115,6 +115,39 @@ pub(super) fn infer_category(name: &str, description: Option<&str>) -> Option<St
             &[
                 "notion",
                 "confluence",
+                "wiki",
+                "obsidian",
+                "notes",
+                "google docs",
+            ],
+            "documents",
+        ),
+        (
+            &[
+                "crm",
+                "hubspot",
+                "salesforce",
+                "pipedrive",
+                "sales",
+                "marketing",
+                "newsletter",
+            ],
+            "crm",
+        ),
+        (
+            &[
+                "figma",
+                "canva",
+                "penpot",
+                "sketch",
+                "miro",
+                "ui design",
+                "graphic design",
+            ],
+            "design",
+        ),
+        (
+            &[
                 "asana",
                 "trello",
                 "todoist",
@@ -321,6 +354,10 @@ pub struct ConnectorEnrichmentView {
     /// Set for providers that require manual dev-portal registration (Figma).
     /// `None` for providers that support CIMD or anonymous DCR.
     pub oauth_pre_registered_client_id_env: Option<String>,
+    /// The remote server signs in with the person's account; a declared key
+    /// is then only the fallback.
+    #[serde(default)]
+    pub oauth: bool,
     /// Questions offered to try the connection, both locales kept: the
     /// interface picks the one it shows.
     #[serde(default)]
@@ -344,6 +381,7 @@ impl From<&ConnectorEnrichment> for ConnectorEnrichmentView {
             auth_help_text: e.auth_help_text.clone(),
             auth_help_i18n_key: e.auth_help_i18n_key.clone(),
             oauth_pre_registered_client_id_env: e.oauth_pre_registered_client_id_env.clone(),
+            oauth: e.oauth,
             examples: e.examples.clone(),
             argument_descriptions: e
                 .package_arguments
@@ -416,6 +454,49 @@ mod tests {
         assert_eq!(view.version, "1.0.0");
         assert_eq!(view.website_url.as_deref(), Some("https://notion.so"));
         assert!(view.packages.is_none());
+    }
+
+    #[test]
+    fn test_the_view_of_a_selection_entry_tells_whether_it_signs_in_with_the_account() {
+        // GIVEN the selection entries of Notion, signed in with the account,
+        //       and of GitHub, keyed
+        let enrichments = crate::mcp::enrichments::compiled_enrichments();
+        let view_of = |id: &str| {
+            enrichments
+                .iter()
+                .find(|e| e.registry_names.iter().any(|n| n == id))
+                .map(ConnectorEnrichmentView::from)
+                .expect("selection entry")
+        };
+
+        // WHEN each is sent to the interface
+        let notion = serde_json::to_value(view_of("com.notion/mcp")).expect("serialises");
+        let github = serde_json::to_value(view_of("io.github.github/github-mcp-server"))
+            .expect("serialises");
+
+        // THEN the view carries the declared mode
+        assert_eq!(notion["oauth"], serde_json::json!(true));
+        assert_eq!(github["oauth"], serde_json::json!(false));
+    }
+
+    #[test]
+    fn test_infer_category_tells_documents_sales_and_design_apart_from_tasks() {
+        // GIVEN registry entries a person looks for by what they are for
+        let cases = [
+            ("notion-pages", "Read Notion pages", "documents"),
+            ("confluence-server", "Pages of the team wiki", "documents"),
+            ("hubspot-mcp", "Contacts and deals of the CRM", "crm"),
+            ("figma-tools", "Inspect frames and components", "design"),
+            ("asana-mcp", "Create and assign tasks", "productivity"),
+        ];
+
+        for (name, description, expected) in cases {
+            // WHEN its category is inferred from its name and description
+            let category = infer_category(name, Some(description));
+
+            // THEN the usage it serves is the one named
+            assert_eq!(category.as_deref(), Some(expected), "{name}");
+        }
     }
 
     #[test]

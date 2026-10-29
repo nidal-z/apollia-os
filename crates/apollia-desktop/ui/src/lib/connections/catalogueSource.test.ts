@@ -74,12 +74,14 @@ describe("opening the catalogue never asks the public catalogue", () => {
     );
 
     // THEN no command is called directly, one handler explores, the opening
-    //      handler does not, and only the Explore all button calls it
+    //      handler does not, and only the choice of a source that includes
+    //      the public catalogue calls it
     expect(route).not.toMatch(/fetchMcpRegistry|fetch_mcp_registry/);
     expect(exploreCalls).toHaveLength(1);
     expect(route).toMatch(/onexploreall=\{handleExploreAll\}/);
     expect(openHandler).not.toMatch(/exploreAll|handleExploreAll/);
-    expect(windowSource.match(/onclick=\{onexploreall\}/g) ?? []).toHaveLength(1);
+    expect(windowSource.match(/onexploreall\(\)/g) ?? []).toHaveLength(1);
+    expect(windowSource).toMatch(/if \(sourceShowsPublic\(source\) && catalogueTier !== "full"\) onexploreall\(\);/);
   });
 });
 

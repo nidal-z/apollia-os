@@ -190,3 +190,25 @@ fn the_fixture_is_the_index_the_selection_builds() {
         .collect();
     assert_eq!(fixture_ids, compiled_ids);
 }
+
+#[test]
+fn the_fixture_declares_the_sign_in_the_selection_declares() {
+    // GIVEN the selection compiled into this build
+    // WHEN the fixture index is read
+    let fixture = RemoteCatalogue::parse(INDEX).expect("parses");
+
+    // THEN each entry signs in with the account exactly when the compiled one
+    //      does, and the field is carried by the index rather than defaulted
+    let fixture_oauth: Vec<(&str, bool)> = fixture
+        .entries
+        .iter()
+        .map(|e| (e.entry.package_identifier.as_str(), e.entry.oauth))
+        .collect();
+    let compiled = compiled_enrichments();
+    let compiled_oauth: Vec<(&str, bool)> = compiled
+        .iter()
+        .map(|e| (e.package_identifier.as_str(), e.oauth))
+        .collect();
+    assert_eq!(fixture_oauth, compiled_oauth);
+    assert!(fixture_oauth.iter().any(|(_, oauth)| *oauth));
+}

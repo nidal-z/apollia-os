@@ -179,6 +179,9 @@ export interface ConnectorEnrichmentView {
    *  env var via `mcp_oauth_resolve_client_id` and passes the value to
    *  `mcp_oauth_login`. */
   oauth_pre_registered_client_id_env: string | null;
+  /** The remote server signs in with the person's account, as the selection
+   *  declares it; a key the entry declares is then only the fallback. */
+  oauth?: boolean;
   /** Questions offered to try the connection, one per tool they exercise. */
   examples?: TryExample[];
   /** The description of each package argument, in the order of `packageArguments`. */

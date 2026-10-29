@@ -47,6 +47,21 @@ export function brandLogoPath(iconName: string | null | undefined): string | nul
 }
 
 /**
+ * The logo of each native account, by its Simple Icons name. Microsoft has
+ * none: Simple Icons removed its logos at Microsoft's request, so the account
+ * keeps the generic icon, as `sources.json` records under `not_carried`.
+ */
+export const NATIVE_LOGOS: Readonly<Record<ProviderId, string | null>> = {
+  google: "google",
+  microsoft: null,
+};
+
+/** The glyph of the logo of a native account, or null for one with none. */
+export function nativeLogoPath(provider: ProviderId): string | null {
+  return brandLogoPath(NATIVE_LOGOS[provider]);
+}
+
+/**
  * The icon of the selection entry a server was added from, found by the name
  * the add window gives it (its first registry name, else its identifier) or
  * the name it was given before (its English label); null for a server that
@@ -78,13 +93,6 @@ export function selectionEntryFor(
   }
   return null;
 }
-
-/**
- * The logo of an account of each native provider, by its Simple Icons name.
- * Simple Icons carries no Microsoft mark, so a Microsoft account keeps the
- * generic icon of an account.
- */
-export const NATIVE_LOGOS: Readonly<Record<ProviderId, string | null>> = { google: "google", microsoft: null };
 
 /** The logo name of an account of `provider`, or null for none (or no provider). */
 export function nativeLogoName(provider: ProviderId | null): string | null {

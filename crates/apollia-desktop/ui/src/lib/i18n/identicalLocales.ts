@@ -125,6 +125,10 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "connections.mcp_settings.transport", // Transport
   "connections.mailbox.port_label", // Port
   "connections.tile.brings.mail", // Mail
+  "connections.add_window.browse.usages_label", // Usages
+  "connections.add_window.browse.source_label", // Source
+  "connections.add_window.card.usage", // Usage
+  "connections.usage.communication", // Communication
   "detailSidebar.tab_guide", // Guide
   "dev.ai.panel.type.embeddings.label", // Embeddings
   "dev.connections.custom_transport_label", // Transport

@@ -98,7 +98,7 @@
       "title": "Google",
       "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/google.svg",
       "license": "CC0-1.0",
-      "brand_source": "https://partnermarketinghub.withgoogle.com/brands/google-logo/"
+      "brand_source": "https://partnermarketinghub.withgoogle.com"
     },
     {
       "icon_name": "huggingface",
@@ -315,6 +315,13 @@
       "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/zapier.svg",
       "license": "CC0-1.0",
       "brand_source": "https://www.figma.com/file/NQFxTCE5pGR3dHZt0DkOyy/Zapier-Brand-Guidelines-%5BExternal%5D?type=design&node-id=101-9701&mode=design"
+    }
+  ],
+  "not_carried": [
+    {
+      "brand": "Microsoft",
+      "used_by": "the Microsoft 365 account",
+      "reason": "Simple Icons removed the Microsoft logos at the request of Microsoft, so no microsoft, microsoft365, microsoftoutlook or microsoftteams file exists at the pinned tag; the account keeps the generic icon."
     }
   ]
 }

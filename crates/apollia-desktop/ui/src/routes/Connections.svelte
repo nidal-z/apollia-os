@@ -726,6 +726,7 @@
 <AddConnectionWindow
   open={addWindow.open}
   bind:query={addWindow.query}
+  bind:browse={addWindow.browse}
   chosen={addWindow.chosen}
   adding={addWindow.adding}
   resume={addWindow.resume}
@@ -742,7 +743,6 @@
   onchoose={(key) => (addWindow = chooseEntry(addWindow, key))}
   onback={() => (addWindow = backToSearch(addWindow))}
   onexploreall={handleExploreAll}
-  onbacktoselection={showSelection}
   onadd={() => (addWindow = startAdding(addWindow))}
   onmanage={handleManage}
   onadded={() => void loadAll()}

@@ -12,11 +12,12 @@
     "trust_level": "verified_official",
     "auth_help_url": "https://www.notion.so/my-integrations",
     "auth_help_text": {
-      "en": "Create a new integration and copy the Internal Integration Secret.",
-      "fr": "Créez une nouvelle intégration et copiez le Secret d'intégration interne."
+      "en": "You sign in with your Notion account in your browser. If that sign-in does not go through, create an integration and paste its Internal Integration Secret instead.",
+      "fr": "Vous vous connectez avec votre compte Notion, dans votre navigateur. Si cette connexion ne passe pas, créez une intégration et collez plutôt son Secret d'intégration interne."
     },
     "remote_url": "https://mcp.notion.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "remote_headers": [
       {
         "name": "Authorization",
@@ -386,15 +387,16 @@
     "trust_level": "verified_official",
     "auth_help_url": "https://linear.app/settings/api",
     "auth_help_text": {
-      "en": "Linear MCP officially uses OAuth. Until Apollia's automatic OAuth handshake lands (v0.1.1), paste an OAuth access token manually with the `Bearer ` prefix, or your Linear API key.",
-      "fr": "Le MCP Linear utilise officiellement OAuth. En attendant le handshake automatique d'Apollia (v0.1.1), collez manuellement un access token OAuth avec le préfixe `Bearer `, ou votre clé API Linear."
+      "en": "You sign in with your Linear account in your browser. If that sign-in does not go through, paste your Linear API key instead.",
+      "fr": "Vous vous connectez avec votre compte Linear, dans votre navigateur. Si cette connexion ne passe pas, collez plutôt votre clé d'API Linear."
     },
     "remote_url": "https://mcp.linear.app/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "remote_headers": [
       {
         "name": "Authorization",
-        "description": "Linear OAuth access token (Bearer <token>) or API key. v0.1.1 will automate the OAuth handshake.",
+        "description": "Linear API key (Bearer <key>), used only when the sign-in with your account does not go through.",
         "is_required": true,
         "is_secret": true
       }
@@ -456,15 +458,16 @@
     "trust_level": "verified_official",
     "auth_help_url": "https://www.atlassian.com/software/rovo",
     "auth_help_text": {
-      "en": "Atlassian Rovo MCP officially uses OAuth. Until Apollia's automatic OAuth handshake lands (v0.1.1), paste an OAuth access token manually with the `Bearer ` prefix. Rovo availability depends on your Atlassian plan.",
-      "fr": "Le MCP Atlassian Rovo utilise officiellement OAuth. En attendant le handshake automatique d'Apollia (v0.1.1), collez manuellement un access token OAuth avec le préfixe `Bearer `. La disponibilité de Rovo dépend de votre plan."
+      "en": "You sign in with your Atlassian account in your browser. If that sign-in does not go through, paste an Atlassian access token with the `Bearer ` prefix instead. Rovo availability depends on your Atlassian plan.",
+      "fr": "Vous vous connectez avec votre compte Atlassian, dans votre navigateur. Si cette connexion ne passe pas, collez plutôt un jeton d'accès Atlassian avec le préfixe `Bearer `. La disponibilité de Rovo dépend de votre plan."
     },
     "remote_url": "https://mcp.atlassian.com/v1/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "remote_headers": [
       {
         "name": "Authorization",
-        "description": "Atlassian OAuth access token (Bearer <token>). v0.1.1 will automate the OAuth handshake.",
+        "description": "Atlassian access token (Bearer <token>), used only when the sign-in with your account does not go through.",
         "is_required": true,
         "is_secret": true
       }
@@ -733,11 +736,12 @@
     "trust_level": "verified_official",
     "auth_help_url": "https://dashboard.stripe.com/apikeys",
     "auth_help_text": {
-      "en": "Copy your Stripe restricted key from the dashboard.",
-      "fr": "Copiez votre clé restreinte Stripe depuis le tableau de bord."
+      "en": "You sign in with your Stripe account in your browser. If that sign-in does not go through, copy a restricted key from the dashboard instead.",
+      "fr": "Vous vous connectez avec votre compte Stripe, dans votre navigateur. Si cette connexion ne passe pas, copiez plutôt une clé restreinte depuis le tableau de bord."
     },
     "remote_url": "https://mcp.stripe.com",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "remote_headers": [
       {
         "name": "Authorization",
@@ -833,11 +837,12 @@
     "trust_level": "verified_official",
     "auth_help_url": "https://sentry.io/settings/account/api/auth-tokens/",
     "auth_help_text": {
-      "en": "Create a Sentry user auth token with the read-only scopes you need.",
-      "fr": "Créez un token utilisateur Sentry avec les permissions en lecture seule nécessaires."
+      "en": "You sign in with your Sentry account in your browser. If that sign-in does not go through, create a user auth token with the read-only scopes you need instead.",
+      "fr": "Vous vous connectez avec votre compte Sentry, dans votre navigateur. Si cette connexion ne passe pas, créez plutôt un jeton utilisateur avec les permissions en lecture seule nécessaires."
     },
     "remote_url": "https://mcp.sentry.dev/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "remote_headers": [
       {
         "name": "Authorization",
@@ -935,11 +940,12 @@
     "trust_level": "verified_official",
     "auth_help_url": "https://dash.cloudflare.com/profile/api-tokens",
     "auth_help_text": {
-      "en": "Create a Cloudflare API token with the permissions you want to grant.",
-      "fr": "Créez un token API Cloudflare avec les permissions souhaitées."
+      "en": "You sign in with your Cloudflare account in your browser. If that sign-in does not go through, create an API token with the permissions you want to grant instead.",
+      "fr": "Vous vous connectez avec votre compte Cloudflare, dans votre navigateur. Si cette connexion ne passe pas, créez plutôt un jeton d'API avec les permissions souhaitées."
     },
     "remote_url": "https://mcp.cloudflare.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "remote_headers": [
       {
         "name": "Authorization",
@@ -1889,6 +1895,7 @@
     },
     "remote_url": "https://mcp.paypal.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -1909,6 +1916,7 @@
     },
     "remote_url": "https://mcp.gocardless.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -1929,6 +1937,7 @@
     },
     "remote_url": "https://mcp.paddle.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -1949,6 +1958,7 @@
     },
     "remote_url": "https://mcp.close.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -1969,6 +1979,7 @@
     },
     "remote_url": "https://mcp.attio.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -1989,6 +2000,7 @@
     },
     "remote_url": "https://mcp.intercom.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2009,6 +2021,7 @@
     },
     "remote_url": "https://mcp.monday.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2029,6 +2042,7 @@
     },
     "remote_url": "https://ai.todoist.net/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2049,6 +2063,7 @@
     },
     "remote_url": "https://mcp.clickup.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2069,6 +2084,7 @@
     },
     "remote_url": "https://mcp.zapier.com/api/v1/connect",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": {
       "kind": "freemium",
       "note_i18n": {
@@ -2095,6 +2111,7 @@
     },
     "remote_url": "https://api.typeform.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2115,6 +2132,7 @@
     },
     "remote_url": "https://mcp.pandadoc.com/v1/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2135,6 +2153,7 @@
     },
     "remote_url": "https://mcp.dropbox.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2155,6 +2174,7 @@
     },
     "remote_url": "https://asset-management.mcp.cloudinary.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2175,6 +2195,7 @@
     },
     "remote_url": "https://mcp.canva.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2195,6 +2216,7 @@
     },
     "remote_url": "https://mcp.miro.com/",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2215,6 +2237,7 @@
     },
     "remote_url": "https://mcp.webflow.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2235,6 +2258,7 @@
     },
     "remote_url": "https://mcp.wix.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2255,6 +2279,7 @@
     },
     "remote_url": "https://mcp.airtable.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2275,6 +2300,7 @@
     },
     "remote_url": "https://mcp.supabase.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2295,6 +2321,7 @@
     },
     "remote_url": "https://mcp.neon.tech/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2315,6 +2342,7 @@
     },
     "remote_url": "https://mcp.prisma.io/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2335,6 +2363,7 @@
     },
     "remote_url": "https://gitlab.com/api/v4/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2350,11 +2379,12 @@
     "trust_level": "verified_official",
     "auth_help_url": "https://go.postman.co/settings/me/api-keys",
     "auth_help_text": {
-      "en": "Create a Postman API key in your account settings and paste it with the Bearer prefix.",
-      "fr": "Créez une clé d'API Postman dans les réglages de votre compte et collez-la avec le préfixe Bearer."
+      "en": "You sign in with your Postman account in your browser. If that sign-in does not go through, create an API key in your account settings and paste it with the Bearer prefix instead.",
+      "fr": "Vous vous connectez avec votre compte Postman, dans votre navigateur. Si cette connexion ne passe pas, créez plutôt une clé d'API dans les réglages de votre compte et collez-la avec le préfixe Bearer."
     },
     "remote_url": "https://mcp.postman.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "remote_headers": [
       {
         "name": "Authorization",
@@ -2403,6 +2433,7 @@
     },
     "remote_url": "https://mcp.jam.dev/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2443,6 +2474,7 @@
     },
     "remote_url": "https://mcp.vercel.com",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2463,6 +2495,7 @@
     },
     "remote_url": "https://netlify-mcp.netlify.app/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2483,6 +2516,7 @@
     },
     "remote_url": "https://mcp.railway.com/",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2503,6 +2537,7 @@
     },
     "remote_url": "https://mcp.amplitude.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2523,6 +2558,7 @@
     },
     "remote_url": "https://mcp.posthog.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2543,6 +2579,7 @@
     },
     "remote_url": "https://mcp.mixpanel.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2563,6 +2600,7 @@
     },
     "remote_url": "https://mcp.honeycomb.io/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2583,6 +2621,7 @@
     },
     "remote_url": "https://api.fireflies.ai/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {
@@ -2603,6 +2642,7 @@
     },
     "remote_url": "https://mcp.klaviyo.com/mcp",
     "remote_transport": "streamable-http",
+    "oauth": true,
     "cost_model": { "kind": "free" }
   },
   {

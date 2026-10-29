@@ -4,12 +4,20 @@
   /**
    * The classes of the list column: across the whole width when nothing is
    * open, a narrow column with a rule on its right when a detail card is.
+   * With `stack`, a window narrower than the medium breakpoint keeps the list
+   * across its width and puts the card under it.
    */
-  export function browseListClass(detailOpen: boolean): string {
+  export function browseListClass(detailOpen: boolean, stack = false): string {
     return cn(
       "min-h-0 overflow-auto py-4",
       detailOpen ? "w-[360px] shrink-0 border-r border-border px-3" : "flex-1 px-6",
+      stack && detailOpen && "max-md:max-h-[40%] max-md:w-full max-md:border-b max-md:border-r-0",
     );
+  }
+
+  /** The classes of the row holding the list and the card: a column under the medium breakpoint with `stack`. */
+  export function browseBodyClass(stack = false): string {
+    return cn("flex min-h-0 flex-1", stack && "max-md:flex-col");
   }
 </script>
 
@@ -37,6 +45,8 @@
     children: Snippet;
     /** The detail card of the chosen entry, rendered beside the list. */
     detail?: Snippet;
+    /** Under the medium breakpoint, the card goes under the list rather than beside it. */
+    stack?: boolean;
     "data-testid"?: string;
     /** data-testid on the scrolling list column. */
     listTestid?: string;
@@ -50,6 +60,7 @@
     header,
     children,
     detail,
+    stack = false,
     "data-testid": testid,
     listTestid,
     offlineTestid,
@@ -71,8 +82,8 @@
     {/if}
   </header>
 
-  <div class="flex min-h-0 flex-1">
-    <div class={browseListClass(detailOpen)} data-testid={listTestid}>
+  <div class={browseBodyClass(stack)}>
+    <div class={browseListClass(detailOpen, stack)} data-testid={listTestid}>
       {@render children()}
     </div>
     {@render detail?.()}

@@ -582,11 +582,8 @@
     "save": "Save",
     "catalogue_loading": "Loading the catalogue…",
     "badge_official": "Official",
-    "badge_community": "Community",
     "badge_rule": "Official: published by the editor of the service, under a domain the public catalogue has verified, or marked so in Apollia's selection. Everything else is community.",
     "catalogue_search_placeholder": "Search for a connection…",
-    "catalogue_explore_all": "Explore all",
-    "catalogue_back_to_selection": "Back to the selection",
     "badge_installed": "Installed",
     "catalogue_by": "by",
     "custom_intro": "To connect a service of your own, reached at its address: an internal tool, a community service, one in development. For a service of the catalogue, use its card instead.",
@@ -753,26 +750,21 @@
     "add_window": {
       "subtitle": "Search for what you want to connect, then open its card to add it.",
       "groups": {
-        "apollia": "Offered by Apollia",
-        "computer": "On this computer",
-        "public": "Public catalogue",
         "address": "Connect a service by its address"
       },
-      "public_unverified": "Not verified",
       "public_note": "Anyone can publish in the public catalogue. Apollia has not checked these entries.",
-      "public_ask": "The public catalogue is asked only when you explore it or search for a service.",
       "address_name": "A service by its address",
       "address_description": "The address a service gives you to connect it to Apollia",
-      "no_results": "Nothing answers \"{query}\" here. Search the public catalogue, or connect a service by its address.",
       "show_more": "Show {count} more",
       "failed_selection": "Apollia's selection could not be read. What is on this computer stays available.",
       "failed_public": "The public catalogue did not answer. Check the connection to the internet, then try again.",
       "needs_title": "What it asks",
       "needs": {
-        "sign_in": "A sign-in to your account, in your browser",
+        "sign_in": "Sign-in with your account, in your browser",
         "folder": "A folder you choose on this computer",
         "mailbox": "Your address and an app password from your mail provider",
         "key": "A key or a password the service gives you",
+        "key_fallback": "A key in reserve, if the sign-in does not go through",
         "values": "A few settings to fill in",
         "download": "A download to this computer, done by Apollia",
         "online": "The service is reached over the internet: what agents ask of it goes there",
@@ -781,7 +773,49 @@
       },
       "add": "Add",
       "open": "Open its card",
-      "back": "Back to the search"
+      "back": "Back to the search",
+      "browse": {
+        "usages_label": "Usages",
+        "source_label": "Source",
+        "sort_label": "Sort",
+        "source": {
+          "verified": "Verified by Apollia",
+          "public": "Public catalogue",
+          "all": "Everything"
+        },
+        "sort": {
+          "recommended": "Recommended",
+          "name": "Name"
+        },
+        "keyless": "No setup",
+        "keyless_hint": "Only what connects without a key to type",
+        "badge_verified": "Verified",
+        "badge_community": "Community",
+        "community_title": "Public catalogue",
+        "community_note": "Community entries, published by anyone: Apollia has not checked them.",
+        "explore": "Browse the public catalogue",
+        "empty_usage": "No service for this usage.",
+        "empty": "No service answers these filters.",
+        "empty_query": "Nothing answers \"{query}\" with these filters.",
+        "empty_public": "Search the public catalogue",
+        "empty_address": "Connect a service by its address",
+        "group_toggle": "Fold or unfold {usage}"
+      },
+      "card": {
+        "usage": "Usage",
+        "auth": "Connection",
+        "auth_kinds": {
+          "account": "Sign-in with your account",
+          "account_or_key": "Sign-in with your account, a key in reserve",
+          "key": "A key to type",
+          "values": "A few settings to type",
+          "folder": "A folder of this computer",
+          "mailbox": "Address and app password",
+          "keyless": "No key to type"
+        },
+        "abilities_title": "What your agents will be able to do",
+        "examples_title": "Examples of requests"
+      }
     },
     "add_flow": {
       "steps": {
@@ -950,6 +984,21 @@
       "title": "Connect what your agents can reach",
       "body": "An account, a mailbox, a folder or a service: each connection opens to your agents what they need. Start with one of these, or search the selection.",
       "suggestions": "Suggestions from the selection"
+    },
+    "usage": {
+      "all": "All usages",
+      "communication": "Communication",
+      "documents": "Docs and notes",
+      "projects": "Projects and tasks",
+      "sales": "Sales and customers",
+      "payments": "Payments",
+      "development": "Development",
+      "data": "Data",
+      "design": "Design and sites",
+      "analytics": "Analytics",
+      "files": "Files",
+      "web": "Web and search",
+      "other": "Other"
     }
   },
   "integrations": {
