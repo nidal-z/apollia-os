@@ -11578,6 +11578,91 @@
       "timeoutMs": 8000
     },
     {
+      "kind": "stubInvoke",
+      "command": "add_mcp_server",
+      "once": true,
+      "reject": "node_unavailable: This service needs Node.js. Apollia could not provide its own (automation: forced by stubInvoke), and no Node.js was found on this machine."
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-explore-all",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-io.apollia/seed-stub",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-add",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-node-unavailable",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-node-help",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "37c-add-without-any-node"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-window",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 4000
@@ -11708,6 +11793,14 @@
       "label": "38-add-trial-failed-retry-remove"
     },
     {
+      "kind": "stubInvoke",
+      "command": "test_mcp_live_server",
+      "once": true,
+      "patch": {
+        "node_source": "machine"
+      }
+    },
+    {
       "kind": "click",
       "testid": "test-retry-btn",
       "timeoutMs": 3000
@@ -11716,6 +11809,11 @@
       "kind": "waitFor",
       "testid": "test-result-success",
       "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-flow-machine-node",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
