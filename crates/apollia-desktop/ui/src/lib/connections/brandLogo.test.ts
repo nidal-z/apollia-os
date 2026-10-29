@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 
-import { brandLogoNames, brandLogoPath, selectionIconFor, svgPath } from "$lib/connections/brandLogo";
+import { NATIVE_LOGOS, brandLogoNames, brandLogoPath, nativeLogoName, selectionIconFor, svgPath } from "$lib/connections/brandLogo";
 import type { ConnectorEnrichmentView } from "$lib/types";
 
 const LOGOS = new URL("../assets/brand-logos/", import.meta.url);
@@ -98,10 +98,20 @@ describe("brand logos", () => {
       .filter((e) => brandLogoPath(e.icon_name) === null)
       .map((e) => e.icon_name);
     // THEN only the declared generic names have no logo, and every logo shipped
-    //      is used by an entry
+    //      is used by an entry or by an account of a native provider
     expect([...new Set(missing)].sort()).toEqual(GENERIC);
-    const used = new Set(selection.map((e) => e.icon_name));
+    const used = new Set([...selection.map((e) => e.icon_name), ...Object.values(NATIVE_LOGOS)]);
     expect(brandLogoNames().filter((n) => !used.has(n))).toEqual([]);
+  });
+
+  test("a Google account shows the Google logo, a Microsoft account the generic icon", () => {
+    // GIVEN the two native providers, and no provider
+    // WHEN the logo of an account of each is asked
+    // THEN Google has its bundled logo, Microsoft and no provider have none
+    expect(nativeLogoName("google")).toBe("google");
+    expect(brandLogoPath(nativeLogoName("google"))).not.toBeNull();
+    expect(nativeLogoName("microsoft")).toBeNull();
+    expect(nativeLogoName(null)).toBeNull();
   });
 
   test("a path that is not the single path of a Simple Icons file is refused", () => {

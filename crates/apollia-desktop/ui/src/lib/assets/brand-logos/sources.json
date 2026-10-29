@@ -93,6 +93,14 @@
       "brand_source": "https://about.gitlab.com/press/press-kit/"
     },
     {
+      "icon_name": "google",
+      "file": "google.svg",
+      "title": "Google",
+      "source": "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/google.svg",
+      "license": "CC0-1.0",
+      "brand_source": "https://partnermarketinghub.withgoogle.com/brands/google-logo/"
+    },
+    {
       "icon_name": "huggingface",
       "file": "huggingface.svg",
       "title": "Hugging Face",

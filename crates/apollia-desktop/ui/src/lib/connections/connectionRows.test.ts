@@ -4,6 +4,7 @@ import {
   isSelected,
   kindCounts,
   nativeProviderOf,
+  needsAction,
   provenanceLine,
   rowMatches,
   serverNameOf,
@@ -67,38 +68,33 @@ describe("connectionRows", () => {
     ]);
   });
 
-  it("puts what needs repair first, then the rest by name", () => {
-    // GIVEN a working server, a paused one, a blocked one and two to repair
+  it("puts what asks for an action first, by name, then what works, by name", () => {
+    // GIVEN two working servers, a paused one, a blocked one, one never checked and one to repair
     const connections = [
       connection({ id: "mcp:alpha", label: "alpha" }),
       connection({ id: "mcp:zeta", label: "zeta", ...repair }),
       connection({ id: "mcp:beta", label: "beta", status: "paused" }),
       connection({ id: "mcp:gamma", label: "gamma", status: "blocked" }),
-      connection({ id: "mcp:delta", label: "delta", ...repair }),
+      connection({ id: "mcp:omega", label: "omega" }),
+      connection({ id: "mcp:delta", label: "delta", status: "not_checked", reason: { key: "not_checked" } }),
     ];
 
     // WHEN the rows are built
     const rows = connectionRows(connections);
 
-    // THEN the two to repair lead, by name, and every other state follows by name
-    expect(rows.map((r) => r.label)).toEqual(["delta", "zeta", "alpha", "beta", "gamma"]);
+    // THEN to repair, to check, paused and blocked lead by name, and the two
+    // that work follow by name
+    expect(rows.map((r) => r.label)).toEqual(["beta", "delta", "gamma", "zeta", "alpha", "omega"]);
   });
 
-  it("ranks a connection not checked yet with the rest, by name, never with what needs repair", () => {
-    // GIVEN one server to repair, two never checked and one working
-    const never = { status: "not_checked", reason: { key: "not_checked" } } as const;
-    const connections = [
-      connection({ id: "mcp:omega", label: "omega", ...repair }),
-      connection({ id: "mcp:alpha", label: "alpha", ...never }),
-      connection({ id: "mcp:kappa", label: "kappa" }),
-      connection({ id: "mcp:beta", label: "beta", ...never }),
-    ];
-
-    // WHEN the rows are built
-    const rows = connectionRows(connections);
-
-    // THEN only the one to repair leads; the two never checked sit among the rest by name
-    expect(rows.map((r) => r.label)).toEqual(["omega", "alpha", "beta", "kappa"]);
+  it("asks an action of every state but working", () => {
+    // GIVEN the five states a connection can be found in
+    // WHEN each is asked whether it needs an action
+    // THEN only working answers no
+    expect(needsAction("working")).toBe(false);
+    for (const status of ["needs_repair", "not_checked", "paused", "blocked"] as const) {
+      expect(needsAction(status)).toBe(true);
+    }
   });
 
   it("carries the state, its reason, its date and the package the runtime gave", () => {
@@ -166,6 +162,27 @@ describe("the search and the kind chips", () => {
     expect(visibleRows(rows, "", "folder").map((r) => r.key)).toEqual(["folder:invoices"]);
     expect(visibleRows(rows, "", "all")).toHaveLength(4);
     expect(visibleRows(rows, "fast", "native")).toEqual([]);
+  });
+
+  it("lets through the state count chosen in the summary, with the chip and the search", () => {
+    // GIVEN a list where only the server works
+    const mixed = connectionRows([
+      google("ada@example.com", repair),
+      connection({ id: "mcp:notion", label: "notion" }),
+      connection({ id: "folder:invoices", kind: "folder", label: "Invoices", status: "paused" }),
+    ]);
+
+    // WHEN a state count is chosen
+    // THEN Working lets the server through, Needs attention the two others,
+    //      and the chip and the search still narrow it
+    expect(visibleRows(mixed, "", "all", "working").map((r) => r.key)).toEqual(["mcp:notion"]);
+    expect(visibleRows(mixed, "", "all", "action").map((r) => r.key)).toEqual([
+      "native:google:ada@example.com",
+      "folder:invoices",
+    ]);
+    expect(visibleRows(mixed, "", "folder", "action").map((r) => r.key)).toEqual(["folder:invoices"]);
+    expect(visibleRows(mixed, "inv", "all", "working")).toEqual([]);
+    expect(visibleRows(mixed, "", "all", "all")).toHaveLength(3);
   });
 
   it("counts the rows of each chip", () => {

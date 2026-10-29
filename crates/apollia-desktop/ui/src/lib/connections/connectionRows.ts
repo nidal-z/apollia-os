@@ -32,6 +32,8 @@ export interface ConnectionRow {
   kind: ConnectionKind;
   label: string;
   account: string | null;
+  /** The folder of this machine a folder connection opens, null for another kind. */
+  path: string | null;
   provenance: ConnectionProvenance;
   /** Sends data off this machine. */
   remote: boolean;
@@ -48,6 +50,20 @@ export interface ConnectionRow {
 
 /** The kind chips over the list: every kind, or one. */
 export type KindFilter = "all" | ConnectionKind;
+
+/**
+ * The counts of the summary over the grid, each a filter on the state: every
+ * connection, those that work, those that ask for an action.
+ */
+export type StateFilter = "all" | "working" | "action";
+
+/**
+ * Whether a connection in `status` asks for an action: to repair, to check,
+ * paused or blocked. Only a connection that works asks for none.
+ */
+export function needsAction(status: ConnectionStatusKey): boolean {
+  return status !== "working";
+}
 
 /** The word of each kind, on its chip and on the icon of a row. */
 export const KIND_LABEL_KEYS: Record<KindFilter, string> = {
@@ -89,8 +105,8 @@ export function serverNameOf(id: string): string | null {
 }
 
 /**
- * One row per connection, what needs repair first, then the rest by name and
- * account. `labelFor` names a row (a service's display name); it defaults to
+ * One row per connection, what asks for an action first, then the rest, each
+ * group by name and account. `labelFor` names a row (a service's display name); it defaults to
  * the connection's own label. `iconFor` gives a row its selection icon; it
  * defaults to none.
  */
@@ -105,6 +121,7 @@ export function connectionRows(
       kind: c.kind,
       label: labelFor(c),
       account: c.account,
+      path: c.path ?? null,
       provenance: c.provenance,
       remote: c.remote,
       official: c.official,
@@ -118,12 +135,12 @@ export function connectionRows(
   );
 }
 
-/** What needs repair first, then by name, then by account. Returns a new array. */
+/** What asks for an action first, then by name, then by account. Returns a new array. */
 export function sortRows(rows: readonly ConnectionRow[]): ConnectionRow[] {
-  const repair = (r: ConnectionRow): number => (r.status === "needs_repair" ? 0 : 1);
+  const rank = (r: ConnectionRow): number => (needsAction(r.status) ? 0 : 1);
   return [...rows].sort(
     (a, b) =>
-      repair(a) - repair(b) ||
+      rank(a) - rank(b) ||
       a.label.localeCompare(b.label) ||
       (a.account ?? "").localeCompare(b.account ?? ""),
   );
@@ -136,9 +153,20 @@ export function rowMatches(row: ConnectionRow, query: string): boolean {
   return [row.label, row.account, row.package].some((v) => v?.toLowerCase().includes(q) ?? false);
 }
 
-/** The rows the search and the kind chip let through, in their order. */
-export function visibleRows(rows: readonly ConnectionRow[], query: string, kind: KindFilter): ConnectionRow[] {
-  return rows.filter((r) => (kind === "all" || r.kind === kind) && rowMatches(r, query));
+/** Whether a row answers the state count chosen in the summary. */
+export function stateMatches(row: Pick<ConnectionRow, "status">, state: StateFilter): boolean {
+  if (state === "all") return true;
+  return state === "action" ? needsAction(row.status) : row.status === "working";
+}
+
+/** The rows the search, the kind chip and the state count let through, in their order. */
+export function visibleRows(
+  rows: readonly ConnectionRow[],
+  query: string,
+  kind: KindFilter,
+  state: StateFilter = "all",
+): ConnectionRow[] {
+  return rows.filter((r) => (kind === "all" || r.kind === kind) && stateMatches(r, state) && rowMatches(r, query));
 }
 
 /** How many rows each chip holds. */

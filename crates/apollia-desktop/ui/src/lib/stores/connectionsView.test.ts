@@ -12,11 +12,12 @@ describe("connectionsView", () => {
     navigateTo.mockClear();
   });
 
-  it("keeps the card, the search and the chip across a new mount of the screen", () => {
-    // GIVEN a card opened, words typed and a chip chosen
+  it("keeps the card, the search, the chip and the state count across a new mount of the screen", () => {
+    // GIVEN a card opened, words typed, a chip and a state count chosen
     connectionsView.select({ kind: "connection", id: "imap:ada@example.com" });
     connectionsView.search("fast");
     connectionsView.filter("imap");
+    connectionsView.filterState("action");
 
     // WHEN the screen is mounted again and reads the store
     const view = get(connectionsView);
@@ -26,6 +27,7 @@ describe("connectionsView", () => {
       selection: { kind: "connection", id: "imap:ada@example.com" },
       query: "fast",
       kind: "imap",
+      state: "action",
     });
   });
 
@@ -42,19 +44,21 @@ describe("connectionsView", () => {
   });
 
   it("opens the page on a connection asked by another screen, with its row in the list", () => {
-    // GIVEN the page left on a search and a chip that hide the connection
+    // GIVEN the page left on a search, a chip and a state count that hide the connection
     connectionsView.search("drive");
     connectionsView.filter("folder");
+    connectionsView.filterState("working");
 
     // WHEN another screen asks for the connection
     requestConnection("mcp:notion");
 
-    // THEN the Connections screen opens on its card, search and chip cleared
+    // THEN the Connections screen opens on its card, search, chip and state count cleared
     expect(navigateTo).toHaveBeenCalledWith("integrations");
     expect(get(connectionsView)).toEqual({
       selection: { kind: "connection", id: "mcp:notion" },
       query: "",
       kind: "all",
+      state: "all",
     });
   });
 });

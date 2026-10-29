@@ -11,6 +11,7 @@
  * Pure, so the list, the add window and the card share one rule.
  */
 import { deriveServerName, legacyServerName } from "$lib/integrations/connectorConfig";
+import type { ProviderId } from "$lib/connections/capabilities";
 import type { ConnectorEnrichmentView } from "$lib/types";
 
 const FILES = import.meta.glob("../assets/brand-logos/*.svg", {
@@ -64,4 +65,16 @@ export function selectionIconFor(
     }
   }
   return null;
+}
+
+/**
+ * The logo of an account of each native provider, by its Simple Icons name.
+ * Simple Icons carries no Microsoft mark, so a Microsoft account keeps the
+ * generic icon of an account.
+ */
+export const NATIVE_LOGOS: Readonly<Record<ProviderId, string | null>> = { google: "google", microsoft: null };
+
+/** The logo name of an account of `provider`, or null for none (or no provider). */
+export function nativeLogoName(provider: ProviderId | null): string | null {
+  return provider ? NATIVE_LOGOS[provider] : null;
 }
