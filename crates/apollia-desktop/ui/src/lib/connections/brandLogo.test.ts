@@ -1,7 +1,15 @@
 import { describe, expect, test } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 
-import { NATIVE_LOGOS, brandLogoNames, brandLogoPath, nativeLogoName, selectionIconFor, svgPath } from "$lib/connections/brandLogo";
+import {
+  NATIVE_LOGOS,
+  brandLogoNames,
+  brandLogoPath,
+  nativeLogoName,
+  selectionEntryFor,
+  selectionIconFor,
+  svgPath,
+} from "$lib/connections/brandLogo";
 import type { ConnectorEnrichmentView } from "$lib/types";
 
 const LOGOS = new URL("../assets/brand-logos/", import.meta.url);
@@ -137,5 +145,14 @@ describe("brand logos", () => {
     expect(selectionIconFor("stripe", map)).toBe("stripe");
     expect(selectionIconFor("my-own-server", map)).toBeNull();
     expect(selectionIconFor(null, map)).toBeNull();
+  });
+
+  test("a server finds the entry it was added from, so it is named by its label", () => {
+    // GIVEN the selection keyed as the page reads it
+    const map = new Map(selection.map((e) => [e.package_identifier, enrichmentOf(e)]));
+    // WHEN the entry of a server named by the add window is looked up
+    // THEN it is the entry whose label names the service, and a custom server has none
+    expect(selectionEntryFor("com-notion-mcp", map)?.operator_label.en).toBe("Notion");
+    expect(selectionEntryFor("my-own-server", map)).toBeNull();
   });
 });

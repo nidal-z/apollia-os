@@ -11,7 +11,7 @@ import "$lib/i18n";
 import { developerMode } from "$lib/stores/developerMode";
 import { connectionsView } from "$lib/stores/connectionsView";
 import { brandLogoPath } from "$lib/connections/brandLogo";
-import type { Connection } from "$lib/types";
+import type { Connection, ConnectionTool } from "$lib/types";
 import Connections from "../../../routes/Connections.svelte";
 
 // The page is mounted whole, its commands answered here: the summary, the
@@ -39,7 +39,7 @@ function connection(over: Partial<Connection>): Connection {
   } as Connection;
 }
 
-const tool = (id: string) => ({ id, family: "read", familySource: "selection", prechecked: true });
+const tool = (id: string): ConnectionTool => ({ id, family: "read", familySource: "selection", prechecked: true });
 
 const FIVE: Connection[] = [
   connection({ tools: [tool("mcp:notion/search"), tool("mcp:notion/create_page")] }),
@@ -261,6 +261,34 @@ describe("the tiles", () => {
     // THEN each tile gives its kind and origin
     expect(byTestid("connection-provenance-folder:demo")?.textContent).toContain("folder · custom");
     expect(byTestid("connection-provenance-mcp:notion")?.textContent).toContain("MCP · selection");
+  });
+
+  test("a service of the selection is named by its label, never by the name of its server", async () => {
+    // GIVEN a service whose server carries a technical name, added from the Notion entry
+    listed = [connection({ id: "mcp:com-notion-mcp", label: "com-notion-mcp" })];
+    enrichments = [
+      {
+        package_identifier: "@notionhq/notion-mcp-server",
+        enrichment: {
+          operator_label: { en: "Notion" },
+          category: "productivity",
+          icon_name: "notion",
+          registry_names: ["com.notion/mcp"],
+          trust_level: "verified_official",
+          auth_help_url: null,
+          auth_help_text: null,
+          auth_help_i18n_key: null,
+          oauth_pre_registered_client_id_env: null,
+        },
+      },
+    ];
+
+    // WHEN the page is shown
+    await mountPage();
+
+    // THEN its tile reads Notion, with the Notion logo
+    expect(byTestid("connection-tile-name-mcp:com-notion-mcp")?.textContent?.trim()).toBe("Notion");
+    expect(byTestid("connection-logo-mcp:com-notion-mcp")).not.toBeNull();
   });
 
   test("a tile opens the card of its connection, and its agents and activity are read once each", async () => {

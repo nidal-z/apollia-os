@@ -94,7 +94,7 @@
   import { triggerAutoName } from "$lib/chat/autoName";
   import { reportError } from "$lib/errors/reportError";
   import { enrichmentLabel } from "$lib/connections/catalogueText";
-  import { nativeLogoName, selectionIconFor } from "$lib/connections/brandLogo";
+  import { nativeLogoName, selectionEntryFor, selectionIconFor } from "$lib/connections/brandLogo";
   import { nativeConnectionId } from "$lib/connections/addFlow";
   import {
     tryConnectorPrompt,
@@ -209,7 +209,8 @@
       (c) => {
         if (c.kind !== "mcp") return c.label;
         const server = servers.find((s) => `mcp:${s.name}` === c.id);
-        return (server && enrichmentLabel(resolveEnrichment(server), $locale)) ?? c.label;
+        const entry = (server && resolveEnrichment(server)) || selectionEntryFor(serverNameOf(c.id), enrichmentMap);
+        return enrichmentLabel(entry, $locale) ?? c.label;
       },
       (c) => nativeLogoName(nativeProviderOf(c)) ?? selectionIconFor(serverNameOf(c.id), enrichmentMap),
     ),
