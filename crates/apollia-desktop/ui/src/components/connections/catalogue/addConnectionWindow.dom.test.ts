@@ -66,7 +66,7 @@ beforeEach(async () => {
       open: true, query: "", chosen: null, adding: false, resume: null, selection: [NOTION],
       publicEntries: [], failures: [], catalogueTier: "curated", loading: false, agents: [],
       installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose,
-      onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop,
+      onback: noop, onexploreall: noop, onadd: noop, onmanage: noop,
       onadded: noop, ondone: noop, onsignin: noop, ontry: noop, ontryprompt: noop, onopenrule: noop,
     } as never,
   });
@@ -123,7 +123,7 @@ describe("what the registry's search finds shows before Explore all", () => {
         open: true, query: "far", chosen: null, adding: false, resume: null, selection: [NOTION],
         publicEntries: [farAway], failures: [], catalogueTier: "curated", loading: false, agents: [],
         installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose,
-        onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop,
+        onback: noop, onexploreall: noop, onadd: noop, onmanage: noop,
         onadded: noop, ondone: noop, onsignin: noop, ontry: noop, ontryprompt: noop, onopenrule: noop,
       } as never,
     });

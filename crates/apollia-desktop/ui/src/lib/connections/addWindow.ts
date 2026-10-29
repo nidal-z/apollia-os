@@ -8,6 +8,7 @@
 import type { ProviderId } from "$lib/connections/capabilities";
 import { NATIVE_PROVIDERS } from "$lib/connections/connectionRows";
 import { matchesCatalogueQuery, matchesWords } from "$lib/connections/catalogueSource";
+import type { Usage } from "$lib/connections/usages";
 import type { RegistryServerView } from "$lib/types";
 
 /** The groups of the window, in the order they are shown. */
@@ -138,6 +139,32 @@ function catalogueNeeds(entry: RegistryServerView): AddNeed[] {
   return needs.length > 0 ? needs : ["nothing"];
 }
 
+/** Where the entries shown come from: Apollia's selection, the public catalogue, or both. */
+export type BrowseSource = "verified" | "public" | "all";
+
+export const BROWSE_SOURCES: readonly BrowseSource[] = ["verified", "public", "all"];
+
+/** The orders of the list. */
+export type BrowseSort = "recommended" | "name";
+
+/** One usage kept by the chips above the list, or all of them. */
+export type UsageChoice = Usage | "all";
+
+export interface BrowseState {
+  usage: UsageChoice;
+  source: BrowseSource;
+  sort: BrowseSort;
+  /** Only what is added without a key or a value to type. */
+  keyless: boolean;
+}
+
+export const BROWSE_DEFAULT: BrowseState = {
+  usage: "all",
+  source: "verified",
+  sort: "recommended",
+  keyless: false,
+};
+
 /**
  * Where the window stands. `adding` is set once Add was pressed on the card:
  * the flow of the addition stands in the card's place. `resume` names the
@@ -155,6 +182,8 @@ export interface AddWindowState {
   away: boolean;
   /** The address of a mailbox kept already, whose password the flow asks again. */
   mailbox: string;
+  /** How the list is browsed; kept while a dialog of the flow stands in the window's place. */
+  browse: BrowseState;
 }
 
 export const ADD_WINDOW_CLOSED: AddWindowState = {
@@ -165,6 +194,7 @@ export const ADD_WINDOW_CLOSED: AddWindowState = {
   resume: null,
   away: false,
   mailbox: "",
+  browse: BROWSE_DEFAULT,
 };
 
 /** Each opening starts on an empty search, nothing chosen. */

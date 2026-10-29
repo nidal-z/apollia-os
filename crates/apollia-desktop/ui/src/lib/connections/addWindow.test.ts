@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   ADD_GROUPS,
   ADD_WINDOW_CLOSED,
+  BROWSE_DEFAULT,
   addWindowGroups,
   backToSearch,
   chooseEntry,
@@ -140,7 +141,7 @@ describe("Cancel gives the search back, never the list", () => {
     const back = backToSearch(searched);
 
     // THEN the search stays, the card closes
-    expect(back).toEqual({ open: true, query: "notion", chosen: null, adding: false, resume: null, away: false, mailbox: "" });
+    expect(back).toEqual({ open: true, query: "notion", chosen: null, adding: false, resume: null, away: false, mailbox: "", browse: BROWSE_DEFAULT });
   });
 
   test("cancel in a flow not yet added keeps the words typed and closes the flow", () => {
@@ -152,7 +153,7 @@ describe("Cancel gives the search back, never the list", () => {
 
     // THEN the search stays, neither the card nor the flow is open
     expect(adding.adding).toBe(true);
-    expect(back).toEqual({ open: true, query: "notion", chosen: null, adding: false, resume: null, away: false, mailbox: "" });
+    expect(back).toEqual({ open: true, query: "notion", chosen: null, adding: false, resume: null, away: false, mailbox: "", browse: BROWSE_DEFAULT });
   });
 
   test("cancelling the sign-in the flow opened reopens the window on its search", () => {
@@ -165,7 +166,22 @@ describe("Cancel gives the search back, never the list", () => {
 
     // THEN the window is open again on the same words, no card open
     expect(adding.open).toBe(false);
-    expect(cancelled).toEqual({ open: true, query: "outlook", chosen: null, adding: false, resume: null, away: false, mailbox: "" });
+    expect(cancelled).toEqual({ open: true, query: "outlook", chosen: null, adding: false, resume: null, away: false, mailbox: "", browse: BROWSE_DEFAULT });
+  });
+
+  test("the usage, source and filter chosen survive the sign-in, and a new opening starts afresh", () => {
+    // GIVEN the window browsed by payments, everything, no setup, then left for a sign-in
+    const browse = { usage: "payments", source: "all", sort: "name", keyless: true } as const;
+    const away = leaveForFlow(startAdding({ ...openAddWindow(), browse, chosen: "native:microsoft" }));
+
+    // WHEN the sign-in is cancelled, and when the window is opened again later
+    const cancelled = flowCancelled(away);
+    const reopened = openAddWindow();
+
+    // THEN the window comes back browsed as it was, and a new opening is on the selection
+    expect(cancelled.browse).toEqual(browse);
+    expect(reopened.browse).toEqual(BROWSE_DEFAULT);
+    expect(BROWSE_DEFAULT).toEqual({ usage: "all", source: "verified", sort: "recommended", keyless: false });
   });
 
   test("an addition finished, or one the window did not open, does not reopen it", () => {
@@ -218,6 +234,7 @@ describe("Cancel gives the search back, never the list", () => {
       resume: "native:microsoft:ada@example.com",
       away: false,
       mailbox: "",
+      browse: BROWSE_DEFAULT,
     });
     // AND a sign-in the window did not open resumes nothing
     expect(flowResumed(ADD_WINDOW_CLOSED, "native:microsoft:ada@example.com")).toEqual(ADD_WINDOW_CLOSED);

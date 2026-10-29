@@ -54,7 +54,7 @@ async function render(props: Record<string, unknown>): Promise<string> {
       open: true, query: "", chosen: null, selection: [entry()], publicEntries: [], failures: [],
       catalogueTier: "curated", loading: false, agents: [], installedNames: new Set(),
       installedByPackage: new Map(), onclose: noop, onchoose: noop, onback: noop,
-      onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop, oninstalled: noop,
+      onexploreall: noop, onadd: noop, onmanage: noop, oninstalled: noop,
       ...props,
     } as never,
   }).body;
@@ -64,47 +64,139 @@ function text(html: string): string {
   return html.replace(/<!--[\s\S]*?-->/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 }
 
+/** Whether the button `testid` is rendered pressed. */
+function pressed(html: string, testid: string): boolean {
+  const tag = html.match(new RegExp(`<button[^>]*data-testid="${testid}"[^>]*>`))?.[0] ?? "";
+  return tag.includes('aria-pressed="true"');
+}
+
+function section(html: string, testid: string): string {
+  const at = html.indexOf(`data-testid="${testid}"`);
+  if (at < 0) return "";
+  const close = html.indexOf("</section>", at);
+  return html.slice(at, close);
+}
+
 describe("the add window", () => {
-  test("one search, then the four groups in order", async () => {
+  test("usages and filters across the top, then the groups by usage, the public catalogue apart, the address last", async () => {
     // GIVEN the window open on the selection
     // WHEN it is rendered
     const html = await render({});
 
-    // THEN one search field leads the groups, in their order
-    const order = ["catalogue-search", "catalogue-group-apollia", "catalogue-group-computer", "catalogue-group-public", "catalogue-group-address"];
+    // THEN the usages, the search, the source, the order and "no setup" lead,
+    //      then each usage the built-in entries and the selection fill, in
+    //      the order of the usages, then the public catalogue, then the address
+    const order = [
+      "catalogue-usages",
+      "catalogue-search",
+      "catalogue-source-verified",
+      "catalogue-sort",
+      "catalogue-keyless",
+      "catalogue-usage-communication",
+      "catalogue-usage-documents",
+      "catalogue-usage-files",
+      "catalogue-group-public",
+      "catalogue-group-address",
+    ];
     const at = order.map((id) => html.indexOf(`data-testid="${id}"`));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
     expect(html.match(/type="search"/g) ?? []).toHaveLength(1);
-    expect(text(html)).toContain(en.connections.add_window.groups.apollia);
+    expect(pressed(html, "catalogue-usage-chip-all")).toBe(true);
+    expect(pressed(html, "catalogue-source-verified")).toBe(true);
+    expect(html).toContain('data-testid="catalogue-source-verified"');
+    // AND Notion sits under documents beside Google, Microsoft and the mailbox under communication
+    const documents = section(html, "catalogue-usage-documents");
+    expect(documents).toContain('data-testid="catalogue-native-google"');
+    expect(documents).toContain('data-testid="catalogue-entry-com.notion/mcp"');
+    expect(documents).toContain('data-testid="catalogue-badge-verified"');
+    const communication = section(html, "catalogue-usage-communication");
+    expect(communication).toContain('data-testid="catalogue-native-microsoft"');
+    expect(communication).toContain('data-testid="catalogue-native-mailbox"');
+    expect(section(html, "catalogue-usage-files")).toContain('data-testid="catalogue-folder"');
+    expect(text(html)).toContain(en.connections.usage.documents);
     expect(text(html)).toContain(en.connections.add_window.groups.address);
   });
 
-  test("the public catalogue, once read, is marked as not verified", async () => {
-    // GIVEN the public catalogue read
-    // WHEN the window is rendered
-    const html = await render({ catalogueTier: "full", publicEntries: [WEATHER] });
-    const publicGroup = html.slice(html.indexOf('data-testid="catalogue-group-public"'), html.indexOf('data-testid="catalogue-group-address"'));
-
-    // THEN its entry is in the public group, which says it is not verified
-    expect(publicGroup).toContain('data-testid="catalogue-entry-io.github.someone/weather"');
-    expect(text(publicGroup)).toContain(en.connections.add_window.public_unverified);
-    expect(text(publicGroup)).toContain(en.connections.add_window.public_note);
+  test("the Google account shows its logo, Microsoft its generic icon", async () => {
+    // GIVEN the window open on the selection
+    // WHEN it is rendered
+    const html = await render({});
+    // THEN only Google carries a brand logo among the accounts
+    expect(html).toContain('data-testid="catalogue-logo-native-google"');
+    expect(html).not.toContain('data-testid="catalogue-logo-native-microsoft"');
   });
 
-  test("a chosen entry opens its card in the centre: what it is, what it asks, Add", async () => {
+  test("under the selection, the public catalogue read stays apart and is not mixed into the usages", async () => {
+    // GIVEN the public catalogue read, the source back on the selection, no words typed
+    // WHEN the window is rendered
+    const html = await render({ catalogueTier: "full", publicEntries: [WEATHER] });
+
+    // THEN its entry is nowhere, and the public section offers to browse it
+    expect(html).not.toContain('data-testid="catalogue-entry-io.github.someone/weather"');
+    expect(section(html, "catalogue-group-public")).toContain('data-testid="catalogue-explore-all"');
+  });
+
+  test("with the public catalogue as source, its entries are gathered by usage and marked as community", async () => {
+    // GIVEN the public catalogue read and chosen as source
+    const browse = { usage: "all", source: "public", sort: "recommended", keyless: false };
+    // WHEN the window is rendered
+    const html = await render({ catalogueTier: "full", publicEntries: [{ ...WEATHER, category: null }], browse });
+
+    // THEN the selection is gone, the entry is under "other", marked community,
+    //      the note says nobody checked it, and the order is by name alone
+    expect(html).not.toContain('data-testid="catalogue-entry-com.notion/mcp"');
+    const other = section(html, "catalogue-usage-other");
+    expect(other).toContain('data-testid="catalogue-entry-io.github.someone/weather"');
+    expect(other).toContain('data-testid="catalogue-badge-community"');
+    expect(html).toContain('data-testid="catalogue-public-note"');
+    expect(html).not.toContain('data-testid="catalogue-sort"');
+    expect(html).not.toContain('data-testid="catalogue-group-public"');
+  });
+
+  test("a usage nothing answers says so, with the public catalogue and the address to turn to", async () => {
+    // GIVEN the usage "payments" chosen on the selection, which holds Notion alone
+    const browse = { usage: "payments", source: "verified", sort: "recommended", keyless: false };
+    // WHEN the window is rendered
+    const html = await render({ browse });
+
+    // THEN the empty state names the usage and offers both ways out
+    const empty = html.slice(html.indexOf('data-testid="catalogue-empty"'));
+    expect(text(empty)).toContain(en.connections.add_window.browse.empty_usage);
+    expect(empty).toContain('data-testid="catalogue-empty-public"');
+    expect(empty).toContain('data-testid="catalogue-empty-address"');
+    expect(pressed(html, "catalogue-usage-chip-payments")).toBe(true);
+  });
+
+  test("a chosen entry opens its card beside the list: what it is, its usage, how it connects, what it asks, Add", async () => {
     // GIVEN the selection entry chosen
     // WHEN the window is rendered
     const html = await render({ chosen: "entry:com.notion/mcp" });
     const card = html.slice(html.indexOf('data-testid="catalogue-card"'));
 
-    // THEN the card names it, says what it asks, and offers Add and Cancel
+    // THEN the card names it, says its usage and how it connects, what it asks, and offers Add and Cancel
     expect(text(card)).toContain("Notion");
     expect(text(card)).toContain("Pages and databases");
+    expect(card).toContain('data-testid="catalogue-card-verified"');
+    expect(text(card)).toContain(en.connections.usage.documents);
+    expect(card).toContain('data-auth="keyless"');
     expect(card).toContain('data-testid="catalogue-card-needs"');
     expect(text(card)).toContain(en.connections.add_window.needs.online);
     expect(card).toContain('data-testid="catalogue-card-add"');
     expect(card).toContain('data-testid="catalogue-card-cancel"');
+  });
+
+  test("the card of an account says what the agents will be able to do with it", async () => {
+    // GIVEN the Google account chosen
+    // WHEN the window is rendered
+    const html = await render({ chosen: "native:google" });
+    const card = html.slice(html.indexOf('data-testid="catalogue-card"'));
+
+    // THEN its services are listed, it connects by the account, and its logo is drawn
+    expect(card).toContain('data-testid="catalogue-card-abilities"');
+    expect(text(card)).toContain(en.connections.add_window.card.abilities_title);
+    expect(card).toContain('data-auth="account"');
+    expect(card).toContain('data-testid="catalogue-card-logo"');
   });
 });
 

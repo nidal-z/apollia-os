@@ -86,8 +86,18 @@
     "catalogue-entry-io.apollia/seed-stub",
     "catalogue-logo-com.notion/mcp",
     "catalogue-logo-com.paypal.mcp/mcp",
+    "catalogue-logo-native-google",
     "catalogue-native-google",
     "catalogue-native-microsoft",
+    "catalogue-source-all",
+    "catalogue-source-public",
+    "catalogue-source-verified",
+    "catalogue-usage-chip-all",
+    "catalogue-usage-chip-payments",
+    "catalogue-usage-count-documents",
+    "catalogue-usage-documents",
+    "catalogue-usage-payments",
+    "catalogue-usage-toggle-documents",
     "channel-card-det-auto-channel",
     "channel-card-seed-channel-desktop",
     "channel-card-seed-channel-webhook",
@@ -10492,9 +10502,279 @@
       "timeoutMs": 10000
     },
     {
-      "kind": "click",
-      "testid": "catalogue-back-to-selection",
+      "kind": "waitFor",
+      "testid": "catalogue-source-all",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-public-note",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-badge-community",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-catalogue-usage-everything"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-source-public",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-sort",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-entry-io.apollia/seed-stub",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-source-verified",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-group-public",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-explore-all",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-usages",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-badge-verified",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-group-address",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-logo-native-google",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-usage-count-documents",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "catalogue-sort",
+      "value": "name",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "catalogue-sort",
+      "value": "recommended",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-usage-toggle-documents",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-usage-toggle-documents",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-usage-chip-payments",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-usage-payments",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-usage-documents",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-entry-com.paypal.mcp/mcp",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-keyless",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-entry-com.paypal.mcp/mcp",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13c-catalogue-usage-payments-keyless"
+    },
+    {
+      "kind": "fill",
+      "testid": "catalogue-search",
+      "text": "zzqq",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-empty-address",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13d-catalogue-usage-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-empty-public",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-source-all",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "catalogue-search",
+      "text": "",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-keyless",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-usage-chip-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-source-verified",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-explore-all",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-com.notion/mcp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-card-verified",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-card-facts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-card-usage",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-card-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-card-abilities",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-card-examples",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13e-catalogue-card-usage-abilities"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-card",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-source-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-io.apollia/seed-stub",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-card-community",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-card-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "catalogue-card",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-source-verified",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",

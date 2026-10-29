@@ -26,6 +26,37 @@ interface TauriInternalsStub {
 
 async function installTauriStub(page: Page, refuse: boolean): Promise<void> {
   await page.addInitScript((refuseAddition: boolean) => {
+    const stripe = {
+      name: "com.stripe/mcp",
+      title: "Stripe",
+      description: "Payments",
+      version: "1.0.0",
+      repository_url: null,
+      website_url: null,
+      packages: null,
+      trust_level: "official",
+      category: "finance",
+      enrichment: null,
+      is_installed: false,
+      remotes: [{
+        type: "streamable-http", url: "https://mcp.stripe.com",
+        headers: [{ name: "Authorization", description: null, isRequired: true, isSecret: true, format: null, default: null, choices: null }],
+      }],
+    };
+    const adyen = {
+      name: "io.github.someone/adyen-payments",
+      title: "Adyen payments",
+      description: "Payment links and refunds",
+      version: "1.0.0",
+      repository_url: null,
+      website_url: null,
+      packages: null,
+      trust_level: "community",
+      category: "finance",
+      enrichment: null,
+      is_installed: false,
+      remotes: [{ type: "streamable-http", url: "https://adyen.example/mcp", headers: [] }],
+    };
     const notion = {
       name: "com.notion/mcp",
       title: "Notion",
@@ -58,11 +89,11 @@ async function installTauriStub(page: Page, refuse: boolean): Promise<void> {
       get_onboarding_state: () => ({ completed: true, skipped: false, started_at: null }),
       read_config_file: () => ({ path: "~/.apollia/apollia.toml", exists: true, text: "", sha256: "", diagnostics: [], locked: [], pendingRestart: [] }),
       get_system_info: () => ({}),
-      fetch_mcp_curated: () => [notion],
+      fetch_mcp_curated: () => [notion, stripe],
       // Connections lists the built-in tools as the Apollia source; null would break the count.
       governance_list_tools: () => [],
-      // Asked by "Explore all" only; opening the catalogue never calls it.
-      fetch_mcp_registry: () => [notion],
+      // Asked once a source includes the public catalogue; opening the window never calls it.
+      fetch_mcp_registry: () => [notion, stripe, adyen],
       test_mcp_connection: () => ({
         kind: "success", server_info: "notion", protocol_version: "2025-06-18",
         tools: [], test_duration_ms: 5, live_health: null,
@@ -141,19 +172,83 @@ async function invokeCalls(page: Page): Promise<string[]> {
 }
 
 test.describe("the public catalogue is asked on request only", () => {
-  test("opening the selection asks nothing, Explore all asks once", async ({ page }) => {
+  test("opening the selection asks nothing, a source that includes the public catalogue asks once", async ({ page }) => {
     // GIVEN the selection open
     await installTauriStub(page, false);
     await openSelection(page);
 
-    // WHEN nothing else is done, then Explore all is pressed
+    // WHEN nothing else is done, then the source "everything" is chosen, then the selection, then the public catalogue
     const beforeExplore = await invokeCalls(page);
-    await page.getByTestId("catalogue-explore-all").click();
-    await expect(page.getByTestId("catalogue-back-to-selection")).toBeVisible();
+    await page.getByTestId("catalogue-source-all").click();
+    await expect(page.getByTestId("catalogue-entry-io.github.someone/adyen-payments")).toBeVisible();
+    await page.getByTestId("catalogue-source-verified").click();
+    await expect(page.getByTestId("catalogue-entry-io.github.someone/adyen-payments")).toHaveCount(0);
+    await page.getByTestId("catalogue-source-public").click();
+    await expect(page.getByTestId("catalogue-entry-io.github.someone/adyen-payments")).toBeVisible();
 
-    // THEN the registry was asked only after the button, and once
+    // THEN the registry was asked only after the first choice, and once
     expect(beforeExplore).not.toContain("fetch_mcp_registry");
     expect((await invokeCalls(page)).filter((c) => c === "fetch_mcp_registry")).toHaveLength(1);
+  });
+});
+
+test.describe("browsing the catalogue by usage", () => {
+  test("usage, source, filter and order combine, the card opens beside the list", async ({ page }) => {
+    // GIVEN the selection open
+    await installTauriStub(page, false);
+    await openSelection(page);
+
+    // WHEN the usage "Payments" is chosen
+    await page.getByTestId("catalogue-usage-chip-payments").click();
+
+    // THEN only the payments group shows, Stripe in it, marked verified
+    await expect(page.getByTestId("catalogue-usage-payments")).toBeVisible();
+    await expect(page.getByTestId("catalogue-usage-documents")).toHaveCount(0);
+    await expect(page.getByTestId("catalogue-usage-payments").getByTestId("catalogue-badge-verified")).toBeVisible();
+
+    // WHEN "no setup" is ticked, Stripe asking a key
+    await page.getByTestId("catalogue-keyless").click();
+
+    // THEN nothing is left, and the empty state offers the public catalogue
+    await expect(page.getByTestId("catalogue-empty")).toBeVisible();
+    await page.getByTestId("catalogue-empty-public").click();
+
+    // THEN the public payment service shows, marked community, Stripe still out
+    const payments = page.getByTestId("catalogue-usage-payments");
+    await expect(payments.getByTestId("catalogue-entry-io.github.someone/adyen-payments")).toBeVisible();
+    await expect(payments.getByTestId("catalogue-badge-community")).toBeVisible();
+    await expect(payments.getByTestId("catalogue-entry-com.stripe/mcp")).toHaveCount(0);
+
+    // WHEN the group is folded, then unfolded by the keyboard
+    await page.getByTestId("catalogue-usage-toggle-payments").click();
+    await expect(payments.getByTestId("catalogue-entry-io.github.someone/adyen-payments")).toHaveCount(0);
+    await page.getByTestId("catalogue-usage-toggle-payments").press("Enter");
+    await expect(payments.getByTestId("catalogue-entry-io.github.someone/adyen-payments")).toBeVisible();
+
+    // WHEN the entry is chosen
+    await payments.getByTestId("catalogue-entry-io.github.someone/adyen-payments").click();
+
+    // THEN its card opens beside the list, community, its usage and how it connects
+    await expect(page.getByTestId("catalogue-card")).toBeVisible();
+    await expect(page.getByTestId("catalogue-card-community")).toBeVisible();
+    await expect(page.getByTestId("catalogue-card-auth")).toHaveAttribute("data-auth", "keyless");
+    await expect(page.getByTestId("catalogue-list")).toBeVisible();
+  });
+
+  test("a narrow window puts the card under the list", async ({ page }) => {
+    // GIVEN the selection open, then the window narrowed
+    await installTauriStub(page, false);
+    await openSelection(page);
+    await page.setViewportSize({ width: 700, height: 900 });
+
+    // WHEN an entry is chosen
+    await page.getByTestId("catalogue-entry-com.notion/mcp").click();
+
+    // THEN the card starts under the list rather than beside it
+    const list = await page.getByTestId("catalogue-list").boundingBox();
+    const card = await page.getByTestId("catalogue-card").boundingBox();
+    expect(list && card).toBeTruthy();
+    if (list && card) expect(card.y).toBeGreaterThanOrEqual(list.y + list.height - 1);
   });
 });
 
@@ -265,17 +360,25 @@ test.describe("a source that does not answer", () => {
     await page.addInitScript(() => {
       const g = globalThis as unknown as { __TAURI_INTERNALS__: { invoke: (c: string, a: unknown) => unknown } };
       const base = g.__TAURI_INTERNALS__.invoke;
-      g.__TAURI_INTERNALS__.invoke = (cmd: string, args: unknown) =>
-        cmd === "fetch_mcp_registry" ? Promise.reject("the registry did not answer") : base(cmd, args);
+      const asks = globalThis as unknown as { __registryAsks: number };
+      asks.__registryAsks = 0;
+      g.__TAURI_INTERNALS__.invoke = (cmd: string, args: unknown) => {
+        if (cmd !== "fetch_mcp_registry") return base(cmd, args);
+        asks.__registryAsks += 1;
+        return Promise.reject("the registry did not answer");
+      };
     });
     await openSelection(page);
 
-    // WHEN Explore all is pressed
+    // WHEN the public catalogue is asked for
     await page.getByTestId("catalogue-explore-all").click();
 
-    // THEN a banner says so, the selection is still listed, nothing reads as the end of a catalogue
+    // THEN a banner says so, the selection is still listed, and choosing the source again asks again
     await expect(page.getByTestId("catalogue-failure")).toBeVisible();
     await expect(page.getByTestId("catalogue-entry-com.notion/mcp")).toBeVisible();
-    await expect(page.getByTestId("catalogue-explore-all")).toBeVisible();
+    await page.getByTestId("catalogue-source-all").click();
+    await expect
+      .poll(() => page.evaluate(() => (globalThis as unknown as { __registryAsks: number }).__registryAsks))
+      .toBe(2);
   });
 });

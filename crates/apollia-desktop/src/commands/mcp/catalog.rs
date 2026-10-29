@@ -115,6 +115,39 @@ pub(super) fn infer_category(name: &str, description: Option<&str>) -> Option<St
             &[
                 "notion",
                 "confluence",
+                "wiki",
+                "obsidian",
+                "notes",
+                "google docs",
+            ],
+            "documents",
+        ),
+        (
+            &[
+                "crm",
+                "hubspot",
+                "salesforce",
+                "pipedrive",
+                "sales",
+                "marketing",
+                "newsletter",
+            ],
+            "crm",
+        ),
+        (
+            &[
+                "figma",
+                "canva",
+                "penpot",
+                "sketch",
+                "miro",
+                "ui design",
+                "graphic design",
+            ],
+            "design",
+        ),
+        (
+            &[
                 "asana",
                 "trello",
                 "todoist",
@@ -416,6 +449,26 @@ mod tests {
         assert_eq!(view.version, "1.0.0");
         assert_eq!(view.website_url.as_deref(), Some("https://notion.so"));
         assert!(view.packages.is_none());
+    }
+
+    #[test]
+    fn test_infer_category_tells_documents_sales_and_design_apart_from_tasks() {
+        // GIVEN registry entries a person looks for by what they are for
+        let cases = [
+            ("notion-pages", "Read Notion pages", "documents"),
+            ("confluence-server", "Pages of the team wiki", "documents"),
+            ("hubspot-mcp", "Contacts and deals of the CRM", "crm"),
+            ("figma-tools", "Inspect frames and components", "design"),
+            ("asana-mcp", "Create and assign tasks", "productivity"),
+        ];
+
+        for (name, description, expected) in cases {
+            // WHEN its category is inferred from its name and description
+            let category = infer_category(name, Some(description));
+
+            // THEN the usage it serves is the one named
+            assert_eq!(category.as_deref(), Some(expected), "{name}");
+        }
     }
 
     #[test]

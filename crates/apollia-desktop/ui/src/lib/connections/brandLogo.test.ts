@@ -1,7 +1,14 @@
 import { describe, expect, test } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 
-import { brandLogoNames, brandLogoPath, selectionIconFor, svgPath } from "$lib/connections/brandLogo";
+import {
+  NATIVE_LOGOS,
+  brandLogoNames,
+  brandLogoPath,
+  nativeLogoPath,
+  selectionIconFor,
+  svgPath,
+} from "$lib/connections/brandLogo";
 import type { ConnectorEnrichmentView } from "$lib/types";
 
 const LOGOS = new URL("../assets/brand-logos/", import.meta.url);
@@ -27,6 +34,7 @@ const selection = JSON.parse(readFileSync(new URL("../../../../src/mcp/enrichmen
 const sources = JSON.parse(readFileSync(logo("sources.json"), "utf8")) as {
   simple_icons_version: string;
   logos: LogoSource[];
+  not_carried?: { brand: string; used_by: string; reason: string }[];
 };
 const svgFiles = readdirSync(LOGOS).filter((f) => f.endsWith(".svg")).sort();
 
@@ -98,10 +106,27 @@ describe("brand logos", () => {
       .filter((e) => brandLogoPath(e.icon_name) === null)
       .map((e) => e.icon_name);
     // THEN only the declared generic names have no logo, and every logo shipped
-    //      is used by an entry
+    //      is used by an entry or by a native account
     expect([...new Set(missing)].sort()).toEqual(GENERIC);
-    const used = new Set(selection.map((e) => e.icon_name));
+    const used = new Set([...selection.map((e) => e.icon_name), ...Object.values(NATIVE_LOGOS)]);
     expect(brandLogoNames().filter((n) => !used.has(n))).toEqual([]);
+  });
+
+  test("the Google account has its logo, and Microsoft's generic icon is a choice written down", () => {
+    // GIVEN the native accounts and the list of logo sources
+    // WHEN the logo of each account is resolved
+    const google = nativeLogoPath("google");
+    const microsoft = nativeLogoPath("microsoft");
+    // THEN Google draws the Simple Icons file of the pinned tag, Microsoft
+    //      draws none, and sources.json says why
+    expect(google).not.toBeNull();
+    expect(google).toBe(svgPath(readFileSync(logo("google.svg"), "utf8")));
+    expect(sources.logos.find((l) => l.icon_name === "google")?.source).toBe(
+      "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/google.svg",
+    );
+    expect(microsoft).toBeNull();
+    const written = sources.not_carried?.find((n) => n.brand === "Microsoft");
+    expect(written?.reason ?? "").toContain("Simple Icons");
   });
 
   test("a path that is not the single path of a Simple Icons file is refused", () => {

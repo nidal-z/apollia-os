@@ -81,7 +81,7 @@ function mountWindow(chosen: string | null): void {
       open: true, query: "", chosen, adding: false, resume: null, selection: [PAYPAL, GOCARDLESS],
       publicEntries: [], failures: [], catalogueTier: "curated", loading: false, agents: [],
       installedNames: new Set(), installedByPackage: new Map(), onclose: noop, onchoose: noop,
-      onback: noop, onexploreall: noop, onbacktoselection: noop, onadd: noop, onmanage: noop,
+      onback: noop, onexploreall: noop, onadd: noop, onmanage: noop,
       onadded: noop, ondone: noop, onsignin: noop, ontry: noop, ontryprompt: noop, onopenrule: noop,
     } as never,
   });
