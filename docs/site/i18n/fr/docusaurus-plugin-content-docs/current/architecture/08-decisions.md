@@ -527,11 +527,38 @@ distribution dédiée d'Apollia (voir [Inférence locale](#local-inference)), et
 elle se télécharge au premier serveur lancé par `node` ou `npx` qui en a
 besoin : la signature du manifeste est vérifiée avant toute requête d'archive,
 puis l'empreinte de l'archive, puis l'archive est extraite dans le magasin des
-moteurs. Un tel serveur tourne alors sur ce Node.js par son chemin absolu,
-jamais par le `PATH` ; tant qu'aucun n'est installé, son lancement échoue sur
-une erreur typée « Node.js requis ». Un poste sans réseau importe Node.js depuis
-un disque, par la même vérification. Les paquets npm des serveurs s'installent
-depuis un verrou qui porte une empreinte d'intégrité par paquet.
+moteurs. Un tel serveur tourne alors sur ce Node.js par son chemin absolu. Un
+poste sans réseau importe Node.js depuis un disque, par la même vérification.
+Les paquets npm des serveurs s'installent depuis un verrou qui porte une
+empreinte d'intégrité par paquet.
+
+### Le Node.js du poste, en repli {#mcp-machine-node}
+
+Quand le canal des moteurs ne peut pas fournir Node.js (non publié,
+injoignable, hors ligne, ou vérification refusée), Apollia se replie sur un
+Node.js déjà installé sur le poste. Cette version n'est pas vérifiée par
+Apollia, et elle est acceptée tout de même, parce que l'utilisateur l'a
+installée et choisie : elle a déjà sa confiance pour exécuter du code sur ce
+poste, et Apollia n'ajoute rien à ce qu'elle peut faire. La recherche lit les
+entrées absolues du `PATH` du processus (une entrée relative ou vide, qui vaut
+le dossier courant, est écartée, si bien qu'un `node` déposé dans le dossier
+d'où l'application est partie n'est jamais lancé), puis les dossiers
+d'installation usuels (`/opt/homebrew/bin`, `/usr/local/bin`,
+`Program Files\nodejs` sous Windows), les formules Homebrew non liées
+(`opt/node@<majeure>` sous `/opt/homebrew` et `/usr/local`, la majeure la plus
+récente d'abord) et les versions des gestionnaires courants (nvm, Volta, fnm),
+et le seul
+programme qu'elle lance est le `node` candidat lui-même, avec `--version`. Un
+candidat n'est retenu que si sa version majeure est 22 ou plus, la ligne que
+publie le canal et avec laquelle les verrous sont essayés, et si son propre npm
+se trouve à côté de lui ; `npx` et `npm` sont toujours ceux du `node` retenu. La
+version du canal reste préférée : dès qu'elle est installée, les serveurs
+tournent de nouveau sur elle. Ce qui reste vérifié, c'est le code des
+serveurs : un paquet épinglé s'installe toujours par `npm ci` depuis son verrou
+embarqué, qui refuse toute l'installation sur une seule empreinte d'intégrité
+qui ne correspond pas, les scripts des paquets désactivés. Quand il n'y a aucun
+Node.js, l'ajout dit d'en installer un ou d'attendre le canal, avec un lien vers
+la page d'aide.
 
 ### Un seul écrivain, un état publié, des appels détachés {#mcp-manager-snapshot}
 

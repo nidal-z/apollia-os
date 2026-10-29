@@ -1072,7 +1072,10 @@
       "added_failed": "The connection is added, but its trial failed",
       "failed_badge": "Failed",
       "remove": "Remove",
-      "add_failed": "The connection could not be added"
+      "add_failed": "The connection could not be added",
+      "node_unavailable": "This service needs Node.js. Apollia could not provide its own, and none was found on this computer. Install Node.js {major} or later, or wait until Apollia provides it, then try again.",
+      "node_unavailable_help": "How to give Apollia a Node.js",
+      "node_machine": "The trial ran on the Node.js installed on this computer."
     },
     "manage": {
       "tools_empty": "This connection offers no tool yet."

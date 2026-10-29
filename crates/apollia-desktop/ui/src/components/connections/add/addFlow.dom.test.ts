@@ -10,9 +10,10 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: pickFolder }));
 
 import "$lib/i18n";
 import en from "$lib/i18n/en.json";
+import fr from "$lib/i18n/fr.json";
 import { developerMode } from "$lib/stores/developerMode";
 import type { AddEntry } from "$lib/connections/addWindow";
-import type { Connection } from "$lib/types";
+import type { Connection, RegistryServerView } from "$lib/types";
 import AddFlow from "./AddFlow.svelte";
 import Connections from "../../../routes/Connections.svelte";
 
@@ -262,5 +263,137 @@ describe("the page around the flow", () => {
     expect(byTestid("catalogue-window")).toBeNull();
     expect(byTestid("connector-detail")).not.toBeNull();
     expect(byTestid("connection-detail-title")?.textContent).toContain("Microsoft");
+  });
+});
+
+describe("a service that runs on Node.js", () => {
+  // An entry of the selection launched by `npx`, so its addition needs Node.js.
+  const BROWSER: RegistryServerView = {
+    name: "io.example/web-browser",
+    title: "Web browser",
+    description: "Browse the web",
+    version: "1.0.0",
+    repository_url: null,
+    website_url: null,
+    packages: [
+      {
+        registryType: "npm",
+        identifier: "@example/browser-mcp",
+        version: "1.2.3",
+        runtimeHint: null,
+        transport: { type: "stdio" },
+        environmentVariables: [],
+        packageArguments: [],
+      },
+    ],
+    trust_level: "verified_official",
+    category: "productivity",
+    enrichment: null,
+    is_installed: false,
+    remotes: [],
+  };
+
+  const NO_NODE =
+    // i18n-ignore: the desktop's error, in English, as the window receives it
+    "node_unavailable: This service needs Node.js. Apollia could not provide its own (engines.json answered HTTP 404), and no Node.js was found on this machine.";
+
+  /** The connection of the service once added, with the tool it offers. */
+  const ADDED = connection({
+    id: "mcp:io-example-web-browser",
+    kind: "mcp",
+    label: "Web browser",
+    account: null,
+    tools: [{ id: "open", family: "read", familySource: "server", prechecked: false }],
+  } as Partial<Connection>);
+
+  async function mountAccepted(): Promise<void> {
+    listed = [ADDED];
+    answers.meta_generate_capabilities_coaching = () => [];
+    mounted = mount(AddFlow, {
+      target,
+      props: {
+        entry: { key: "catalogue:browser", kind: "catalogue", entry: BROWSER, source: "selection" },
+        name: "Web browser",
+        accepted: true,
+        onback: () => {},
+        ondone: () => {},
+        onopenrule: () => {},
+      },
+    });
+    await settle();
+  }
+
+  test("without any Node.js, the window says so in French, with a link to the help", async () => {
+    // GIVEN a French interface, and an addition the desktop refuses for want of Node.js
+    locale.set("fr");
+    await waitLocale("fr");
+    answers.add_mcp_server = () => {
+      throw NO_NODE;
+    };
+
+    // WHEN the warning of the service is accepted
+    await mountAccepted();
+
+    // THEN the failure says it in French, its help is a link to the Node.js section,
+    //      and the English detail is only behind the raw details
+    expect(byTestid("wizard-finalize-error")).not.toBeNull();
+    expect(byTestid("wizard-node-unavailable")).not.toBeNull();
+    expect(byTestid("wizard-node-unavailable")?.textContent?.trim()).toBe(
+      fr.integrations.wizard.node_unavailable.replace("{major}", "22"),
+    );
+    const link = byTestid("wizard-node-help") as HTMLAnchorElement | null;
+    expect(link?.textContent?.trim()).toBe(fr.integrations.wizard.node_unavailable_help);
+    expect(link?.getAttribute("href")).toBe(
+      "https://docs.apollia.fr/fr/operator-help/integrations/connect-an-mcp-server#nodejs",
+    );
+    const shown = byTestid("wizard-finalize-error")?.cloneNode(true) as HTMLElement;
+    shown.querySelectorAll("details").forEach((d) => d.remove());
+    expect(shown.textContent).not.toContain("This service needs Node.js");
+  });
+
+  test("a trial that ran on the Node.js of the machine says so", async () => {
+    // GIVEN a French interface, a service added, and a trial run on the machine's Node.js
+    locale.set("fr");
+    await waitLocale("fr");
+    answers.test_mcp_live_server = () => ({
+      kind: "success",
+      server_info: "browser",
+      protocol_version: "2025-06-18",
+      tools: [{ name: "open" }],
+      test_duration_ms: 3,
+      live_health: null,
+      node_source: "machine",
+    });
+    await mountAccepted();
+
+    // WHEN who may use it is confirmed and the trial runs
+    await click("add-flow-who-continue");
+
+    // THEN the trial succeeded, and says it used the Node.js of this computer
+    expect(byTestid("test-result-success")).not.toBeNull();
+    const line = byTestid("add-flow-machine-node");
+    expect(line).not.toBeNull();
+    expect(line?.textContent?.trim()).toBe(fr.integrations.wizard.node_machine);
+  });
+
+  test("a trial that ran on Apollia's Node.js says nothing of it", async () => {
+    // GIVEN a service added, and a trial run on the store's Node.js
+    answers.test_mcp_live_server = () => ({
+      kind: "success",
+      server_info: "browser",
+      protocol_version: "2025-06-18",
+      tools: [{ name: "open" }],
+      test_duration_ms: 3,
+      live_health: null,
+      node_source: "store",
+    });
+    await mountAccepted();
+
+    // WHEN the trial runs
+    await click("add-flow-who-continue");
+
+    // THEN no line about the Node.js of the machine is shown
+    expect(byTestid("test-result-success")).not.toBeNull();
+    expect(byTestid("add-flow-machine-node")).toBeNull();
   });
 });

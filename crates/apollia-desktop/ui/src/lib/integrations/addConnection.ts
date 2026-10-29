@@ -19,7 +19,7 @@ import {
   type PendingSecret,
   type WizardInvoke,
 } from "$lib/ipc/connections";
-import type { McpConnectionTestResponse, McpServerConfigInput } from "$lib/types";
+import type { McpConnectionTestResponse, McpServerConfigInput, NodeSource } from "$lib/types";
 
 export type { NodeRuntimeState };
 
@@ -89,6 +89,28 @@ export function refusalOf(message: string): Refusal | null {
   return null;
 }
 
+/**
+ * Start of the error an addition gives when no Node.js is available, neither
+ * from the engine channel nor on the machine: the desktop's
+ * `NODE_UNAVAILABLE_PREFIX`. The rest of the error is its detail, in English.
+ */
+// i18n-ignore: desktop error code matched verbatim, never shown to the user
+export const NODE_UNAVAILABLE_PREFIX = "node_unavailable:";
+
+/**
+ * Oldest major release of Node.js a server runs on, the desktop's
+ * `MIN_MACHINE_NODE_MAJOR`, said in the text that asks to install one.
+ */
+export const MIN_NODE_MAJOR = 22;
+
+/** The help section that tells how to give Apollia a Node.js. */
+export const NODE_HELP_PATH = "/operator-help/integrations/connect-an-mcp-server#nodejs";
+
+/** Whether an error message says no Node.js was available for the addition. */
+export function isNodeUnavailable(message: string): boolean {
+  return message.startsWith(NODE_UNAVAILABLE_PREFIX);
+}
+
 /** Whether adding `config` downloads Node.js first: an `npx` server runs on it. */
 export function needsNode(config: McpServerConfigInput): boolean {
   return config.command === "npx";
@@ -103,7 +125,12 @@ export function nodePercent(state: NodeRuntimeState): number | null {
 export type AdditionOutcome =
   | { kind: "added" }
   | { kind: "refused"; refusal: Refusal }
-  | { kind: "failed"; message: string };
+  | {
+      kind: "failed";
+      message: string;
+      /** Set when the failure is the absence of any Node.js, said in its own words. */
+      reason?: "node_unavailable";
+    };
 
 export interface AdditionOptions {
   invokeFn?: WizardInvoke;
@@ -150,15 +177,21 @@ export async function addConnection(
   } catch (err: unknown) {
     const message = messageOf(err);
     const refusal = refusalOf(message);
-    return refusal ? { kind: "refused", refusal } : { kind: "failed", message };
+    if (refusal) return { kind: "refused", refusal };
+    if (isNodeUnavailable(message)) return { kind: "failed", message, reason: "node_unavailable" };
+    return { kind: "failed", message };
   } finally {
     if (timer !== null) clearInterval(timer);
   }
 }
 
-export type TrialOutcome =
+export type TrialOutcome = (
   | { kind: "succeeded"; tools: number }
-  | { kind: "failed"; messageKey: string; detail: string | null };
+  | { kind: "failed"; messageKey: string; detail: string | null }
+) & {
+  /** Which Node.js ran the server, when it runs on one. */
+  nodeSource?: NodeSource;
+};
 
 /**
  * Try the connection `name` once it is added: the live session is tested and
@@ -175,16 +208,18 @@ export async function tryAddedConnection(
     const detail = messageOf(err);
     return { kind: "failed", messageKey: testErrorKey(detail), detail };
   }
+  const source = response.node_source ? { nodeSource: response.node_source } : {};
   if (response.kind === "oauth_required") {
     return {
       kind: "failed",
       messageKey: "integrations.wizard.test_err.oauth_required",
       detail: null,
+      ...source,
     };
   }
   const outcome = testOutcomeFromHealth(response.live_health ?? null);
   if (outcome.verdict === "ok" || outcome.verdict === "unverified") {
-    return { kind: "succeeded", tools: response.tools.length };
+    return { kind: "succeeded", tools: response.tools.length, ...source };
   }
   const detail = outcome.error ?? outcome.detail ?? null;
   const messageKey =
@@ -193,7 +228,7 @@ export async function tryAddedConnection(
       : detail
         ? testErrorKey(detail)
         : "integrations.wizard.test_err.generic";
-  return { kind: "failed", messageKey, detail };
+  return { kind: "failed", messageKey, detail, ...source };
 }
 
 /** The message, in plain words, for a raw error of a connection test. */

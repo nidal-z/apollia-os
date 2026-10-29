@@ -2,7 +2,9 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use apollia_mcp::transport::node::{default_engines_root, installed_node, NodeInstall};
+use apollia_mcp::transport::node::{
+    default_engines_root, installed_node, MachineNodeSearch, NodeInstall,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -40,22 +42,40 @@ pub struct InstalledNpmServer {
 #[derive(Debug, Clone)]
 pub struct NpmServerInstaller {
     connections: PathBuf,
-    /// The Node.js to run npm with. `None` reads the engine store's.
-    node: Option<NodeInstall>,
+    /// The Node.js to run npm with.
+    node: NodeChoice,
     /// The registry npm reads.
     registry: String,
     /// How many times npm retries a fetch; npm's own default when `None`.
     fetch_retries: Option<u32>,
 }
 
+/// Which Node.js an installer runs npm with.
+#[derive(Debug, Clone)]
+enum NodeChoice {
+    /// This one, whatever is installed. Tests only.
+    #[cfg(test)]
+    Fixed(NodeInstall),
+    /// The engine store's under `engines_root`, or failing that the one the
+    /// search finds on the machine, with the npm of the same release.
+    Discover {
+        engines_root: Option<PathBuf>,
+        machine: MachineNodeSearch,
+    },
+}
+
 impl NpmServerInstaller {
     /// An installer rooted at `connections` (normally
     /// [`crate::mcp::python_server::connections_dir`]), running the npm of the
-    /// Node.js the engine store holds, against the public registry.
+    /// Node.js the engine store holds, or failing that of the Node.js installed
+    /// on the machine, against the public registry.
     pub fn new(connections: PathBuf) -> Self {
         Self {
             connections,
-            node: None,
+            node: NodeChoice::Discover {
+                engines_root: default_engines_root(),
+                machine: MachineNodeSearch::from_env(),
+            },
             registry: DEFAULT_REGISTRY.to_string(),
             fetch_retries: None,
         }
@@ -68,7 +88,28 @@ impl NpmServerInstaller {
     pub fn using(connections: PathBuf, node: NodeInstall, registry: String) -> Self {
         Self {
             connections,
-            node: Some(node),
+            node: NodeChoice::Fixed(node),
+            registry,
+            fetch_retries: Some(0),
+        }
+    }
+
+    /// An installer that looks for Node.js the way the product does, in the
+    /// store at `engines_root` then through `machine`, against `registry`.
+    /// Tests only.
+    #[cfg(test)]
+    pub fn discovering(
+        connections: PathBuf,
+        engines_root: PathBuf,
+        machine: MachineNodeSearch,
+        registry: String,
+    ) -> Self {
+        Self {
+            connections,
+            node: NodeChoice::Discover {
+                engines_root: Some(engines_root),
+                machine,
+            },
             registry,
             fetch_retries: Some(0),
         }
@@ -149,11 +190,25 @@ impl NpmServerInstaller {
     fn node(&self, package: &str) -> Result<(NodeInstall, PathBuf), NpmServerError> {
         let required = || NpmServerError::NodeRequired(package.to_string());
         let node = match &self.node {
-            Some(node) => node.clone(),
-            None => default_engines_root()
-                .as_deref()
-                .and_then(installed_node)
-                .ok_or_else(required)?,
+            #[cfg(test)]
+            NodeChoice::Fixed(node) => node.clone(),
+            NodeChoice::Discover {
+                engines_root,
+                machine,
+            } => match engines_root.as_deref().and_then(installed_node) {
+                Some(node) => node,
+                None => {
+                    let found = machine.find().map_err(|_| required())?;
+                    tracing::event!(
+                        tracing::Level::INFO,
+                        package = %package,
+                        node = %found.install.node.display(),
+                        version = %found.version,
+                        "mcp.npm_server.machine_node"
+                    );
+                    found.install
+                }
+            },
         };
         let npm_cli = node
             .npx_cli

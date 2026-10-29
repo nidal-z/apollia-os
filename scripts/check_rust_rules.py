@@ -303,8 +303,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # installs from an integrity lock, refuses an altered digest, and that the
     # rewritten command starts offline. One helper packs the tarball the fake
     # registry serves (its digest is npm's own), the other runs the entry point
-    # the installer wrote; neither can be observed without a process.
-    "crates/apollia-desktop/src/mcp/npm_server/tests.rs": 2,
+    # the installer wrote; neither can be observed without a process. A third
+    # helper writes the fake `node` of the machine, which answers `--version`
+    # and plays npm, to show that the fallback installs with `npm ci`.
+    "crates/apollia-desktop/src/mcp/npm_server/tests.rs": 3,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
     "crates/apollia-llm/src/repository.rs": 1,
     "crates/apollia-llm/src/retry.rs": 1,
@@ -313,6 +315,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # deadline fails a read that waits for those pages instead of hanging.
     "crates/apollia-mcp/src/registry/catalogue.rs": 2,
     "crates/apollia-mcp/src/transport/http.rs": 3,
+    # The process is the subject: the search for the Node.js of the machine
+    # keeps a candidate by the release `node --version` answers. One helper
+    # writes the fake `node` that answers it and logs what it was asked, or
+    # that never answers, to show the deadline of the search stops it.
+    "crates/apollia-mcp/src/transport/node/machine/tests.rs": 1,
     "crates/apollia-mcp/src/transport/sse.rs": 3,
     "crates/apollia-mcp/src/transport/stdio.rs": 1,
     "crates/apollia-notifications/src/channels/webhook.rs": 8,

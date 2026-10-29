@@ -5,10 +5,12 @@
 //! fetches whatever the registry publishes at every start. Apollia does not
 //! launch it that way. When such a connection is added, the package is
 //! installed once into a directory of its own, `<data>/connections/<name>/`,
-//! by the npm of the Node.js the engine store holds, and the launch command is
-//! rewritten to `node <absolute path of the package's entry point>`. A later
-//! start runs that file on the store's Node.js and never runs npm nor touches
-//! the network.
+//! by the npm of the Node.js the engine store holds (or, when it holds none,
+//! of the Node.js installed on the machine, see
+//! [`apollia_mcp::transport::node::MachineNodeSearch`]), and the launch command
+//! is rewritten to `node <absolute path of the package's entry point>`. A later
+//! start runs that file on the same choice of Node.js and never runs npm nor
+//! touches the network.
 //!
 //! What gets installed is fixed at that moment and recorded beside it:
 //!
@@ -111,7 +113,8 @@ pub enum NpmServerError {
         /// What is wrong with it.
         reason: String,
     },
-    /// The engine store holds no Node.js, or one without npm.
+    /// Neither the engine store nor the machine holds a Node.js Apollia
+    /// accepts, with its npm.
     #[error("installing '{0}' requires Node.js, which is not installed")]
     NodeRequired(String),
     /// npm refused or failed the installation (a digest mismatch lands here).

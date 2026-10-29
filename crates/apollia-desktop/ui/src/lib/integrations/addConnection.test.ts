@@ -163,6 +163,22 @@ describe("adding a connection after its warning", () => {
     // THEN the failure carries its message
     expect(outcome).toEqual({ kind: "failed", message: "spawn ENOENT" });
   });
+
+  test("an addition without any Node.js is told apart by its code", async () => {
+    // GIVEN a desktop that finds no Node.js for an `npx` server
+    const message = "node_unavailable: This service needs Node.js.";
+    const invokeFn = fakeInvoke([], {
+      add_mcp_server: () => {
+        throw message;
+      },
+    });
+
+    // WHEN it is added
+    const outcome = await addConnection(config({ command: "npx" }), [], { invokeFn });
+
+    // THEN the failure is the absence of Node.js, its detail kept
+    expect(outcome).toEqual({ kind: "failed", message, reason: "node_unavailable" });
+  });
 });
 
 describe("the refusals of the admission", () => {
@@ -248,6 +264,27 @@ describe("the trial once added", () => {
 
     // THEN it succeeded with two tools
     expect(outcome).toEqual({ kind: "succeeded", tools: 2 });
+  });
+
+  test("a trial says which Node.js ran the server", async () => {
+    // GIVEN a live test of a server that ran on the Node.js of the machine
+    const invokeFn = fakeInvoke([], {
+      test_mcp_live_server: {
+        kind: "success",
+        server_info: "browser",
+        protocol_version: "2025-06-18",
+        tools: [{ name: "open" }],
+        test_duration_ms: 3,
+        live_health: null,
+        node_source: "machine",
+      },
+    });
+
+    // WHEN the added connection is tried
+    const outcome = await tryAddedConnection("browser", invokeFn);
+
+    // THEN the outcome carries where its Node.js came from
+    expect(outcome).toEqual({ kind: "succeeded", tools: 1, nodeSource: "machine" });
   });
 
   test("a failed trial reads in plain words and keeps the raw detail", async () => {

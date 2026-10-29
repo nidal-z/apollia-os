@@ -1072,7 +1072,10 @@
       "added_failed": "La connexion est ajoutée, mais son essai a échoué",
       "failed_badge": "En échec",
       "remove": "Retirer",
-      "add_failed": "La connexion n'a pas pu être ajoutée"
+      "add_failed": "La connexion n'a pas pu être ajoutée",
+      "node_unavailable": "Ce service a besoin de Node.js. Apollia n'a pas pu fournir le sien, et aucun n'a été trouvé sur cet ordinateur. Installez Node.js {major} ou plus récent, ou attendez qu'Apollia le fournisse, puis réessayez.",
+      "node_unavailable_help": "Comment donner Node.js à Apollia",
+      "node_machine": "L'essai a utilisé le Node.js installé sur cet ordinateur."
     },
     "manage": {
       "tools_empty": "Cette connexion n'offre aucun outil pour l'instant."

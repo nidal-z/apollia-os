@@ -219,9 +219,20 @@ export interface McpConnectionTestResultView {
  * - `oauth_required` → switch to "Sign in with <provider>" mode and call
  *   `mcp_oauth_login` once the user clicks.
  */
-export type McpConnectionTestResponse =
+export type McpConnectionTestResponse = (
   | ({ kind: "success" } & McpConnectionTestResultView)
-  | { kind: "oauth_required"; www_authenticate: string };
+  | { kind: "oauth_required"; www_authenticate: string }
+) & {
+  /**
+   * Which Node.js ran the server, given by `test_mcp_live_server` for a
+   * server launched by `node` or `npx`: the engine store's, or the one
+   * installed on the machine when the store holds none.
+   */
+  node_source?: NodeSource;
+};
+
+/** Where the Node.js that runs a server comes from. */
+export type NodeSource = "store" | "machine";
 
 /** Discovery payload returned by `mcp_oauth_discover`. */
 export interface McpOAuthDiscoveryResult {
