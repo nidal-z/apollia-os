@@ -548,6 +548,120 @@ async fn without_node_the_installation_is_refused_with_node_required() {
     assert!(!work.path().join("connections").join("echo").exists());
 }
 
+/// A Node.js release installed on the machine under `prefix`, whose `node`
+/// answers `version` to `--version` and otherwise plays a successful `npm`:
+/// it writes `apollia-echo-server` at 0.1.0 into the directory it runs in.
+/// Every argument list it is given is appended to `<prefix>/calls`.
+#[cfg(unix)]
+fn machine_node(prefix: &Path, version: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let bin = prefix.join("bin");
+    std::fs::create_dir_all(&bin).expect("bin");
+    let calls = prefix.join("calls");
+    let package = format!("node_modules/{TEST_PACKAGE}");
+    let script = format!(
+        "#!/bin/sh\n\
+         echo \"$@\" >> '{calls}'\n\
+         if [ \"$1\" = --version ]; then echo {version}; exit 0; fi\n\
+         mkdir -p {package}/dist\n\
+         printf '%s' '{{\"name\":\"{TEST_PACKAGE}\",\"version\":\"0.1.0\",\"bin\":{{\"{TEST_PACKAGE}\":\"dist/index.js\"}}}}' > {package}/package.json\n\
+         : > {package}/dist/index.js\n",
+        calls = calls.display(),
+    );
+    let node = bin.join("node");
+    std::fs::write(&node, script).expect("node");
+    std::fs::set_permissions(&node, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    let npm = prefix.join("lib/node_modules/npm/bin");
+    std::fs::create_dir_all(&npm).expect("npm");
+    std::fs::write(npm.join("npx-cli.js"), b"").expect("npx");
+    std::fs::write(npm.join("npm-cli.js"), b"").expect("npm-cli");
+    node
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn an_empty_store_installs_with_the_npm_of_the_machine_node_and_its_lock() {
+    // GIVEN an engine store without Node.js (its channel answered 404), a
+    //       Node.js 22 installed on the machine, and a pinned entry with its lock
+    let work = tempfile::tempdir().expect("work");
+    let prefix = work.path().join("machine");
+    let node = machine_node(&prefix, "v22.11.0");
+    let machine = apollia_mcp::transport::node::MachineNodeSearch::new(
+        Some(prefix.join("bin").into_os_string()),
+        None,
+        Vec::new(),
+    );
+    let published = Published {
+        version: "0.1.0".into(),
+        tarball: Vec::new(),
+        integrity: "sha512-AAAA".into(),
+    };
+    let lock = lock_for(
+        "https://registry.npmjs.org",
+        &published,
+        &published.integrity,
+    );
+    let installer = NpmServerInstaller::discovering(
+        work.path().join("connections"),
+        work.path().join("engines"),
+        machine,
+        "http://127.0.0.1:9/".into(),
+    );
+
+    // WHEN the connection is installed
+    let installed = installer
+        .provision("echo", &locked_plan(&lock, "0.1.0"))
+        .await
+        .expect("install on the machine's Node.js");
+
+    // THEN the machine's node ran its own npm with `ci`, the lock being
+    //      required, after only being asked its version
+    let calls = std::fs::read_to_string(prefix.join("calls")).expect("calls");
+    let mut lines = calls.lines();
+    assert_eq!(lines.next(), Some("--version"), "{calls}");
+    let npm = lines.next().expect("npm ran");
+    let npm_cli = prefix.join("lib/node_modules/npm/bin/npm-cli.js");
+    assert!(
+        npm.starts_with(&format!("{} ci ", npm_cli.display())),
+        "{npm}"
+    );
+    assert!(npm.contains("--ignore-scripts"), "{npm}");
+    assert!(installed.locked);
+    assert!(installed
+        .entry_path
+        .starts_with(work.path().join("connections").join("echo")));
+    assert!(node.is_file());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_machine_node_too_old_does_not_install_and_leaves_nothing() {
+    // GIVEN an empty store and only a Node.js 18 on the machine
+    let work = tempfile::tempdir().expect("work");
+    let prefix = work.path().join("machine");
+    machine_node(&prefix, "v18.19.0");
+    let machine = apollia_mcp::transport::node::MachineNodeSearch::new(
+        Some(prefix.join("bin").into_os_string()),
+        None,
+        Vec::new(),
+    );
+    let installer = NpmServerInstaller::discovering(
+        work.path().join("connections"),
+        work.path().join("engines"),
+        machine,
+        "http://127.0.0.1:9/".into(),
+    );
+
+    // WHEN an npx connection is prepared
+    let result = prepare(npx_config("echo", &["-y", TEST_PACKAGE]), &[], &installer).await;
+
+    // THEN it is refused as needing Node.js, npm never ran, nothing is left
+    assert!(matches!(result, Err(NpmServerError::NodeRequired(_))));
+    let calls = std::fs::read_to_string(prefix.join("calls")).expect("calls");
+    assert_eq!(calls, "--version\n");
+    assert!(!work.path().join("connections").join("echo").exists());
+}
+
 // ─── The shipped catalogue, against the real registry ──────────────────────
 
 #[tokio::test]

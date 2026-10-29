@@ -15,6 +15,7 @@ use tauri::State;
 
 use crate::mcp::npm_server::{self, NpmServerInstaller};
 use crate::mcp::python_server::{self, PythonServerInstaller};
+use apollia_mcp::transport::node::{MachineNode, MachineNodeSearch, MIN_MACHINE_NODE_MAJOR};
 
 /// The catalogue shapes live in `catalog`, the two registry fetches in
 /// `discovery`, and the HTTP OAuth path in `oauth`.
@@ -258,8 +259,10 @@ pub async fn node_runtime_state(
 /// Longest wait for the engine store to download Node.js.
 const NODE_INSTALL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
 
-/// Make sure the engine store holds Node.js, asking the runtime to download it
-/// when it does not and waiting for the outcome.
+/// Make sure a Node.js is there for a server that needs one: the engine
+/// store's, asking the runtime to download it when it does not hold it and
+/// waiting for the outcome, or, when the channel cannot provide it, the one
+/// installed on the machine.
 async fn ensure_node(link: &RuntimeLink) -> Result<(), String> {
     let installed = || {
         apollia_mcp::transport::node::default_engines_root()
@@ -270,6 +273,30 @@ async fn ensure_node(link: &RuntimeLink) -> Result<(), String> {
     if installed() {
         return Ok(());
     }
+    let channel = node_from_channel(link).await;
+    let machine = MachineNodeSearch::from_env();
+    let source = tokio::task::spawn_blocking(move || settle_node(channel, &machine))
+        .await
+        .map_err(|e| format!("the search for Node.js stopped: {e}"))??;
+    if let NodeSource::Machine {
+        node,
+        channel_error,
+    } = source
+    {
+        tracing::event!(
+            tracing::Level::WARN,
+            channel_error = %channel_error,
+            node = %node.install.node.display(),
+            version = %node.version,
+            "mcp.node.machine_fallback"
+        );
+    }
+    Ok(())
+}
+
+/// Ask the runtime to download Node.js into the engine store and wait for
+/// the outcome; the error says why the channel could not provide it.
+async fn node_from_channel(link: &RuntimeLink) -> Result<(), String> {
     let started = std::time::Instant::now();
     let mut state = link
         .post_json("/api/v1/engines/nodejs", &serde_json::json!({}))
@@ -282,18 +309,69 @@ async fn ensure_node(link: &RuntimeLink) -> Result<(), String> {
                     .get("error")
                     .and_then(serde_json::Value::as_str)
                     .unwrap_or("unknown error");
-                return Err(format!("Node.js could not be installed: {error}"));
+                return Err(error.to_owned());
             }
             Some("absent") | None => {
-                return Err("Node.js is required and its download did not start".into());
+                return Err("its download did not start".into());
             }
             _ => {}
         }
         if started.elapsed() > NODE_INSTALL_TIMEOUT {
-            return Err("Node.js is still downloading; try again once it is installed".into());
+            return Err("its download is still running".into());
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         state = link.get_json("/api/v1/engines/nodejs").await?;
+    }
+}
+
+/// The help page that tells how to give Apollia a Node.js.
+const NODE_HELP_URL: &str =
+    "https://docs.apollia.fr/operator-help/integrations/connect-an-mcp-server#nodejs";
+
+/// Where the Node.js of an addition comes from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum NodeSource {
+    /// The engine store's, verified by Apollia.
+    Store,
+    /// The one installed on the machine, used because the channel could not
+    /// provide Apollia's, for the reason `channel_error` gives.
+    Machine {
+        node: MachineNode,
+        channel_error: String,
+    },
+}
+
+/// Decide which Node.js an addition runs on, from what the channel answered:
+/// the store's when the channel provided it, the machine's otherwise, and
+/// when there is none, a message that says what to do.
+fn settle_node(
+    channel: Result<(), String>,
+    machine: &MachineNodeSearch,
+) -> Result<NodeSource, String> {
+    let channel_error = match channel {
+        Ok(()) => return Ok(NodeSource::Store),
+        Err(e) => e,
+    };
+    match machine.find() {
+        Ok(node) => Ok(NodeSource::Machine {
+            node,
+            channel_error,
+        }),
+        Err(missing) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                channel_error = %channel_error,
+                machine = %missing,
+                "mcp.node.unavailable"
+            );
+            Err(format!(
+                "This service needs Node.js. Apollia could not provide its own \
+                 ({channel_error}), and {missing}. Install Node.js \
+                 {MIN_MACHINE_NODE_MAJOR} or later from https://nodejs.org, or wait \
+                 until Apollia publishes it, then add the service again. Help: \
+                 {NODE_HELP_URL}"
+            ))
+        }
     }
 }
 
@@ -438,5 +516,123 @@ mod tests {
         assert_eq!(entries[0].payload["event"], "warning_accepted");
         assert_eq!(entries[0].payload["actor"], "desktop");
         journal.shutdown().await;
+    }
+
+    /// A Node.js release under `prefix` whose `node` answers `version`, with
+    /// its npm beside it, as the upstream archive lays it out.
+    #[cfg(unix)]
+    fn fake_node(prefix: &std::path::Path, version: &str) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let bin = prefix.join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let node = bin.join("node");
+        std::fs::write(&node, format!("#!/bin/sh\necho {version}\n")).unwrap();
+        std::fs::set_permissions(&node, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let npm = prefix.join("lib/node_modules/npm/bin");
+        std::fs::create_dir_all(&npm).unwrap();
+        std::fs::write(npm.join("npx-cli.js"), b"").unwrap();
+        std::fs::write(npm.join("npm-cli.js"), b"").unwrap();
+        node
+    }
+
+    fn search(dirs: &[std::path::PathBuf]) -> MachineNodeSearch {
+        let path = std::env::join_paths(dirs).unwrap();
+        MachineNodeSearch::new(Some(path), None, Vec::new())
+    }
+
+    const CHANNEL_404: &str =
+        "https://github.com/Apollia-OS/apollia-os/releases/download/engines-stable/engines.json answered HTTP 404";
+
+    // A channel that answers 404 leaves the addition to the Node.js of the
+    // machine, when one is installed.
+    #[cfg(unix)]
+    #[test]
+    fn test_a_channel_in_404_falls_back_on_the_node_of_the_machine() {
+        // GIVEN a channel that could not provide Node.js, and a Node.js 22
+        //       installed on the machine
+        let dir = tempfile::TempDir::new().unwrap();
+        let node = fake_node(&dir.path().join("node22"), "v22.11.0");
+        let machine = search(&[dir.path().join("node22/bin")]);
+
+        // WHEN the addition settles which Node.js it runs on
+        let source = settle_node(Err(CHANNEL_404.to_owned()), &machine).unwrap();
+
+        // THEN it runs on the machine's, with the npm beside it, and keeps
+        //      why the channel failed
+        let npx_cli = dir
+            .path()
+            .join("node22/lib/node_modules/npm/bin/npx-cli.js");
+        let expected = NodeSource::Machine {
+            node: MachineNode {
+                install: apollia_mcp::transport::node::NodeInstall {
+                    node,
+                    npx_cli: Some(npx_cli),
+                },
+                version: "v22.11.0".to_owned(),
+            },
+            channel_error: CHANNEL_404.to_owned(),
+        };
+        assert_eq!(source, expected);
+    }
+
+    // The channel's Node.js is preferred: when it is there, the machine is
+    // not searched.
+    #[cfg(unix)]
+    #[test]
+    fn test_a_channel_that_provides_node_is_preferred() {
+        // GIVEN a channel that provided Node.js, and another one on the machine
+        let dir = tempfile::TempDir::new().unwrap();
+        fake_node(&dir.path().join("node24"), "v24.1.0");
+        let machine = search(&[dir.path().join("node24/bin")]);
+
+        // WHEN the addition settles which Node.js it runs on
+        let source = settle_node(Ok(()), &machine).unwrap();
+
+        // THEN it is the store's
+        assert_eq!(source, NodeSource::Store);
+    }
+
+    // A machine whose only Node.js is too old is not a fallback.
+    #[cfg(unix)]
+    #[test]
+    fn test_a_node_too_old_on_the_machine_is_no_fallback() {
+        // GIVEN a channel in 404, and only a Node.js 18 on the machine
+        let dir = tempfile::TempDir::new().unwrap();
+        fake_node(&dir.path().join("node18"), "v18.19.0");
+        let machine = search(&[dir.path().join("node18/bin")]);
+
+        // WHEN the addition settles which Node.js it runs on
+        let message = settle_node(Err(CHANNEL_404.to_owned()), &machine).unwrap_err();
+
+        // THEN it is refused, and the message names the old release
+        assert!(message.contains("v18.19.0"), "{message}");
+        assert!(message.contains("Node.js 22 or later"), "{message}");
+    }
+
+    // Without any Node.js, the message says plainly what to do.
+    #[test]
+    fn test_without_any_node_the_message_says_what_to_do() {
+        // GIVEN a channel in 404, and a machine without Node.js
+        let dir = tempfile::TempDir::new().unwrap();
+        let machine = search(&[dir.path().to_path_buf()]);
+
+        // WHEN the addition settles which Node.js it runs on
+        let message = settle_node(Err(CHANNEL_404.to_owned()), &machine).unwrap_err();
+
+        // THEN the message says to install Node.js or wait for the channel,
+        //      keeps the channel's reason, and links the help page
+        assert!(message.contains("This service needs Node.js"), "{message}");
+        assert!(message.contains("Install Node.js 22 or later"), "{message}");
+        assert!(
+            message.contains("wait until Apollia publishes it"),
+            "{message}"
+        );
+        assert!(message.contains("HTTP 404"), "{message}");
+        assert!(
+            message.contains("no Node.js was found on this machine"),
+            "{message}"
+        );
+        assert!(message.contains(NODE_HELP_URL), "{message}");
+        assert!(!message.contains("could not be installed"), "{message}");
     }
 }

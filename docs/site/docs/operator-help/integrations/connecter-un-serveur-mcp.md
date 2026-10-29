@@ -73,4 +73,11 @@ Under the result, **What can you do now?** offers a few examples, each with a **
 - **The service you want is not in the catalogue**: see [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
 - **An agent says it has no access to the tool**: it was not checked under **Who can use it**. On the card of the connection, click **Give to an agent**. See [Understand the scope of an integration](understand-integration-scope.md).
 
+### A service asks for Node.js {#nodejs}
+
+Some services (the web browser, the files of a folder, and others) run on Node.js. Apollia downloads its own the first time one of them is added. When it cannot (no network, or its download is not available yet), it uses the Node.js already installed on your computer, if its version is 22 or later.
+
+- **The addition says "This service needs Node.js"**: no usable Node.js was found. Install Node.js 22 or later from [nodejs.org](https://nodejs.org) (the LTS release), then add the service again. You can also wait until Apollia can download its own.
+- **The message names a Node.js "older than the 22 release"**: the one installed on your computer is too old. Update it to version 22 or later.
+
 > **Technical reference:** [Apollia reference](/reference) , MCP protocol, transports, trust levels, governance.

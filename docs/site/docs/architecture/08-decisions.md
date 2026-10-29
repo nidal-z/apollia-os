@@ -489,11 +489,32 @@ distribution key (see [Local inference](#local-inference)), and it is
 downloaded the first time a server launched by `node` or `npx` needs it: the
 manifest signature is verified before any archive is requested, then the
 archive digest, then the archive is extracted into the engine store. Such a
-server then runs on that Node.js by its absolute path, never through the
-`PATH`; while none is installed, its launch fails with a typed "Node.js
-required" error. A machine without network imports Node.js from a disk,
-through the same verification. The npm packages of the servers install from a
-lockfile carrying an integrity digest for each package.
+server then runs on that Node.js by its absolute path. A machine without
+network imports Node.js from a disk, through the same verification. The npm
+packages of the servers install from a lockfile carrying an integrity digest
+for each package.
+
+### A Node.js of the machine, as a fallback {#mcp-machine-node}
+
+When the engine channel cannot provide Node.js (not published, unreachable,
+offline, or its verification refused), Apollia falls back on a Node.js already
+installed on the machine. That release is not verified by Apollia, and it is
+accepted all the same, because the user installed it and chose it: it is
+already trusted to run code on that machine, and Apollia adds nothing to what
+it can do. The search reads the `PATH` of the process, then the usual install
+directories (`/opt/homebrew/bin`, `/usr/local/bin`, `Program Files\nodejs` on
+Windows) and the releases of the common version managers (nvm, Volta, fnm),
+and the only program it runs is the candidate `node` itself, with
+`--version`. A candidate is kept only when its major release is 22 or later,
+the line the channel publishes and the locks are tried with, and when its own
+npm lies beside it; `npx` and `npm` are always those of the `node` kept. The
+release of the channel stays preferred: as soon as it is installed, servers
+run on it again. What stays verified is the code of the servers: a pinned
+package still installs with `npm ci` from its embedded lockfile, which refuses
+the whole installation on one integrity digest that does not match, with the
+scripts of the packages turned off. When there is no Node.js at all, the
+addition says to install one or to wait for the channel, and links the help
+page.
 
 ### One writer, a published state, detached calls {#mcp-manager-snapshot}
 

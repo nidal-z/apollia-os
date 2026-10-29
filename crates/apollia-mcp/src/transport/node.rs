@@ -1,8 +1,10 @@
 //! Node.js for `stdio` servers.
 //!
 //! A server launched by `node` or `npx` runs on the Node.js the engine store
-//! of the runtime installed, reached by its absolute path; the `PATH` of the
-//! machine is never searched for it. When the store holds none, the launch
+//! of the runtime installed, reached by its absolute path. When the store
+//! holds none, a Node.js the user installed on the machine is used instead,
+//! found by [`MachineNodeSearch`] and kept only when its major release is
+//! [`MIN_MACHINE_NODE_MAJOR`] or later. When neither is there, the launch
 //! fails with [`TransportError::NodeRequired`] rather than with whatever the
 //! operating system would say about a missing program.
 //!
@@ -17,6 +19,12 @@ use std::path::{Path, PathBuf};
 
 use crate::transport::TransportError;
 
+mod machine;
+
+pub use machine::{
+    MachineNode, MachineNodeMissing, MachineNodeSearch, RejectedNode, MIN_MACHINE_NODE_MAJOR,
+};
+
 /// Directory of the Node.js packages under the engine store root.
 pub const NODE_ENGINE_DIR: &str = "nodejs";
 /// Variant directory a Node.js package is installed under.
@@ -27,12 +35,14 @@ pub const RECORD_FILE: &str = ".apollia-engine.json";
 /// Where `npx` lives inside the npm a Node.js release carries.
 const NPX_CLI: &str = "node_modules/npm/bin/npx-cli.js";
 
-/// A Node.js release installed by the engine store.
+/// A Node.js release: the one the engine store installed, or one found on the
+/// machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeInstall {
     /// Absolute path of the `node` binary.
     pub node: PathBuf,
-    /// Absolute path of `npx-cli.js`, when the release carries npm.
+    /// Absolute path of `npx-cli.js`, when the release carries npm; `npm-cli.js`
+    /// lies beside it.
     pub npx_cli: Option<PathBuf>,
 }
 
@@ -93,15 +103,19 @@ pub fn installed_node(engines_root: &Path) -> Option<NodeInstall> {
     installs.sort();
     let (_, dir) = installs.pop()?;
     let node = find_node_binary(&dir)?;
-    // `bin/node` with `lib/node_modules` beside `bin` on macOS and Linux,
-    // `node.exe` with `node_modules` beside it on Windows.
-    let npx_cli = node.parent().and_then(|bin| {
-        let unix = bin.parent().map(|prefix| prefix.join("lib").join(NPX_CLI));
-        unix.into_iter()
-            .chain(std::iter::once(bin.join(NPX_CLI)))
-            .find(|p| p.is_file())
-    });
+    let npx_cli = npx_cli_beside(&node);
     Some(NodeInstall { node, npx_cli })
+}
+
+/// The `npx-cli.js` of the npm a Node.js release carries beside its `node`:
+/// `bin/node` with `lib/node_modules` beside `bin` on macOS and Linux,
+/// `node.exe` with `node_modules` beside it on Windows.
+fn npx_cli_beside(node: &Path) -> Option<PathBuf> {
+    let bin = node.parent()?;
+    let unix = bin.parent().map(|prefix| prefix.join("lib").join(NPX_CLI));
+    unix.into_iter()
+        .chain(std::iter::once(bin.join(NPX_CLI)))
+        .find(|p| p.is_file())
 }
 
 /// The numbers of a `v<x>.<y>.<z>` release tag.
@@ -151,13 +165,37 @@ pub fn resolve(
     args: &[String],
     engines_root: Option<&Path>,
 ) -> Result<Option<NodeLaunch>, TransportError> {
+    resolve_or_machine(command, args, engines_root, None)
+}
+
+/// [`resolve`], falling back on the Node.js `machine` finds when the store
+/// holds none. The store's Node.js is preferred whenever it is installed.
+///
+/// # Errors
+///
+/// [`TransportError::NodeRequired`] when `command` is `node` or `npx` and
+/// neither the store nor the machine holds a Node.js Apollia accepts (or,
+/// for `npx`, one without npm).
+pub fn resolve_or_machine(
+    command: &str,
+    args: &[String],
+    engines_root: Option<&Path>,
+    machine: Option<&MachineNodeSearch>,
+) -> Result<Option<NodeLaunch>, TransportError> {
     let Some(kind) = node_command(command) else {
         return Ok(None);
     };
     let required = || TransportError::NodeRequired {
         command: command.to_owned(),
     };
-    let install = engines_root.and_then(installed_node).ok_or_else(required)?;
+    let install = engines_root
+        .and_then(installed_node)
+        .or_else(|| {
+            machine
+                .and_then(|search| search.find().ok())
+                .map(|found| found.install)
+        })
+        .ok_or_else(required)?;
     let mut launch_args = Vec::with_capacity(args.len() + 1);
     if kind == NodeCommand::Npx {
         let cli = install.npx_cli.as_ref().ok_or_else(required)?;

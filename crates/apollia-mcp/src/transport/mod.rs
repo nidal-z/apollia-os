@@ -34,8 +34,9 @@ pub enum TransportError {
     #[error("subprocess spawn failed: {0}")]
     SpawnFailed(String),
 
-    /// The server runs on Node.js (`node` or `npx`) and the engine store holds
-    /// none yet. Installing Node.js through the engine store lifts it.
+    /// The server runs on Node.js (`node` or `npx`), the engine store holds
+    /// none yet, and the machine none Apollia accepts. Installing Node.js
+    /// through the engine store, or on the machine, lifts it.
     #[error("`{command}` requires Node.js, which Apollia installs and has not installed yet")]
     NodeRequired {
         /// The command of the configuration.

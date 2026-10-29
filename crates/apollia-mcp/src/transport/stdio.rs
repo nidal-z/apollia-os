@@ -57,6 +57,14 @@ pub struct StdioTransport {
     stderr_tail: Arc<std::sync::Mutex<VecDeque<String>>>,
 }
 
+/// Where the `node` of a `node` or `npx` server is looked for: the engine
+/// store first, then the machine.
+#[derive(Debug, Clone, Copy)]
+struct NodeLookup<'a> {
+    engines_root: Option<&'a std::path::Path>,
+    machine: Option<&'a super::node::MachineNodeSearch>,
+}
+
 impl StdioTransport {
     /// Spawn `command` with `args` and `envs`, returning a connected transport.
     ///
@@ -74,27 +82,34 @@ impl StdioTransport {
         max_response_bytes: u64,
     ) -> Result<Self, TransportError> {
         let engines_root = super::node::default_engines_root();
-        let (builder, envs) =
-            Self::command_for(server_name, command, args, envs, engines_root.as_deref())?;
+        let machine = super::node::MachineNodeSearch::from_env();
+        let lookup = NodeLookup {
+            engines_root: engines_root.as_deref(),
+            machine: Some(&machine),
+        };
+        let (builder, envs) = Self::command_for(server_name, command, args, envs, lookup)?;
         Self::spawn_command(server_name, builder, envs, max_response_bytes)
     }
 
     /// The command that launches `command`: as configured, or, for `node` and
-    /// `npx`, the `node` of the engine store at `engines_root` by its absolute
-    /// path, with its directory first on the child's `PATH`.
+    /// `npx`, the `node` of the engine store at `lookup.engines_root` by its
+    /// absolute path, or failing that the one `lookup.machine` finds, with its
+    /// directory first on the child's `PATH`.
     ///
     /// # Errors
     ///
     /// [`TransportError::NodeRequired`] when `command` is `node` or `npx` and
-    /// the store holds no Node.js.
+    /// neither the store nor the machine holds a Node.js Apollia accepts.
     fn command_for(
         server_name: &str,
         command: &str,
         args: &[String],
         envs: HashMap<String, String>,
-        engines_root: Option<&std::path::Path>,
+        lookup: NodeLookup<'_>,
     ) -> Result<(Command, HashMap<String, String>), TransportError> {
-        let (program, args, envs) = match super::node::resolve(command, args, engines_root)? {
+        let resolved =
+            super::node::resolve_or_machine(command, args, lookup.engines_root, lookup.machine)?;
+        let (program, args, envs) = match resolved {
             Some(launch) => {
                 tracing::event!(
                     tracing::Level::INFO,
@@ -390,7 +405,10 @@ mod tests {
             "npx",
             &["-y".to_string(), "@scope/server".to_string()],
             HashMap::new(),
-            Some(dir.path()),
+            NodeLookup {
+                engines_root: Some(dir.path()),
+                machine: None,
+            },
         );
 
         // THEN the launch is refused with the typed error, nothing was spawned
@@ -422,9 +440,17 @@ mod tests {
         .unwrap();
 
         // WHEN an `npx` server is spawned against that store
-        let (builder, envs) =
-            StdioTransport::command_for("test", "npx", &[], HashMap::new(), Some(dir.path()))
-                .expect("the store node must resolve");
+        let (builder, envs) = StdioTransport::command_for(
+            "test",
+            "npx",
+            &[],
+            HashMap::new(),
+            NodeLookup {
+                engines_root: Some(dir.path()),
+                machine: None,
+            },
+        )
+        .expect("the store node must resolve");
         let transport = StdioTransport::spawn_command("test", builder, envs, TEST_CAP)
             .expect("the store node must spawn");
 
