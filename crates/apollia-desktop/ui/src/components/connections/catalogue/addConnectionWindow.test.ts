@@ -78,20 +78,21 @@ function section(html: string, testid: string): string {
 }
 
 describe("the add window", () => {
-  test("usages and filters across the top, then the groups by usage, the public catalogue apart, the address last", async () => {
+  test("the search line and the usages across the top, then the groups by usage, the public catalogue apart, the address last", async () => {
     // GIVEN the window open on the selection
     // WHEN it is rendered
     const html = await render({});
 
-    // THEN the usages, the search, the source, the order and "no setup" lead,
-    //      then each usage the built-in entries and the selection fill, in
-    //      the order of the usages, then the public catalogue, then the address
+    // THEN the search, the source, the order and "no setup" lead, as on the
+    //      Connections page, then the usages, then each usage the built-in
+    //      entries and the selection fill, in the order of the usages, then
+    //      the public catalogue, then the address
     const order = [
-      "catalogue-usages",
       "catalogue-search",
       "catalogue-source-verified",
       "catalogue-sort",
       "catalogue-keyless",
+      "catalogue-usages",
       "catalogue-usage-communication",
       "catalogue-usage-documents",
       "catalogue-usage-files",
@@ -105,6 +106,9 @@ describe("the add window", () => {
     expect(pressed(html, "catalogue-usage-chip-all")).toBe(true);
     expect(pressed(html, "catalogue-source-verified")).toBe(true);
     expect(html).toContain('data-testid="catalogue-source-verified"');
+    // AND each usage chip counts the entries it would show
+    const chip = html.match(/data-testid="catalogue-usage-chip-files"[^>]*>([\s\S]*?)<\/button>/)?.[1] ?? "";
+    expect(text(chip).trim()).toMatch(/^Files \d+$/);
     // AND Notion sits under documents beside Google, Microsoft and the mailbox under communication
     const documents = section(html, "catalogue-usage-documents");
     expect(documents).toContain('data-testid="catalogue-native-google"');
@@ -118,13 +122,13 @@ describe("the add window", () => {
     expect(text(html)).toContain(en.connections.add_window.groups.address);
   });
 
-  test("the Google account shows its logo, Microsoft its generic icon", async () => {
+  test("the Google and Microsoft accounts each show their logo", async () => {
     // GIVEN the window open on the selection
     // WHEN it is rendered
     const html = await render({});
-    // THEN only Google carries a brand logo among the accounts
+    // THEN both accounts carry their brand logo
     expect(html).toContain('data-testid="catalogue-logo-native-google"');
-    expect(html).not.toContain('data-testid="catalogue-logo-native-microsoft"');
+    expect(html).toContain('data-testid="catalogue-logo-native-microsoft"');
   });
 
   test("under the selection, the public catalogue read stays apart and is not mixed into the usages", async () => {

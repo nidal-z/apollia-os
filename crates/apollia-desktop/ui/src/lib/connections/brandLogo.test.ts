@@ -7,6 +7,7 @@ import {
   brandLogoPath,
   nativeLogoName,
   nativeLogoPath,
+  serviceInitials,
   selectionEntryFor,
   selectionIconFor,
   svgPath,
@@ -36,7 +37,7 @@ const selection = JSON.parse(readFileSync(new URL("../../../../src/mcp/enrichmen
 const sources = JSON.parse(readFileSync(logo("sources.json"), "utf8")) as {
   simple_icons_version: string;
   logos: LogoSource[];
-  not_carried?: { brand: string; used_by: string; reason: string }[];
+  drawn: { icon_name: string; file: string; title: string; drawn_by: string; reason: string }[];
 };
 const svgFiles = readdirSync(LOGOS).filter((f) => f.endsWith(".svg")).sort();
 
@@ -73,13 +74,19 @@ function enrichmentOf(entry: SelectionEntry): ConnectorEnrichmentView {
 }
 
 describe("brand logos", () => {
-  test("every logo file is listed with its Simple Icons source and licence, and every listing has its file", () => {
+  test("every logo file is listed with its Simple Icons source and licence, or as drawn here, and every listing has its file", () => {
     // GIVEN the logo files and the list that declares them
     // WHEN both are read
-    const listed = sources.logos.map((l) => l.file).sort();
+    const listed = [...sources.logos, ...sources.drawn].map((l) => l.file).sort();
     // THEN they name the same files, each from the pinned Simple Icons tag,
-    //      under CC0 or, for a brand with its own licence, with its attribution
+    //      under CC0 or, for a brand with its own licence, with its attribution;
+    //      a drawn mark says who drew it and why
     expect(listed).toEqual(svgFiles);
+    for (const mark of sources.drawn) {
+      expect(mark.file).toBe(`${mark.icon_name}.svg`);
+      expect(mark.drawn_by).toBe("Apollia");
+      expect(mark.reason).toContain("Simple Icons");
+    }
     for (const logo of sources.logos) {
       expect(logo.file).toBe(`${logo.icon_name}.svg`);
       expect(logo.source).toBe(
@@ -114,25 +121,25 @@ describe("brand logos", () => {
     expect(brandLogoNames().filter((n) => !used.has(n))).toEqual([]);
   });
 
-  test("the Google account has its logo, and Microsoft's generic icon is a choice written down", () => {
+  test("the Google account has its Simple Icons logo, and Microsoft the mark drawn here", () => {
     // GIVEN the native accounts, no provider, and the list of logo sources
     // WHEN the logo of each account is resolved, by its name and by its glyph
     const google = nativeLogoPath("google");
     const microsoft = nativeLogoPath("microsoft");
     // THEN Google names and draws the Simple Icons file of the pinned tag,
-    //      Microsoft and no provider have none, and sources.json says why
+    //      Microsoft the mark sources.json lists as drawn, no provider none
     expect(nativeLogoName("google")).toBe("google");
     expect(brandLogoPath(nativeLogoName("google"))).toBe(google);
-    expect(nativeLogoName("microsoft")).toBeNull();
+    expect(nativeLogoName("microsoft")).toBe("microsoft");
     expect(nativeLogoName(null)).toBeNull();
     expect(google).not.toBeNull();
     expect(google).toBe(svgPath(readFileSync(logo("google.svg"), "utf8")));
     expect(sources.logos.find((l) => l.icon_name === "google")?.source).toBe(
       "https://github.com/simple-icons/simple-icons/blob/16.35.0/icons/google.svg",
     );
-    expect(microsoft).toBeNull();
-    const written = sources.not_carried?.find((n) => n.brand === "Microsoft");
-    expect(written?.reason ?? "").toContain("Simple Icons");
+    expect(microsoft).toBe(svgPath(readFileSync(logo("microsoft.svg"), "utf8")));
+    expect(microsoft).not.toBeNull();
+    expect(sources.drawn.map((d) => d.icon_name)).toContain("microsoft");
   });
 
   test("a path that is not the single path of a Simple Icons file is refused", () => {
@@ -167,5 +174,20 @@ describe("brand logos", () => {
     // THEN it is the entry whose label names the service, and a custom server has none
     expect(selectionEntryFor("com-notion-mcp", map)?.operator_label.en).toBe("Notion");
     expect(selectionEntryFor("my-own-server", map)).toBeNull();
+  });
+});
+
+describe("the initials of a service with no logo", () => {
+  test("two letters as Ab, from two words or from one, a domain and punctuation left out", () => {
+    // GIVEN names of services the selection carries no logo for
+    // WHEN their initials are read
+    // THEN each gives a capital then a small letter
+    expect(serviceInitials("monday.com")).toBe("Mo");
+    expect(serviceInitials("Fireflies.ai")).toBe("Fi");
+    expect(serviceInitials("Google Workspace")).toBe("Gw");
+    expect(serviceInitials("Atlassian (Jira + Confluence)")).toBe("Aj");
+    expect(serviceInitials("io.github.someone/alpha-pay")).toBe("Ig");
+    expect(serviceInitials("x")).toBe("X");
+    expect(serviceInitials("  -  ")).toBe("?");
   });
 });

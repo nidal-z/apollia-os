@@ -130,7 +130,11 @@
       {$t("connections.add_window.back")}
     </button>
     <div class="flex flex-wrap items-center gap-2">
-      {#if logo}<BrandLogo path={logo} size="lg" data-testid="catalogue-card-logo" />{/if}
+      {#if logo}
+        <BrandLogo path={logo} size="lg" data-testid="catalogue-card-logo" />
+      {:else}
+        <BrandLogo name={name} size="lg" />
+      {/if}
       <h2 class="min-w-0 truncate text-lg font-semibold text-foreground">{name}</h2>
       {#if entry.kind === "folder"}
         <Badge size="sm" variant="primary" outline>{$t("connections.badge_builtin")}</Badge>

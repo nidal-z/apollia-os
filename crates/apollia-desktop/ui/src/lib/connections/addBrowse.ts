@@ -141,3 +141,25 @@ export function entryAuth(entry: AddEntry): EntryAuth {
   if (needs.includes("values")) return "values";
   return "keyless";
 }
+
+/** Where a connection runs: a service reached online, or a program of this computer. */
+export type EntryPlace = "remote" | "machine";
+
+/** Where `entry` runs once added: online when adding it needs the network, else on this computer. */
+export function entryPlace(entry: AddEntry): EntryPlace {
+  return entryNeeds(entry).includes("online") ? "remote" : "machine";
+}
+
+/**
+ * How many entries each usage chip would show under the source, the filter
+ * and the words in force, and the total for "all usages".
+ */
+export function usageCounts(inputs: BrowseInputs): Record<Usage | "all", number> {
+  const view = browseCatalogue({ ...inputs, state: { ...inputs.state, usage: "all" } });
+  const counts = Object.fromEntries([...USAGES, "all"].map((usage) => [usage, 0])) as Record<Usage | "all", number>;
+  for (const group of view.groups) {
+    counts[group.usage] = group.entries.length;
+    counts.all += group.entries.length;
+  }
+  return counts;
+}

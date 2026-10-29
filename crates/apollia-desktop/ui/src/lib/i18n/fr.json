@@ -658,6 +658,7 @@
     "native_google_name": "Google Workspace",
     "native_microsoft_name": "Microsoft 365",
     "remote": "Distant",
+    "machine": "Sur cet ordinateur",
     "refusal": {
       "organisation_title": "Refusé par la politique de l'organisation",
       "permissions_title": "Refusé par vos autorisations",
@@ -814,7 +815,18 @@
           "keyless": "Sans clé à saisir"
         },
         "abilities_title": "Ce que vos agents pourront faire",
-        "examples_title": "Exemples de demandes"
+        "examples_title": "Exemples de demandes",
+        "auth_short": {
+          "account": "Votre compte",
+          "account_or_key": "Votre compte",
+          "key": "Une clé",
+          "values": "Réglages",
+          "folder": "Un dossier",
+          "mailbox": "Mot de passe d'application",
+          "keyless": "Sans configuration"
+        },
+        "place_label": "Où il s'exécute",
+        "auth_label": "Comment il se connecte"
       }
     },
     "add_flow": {

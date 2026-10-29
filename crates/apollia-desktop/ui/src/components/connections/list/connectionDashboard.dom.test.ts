@@ -231,10 +231,12 @@ describe("the tiles", () => {
     );
     expect(byTestid("connection-tile-where-native:google:ada@example.com")?.textContent?.trim()).toBe("ada@example.com");
     expect(byTestid("connection-tile-repair-native:google:ada@example.com")?.dataset.repair).toBe("sign_in");
-    // AND the Microsoft account keeps the icon of an account, says its
-    // services in words, and offers Check on its badge
-    expect(byTestid("connection-logo-native:microsoft:ada@example.com")).toBeNull();
-    expect(byTestid("connection-kind-icon-native:microsoft:ada@example.com")).not.toBeNull();
+    // AND the Microsoft account shows the Microsoft logo, says its services
+    // in words, and offers Check in its foot
+    expect(byTestid("connection-logo-native:microsoft:ada@example.com")?.querySelector("path")?.getAttribute("d")).toBe(
+      brandLogoPath("microsoft"),
+    );
+    expect(byTestid("connection-kind-icon-native:microsoft:ada@example.com")).toBeNull();
     expect(byTestid("connection-tile-brings-native:microsoft:ada@example.com")?.textContent).toContain(
       "Mail · Calendar · OneDrive",
     );

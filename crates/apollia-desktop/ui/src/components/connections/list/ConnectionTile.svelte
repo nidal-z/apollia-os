@@ -2,16 +2,16 @@
   /**
    * ConnectionTile - one connection of the dashboard, whatever its kind: its
    * logo (or the icon of its kind), its name, the account or the folder it
-   * acts on, its state coloured and dated, what it brings in words and its
+   * acts on, whether it is reached online or runs on this computer, its state
+   * coloured and dated, what it brings in words and its
    * number of tools, the agents that use it and when it was last used, the
    * package that brought it, and the one action that repairs or checks it.
    * With the developer mode on, it also gives its technical kind and origin.
    * Choosing the tile opens its card.
    */
   import { t } from "svelte-i18n";
-  import { Bot, Folder, Mail, Plug, UserRound } from "lucide-svelte";
+  import { Bot, Cloud, Folder, Mail, Monitor, UserRound } from "lucide-svelte";
   import { ListRow } from "$lib/components/operator";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { developerMode } from "$lib/stores/developerMode";
   import { APOLLIA_AGENT_ID } from "$lib/chat/chatTargets";
@@ -42,8 +42,9 @@
   /** A service is anchored by its server name, any other connection by its identifier. */
   const serverName = $derived(serverNameOf(row.key));
 
+  /** The icon of a kind with no logo; a service with none shows its initials. */
   const Icon = $derived(
-    row.kind === "native" ? UserRound : row.kind === "imap" ? Mail : row.kind === "folder" ? Folder : Plug,
+    row.kind === "native" ? UserRound : row.kind === "imap" ? Mail : row.kind === "folder" ? Folder : null,
   );
 
   const logo = $derived(brandLogoPath(row.icon));
@@ -79,40 +80,33 @@
   }
 </script>
 
+{#snippet kindIcon()}
+  {#if Icon}<Icon size={16} strokeWidth={1.75} aria-hidden="true" />{/if}
+{/snippet}
+
 <ListRow
   variant="nav"
   state={selected ? "active" : "default"}
   align="stretch"
-  class="h-full flex-col gap-2.5 border p-3.5 text-left {selected
-    ? 'border-primary/50'
-    : 'border-border bg-card hover:border-border hover:bg-muted/40'}"
+  class="h-full flex-col gap-3 rounded-xl border p-4 text-left shadow-sm transition-[border-color,box-shadow,background-color] {selected
+    ? 'border-primary/50 bg-primary/5 ring-1 ring-primary/30'
+    : 'border-border bg-card hover:border-primary/30 hover:bg-card hover:shadow-md'}"
   onclick={onselect}
   aria-label={$t("connections.tile.open", { values: { name: row.label } })}
   data-testid={serverName !== null ? `sidebar-mcp-${serverName}` : `sidebar-connection-${row.key}`}
 >
   <div class="flex min-w-0 items-start gap-3">
     {#if logo}
-      <BrandLogo path={logo} size="list" data-testid="connection-logo-{row.key}" />
+      <BrandLogo path={logo} name={row.label} data-testid="connection-logo-{row.key}" />
     {:else}
-      <span
-        class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground"
-        title={$t(KIND_LABEL_KEYS[row.kind])}
-        data-testid="connection-kind-icon-{row.key}"
-      >
-        <Icon size={15} strokeWidth={1.75} aria-hidden="true" />
+      <span class="contents" title={$t(KIND_LABEL_KEYS[row.kind])} data-testid="connection-kind-icon-{row.key}">
+        <BrandLogo name={row.label} icon={Icon ? kindIcon : undefined} />
       </span>
     {/if}
     <div class="min-w-0 flex-1">
-      <div class="flex min-w-0 items-center gap-2">
-        <span class="truncate text-body-sm font-medium text-foreground" data-testid="connection-tile-name-{row.key}">
-          {row.label}
-        </span>
-        {#if row.remote}
-          <Badge size="sm" variant="info" data-testid="connection-remote-{row.key}">
-            {$t("connections.remote")}
-          </Badge>
-        {/if}
-      </div>
+      <span class="block truncate text-body-sm font-semibold text-foreground" data-testid="connection-tile-name-{row.key}">
+        {row.label}
+      </span>
       {#if where}
         <div class="mt-0.5 truncate text-caption text-muted-foreground" title={where} data-testid="connection-tile-where-{row.key}">
           {where}
@@ -124,6 +118,13 @@
         </div>
       {/if}
     </div>
+    <span
+      class="inline-flex shrink-0 items-center gap-1 text-caption text-muted-foreground"
+      data-testid={row.remote ? `connection-remote-${row.key}` : `connection-machine-${row.key}`}
+    >
+      {#if row.remote}<Cloud size={12} aria-hidden="true" />{:else}<Monitor size={12} aria-hidden="true" />{/if}
+      {row.remote ? $t("connections.remote") : $t("connections.machine")}
+    </span>
   </div>
 
   <ConnectionStateBadge
@@ -136,16 +137,19 @@
 
   <div class="truncate text-caption text-foreground/85" data-testid="connection-tile-brings-{row.key}">{brings}</div>
 
-  {#if facts}
-    <div class="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground" data-testid="connection-tile-use-{row.key}">
-      <Bot size={12} class="shrink-0" aria-hidden="true" />
-      <span class="truncate" title={agentNames || undefined}>{use}</span>
-    </div>
-  {/if}
-
-  {#if row.package}
-    <div class="truncate text-caption text-muted-foreground" data-testid="connection-package-{row.key}">
-      {$t("connections.list.brought_by", { values: { package: row.package } })}
+  {#if facts || row.package}
+    <div class="flex min-w-0 flex-col gap-1 border-t border-border/60 pt-2.5">
+      {#if facts}
+        <div class="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground" data-testid="connection-tile-use-{row.key}">
+          <Bot size={12} class="shrink-0" aria-hidden="true" />
+          <span class="truncate" title={agentNames || undefined}>{use}</span>
+        </div>
+      {/if}
+      {#if row.package}
+        <div class="truncate text-caption text-muted-foreground" data-testid="connection-package-{row.key}">
+          {$t("connections.list.brought_by", { values: { package: row.package } })}
+        </div>
+      {/if}
     </div>
   {/if}
 

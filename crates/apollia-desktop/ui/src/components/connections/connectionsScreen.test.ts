@@ -316,15 +316,18 @@ describe("Connections, one list and one word", () => {
 });
 
 describe("Connections, the remote badge", () => {
-  test("a remote connection carries the badge in the list, a local one does not", async () => {
+  test("a remote connection says so in the list, a local one says it runs on this computer", async () => {
     // GIVEN a remote server and a local one in the list
     // WHEN the list is rendered
     const html = await render("list", false);
 
-    // THEN only the remote one carries the badge
+    // THEN the remote one says remote, the local ones this computer
     expect(html).toContain('data-testid="connection-remote-mcp:linear"');
     expect(html).not.toContain('data-testid="connection-remote-mcp:files"');
     expect(html).not.toContain('data-testid="connection-remote-folder:invoices"');
+    expect(html).toContain('data-testid="connection-machine-mcp:files"');
+    expect(html).toContain('data-testid="connection-machine-folder:invoices"');
+    expect(html).not.toContain('data-testid="connection-machine-mcp:linear"');
   });
 
   test("the card of a remote connection carries the badge, a local one does not", async () => {

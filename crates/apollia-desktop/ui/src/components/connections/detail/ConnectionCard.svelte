@@ -11,7 +11,7 @@
    * stay on the card, their launch and transport for the developer mode.
    */
   import { t } from "svelte-i18n";
-  import { Folder, Link as LinkIcon, Mail, Pause, Play, Plus, RefreshCw, Trash2, UserRound, Wrench } from "lucide-svelte";
+  import { Folder, Mail, Pause, Play, Plus, RefreshCw, Trash2, UserRound, Wrench } from "lucide-svelte";
   import { DetailHeader } from "$lib/components/operator";
   import { DeveloperOnly } from "$lib/components/shared";
   import { Badge } from "$lib/components/ui/badge";
@@ -125,7 +125,7 @@
         ? Mail
         : connection.kind === "folder"
           ? Folder
-          : LinkIcon,
+          : null,
   );
 
   // An answer for the connection the user just left must not land on the one
@@ -249,10 +249,12 @@
   {#snippet leading()}
     {#if logo}
       <BrandLogo path={logo} size="lg" data-testid="connection-detail-logo" />
+    {:else if Icon}
+      <BrandLogo name={label} size="lg">
+        {#snippet icon()}<Icon size={18} strokeWidth={1.75} aria-hidden="true" />{/snippet}
+      </BrandLogo>
     {:else}
-      <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-foreground">
-        <Icon size={18} aria-hidden="true" />
-      </span>
+      <BrandLogo name={label} size="lg" />
     {/if}
   {/snippet}
   {#snippet badges()}

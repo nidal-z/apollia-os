@@ -3,8 +3,8 @@
    * ConnectorTile - the tokenised logo tile for a connector.
    *
    * Replaces the former inline brand gradients (`color: white` + hex) and the
-   * hex palette array. The background is a semantic accent token (see
-   * `accentTokenFor`), the glyph sits in the primary-foreground token, and the
+   * hex palette array. The background is a semantic accent token, the glyph
+   * sits in the primary-foreground token, and the
    * focal selected tile opts into the `.glow-primary` halo. No hex, no raw
    * white, no inline px.
    */
@@ -12,7 +12,7 @@
   import { cn } from "$lib/utils";
 
   interface Props {
-    /** Accent colour CSS string (from `accentTokenFor`). Defaults to primary. */
+    /** Accent colour CSS string, a semantic token. Defaults to primary. */
     accent?: string;
     /** Tile footprint: sm = row (24px), md = catalogue (36px), lg = lead (40px). */
     size?: "sm" | "md" | "lg";

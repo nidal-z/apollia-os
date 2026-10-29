@@ -3,7 +3,8 @@
  *
  * Each logo is a Simple Icons file under `$lib/assets/brand-logos/`, copied
  * unmodified and listed with its source and its licence in `sources.json`
- * beside it. Nothing is fetched to show one: the files are bundled, and the
+ * beside it, or, for a brand Simple Icons no longer carries, a mark drawn here
+ * and listed there under `drawn` with the reason. Nothing is fetched to show one: the files are bundled, and the
  * glyph is the single path each of them draws on a 24 by 24 grid, filled with
  * the colour of the text around it so that it follows the theme. An entry
  * whose `icon_name` names no file keeps the generic icon.
@@ -47,13 +48,13 @@ export function brandLogoPath(iconName: string | null | undefined): string | nul
 }
 
 /**
- * The logo of each native account, by its Simple Icons name. Microsoft has
- * none: Simple Icons removed its logos at Microsoft's request, so the account
- * keeps the generic icon, as `sources.json` records under `not_carried`.
+ * The logo of each native account, by its file name. Microsoft's is drawn
+ * here, since Simple Icons removed its logos at Microsoft's request, as
+ * `sources.json` records under `drawn`.
  */
 export const NATIVE_LOGOS: Readonly<Record<ProviderId, string | null>> = {
   google: "google",
-  microsoft: null,
+  microsoft: "microsoft",
 };
 
 /** The glyph of the logo of a native account, or null for one with none. */
@@ -97,4 +98,21 @@ export function selectionEntryFor(
 /** The logo name of an account of `provider`, or null for none (or no provider). */
 export function nativeLogoName(provider: ProviderId | null): string | null {
   return provider ? NATIVE_LOGOS[provider] : null;
+}
+
+/**
+ * The two letters that stand for a service with no logo, as "Ab": the first
+ * letters of its first two words, else the first two letters of its one word.
+ * Punctuation and a trailing domain ("monday.com", "Fireflies.ai") count for
+ * nothing; a name with no letter or digit gives "?".
+ */
+export function serviceInitials(name: string): string {
+  const words = name
+    .replace(/\.(com|ai|io|app|dev|so|co)\b/gi, "")
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length > 0);
+  if (words.length === 0) return "?";
+  const [first, second] = words;
+  const pair = second ? first[0] + second[0] : first.slice(0, 2);
+  return pair.charAt(0).toLocaleUpperCase() + pair.slice(1).toLocaleLowerCase();
 }

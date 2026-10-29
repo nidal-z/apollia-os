@@ -5,9 +5,11 @@ import {
   browseCatalogue,
   effectiveSort,
   entryAuth,
+  entryPlace,
   isKeyless,
   sortsFor,
   sourceShowsPublic,
+  usageCounts,
 } from "$lib/connections/addBrowse";
 import { BROWSE_DEFAULT, addWindowGroups, entryNeeds, type AddEntry, type BrowseState } from "$lib/connections/addWindow";
 import type { RegistryServerView } from "$lib/types";
@@ -302,5 +304,50 @@ describe("the note on community entries", () => {
     expect(everything.communityShown).toBe(true);
     expect(searched.communityShown).toBe(true);
     expect(nothing.communityShown).toBe(false);
+  });
+});
+
+describe("the counts of the usage chips and the place of an entry", () => {
+  test("each chip counts what it would show under the source and the filter in force, whatever usage is chosen", () => {
+    // GIVEN the selection and the public catalogue, the payments usage chosen
+    const groups = addWindowGroups({
+      selection: [STRIPE, SLACK, ATTIO],
+      publicEntries: [ADYEN, ALPHA_PAY],
+      query: "",
+      wordsOf: (key) => WORDS[key] ?? [],
+    });
+    const inputs = (state: Partial<BrowseState>) => ({
+      groups,
+      state: { ...BROWSE_DEFAULT, usage: "payments" as const, ...state },
+      searched: false,
+      nameOf,
+      locale: "en",
+    });
+
+    // WHEN the chips are counted on the selection, then on everything
+    const verified = usageCounts(inputs({}));
+    const all = usageCounts(inputs({ source: "all" }));
+
+    // THEN a chip counts the same as the list it opens, the chosen usage
+    // narrowing nothing, and "all" is their sum
+    expect(verified.payments).toBe(view({ usage: "payments" }).groups[0].entries.length);
+    expect(all.payments).toBe(verified.payments + 2);
+    expect(verified.all).toBe(view({}).groups.reduce((sum, g) => sum + g.entries.length, 0));
+    expect(verified.design).toBe(0);
+  });
+
+  test("an entry reached online is remote, a program of this computer or a folder runs on the machine", () => {
+    // GIVEN a remote service, a package run locally, a folder and an account
+    const local = entry("io.github.someone/files", "Files", "files", {
+      remotes: [],
+      packages: [{ registryType: "npm", identifier: "files-mcp", version: "1.0.0", runtimeHint: null, transport: { type: "stdio" }, environmentVariables: [], packageArguments: [] }],
+    } as Partial<RegistryServerView>);
+
+    // WHEN their place is read
+    // THEN only what needs the network is remote
+    expect(entryPlace({ kind: "catalogue", key: "a", entry: STRIPE, source: "selection" } as AddEntry)).toBe("remote");
+    expect(entryPlace({ kind: "catalogue", key: "b", entry: local, source: "selection" } as AddEntry)).toBe("machine");
+    expect(entryPlace({ kind: "folder", key: "folder" } as AddEntry)).toBe("machine");
+    expect(entryPlace({ kind: "native", key: "native:google", provider: "google" } as AddEntry)).toBe("remote");
   });
 });

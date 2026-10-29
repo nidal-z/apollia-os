@@ -11,24 +11,31 @@
    * search; it never reads as an empty catalogue.
    */
   import { locale, t } from "svelte-i18n";
-  import { ChevronDown, ChevronRight, Folder, Globe, Link as LinkIcon, Mail, UserRound, X } from "lucide-svelte";
+  import { ChevronDown, ChevronRight, Cloud, Folder, Globe, KeyRound, Mail, Monitor, ShieldCheck, UserRound, X, Zap } from "lucide-svelte";
+  import { cn } from "$lib/utils";
   import { Dialog } from "$lib/components/ui/dialog";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ListRow } from "$lib/components/operator";
   import { developerMode } from "$lib/stores/developerMode";
   import BrowseLayout from "$lib/components/operator/BrowseLayout.svelte";
-  import ConnectorTile from "../shared/ConnectorTile.svelte";
   import BrandLogo from "../shared/BrandLogo.svelte";
   import AddEntryCard from "./AddEntryCard.svelte";
   import AddBrowseBar from "./AddBrowseBar.svelte";
   import AddFlow from "../add/AddFlow.svelte";
   import { rankSuggestions } from "../ConnectionSuggestions.svelte";
   import { NATIVE_PROVIDERS, NATIVE_PROVIDER_KEYS } from "$lib/connections/connectionRows";
-  import { accentTokenFor } from "$lib/connections/accent";
   import { brandLogoPath, nativeLogoPath } from "$lib/connections/brandLogo";
   import { usageKey, type Usage } from "$lib/connections/usages";
-  import { browseCatalogue, isVerified, sourceShowsPublic } from "$lib/connections/addBrowse";
+  import {
+    browseCatalogue,
+    entryAuth,
+    entryPlace,
+    isVerified,
+    sourceShowsPublic,
+    usageCounts,
+    type EntryAuth,
+  } from "$lib/connections/addBrowse";
   import { categoryKey } from "$lib/connections/categories";
   import { entryDescription, entryLabel } from "$lib/connections/catalogueText";
   import { installedNameFor, isInstalled, isOfficial } from "$lib/connections/vendor";
@@ -175,9 +182,15 @@
   const chosenEntry = $derived(findEntry(groups, chosen));
   const searched = $derived(query.trim().length > 0);
   const view = $derived(browseCatalogue({ groups, state: browse, searched, nameOf: rowName, locale: $locale }));
+  const counts = $derived(usageCounts({ groups, state: browse, searched, nameOf: rowName, locale: $locale }));
   /** Nothing answers: the empty state stands, and it offers the address. */
   const emptyShown = $derived(view.empty && !loading);
   const address = $derived(groups.find((g) => g.key === "address")?.entries ?? []);
+
+  /** Cards side by side across the width; one column beside an open card. */
+  const gridClass = $derived(
+    chosenEntry !== null ? "grid grid-cols-1 gap-2.5" : "grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3",
+  );
 
   const failureMessage = $derived.by((): string | null => {
     const words: string[] = [];
@@ -225,14 +238,30 @@
     }
   }
 
-  /** What every row shares, whatever its kind: the chosen state and the choice. */
+  const AUTH_SHORT: Record<EntryAuth, string> = {
+    account: "connections.add_window.card.auth_short.account",
+    account_or_key: "connections.add_window.card.auth_short.account_or_key",
+    key: "connections.add_window.card.auth_short.key",
+    values: "connections.add_window.card.auth_short.values",
+    folder: "connections.add_window.card.auth_short.folder",
+    mailbox: "connections.add_window.card.auth_short.mailbox",
+    keyless: "connections.add_window.card.auth_short.keyless",
+  };
+
+  /** What every card shares, whatever its kind: the chosen state and the choice. */
   function rowProps(entry: AddEntry) {
+    const active = entry.key === chosen;
     return {
       variant: "row" as const,
       border: false,
-      pad: "snug" as const,
-      class: "rounded-lg border border-border/60 bg-card elev-interactive hover:border-primary/40",
-      state: entry.key === chosen ? ("active" as const) : ("default" as const),
+      align: "stretch" as const,
+      class: cn(
+        "h-full flex-col gap-3 rounded-xl border p-3.5 shadow-sm transition-[border-color,box-shadow,background-color]",
+        active
+          ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30"
+          : "border-border bg-card hover:border-primary/30 hover:bg-card hover:shadow-md",
+      ),
+      state: active ? ("active" as const) : ("default" as const),
       onclick: () => onchoose(entry.key),
     };
   }
@@ -262,44 +291,65 @@
       : entry.kind === "native"
         ? nativeLogoPath(entry.provider)
         : null}
-  {#if entry.kind === "catalogue" && logo}
-    <BrandLogo path={logo} data-testid="catalogue-logo-{entry.entry.name}" />
-  {:else if entry.kind === "native" && logo}
-    <BrandLogo path={logo} data-testid="catalogue-logo-native-{entry.provider}" />
-  {:else}
-    <ConnectorTile
-      size="md"
-      accent={entry.kind === "catalogue" ? accentTokenFor(rowName(entry)) : "hsl(var(--primary))"}
-    >
-      {#snippet icon()}
-        {#if entry.kind === "folder"}<Folder size={14} />
-        {:else if entry.kind === "mailbox"}<Mail size={14} />
-        {:else if entry.kind === "native"}<UserRound size={14} />
-        {:else if entry.kind === "address"}<Globe size={14} />
-        {:else}<LinkIcon size={14} />{/if}
-      {/snippet}
-    </ConnectorTile>
-  {/if}
+  {@const auth = entryAuth(entry)}
+  {@const place = entryPlace(entry)}
+  <div class="flex min-w-0 items-start gap-3">
+    {#if entry.kind === "catalogue"}
+      <BrandLogo path={logo} name={rowName(entry)} data-testid={logo ? `catalogue-logo-${entry.entry.name}` : undefined} />
+    {:else if entry.kind === "native"}
+      <BrandLogo path={logo} name={rowName(entry)} data-testid={logo ? `catalogue-logo-native-${entry.provider}` : undefined}>
+        {#snippet icon()}<UserRound size={16} strokeWidth={1.75} aria-hidden="true" />{/snippet}
+      </BrandLogo>
+    {:else}
+      <BrandLogo name={rowName(entry)}>
+        {#snippet icon()}
+          {#if entry.kind === "folder"}<Folder size={16} strokeWidth={1.75} aria-hidden="true" />
+          {:else if entry.kind === "mailbox"}<Mail size={16} strokeWidth={1.75} aria-hidden="true" />
+          {:else}<Globe size={16} strokeWidth={1.75} aria-hidden="true" />{/if}
+        {/snippet}
+      </BrandLogo>
+    {/if}
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-1.5">
-        <span class="truncate text-body-sm font-medium text-foreground">{rowName(entry)}</span>
-        {#if entry.kind === "catalogue"}
-          {#if isVerified(entry)}
-            <Badge size="sm" variant="primary" data-testid="catalogue-badge-verified"
-              >{$t("connections.add_window.browse.badge_verified")}</Badge
-            >
-          {:else}
-            <Badge size="sm" variant="neutral" outline data-testid="catalogue-badge-community"
-              >{$t("connections.add_window.browse.badge_community")}</Badge
-            >
-          {/if}
-          {#if installedOf(entry)}
-            <Badge size="sm" variant="success">{$t("connections.badge_installed")}</Badge>
-          {/if}
+        <span class="truncate text-body-sm font-semibold text-foreground">{rowName(entry)}</span>
+        {#if entry.kind === "catalogue" && isVerified(entry)}
+          <span
+            class="inline-flex shrink-0 text-primary"
+            title={$t("connections.add_window.browse.badge_verified")}
+            data-testid="catalogue-badge-verified"
+          >
+            <ShieldCheck size={14} aria-hidden="true" />
+            <span class="sr-only">{$t("connections.add_window.browse.badge_verified")}</span>
+          </span>
         {/if}
       </div>
-      <div class="truncate text-caption text-muted-foreground">{rowDescription(entry)}</div>
+      <p class="mt-0.5 line-clamp-2 text-caption leading-snug text-muted-foreground">{rowDescription(entry)}</p>
     </div>
+  </div>
+  <div class="mt-auto flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/60 pt-2.5 text-caption text-muted-foreground">
+    <span class="inline-flex items-center gap-1" title={$t("connections.add_window.card.auth_label")}>
+      {#if auth === "account" || auth === "account_or_key"}<UserRound size={12} aria-hidden="true" />
+      {:else if auth === "keyless"}<Zap size={12} aria-hidden="true" />
+      {:else if auth === "folder"}<Folder size={12} aria-hidden="true" />
+      {:else if auth === "mailbox"}<Mail size={12} aria-hidden="true" />
+      {:else}<KeyRound size={12} aria-hidden="true" />{/if}
+      {$t(AUTH_SHORT[auth])}
+    </span>
+    <span class="inline-flex items-center gap-1" title={$t("connections.add_window.card.place_label")} data-place={place}>
+      {#if place === "remote"}<Cloud size={12} aria-hidden="true" />{:else}<Monitor size={12} aria-hidden="true" />{/if}
+      {place === "remote" ? $t("connections.remote") : $t("connections.machine")}
+    </span>
+    <span class="ml-auto flex items-center gap-1">
+      {#if entry.kind === "catalogue" && !isVerified(entry)}
+        <Badge size="sm" variant="neutral" outline data-testid="catalogue-badge-community"
+          >{$t("connections.add_window.browse.badge_community")}</Badge
+        >
+      {/if}
+      {#if installedOf(entry)}
+        <Badge size="sm" variant="success">{$t("connections.badge_installed")}</Badge>
+      {/if}
+    </span>
+  </div>
 {/snippet}
 
 <Dialog
@@ -338,7 +388,7 @@
             <X size={16} aria-hidden="true" />
           </button>
         </div>
-        <AddBrowseBar bind:query bind:browse {loading} onsource={chooseSource} />
+        <AddBrowseBar bind:query bind:browse {counts} {loading} onsource={chooseSource} />
       {/snippet}
 
       <div class="flex flex-col gap-5">
@@ -388,13 +438,13 @@
               {:else}
                 <ChevronRight size={14} class="shrink-0 text-muted-foreground" aria-hidden="true" />
               {/if}
-              <h3 class="text-overline text-muted-foreground">{$t(usageKey(group.usage))}</h3>
+              <h3 class="text-sm font-semibold text-foreground">{$t(usageKey(group.usage))}</h3>
               <span class="text-xs tabular-nums text-muted-foreground" data-testid="catalogue-usage-count-{group.usage}">
                 {group.entries.length}
               </span>
             </button>
             {#if unfolded}
-              <ul class="space-y-1.5">
+              <ul class={gridClass}>
                 {#each group.entries.slice(0, limitOf(group.usage)) as entry (entry.key)}{@render row(entry)}{/each}
               </ul>
               {#if group.entries.length > limitOf(group.usage)}
@@ -423,7 +473,7 @@
               <Badge size="sm" variant="neutral" outline>{$t("connections.add_window.browse.badge_community")}</Badge>
             </div>
             {#if view.community.length > 0}
-              <ul class="space-y-1.5">
+              <ul class={gridClass}>
                 {#each view.community.slice(0, limitOf("community")) as entry (entry.key)}{@render row(entry)}{/each}
               </ul>
             {/if}
@@ -450,7 +500,7 @@
             <h3 class="text-overline text-muted-foreground">
               {$developerMode ? $t("dev.connections.catalogue_tab_custom") : $t("connections.add_window.groups.address")}
             </h3>
-            <ul class="space-y-1.5">
+            <ul class={gridClass}>
               {#each address as entry (entry.key)}{@render row(entry)}{/each}
             </ul>
           </section>

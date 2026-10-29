@@ -1,9 +1,10 @@
 <script lang="ts">
   /**
-   * AddBrowseBar - what spans the add window above its list: the usages as
-   * chips, then the search, the source and the order, then "no setup". Each
-   * choice is held by the caller, which keeps it while a dialog of the flow
-   * stands in the window's place.
+   * AddBrowseBar - what spans the add window above its list, laid like the
+   * Connections page: the search, the source, the order and "no setup" (its
+   * meaning in its tooltip) on one line, then the usages as chips, each with
+   * the number of entries it would show. Each choice is held by the caller,
+   * which keeps it while a dialog of the flow stands in the window's place.
    */
   import { t } from "svelte-i18n";
   import { Search } from "lucide-svelte";
@@ -26,13 +27,15 @@
   interface Props {
     query: string;
     browse: BrowseState;
+    /** The entries each usage chip would show, and the total for all of them. */
+    counts?: Partial<Record<UsageChoice, number>>;
     /** The public catalogue is being read. */
     loading: boolean;
     /** Another source was chosen: the caller reads the public catalogue when it is included. */
     onsource: (source: BrowseSource) => void;
   }
 
-  let { query = $bindable(""), browse = $bindable(), loading, onsource }: Props = $props();
+  let { query = $bindable(""), browse = $bindable(), counts = {}, loading, onsource }: Props = $props();
 
   const CHIPS: readonly UsageChoice[] = ["all", ...USAGES];
   const SOURCE_KEYS: Record<BrowseSource, string> = {
@@ -59,33 +62,6 @@
     browse = { ...browse, sort: (event.currentTarget as HTMLSelectElement).value as BrowseSort };
   }
 </script>
-
-<!-- A narrow window keeps the usages on one line that scrolls sideways, and
-     leaves its height to the list; a focused chip is scrolled into view, so
-     the keyboard reaches every one. From md up they wrap. -->
-<div
-  class="-mx-0.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5 py-0.5 md:flex-wrap md:overflow-visible [&>button]:shrink-0 [&>button]:whitespace-nowrap"
-  role="group"
-  aria-label={$t("connections.add_window.browse.usages_label")}
-  data-testid="catalogue-usages"
->
-  {#each CHIPS as usage (usage)}
-    <button
-      type="button"
-      class={cn(
-        "rounded-full border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-        browse.usage === usage
-          ? "border-primary/40 bg-primary/5 font-medium text-foreground"
-          : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-      )}
-      aria-pressed={browse.usage === usage}
-      onclick={() => pickUsage(usage)}
-      data-testid="catalogue-usage-chip-{usage}"
-    >
-      {$t(chipKey(usage))}
-    </button>
-  {/each}
-</div>
 
 <div class="flex flex-wrap items-center gap-2.5">
   <div class="min-w-[12rem] flex-1">
@@ -137,23 +113,55 @@
       </Select>
     </div>
   {/if}
-</div>
-
-<div class="flex flex-wrap items-center gap-2">
-  <Checkbox
-    checked={browse.keyless}
-    onchange={(keyless) => (browse = { ...browse, keyless })}
-    id="catalogue-keyless"
-    data-testid="catalogue-keyless"
-  />
-  <label for="catalogue-keyless" class="text-xs text-foreground">
-    {$t("connections.add_window.browse.keyless")}
-    <span class="text-muted-foreground">· {$t("connections.add_window.browse.keyless_hint")}</span>
-  </label>
+  <div class="flex items-center gap-2" title={$t("connections.add_window.browse.keyless_hint")}>
+    <Checkbox
+      checked={browse.keyless}
+      onchange={(keyless) => (browse = { ...browse, keyless })}
+      id="catalogue-keyless"
+      data-testid="catalogue-keyless"
+    />
+    <label for="catalogue-keyless" class="whitespace-nowrap text-xs text-foreground">
+      {$t("connections.add_window.browse.keyless")}
+    </label>
+  </div>
   {#if loading}
-    <span class="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="catalogue-loading">
+    <span class="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="catalogue-loading">
       <Spinner size={11} />
       {$developerMode ? $t("dev.connections.catalogue_loading") : $t("connections.catalogue_loading")}
     </span>
   {/if}
+</div>
+
+<!-- A narrow window keeps the usages on one line that scrolls sideways, and
+     leaves its height to the list; a focused chip is scrolled into view, so
+     the keyboard reaches every one; a spacer closes the line, whose end
+     padding a scrolling flex row does not count. From md up they wrap. -->
+<div
+  class="-mx-0.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5 py-0.5 after:block after:w-px after:shrink-0 after:content-[''] md:flex-wrap md:overflow-visible md:after:hidden [&>button]:shrink-0 [&>button]:whitespace-nowrap"
+  role="group"
+  aria-label={$t("connections.add_window.browse.usages_label")}
+  data-testid="catalogue-usages"
+>
+  {#each CHIPS as usage (usage)}
+    {@const count = counts[usage]}
+    {@const active = browse.usage === usage}
+    <button
+      type="button"
+      class={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        active
+          ? "border-primary/40 bg-primary/10 text-primary"
+          : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground",
+        !active && count === 0 && "opacity-50",
+      )}
+      aria-pressed={active}
+      onclick={() => pickUsage(usage)}
+      data-testid="catalogue-usage-chip-{usage}"
+    >
+      {$t(chipKey(usage))}
+      {#if count !== undefined}
+        <span class={cn("tabular-nums", active ? "text-primary/80" : "text-muted-foreground/60")}>{count}</span>
+      {/if}
+    </button>
+  {/each}
 </div>
