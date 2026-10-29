@@ -11,7 +11,7 @@ import { brandLogoPath } from "$lib/connections/brandLogo";
 import type { ConnectionRow } from "$lib/connections/connectionRows";
 import type { Connection, ConnectorEnrichmentView, RegistryServerView } from "$lib/types";
 import AddConnectionWindow from "../catalogue/AddConnectionWindow.svelte";
-import ConnectionListItem from "../list/ConnectionListItem.svelte";
+import ConnectionTile from "../list/ConnectionTile.svelte";
 import ConnectionCard from "../detail/ConnectionCard.svelte";
 
 // The dialog runs a Svelte transition, which jsdom cannot play.
@@ -131,14 +131,14 @@ describe("the logo of a service, on every surface that names it", () => {
   test("a connection of the list draws the logo of the entry it came from, another its kind", async () => {
     // GIVEN two rows of the list, one from the PayPal entry and one custom
     const row = (key: string, icon: string | null): ConnectionRow => ({
-      key, kind: "mcp", label: key, account: null, provenance: "selection", remote: true, official: true,
+      key, kind: "mcp", label: key, account: null, path: null, provenance: "selection", remote: true, official: true,
       status: "working", reason: null, checkedAt: null, package: null, toolCount: 0, icon,
     });
-    mounted = mount(ConnectionListItem as never, {
+    mounted = mount(ConnectionTile as never, {
       target,
       props: { row: row("mcp:com-paypal-mcp-mcp", "paypal"), selected: false, onselect: noop } as never,
     });
-    const other = mount(ConnectionListItem as never, {
+    const other = mount(ConnectionTile as never, {
       target,
       props: { row: row("mcp:acme", null), selected: false, onselect: noop } as never,
     });

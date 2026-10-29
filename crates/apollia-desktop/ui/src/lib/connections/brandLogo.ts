@@ -11,6 +11,7 @@
  * Pure, so the list, the add window and the card share one rule.
  */
 import { deriveServerName, legacyServerName } from "$lib/integrations/connectorConfig";
+import type { ProviderId } from "$lib/connections/capabilities";
 import type { ConnectorEnrichmentView } from "$lib/types";
 
 const FILES = import.meta.glob("../assets/brand-logos/*.svg", {
@@ -55,13 +56,37 @@ export function selectionIconFor(
   serverName: string | null,
   enrichments: ReadonlyMap<string, ConnectorEnrichmentView>,
 ): string | null {
+  return selectionEntryFor(serverName, enrichments)?.icon_name ?? null;
+}
+
+/**
+ * The selection entry a server was added from, found the same way as its
+ * icon; null for a server that comes from no entry. It names a service by its
+ * label rather than by the technical name of its server.
+ */
+export function selectionEntryFor(
+  serverName: string | null,
+  enrichments: ReadonlyMap<string, ConnectorEnrichmentView>,
+): ConnectorEnrichmentView | null {
   if (serverName === null) return null;
   for (const [identifier, enrichment] of enrichments) {
     const name = enrichment.registry_names?.[0] ?? identifier;
     const view = { name, title: null, enrichment };
     if (deriveServerName(view) === serverName || legacyServerName(view) === serverName) {
-      return enrichment.icon_name;
+      return enrichment;
     }
   }
   return null;
+}
+
+/**
+ * The logo of an account of each native provider, by its Simple Icons name.
+ * Simple Icons carries no Microsoft mark, so a Microsoft account keeps the
+ * generic icon of an account.
+ */
+export const NATIVE_LOGOS: Readonly<Record<ProviderId, string | null>> = { google: "google", microsoft: null };
+
+/** The logo name of an account of `provider`, or null for none (or no provider). */
+export function nativeLogoName(provider: ProviderId | null): string | null {
+  return provider ? NATIVE_LOGOS[provider] : null;
 }

@@ -523,9 +523,8 @@
     "custom_error_url_required": "Enter the address of the connection.",
     "custom_test_tools_detected": "{count} tool(s) detected.",
     "custom_error_oauth_required": "This server requires OAuth authentication. Install it from the catalogue rather than via the custom form.",
-    "sidebar_no_servers": "No connection yet.",
     "sidebar_no_results": "No results.",
-    "tools_count_label": "{count} tool(s)",
+    "tools_count_label": "{count, plural, one {# tool} other {# tools}}",
     "no_account_for": "No account connected for {name}.",
     "connect_account": "Connect an account",
     "settings_scope_gmail": "Gmail - send + drafts",
@@ -733,8 +732,7 @@
     },
     "badge_builtin": "Built in",
     "page_subtitle": "The accounts, folders, services and tools Apollia reaches for you.",
-    "inactive": {
-    },
+    "inactive": {},
     "category": {
       "productivity": "Productivity and project management",
       "search": "Search",
@@ -929,6 +927,29 @@
       "chosen": "Chosen",
       "forget": "Remove",
       "empty_folder": "This folder is empty."
+    },
+    "summary": {
+      "label": "Connections summary",
+      "total": "{count, plural, one {# connected} other {# connected}}",
+      "working": "{count, plural, one {# working} other {# working}}",
+      "action": "{count, plural, one {# needs attention} other {# need attention}}",
+      "agents": "{count, plural, =0 {no agent uses them} one {# agent uses them} other {# agents use them}}"
+    },
+    "tile": {
+      "open": "Open the card of {name}",
+      "agents": "{count, plural, =0 {No agent} one {# agent} other {# agents}}",
+      "brings": {
+        "mail": "Mail",
+        "calendar": "Calendar",
+        "drive": "Drive",
+        "onedrive": "OneDrive",
+        "files": "Files"
+      }
+    },
+    "empty": {
+      "title": "Connect what your agents can reach",
+      "body": "An account, a mailbox, a folder or a service: each connection opens to your agents what they need. Start with one of these, or search the selection.",
+      "suggestions": "Suggestions from the selection"
     }
   },
   "integrations": {

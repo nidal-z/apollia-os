@@ -30,6 +30,8 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "connections.native_microsoft_description", // Outlook Mail, Outlook Calendar, OneDrive
   "connections.native_microsoft_name", // Microsoft 365
   "connections.onedrive_choices.root", // OneDrive
+  "connections.tile.brings.drive", // Drive
+  "connections.tile.brings.onedrive", // OneDrive
   "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
   "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
   "dev.workflows.depth", // depth
@@ -122,6 +124,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "connections.custom_test_ok", // Test OK - {result}
   "connections.mcp_settings.transport", // Transport
   "connections.mailbox.port_label", // Port
+  "connections.tile.brings.mail", // Mail
   "detailSidebar.tab_guide", // Guide
   "dev.ai.panel.type.embeddings.label", // Embeddings
   "dev.connections.custom_transport_label", // Transport

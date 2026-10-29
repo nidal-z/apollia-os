@@ -1,10 +1,10 @@
 <script lang="ts">
   /**
-   * Connections - every connection of this machine, in one list.
+   * Connections - every connection of this machine, on one dashboard.
    *
-   * Thin orchestrator on the shared browse layout: the list column (search,
-   * kind chips, one row per connection) and the card of the chosen connection
-   * beside it. It owns the top-level data (the connections, installed
+   * Thin orchestrator on the shared browse layout: the summary and the grid
+   * (search, kind chips, one tile per connection, its agents and last use
+   * read for it) and the card of the chosen connection beside it. It owns the top-level data (the connections, installed
    * servers, enrichments, registry, native accounts, the count of built-in
    * tools), each source read on its own so one that fails keeps the others;
    * the place of the screen (card, search, chip) lives in the
@@ -32,9 +32,17 @@
     listMcpEnrichments,
     listAgents,
     checkConnection,
+    getConnectionAgents,
+    getConnectionActivity,
     type ProviderId,
   } from "$lib/ipc/connections";
   import { checkAndReplace, replaceConnection, type RepairKind } from "$lib/connections/connectionCard";
+  import {
+    dashboardSummary,
+    emptySuggestions,
+    loadTileFacts,
+    type TileFacts,
+  } from "$lib/connections/connectionDashboard";
   import { formatTauriError } from "$lib/connections/errors";
   import { needsOauthSetup } from "$lib/connections/status";
   import { loadConnections } from "$lib/connections/connectionList";
@@ -86,7 +94,7 @@
   import { triggerAutoName } from "$lib/chat/autoName";
   import { reportError } from "$lib/errors/reportError";
   import { enrichmentLabel } from "$lib/connections/catalogueText";
-  import { selectionIconFor } from "$lib/connections/brandLogo";
+  import { nativeLogoName, selectionEntryFor, selectionIconFor } from "$lib/connections/brandLogo";
   import { nativeConnectionId } from "$lib/connections/addFlow";
   import {
     tryConnectorPrompt,
@@ -126,6 +134,8 @@
   const select = (next: Selection): void => connectionsView.select(next);
   /** The connections a check from the list is under way for. */
   let checking = $state(new Set<string>());
+  /** The agents and last use of each tile, read once the list is. */
+  let tileFacts = $state(new Map<string, TileFacts>());
 
   // ── Native connectors ────────────────────────────────────────────────────────
   let nativeLoading = $state(false);
@@ -199,11 +209,16 @@
       (c) => {
         if (c.kind !== "mcp") return c.label;
         const server = servers.find((s) => `mcp:${s.name}` === c.id);
-        return (server && enrichmentLabel(resolveEnrichment(server), $locale)) ?? c.label;
+        const entry = (server && resolveEnrichment(server)) || selectionEntryFor(serverNameOf(c.id), enrichmentMap);
+        return enrichmentLabel(entry, $locale) ?? c.label;
       },
-      (c) => selectionIconFor(serverNameOf(c.id), enrichmentMap),
+      (c) => nativeLogoName(nativeProviderOf(c)) ?? selectionIconFor(serverNameOf(c.id), enrichmentMap),
     ),
   );
+  const summary = $derived(dashboardSummary(rows, tileFacts));
+  const suggestions = $derived(emptySuggestions(enrichmentMap));
+  /** The connections of the grid, in its order: their facts are read again when it changes. */
+  const tileKeys = $derived(rows.map((r) => `${r.key}\t${r.kind}`).join("\n"));
   const selectedConnection = $derived.by(() => {
     const sel = selection;
     if (sel?.kind !== "connection") return null;
@@ -412,6 +427,21 @@
     }
   }
 
+  /**
+   * The repair a tile offers. What opens another flow is opened from the
+   * tile; starting a service again, signing in to one, or the approval of an
+   * administrator are held by the card, which the tile then opens.
+   */
+  function repairFromTile(id: string, kind: RepairKind): void {
+    const connection = connections.find((c) => c.id === id);
+    if (!connection) return;
+    if (kind === "restart" || kind === "admin_approval" || connection.kind === "mcp") {
+      select({ kind: "connection", id });
+      return;
+    }
+    repairConnection(connection, kind);
+  }
+
   /** The repair a card asks for that opens another flow: sign in, the password, the folder, the rule. */
   function repairConnection(connection: Connection, kind: Exclude<RepairKind, "restart" | "admin_approval">): void {
     switch (kind) {
@@ -471,6 +501,24 @@
     void loadAll();
     void refreshNativeStatus();
     void loadBuiltinTools();
+  });
+
+  // The agents and the last use of the tiles, read connection by connection
+  // (the runtime has no grouped read), bounded by `loadTileFacts`, once each
+  // load of the list is over.
+  $effect(() => {
+    void tileKeys;
+    if (loading) return;
+    const order = untrack(() => rows.map((r) => ({ id: r.key, kind: r.kind })));
+    let current = true;
+    void loadTileFacts(order, { agents: getConnectionAgents, activity: getConnectionActivity }, Date.now()).then(
+      (facts) => {
+        if (current) tileFacts = facts;
+      },
+    );
+    return () => {
+      current = false;
+    };
   });
 
   // A card whose connection disappeared gives the list back, once the list is
@@ -553,9 +601,12 @@
         {rows}
         query={$connectionsView.query}
         kind={$connectionsView.kind}
+        {summary}
+        state={$connectionsView.state}
         {failures}
         onsearch={(query) => connectionsView.search(query)}
         onkind={(kind) => connectionsView.filter(kind)}
+        onstate={(state) => connectionsView.filterState(state)}
         onadd={handleOpenCatalogue}
         onretry={() => void loadAll()}
       />
@@ -565,12 +616,17 @@
       {rows}
       query={$connectionsView.query}
       kind={$connectionsView.kind}
+      state={$connectionsView.state}
       {selection}
       {loading}
       builtinTools={builtinCount}
+      facts={tileFacts}
+      {suggestions}
       onselect={select}
       onadd={handleOpenCatalogue}
+      onsuggest={(entryId) => void openPendingEntry(entryId)}
       oncheck={(id) => void checkFromList(id)}
+      onrepair={repairFromTile}
       {checking}
     />
 

@@ -105,11 +105,16 @@
     "connection-agent-automation-agent",
     "connection-give-agent-automation-agent",
     "connection-logo-mcp:com-paypal-mcp-mcp",
+    "connection-tile-brings-folder:automation",
+    "connection-tile-name-folder:automation",
     "connections-kind-filter-all",
     "connections-kind-filter-folder",
     "connections-kind-filter-imap",
     "connections-kind-filter-mcp",
     "connections-kind-filter-native",
+    "connections-summary-action",
+    "connections-summary-all",
+    "connections-summary-working",
     "credential-row-web_search-brave.api_key",
     "danger-card-clear-logs",
     "danger-card-clear-memories",
@@ -9648,6 +9653,118 @@
       "kind": "click",
       "testid": "connections-kind-filter-all",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-summary",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-summary-agents",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-tile-name-folder:automation",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-tile-brings-folder:automation",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-summary-action",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "02b-dashboard-needs-attention"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-summary-working",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "02c-dashboard-working"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-summary-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "fill",
+      "testid": "connections-search",
+      "text": "automation-no-such-connection"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-grid-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "connections-search",
+      "text": ""
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connections-grid-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": []
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-empty-add",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02d-dashboard-empty"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-summary",
+      "timeoutMs": 8000
     },
     {
       "kind": "click",

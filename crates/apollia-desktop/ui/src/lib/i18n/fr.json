@@ -523,9 +523,8 @@
     "custom_error_url_required": "Indiquez l'adresse de la connexion.",
     "custom_test_tools_detected": "{count} outil(s) détecté(s).",
     "custom_error_oauth_required": "Ce serveur exige une authentification OAuth. Installez-le depuis le catalogue plutôt que via le formulaire personnalisé.",
-    "sidebar_no_servers": "Aucune connexion pour l'instant.",
     "sidebar_no_results": "Aucun résultat.",
-    "tools_count_label": "{count} outil(s)",
+    "tools_count_label": "{count, plural, one {# outil} other {# outils}}",
     "no_account_for": "Aucun compte connecté pour {name}.",
     "connect_account": "Connecter un compte",
     "settings_scope_gmail": "Gmail - envoi + brouillons",
@@ -733,8 +732,7 @@
     },
     "badge_builtin": "Intégrée",
     "page_subtitle": "Les comptes, dossiers, services et outils auxquels Apollia accède pour vous.",
-    "inactive": {
-    },
+    "inactive": {},
     "category": {
       "productivity": "Productivité et gestion de projet",
       "search": "Recherche",
@@ -929,6 +927,29 @@
       "chosen": "Choisi",
       "forget": "Retirer",
       "empty_folder": "Ce dossier est vide."
+    },
+    "summary": {
+      "label": "Synthèse des connexions",
+      "total": "{count, plural, one {# branchée} other {# branchées}}",
+      "working": "{count, plural, one {# fonctionne} other {# fonctionnent}}",
+      "action": "{count, plural, one {# demande une action} other {# demandent une action}}",
+      "agents": "{count, plural, =0 {aucun agent} one {# agent s'en sert} other {# agents s'en servent}}"
+    },
+    "tile": {
+      "open": "Ouvrir la fiche de {name}",
+      "agents": "{count, plural, =0 {Aucun agent} one {# agent} other {# agents}}",
+      "brings": {
+        "mail": "Mail",
+        "calendar": "Agenda",
+        "drive": "Drive",
+        "onedrive": "OneDrive",
+        "files": "Fichiers"
+      }
+    },
+    "empty": {
+      "title": "Branchez ce que vos agents peuvent atteindre",
+      "body": "Un compte, une boîte mail, un dossier ou un service : chaque connexion ouvre à vos agents ce dont ils ont besoin. Commencez par l'un de ceux-ci, ou cherchez dans la sélection.",
+      "suggestions": "Suggestions de la sélection"
     }
   },
   "integrations": {

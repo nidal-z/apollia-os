@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * The Connections page: one list beside the card of the chosen connection.
+ * The Connections page: a summary over a grid of tiles, the card of the
+ * chosen connection beside it.
  *
  * Boots the UI bundle with the Tauri bridge stubbed (the three members the
  * boot path reaches for, as in `add-connection.spec.ts`). The stub answers
@@ -137,10 +138,51 @@ test("what needs repair leads the list, and a failed source is one banner", asyn
   await expect(page.getByTestId("connections-source-error-connections")).toHaveCount(0);
 });
 
+test("the summary counts the connections and filters the grid on a state", async ({ page }) => {
+  // GIVEN the three connections, one working
+  const list = page.getByTestId("connections-sidebar-list");
+  await expect(list.locator(ROWS)).toHaveCount(3);
+
+  // WHEN the summary is read, then Needs attention is chosen
+  await expect(page.getByTestId("connections-summary-all")).toHaveAttribute("data-count", "3");
+  await expect(page.getByTestId("connections-summary-working")).toHaveAttribute("data-count", "1");
+  await expect(page.getByTestId("connections-summary-action")).toHaveAttribute("data-count", "2");
+  await page.getByTestId("connections-summary-action").click();
+
+  // THEN only the account to repair and the folder never checked are left, the
+  // service and the built-in tools are hidden, and the count is pressed
+  await expect(list.locator(ROWS)).toHaveCount(2);
+  await expect(page.getByTestId("sidebar-mcp-notion")).toHaveCount(0);
+  await expect(page.getByTestId("connections-builtin-section")).toHaveCount(0);
+  await expect(page.getByTestId("connections-summary-action")).toHaveAttribute("aria-pressed", "true");
+
+  // AND choosing it again gives every state back
+  await page.getByTestId("connections-summary-action").click();
+  await expect(list.locator(ROWS)).toHaveCount(3);
+});
+
+test("the tiles lay out in columns across the width, and in one column beside an open card", async ({ page }) => {
+  // GIVEN the three tiles, nothing open
+  const tiles = page.getByTestId("connections-sidebar-list").locator(ROWS);
+  await expect(tiles).toHaveCount(3);
+  const tops = async (): Promise<number[]> =>
+    tiles.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+
+  // WHEN nothing is open
+  // THEN the three tiles share one line
+  expect(new Set(await tops()).size).toBe(1);
+
+  // AND once a card is open, they stack in the column beside it
+  await page.getByTestId("sidebar-mcp-notion").click();
+  await expect(page.getByTestId("connector-detail")).toBeVisible();
+  expect(new Set(await tops()).size).toBe(3);
+});
+
 test("the card opens beside the list, and the page keeps its place across screens", async ({ page }) => {
   // GIVEN the folders chip and the folder's card open
+  // (by its name: the middle of a tile never checked is its Check button)
   await page.getByTestId("connections-kind-filter-folder").click();
-  await page.getByTestId("sidebar-connection-folder:invoices").click();
+  await page.getByTestId("connection-tile-name-folder:invoices").click();
   await expect(page.getByTestId("connector-detail")).toBeVisible();
   await expect(page.getByTestId("sidebar-connection-folder:invoices")).toBeVisible();
 

@@ -1,7 +1,15 @@
 import { describe, expect, test } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 
-import { brandLogoNames, brandLogoPath, selectionIconFor, svgPath } from "$lib/connections/brandLogo";
+import {
+  NATIVE_LOGOS,
+  brandLogoNames,
+  brandLogoPath,
+  nativeLogoName,
+  selectionEntryFor,
+  selectionIconFor,
+  svgPath,
+} from "$lib/connections/brandLogo";
 import type { ConnectorEnrichmentView } from "$lib/types";
 
 const LOGOS = new URL("../assets/brand-logos/", import.meta.url);
@@ -98,10 +106,20 @@ describe("brand logos", () => {
       .filter((e) => brandLogoPath(e.icon_name) === null)
       .map((e) => e.icon_name);
     // THEN only the declared generic names have no logo, and every logo shipped
-    //      is used by an entry
+    //      is used by an entry or by an account of a native provider
     expect([...new Set(missing)].sort()).toEqual(GENERIC);
-    const used = new Set(selection.map((e) => e.icon_name));
+    const used = new Set([...selection.map((e) => e.icon_name), ...Object.values(NATIVE_LOGOS)]);
     expect(brandLogoNames().filter((n) => !used.has(n))).toEqual([]);
+  });
+
+  test("a Google account shows the Google logo, a Microsoft account the generic icon", () => {
+    // GIVEN the two native providers, and no provider
+    // WHEN the logo of an account of each is asked
+    // THEN Google has its bundled logo, Microsoft and no provider have none
+    expect(nativeLogoName("google")).toBe("google");
+    expect(brandLogoPath(nativeLogoName("google"))).not.toBeNull();
+    expect(nativeLogoName("microsoft")).toBeNull();
+    expect(nativeLogoName(null)).toBeNull();
   });
 
   test("a path that is not the single path of a Simple Icons file is refused", () => {
@@ -127,5 +145,14 @@ describe("brand logos", () => {
     expect(selectionIconFor("stripe", map)).toBe("stripe");
     expect(selectionIconFor("my-own-server", map)).toBeNull();
     expect(selectionIconFor(null, map)).toBeNull();
+  });
+
+  test("a server finds the entry it was added from, so it is named by its label", () => {
+    // GIVEN the selection keyed as the page reads it
+    const map = new Map(selection.map((e) => [e.package_identifier, enrichmentOf(e)]));
+    // WHEN the entry of a server named by the add window is looked up
+    // THEN it is the entry whose label names the service, and a custom server has none
+    expect(selectionEntryFor("com-notion-mcp", map)?.operator_label.en).toBe("Notion");
+    expect(selectionEntryFor("my-own-server", map)).toBeNull();
   });
 });
