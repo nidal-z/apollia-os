@@ -79,5 +79,6 @@ Certains services (le navigateur web, les fichiers d'un dossier, et d'autres) to
 
 - **L'ajout dit que le service a besoin de Node.js** : aucun Node.js utilisable n'a été trouvé. Installez Node.js 22 ou plus depuis [nodejs.org](https://nodejs.org) (la version LTS), puis ajoutez le service à nouveau. Vous pouvez aussi attendre qu'Apollia puisse télécharger le sien.
 - **Le message cite un Node.js trop ancien** : celui de votre ordinateur est trop ancien. Mettez-le à jour en version 22 ou plus.
+- **L'essai dit qu'il a utilisé le Node.js installé sur cet ordinateur** : Apollia n'a pas pu télécharger le sien et s'est servi du vôtre. Rien à faire ; Apollia repasse sur le sien dès qu'il peut le télécharger.
 
 > **Référence technique :** [Référence Apollia](/reference) , protocole MCP, transports, niveaux de confiance, gouvernance.

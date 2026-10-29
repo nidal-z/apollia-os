@@ -5,8 +5,9 @@
 //! Apollia before it is extracted. When the channel cannot provide one (not
 //! published, offline, refused verification), a Node.js already installed by
 //! the user is accepted instead, because the user installed and chose it. The
-//! search reads the `PATH` of the process, then the usual install locations
-//! and the folders of the common version managers. The only program it runs
+//! search reads the absolute entries of the `PATH` of the process, then the
+//! usual install locations, the keg-only formulas of Homebrew
+//! (`opt/node@<major>`) and the folders of the common version managers. The only program it runs
 //! is the candidate `node` itself, with `--version`, to read its release.
 //!
 //! A candidate is kept only when it carries npm beside it (`npx-cli.js` and
@@ -38,7 +39,7 @@ const VERSION_DEADLINE: Duration = Duration::from_secs(5);
 const NODE_BINARY: &str = if cfg!(windows) { "node.exe" } else { "node" };
 
 /// Where a Node.js installed on the machine is looked for.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineNodeSearch {
     /// The `PATH` searched first, in its order.
     path: Option<OsString>,
@@ -46,6 +47,11 @@ pub struct MachineNodeSearch {
     home: Option<PathBuf>,
     /// The usual install directories, searched after the `PATH`.
     install_dirs: Vec<PathBuf>,
+    /// The folders Homebrew keeps its formulas in (`opt`), where a keg-only
+    /// `node@<major>` stays unlinked from the install directories.
+    keg_roots: Vec<PathBuf>,
+    /// Longest wait for a candidate to answer `--version`.
+    version_deadline: Duration,
 }
 
 /// A Node.js found on the machine and accepted.
@@ -105,10 +111,20 @@ impl MachineNodeSearch {
                 PathBuf::from("/usr/local/bin"),
             ]
         };
+        let keg_roots = if cfg!(windows) {
+            Vec::new()
+        } else {
+            vec![
+                PathBuf::from("/opt/homebrew/opt"),
+                PathBuf::from("/usr/local/opt"),
+            ]
+        };
         Self {
             path: std::env::var_os("PATH"),
             home: apollia_core::paths::home_dir(),
             install_dirs,
+            keg_roots,
+            version_deadline: VERSION_DEADLINE,
         }
     }
 
@@ -120,18 +136,52 @@ impl MachineNodeSearch {
             path,
             home,
             install_dirs,
+            keg_roots: Vec::new(),
+            version_deadline: VERSION_DEADLINE,
         }
     }
 
-    /// The directories searched, in order: the `PATH`, the install
-    /// directories, then each release of the version managers, newest first.
+    /// The same search, also looking for a keg-only `node@<major>` under
+    /// each of `keg_roots` (Homebrew's `opt` folders), after the install
+    /// directories.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn with_keg_roots(mut self, keg_roots: Vec<PathBuf>) -> Self {
+        self.keg_roots = keg_roots;
+        self
+    }
+
+    /// The same search, waiting `deadline` for a candidate to answer
+    /// `--version`. Tests only: the product waits [`VERSION_DEADLINE`].
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn with_version_deadline(mut self, deadline: Duration) -> Self {
+        self.version_deadline = deadline;
+        self
+    }
+
+    /// The directories searched, in order: the absolute entries of the
+    /// `PATH`, the install directories, the keg-only formulas of Homebrew,
+    /// newest major first, then each release of the version managers, newest
+    /// first.
+    ///
+    /// A relative entry of the `PATH`, or an empty one, which stands for the
+    /// current directory, is left out: it would run a `node` planted in
+    /// whatever folder the application was started from.
     fn dirs(&self) -> Vec<PathBuf> {
         let mut dirs: Vec<PathBuf> = self
             .path
             .as_deref()
-            .map(|p| std::env::split_paths(p).collect())
+            .map(|p| {
+                std::env::split_paths(p)
+                    .filter(|d| d.is_absolute())
+                    .collect()
+            })
             .unwrap_or_default();
         dirs.extend(self.install_dirs.iter().cloned());
+        for root in &self.keg_roots {
+            dirs.extend(kegs_newest_first(root).map(|keg| keg.join("bin")));
+        }
         if let Some(home) = &self.home {
             for (root, below) in version_manager_roots(home) {
                 dirs.extend(releases_newest_first(&root).map(|r| r.join(below)));
@@ -158,7 +208,7 @@ impl MachineNodeSearch {
             if !seen.insert(real.clone()) {
                 continue;
             }
-            match accept(&node, &real) {
+            match accept(&node, &real, self.version_deadline) {
                 Ok(found) => {
                     tracing::event!(
                         tracing::Level::INFO,
@@ -211,6 +261,23 @@ fn version_manager_roots(home: &Path) -> Vec<(PathBuf, &'static str)> {
     }
 }
 
+/// The keg-only Node.js formulas under a Homebrew `opt` folder
+/// (`node@24`, `node@22`), those of a supported major only, newest first.
+fn kegs_newest_first(root: &Path) -> impl Iterator<Item = PathBuf> {
+    let mut kegs: Vec<(u64, PathBuf)> = std::fs::read_dir(root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name();
+            let major: u64 = name.to_str()?.strip_prefix("node@")?.parse().ok()?;
+            (major >= MIN_MACHINE_NODE_MAJOR).then(|| (major, entry.path()))
+        })
+        .collect();
+    kegs.sort();
+    kegs.into_iter().rev().map(|(_, path)| path)
+}
+
 /// The release folders under `root` (`v22.11.0` or `22.11.0`), newest first.
 fn releases_newest_first(root: &Path) -> impl Iterator<Item = PathBuf> {
     let mut releases: Vec<(Vec<u64>, PathBuf)> = std::fs::read_dir(root)
@@ -233,7 +300,7 @@ fn releases_newest_first(root: &Path) -> impl Iterator<Item = PathBuf> {
 
 /// `node` as a [`MachineNode`], or why it is left out. `real` is the file a
 /// link at `node` points to, where a Homebrew release keeps its npm.
-fn accept(node: &Path, real: &Path) -> Result<MachineNode, String> {
+fn accept(node: &Path, real: &Path, deadline: Duration) -> Result<MachineNode, String> {
     let (node, npx_cli) = [node, real]
         .into_iter()
         .find_map(|n| npx_cli_beside(n).map(|cli| (n.to_path_buf(), cli)))
@@ -241,7 +308,8 @@ fn accept(node: &Path, real: &Path) -> Result<MachineNode, String> {
     if !npx_cli.with_file_name("npm-cli.js").is_file() {
         return Err("no npm beside it".to_owned());
     }
-    let version = node_version(&node).ok_or_else(|| "it did not answer `--version`".to_owned())?;
+    let version =
+        node_version(&node, deadline).ok_or_else(|| "it did not answer `--version`".to_owned())?;
     let major = release_numbers(&version)
         .and_then(|n| n.first().copied())
         .ok_or_else(|| format!("it answered `{version}`, not a release"))?;
@@ -260,8 +328,8 @@ fn accept(node: &Path, real: &Path) -> Result<MachineNode, String> {
 }
 
 /// What `node --version` prints, trimmed, or `None` when it fails or does
-/// not answer within [`VERSION_DEADLINE`].
-fn node_version(node: &Path) -> Option<String> {
+/// not answer within `deadline`.
+fn node_version(node: &Path, deadline: Duration) -> Option<String> {
     let mut command = Command::new(node);
     command
         .arg("--version")
@@ -279,7 +347,7 @@ fn node_version(node: &Path) -> Option<String> {
         let read = stdout.read_to_string(&mut out).map(|_| out);
         let _ = tx.send(read);
     });
-    let Ok(Ok(out)) = rx.recv_timeout(VERSION_DEADLINE) else {
+    let Ok(Ok(out)) = rx.recv_timeout(deadline) else {
         // A child that does not answer is stopped and reaped, so no process
         // outlives the search.
         let _ = child.kill();

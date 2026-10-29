@@ -64,6 +64,13 @@ enum NodeCommand {
     Npx,
 }
 
+/// Whether `command` is `node` or `npx` by its bare name, the spelling the
+/// launch resolves to the store's Node.js or, failing that, the machine's.
+#[must_use]
+pub fn runs_on_node(command: &str) -> bool {
+    node_command(command).is_some()
+}
+
 /// Which Node.js command `command` names by its bare name, the only spelling
 /// resolved to the store. A path is the operator's explicit choice and is kept.
 fn node_command(command: &str) -> Option<NodeCommand> {

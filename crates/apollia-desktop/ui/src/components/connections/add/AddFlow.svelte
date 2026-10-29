@@ -26,6 +26,8 @@
   } from "$lib/ipc/connections";
   import {
     addConnection,
+    MIN_NODE_MAJOR,
+    NODE_HELP_PATH,
     nodePercent,
     refusalOf,
     tryAddedConnection,
@@ -43,7 +45,9 @@
     type FlowPhase,
   } from "$lib/connections/addFlow";
   import type { AddEntry } from "$lib/connections/addWindow";
-  import type { AgentListItem, Connection, McpServerConfigInput } from "$lib/types";
+  import type { AgentListItem, Connection, McpServerConfigInput, NodeSource } from "$lib/types";
+  import { docsUrl } from "$lib/utils/docsUrl";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
   import WizardStepDisclaimer from "../../integrations/WizardStepDisclaimer.svelte";
   import WizardStepAuth from "../../integrations/WizardStepAuth.svelte";
   import WizardStepCoaching from "../../integrations/WizardStepCoaching.svelte";
@@ -110,6 +114,7 @@
   let working = $state<"adding" | "probing" | "granting" | "trying">("adding");
   let refusal = $state<Refusal | null>(null);
   let failure = $state<string | null>(null);
+  let failureNode = $state(false);
   let agents = $state<AgentListItem[]>([]);
   let agentsLoading = $state(false);
   let checked = $state<string[]>(initiallyChecked());
@@ -118,6 +123,7 @@
   let trialTools = $state<number | null>(null);
   let trialMessageKey = $state<string | null>(null);
   let trialDetail = $state<string | null>(null);
+  let trialNodeSource = $state<NodeSource | null>(null);
   let removing = $state(false);
   let removeError = $state<string | null>(null);
 
@@ -196,11 +202,13 @@
     working = "adding";
     nodeState = null;
     failure = null;
+    failureNode = false;
     if (fromCatalogue) {
       const outcome = await addConnection(config, secrets, { onNode: (s) => (nodeState = s) });
       if (outcome.kind === "refused") return refused(outcome.refusal);
       if (outcome.kind === "failed") {
         failure = outcome.message;
+        failureNode = outcome.reason === "node_unavailable";
         phase = "failed";
         return;
       }
@@ -259,6 +267,7 @@
     working = "trying";
     const outcome = await tryAddedConnection(serverConfig.name);
     trialOk = outcome.kind === "succeeded";
+    trialNodeSource = outcome.nodeSource ?? null;
     if (outcome.kind === "succeeded") {
       trialTools = outcome.tools;
     } else {
@@ -401,6 +410,11 @@
           {$t("connections.add_flow.grant_failed", { values: { error: grantError } })}
         </p>
       {/if}
+      {#if trialNodeSource === "machine"}
+        <p class="text-caption text-muted-foreground" data-testid="add-flow-machine-node">
+          {$t("integrations.wizard.node_machine")}
+        </p>
+      {/if}
       {#if trialOk}
         <TrialSucceeded
           kind={entry.kind}
@@ -446,7 +460,23 @@
           <XCircle size={16} class="shrink-0 text-destructive" aria-hidden="true" />
           <p class="text-sm font-medium text-destructive">{$t("integrations.wizard.add_failed")}</p>
         </div>
-        {#if failure}
+        {#if failureNode}
+          <p class="text-sm text-foreground" data-testid="wizard-node-unavailable">
+            {$t("integrations.wizard.node_unavailable", { values: { major: MIN_NODE_MAJOR } })}
+          </p>
+          <a
+            href={docsUrl(NODE_HELP_PATH)}
+            onclick={handleExternalLinkClick}
+            class="text-xs text-primary underline-offset-2 hover:underline"
+            data-testid="wizard-node-help">{$t("integrations.wizard.node_unavailable_help")}</a
+          >
+          {#if failure}
+            <details class="text-xs">
+              <summary class="cursor-pointer text-muted-foreground">{$t("integrations.wizard.test_err.raw_details")}</summary>
+              <p class="mt-1 break-all font-mono text-caption text-muted-foreground">{failure}</p>
+            </details>
+          {/if}
+        {:else if failure}
           <p class="break-all text-xs text-muted-foreground">{failure}</p>
         {/if}
       </div>

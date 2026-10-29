@@ -12,6 +12,13 @@ use crate::transport::node::{resolve_or_machine, NODE_ENGINE_DIR, NODE_VARIANT_D
 /// `with_npm` false leaves npm out. Returns the path of `node`.
 #[cfg(unix)]
 fn fake_release(prefix: &Path, version: &str, with_npm: bool) -> PathBuf {
+    fake_release_doing(prefix, &format!("echo {version}"), with_npm)
+}
+
+/// [`fake_release`] with a `node` that runs `answer` after logging its
+/// arguments, rather than printing a release.
+#[cfg(unix)]
+fn fake_release_doing(prefix: &Path, answer: &str, with_npm: bool) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let bin = prefix.join("bin");
     std::fs::create_dir_all(&bin).unwrap();
@@ -20,7 +27,7 @@ fn fake_release(prefix: &Path, version: &str, with_npm: bool) -> PathBuf {
     std::fs::write(
         &node,
         format!(
-            "#!/bin/sh\necho \"$@\" >> '{}'\necho {version}\n",
+            "#!/bin/sh\necho \"$@\" >> '{}'\n{answer}\n",
             calls.display()
         ),
     )
@@ -207,4 +214,110 @@ fn test_the_store_node_is_preferred_to_the_machine_one() {
     // THEN the store's node runs, and the machine's is not even asked
     assert_eq!(launch.program, stored);
     assert!(!machine.join("calls").exists());
+}
+
+#[test]
+fn test_a_relative_or_empty_path_entry_is_never_searched() {
+    // GIVEN a PATH whose entries are relative, empty (the current directory)
+    //       and absolute
+    let dir = tempfile::tempdir().unwrap();
+    let absolute = dir.path().join("bin");
+    let path = std::env::join_paths([
+        PathBuf::from("node_modules/.bin"),
+        PathBuf::new(),
+        PathBuf::from("."),
+        absolute.clone(),
+    ])
+    .unwrap();
+    let search = MachineNodeSearch::new(Some(path), None, Vec::new());
+
+    // WHEN the directories to search are listed
+    let dirs = search.dirs();
+
+    // THEN only the absolute entry is kept: a `node` planted in the current
+    //      directory or below it is never run
+    assert_eq!(dirs, vec![absolute]);
+}
+
+#[cfg(unix)]
+#[test]
+fn test_a_keg_only_homebrew_node_is_found_newest_major_first() {
+    // GIVEN an empty PATH, and a Homebrew prefix holding node@20, node@22
+    //       and node@24 as keg-only formulas, unlinked from its `bin`
+    let dir = tempfile::tempdir().unwrap();
+    let opt = dir.path().join("opt");
+    fake_release(&opt.join("node@20"), "v20.10.0", true);
+    fake_release(&opt.join("node@22"), "v22.11.0", true);
+    let newest = fake_release(&opt.join("node@24"), "v24.1.0", true);
+    std::fs::create_dir_all(opt.join("python@3.13/bin")).unwrap();
+    let search = MachineNodeSearch::new(None, None, Vec::new()).with_keg_roots(vec![opt.clone()]);
+
+    // WHEN the machine is searched
+    let found = search.find().unwrap();
+
+    // THEN the newest supported formula is kept, and the older ones not run
+    assert_eq!(found.install.node, newest);
+    assert!(!opt.join("node@22/calls").exists());
+    assert!(!opt.join("node@20/calls").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn test_the_search_of_the_process_looks_in_both_homebrew_prefixes() {
+    // GIVEN the search of this process
+    let search = MachineNodeSearch::from_env();
+
+    // WHEN its keg roots are read
+    // THEN both the Apple silicon and the Intel Homebrew prefixes are there
+    assert_eq!(
+        search.keg_roots,
+        vec![
+            PathBuf::from("/opt/homebrew/opt"),
+            PathBuf::from("/usr/local/opt")
+        ]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_a_node_that_does_not_answer_is_stopped_at_its_deadline() {
+    // GIVEN a Node.js with its npm whose `node` never answers `--version`,
+    //       and a search that waits for it a fifth of a second
+    let dir = tempfile::tempdir().unwrap();
+    let prefix = dir.path().join("hung");
+    fake_release_doing(&prefix, "exec sleep 30", true);
+    let search = search_path(&[&prefix.join("bin")])
+        .with_version_deadline(std::time::Duration::from_millis(200));
+
+    // WHEN the machine is searched
+    let started = std::time::Instant::now();
+    let missing = search.find().unwrap_err();
+
+    // THEN it is left out for not answering, long before it would have
+    //      finished on its own
+    assert_eq!(missing.rejected[0].reason, "it did not answer `--version`");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(10),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_a_node_with_npx_but_without_npm_is_refused() {
+    // GIVEN a Node.js 22 whose npm folder holds `npx-cli.js` but not
+    //       `npm-cli.js`
+    let dir = tempfile::tempdir().unwrap();
+    let prefix = dir.path().join("half");
+    fake_release(&prefix, "v22.11.0", true);
+    std::fs::remove_file(prefix.join("lib/node_modules/npm/bin/npm-cli.js")).unwrap();
+    let search = search_path(&[&prefix.join("bin")]);
+
+    // WHEN the machine is searched
+    let missing = search.find().unwrap_err();
+
+    // THEN it is left out for its missing npm, and never run
+    assert_eq!(missing.rejected[0].reason, "no npm beside it");
+    assert!(!prefix.join("calls").exists());
 }

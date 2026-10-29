@@ -293,10 +293,6 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # a read gives up at its deadline while the write variant waits past it.
     # No sleep: the order is set by the release, not by the clock.
     "crates/apollia-desktop/src/commands/mod.rs": 1,
-    # The process is the subject: falling back on the Node.js of the machine
-    # means reading its release, and `node --version` is the only way to read
-    # it. One helper writes the fake `node` that answers it.
-    "crates/apollia-desktop/src/commands/mcp.rs": 1,
     # One helper, the transport is the subject: these tests prove that a
     # virtualenv gets built, that pip refuses an altered digest, and that the
     # rewritten command starts. The helper builds the local wheel the
@@ -321,7 +317,8 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-mcp/src/transport/http.rs": 3,
     # The process is the subject: the search for the Node.js of the machine
     # keeps a candidate by the release `node --version` answers. One helper
-    # writes the fake `node` that answers it and logs what it was asked.
+    # writes the fake `node` that answers it and logs what it was asked, or
+    # that never answers, to show the deadline of the search stops it.
     "crates/apollia-mcp/src/transport/node/machine/tests.rs": 1,
     "crates/apollia-mcp/src/transport/sse.rs": 3,
     "crates/apollia-mcp/src/transport/stdio.rs": 1,

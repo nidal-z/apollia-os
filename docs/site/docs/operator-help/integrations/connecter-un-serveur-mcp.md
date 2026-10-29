@@ -79,5 +79,6 @@ Some services (the web browser, the files of a folder, and others) run on Node.j
 
 - **The addition says "This service needs Node.js"**: no usable Node.js was found. Install Node.js 22 or later from [nodejs.org](https://nodejs.org) (the LTS release), then add the service again. You can also wait until Apollia can download its own.
 - **The message names a Node.js "older than the 22 release"**: the one installed on your computer is too old. Update it to version 22 or later.
+- **The trial says it ran on the Node.js installed on this computer**: Apollia could not download its own and used yours. Nothing to do; Apollia switches to its own once it can download it.
 
 > **Technical reference:** [Apollia reference](/reference) , MCP protocol, transports, trust levels, governance.

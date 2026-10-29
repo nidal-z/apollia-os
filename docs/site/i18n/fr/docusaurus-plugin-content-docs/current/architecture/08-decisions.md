@@ -539,10 +539,15 @@ injoignable, hors ligne, ou vérification refusée), Apollia se replie sur un
 Node.js déjà installé sur le poste. Cette version n'est pas vérifiée par
 Apollia, et elle est acceptée tout de même, parce que l'utilisateur l'a
 installée et choisie : elle a déjà sa confiance pour exécuter du code sur ce
-poste, et Apollia n'ajoute rien à ce qu'elle peut faire. La recherche lit le
-`PATH` du processus, puis les dossiers d'installation usuels
-(`/opt/homebrew/bin`, `/usr/local/bin`, `Program Files\nodejs` sous Windows)
-et les versions des gestionnaires courants (nvm, Volta, fnm), et le seul
+poste, et Apollia n'ajoute rien à ce qu'elle peut faire. La recherche lit les
+entrées absolues du `PATH` du processus (une entrée relative ou vide, qui vaut
+le dossier courant, est écartée, si bien qu'un `node` déposé dans le dossier
+d'où l'application est partie n'est jamais lancé), puis les dossiers
+d'installation usuels (`/opt/homebrew/bin`, `/usr/local/bin`,
+`Program Files\nodejs` sous Windows), les formules Homebrew non liées
+(`opt/node@<majeure>` sous `/opt/homebrew` et `/usr/local`, la majeure la plus
+récente d'abord) et les versions des gestionnaires courants (nvm, Volta, fnm),
+et le seul
 programme qu'elle lance est le `node` candidat lui-même, avec `--version`. Un
 candidat n'est retenu que si sa version majeure est 22 ou plus, la ligne que
 publie le canal et avec laquelle les verrous sont essayés, et si son propre npm

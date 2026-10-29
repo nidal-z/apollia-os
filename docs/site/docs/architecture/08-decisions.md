@@ -501,10 +501,14 @@ offline, or its verification refused), Apollia falls back on a Node.js already
 installed on the machine. That release is not verified by Apollia, and it is
 accepted all the same, because the user installed it and chose it: it is
 already trusted to run code on that machine, and Apollia adds nothing to what
-it can do. The search reads the `PATH` of the process, then the usual install
-directories (`/opt/homebrew/bin`, `/usr/local/bin`, `Program Files\nodejs` on
-Windows) and the releases of the common version managers (nvm, Volta, fnm),
-and the only program it runs is the candidate `node` itself, with
+it can do. The search reads the absolute entries of the `PATH` of the process
+(a relative or empty entry, which stands for the current directory, is left
+out, so a `node` planted in the folder the application started from is never
+run), then the usual install directories (`/opt/homebrew/bin`,
+`/usr/local/bin`, `Program Files\nodejs` on Windows), the keg-only Homebrew
+formulas (`opt/node@<major>` under `/opt/homebrew` and `/usr/local`, newest
+major first) and the releases of the common version managers (nvm, Volta,
+fnm), and the only program it runs is the candidate `node` itself, with
 `--version`. A candidate is kept only when its major release is 22 or later,
 the line the channel publishes and the locks are tried with, and when its own
 npm lies beside it; `npx` and `npm` are always those of the `node` kept. The
