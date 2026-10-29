@@ -153,6 +153,13 @@ pub struct ConnectorEnrichment {
     /// does not declare its own headers. Registry data takes precedence.
     #[serde(default)]
     pub remote_headers: Vec<EnrichmentRemoteHeader>,
+    /// The remote server signs in with the person's account: it answers
+    /// without credentials by naming an authorization server that registers
+    /// clients itself (DCR or CIMD), so the add flow offers the sign-in, and
+    /// the key `remote_headers` declares, if any, is only the fallback.
+    /// Absent reads as `false`, so an index without it stays readable.
+    #[serde(default)]
+    pub oauth: bool,
     /// Cost classification surfaced as a badge in the catalogue.
     ///
     /// `None` means "unspecified" (legacy entries); the UI defaults to
@@ -507,6 +514,70 @@ mod tests {
         assert!(first.operator_label.contains_key("fr"));
         assert!(!first.category.is_empty());
         assert!(!first.icon_name.is_empty());
+    }
+
+    #[test]
+    fn test_a_service_that_signs_in_with_the_account_declares_it_and_a_key_only_one_does_not() {
+        // GIVEN the selection, and the services whose server answers without
+        //       credentials by naming an authorization server that registers
+        //       clients itself (probed on 2026-10-29), and two that do not
+        let enrichments = compiled_enrichments();
+        let oauth_of = |id: &str| {
+            enrichments
+                .iter()
+                .find(|e| e.package_identifier == id || e.registry_names.iter().any(|n| n == id))
+                .map(|e| e.oauth)
+        };
+
+        // WHEN the declared mode of each is read
+        // THEN the seven that the controller found keyed sign in with the
+        //      account, GitHub and Slack stay keyed, and every service that
+        //      declares the sign-in is reached at an https address
+        for id in [
+            "com.notion/mcp",
+            "app.linear/mcp",
+            "com.atlassian/rovo-mcp",
+            "com.stripe/mcp",
+            "io.sentry/mcp",
+            "com.cloudflare/mcp",
+            "com.postman/postman-mcp-server",
+        ] {
+            assert_eq!(oauth_of(id), Some(true), "{id}");
+        }
+        assert_eq!(oauth_of("io.github.github/github-mcp-server"), Some(false));
+        assert_eq!(oauth_of("com.slack/mcp"), Some(false));
+        let declared: Vec<&ConnectorEnrichment> = enrichments.iter().filter(|e| e.oauth).collect();
+        assert_eq!(declared.len(), 40);
+        for entry in declared {
+            assert!(
+                entry
+                    .remote_url
+                    .as_deref()
+                    .is_some_and(|u| u.starts_with("https://")),
+                "{}",
+                entry.package_identifier
+            );
+        }
+    }
+
+    #[test]
+    fn test_an_entry_without_the_sign_in_field_reads_as_keyed() {
+        // GIVEN an entry written before the field existed
+        let raw = serde_json::json!({
+            "package_identifier": "com.example/mcp",
+            "operator_label": { "en": "Example", "fr": "Exemple" },
+            "category": "productivity",
+            "icon_name": "example",
+            "trust_level": "community",
+            "auth_help_url": null,
+            "auth_help_text": null
+        });
+
+        // WHEN it is read
+        let entry: ConnectorEnrichment = serde_json::from_value(raw).expect("reads");
+
+        // THEN it does not claim the sign-in
+        assert!(!entry.oauth);
     }
 
     #[test]

@@ -101,13 +101,14 @@ export type AddNeed =
   | "folder"
   | "mailbox"
   | "key"
+  | "key_fallback"
   | "values"
   | "download"
   | "online"
   | "address"
   | "nothing";
 
-/** What adding `entry` will ask: a sign-in, a key, values, a download, the network. */
+/** What adding `entry` will ask: a sign-in, a key (or one in reserve), values, a download, the network. */
 export function entryNeeds(entry: AddEntry): AddNeed[] {
   switch (entry.kind) {
     case "native":
@@ -131,7 +132,11 @@ function catalogueNeeds(entry: RegistryServerView): AddNeed[] {
     ...(remote?.headers ?? []),
   ].filter((f) => f.isRequired);
   const needs: AddNeed[] = [];
-  if (fields.some((f) => f.isSecret)) needs.push("key");
+  // A server the selection declares signed in with the account asks the
+  // sign-in first; the key it declares is asked only if the sign-in fails.
+  const signsIn = remote !== null && entry.enrichment?.oauth === true;
+  if (signsIn) needs.push("sign_in");
+  if (fields.some((f) => f.isSecret)) needs.push(signsIn ? "key_fallback" : "key");
   const askedArgs = (pkg?.packageArguments ?? []).some((a) => a.isRequired && a.value === null);
   if (fields.some((f) => !f.isSecret) || askedArgs) needs.push("values");
   if (remote === null && pkg !== null) needs.push("download");

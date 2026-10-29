@@ -168,6 +168,78 @@ describe("the add window", () => {
     expect(pressed(html, "catalogue-usage-chip-payments")).toBe(true);
   });
 
+  test("an empty state offers the address once, and no note on community entries none of which is shown", async () => {
+    // GIVEN words nothing answers, on the selection then on everything
+    const verified = await render({ query: "zzzz" });
+    const everything = await render({
+      query: "zzzz",
+      catalogueTier: "full",
+      publicEntries: [WEATHER],
+      browse: { usage: "all", source: "all", sort: "recommended", keyless: false },
+    });
+
+    // WHEN each is rendered
+    // THEN the empty state alone offers the address and the public catalogue,
+    //      once each, and the note on community entries is absent
+    for (const html of [verified, everything]) {
+      expect(html).toContain('data-testid="catalogue-empty"');
+      expect(html.match(/data-testid="catalogue-empty-address"/g) ?? []).toHaveLength(1);
+      expect(html).not.toContain('data-testid="catalogue-address"');
+      expect(html).not.toContain('data-testid="catalogue-group-address"');
+      expect(text(html)).not.toContain(en.connections.add_window.browse.community_note);
+    }
+    expect(verified).toContain('data-testid="catalogue-empty-public"');
+  });
+
+  test("the note on community entries waits for one to be shown", async () => {
+    // GIVEN the selection alone, then everything with the public catalogue holding nothing new, then one community entry
+    const selectionOnly = await render({});
+    const nothingPublic = await render({
+      catalogueTier: "full",
+      browse: { usage: "all", source: "all", sort: "recommended", keyless: false },
+    });
+    const withCommunity = await render({
+      catalogueTier: "full",
+      publicEntries: [WEATHER],
+      browse: { usage: "all", source: "all", sort: "recommended", keyless: false },
+    });
+
+    // WHEN each is rendered
+    // THEN only the one that shows a community entry carries the note
+    expect(text(selectionOnly)).not.toContain(en.connections.add_window.browse.community_note);
+    expect(nothingPublic).not.toContain('data-testid="catalogue-public-note"');
+    expect(withCommunity).toContain('data-testid="catalogue-public-note"');
+  });
+
+  test("the card of a service that signs in with the account says so, the key in reserve", async () => {
+    // GIVEN Notion as the selection declares it: the sign-in, a key in reserve
+    const KEY = [{ name: "Authorization", description: null, isRequired: true, isSecret: true, format: null, default: null, choices: null }];
+    const notion = entry({
+      enrichment: {
+        operator_label: { en: "Notion", fr: "Notion" }, category: "documents", icon_name: "notion",
+        trust_level: "verified_official", auth_help_url: null, auth_help_text: null,
+        auth_help_i18n_key: null, oauth_pre_registered_client_id_env: null, oauth: true,
+      },
+      remotes: [{ type: "streamable-http", url: "https://mcp.notion.com/mcp", headers: KEY }],
+    } as Partial<RegistryServerView>);
+    // WHEN its card is rendered, then the list with "no setup" ticked
+    const html = await render({ selection: [notion], chosen: "entry:com.notion/mcp" });
+    const card = html.slice(html.indexOf('data-testid="catalogue-card"'));
+    const keyless = await render({
+      selection: [notion],
+      browse: { usage: "all", source: "verified", sort: "recommended", keyless: true },
+    });
+
+    // THEN it connects by the account with a key in reserve, asks the sign-in
+    //      and not a key, and stays under "no setup"
+    expect(card).toContain('data-auth="account_or_key"');
+    expect(text(card)).toContain(en.connections.add_window.card.auth_kinds.account_or_key);
+    expect(text(card)).toContain(en.connections.add_window.needs.sign_in);
+    expect(text(card)).toContain(en.connections.add_window.needs.key_fallback);
+    expect(text(card)).not.toContain(en.connections.add_window.needs.key);
+    expect(keyless).toContain('data-testid="catalogue-entry-com.notion/mcp"');
+  });
+
   test("a chosen entry opens its card beside the list: what it is, its usage, how it connects, what it asks, Add", async () => {
     // GIVEN the selection entry chosen
     // WHEN the window is rendered

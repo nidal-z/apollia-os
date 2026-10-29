@@ -252,6 +252,36 @@ test.describe("browsing the catalogue by usage", () => {
   });
 });
 
+test.describe("the usages in a narrow window", () => {
+  test("they hold on one line that scrolls sideways, and the keyboard reaches the last one", async ({ page }) => {
+    // GIVEN the selection open, then the window narrowed to 760 pixels
+    await installTauriStub(page, false);
+    await openSelection(page);
+    await page.setViewportSize({ width: 760, height: 900 });
+    const row = page.getByTestId("catalogue-usages");
+    const first = await page.getByTestId("catalogue-usage-chip-all").boundingBox();
+    const last = page.getByTestId("catalogue-usage-chip-other");
+
+    // WHEN the row is measured, then the chips are walked by the keyboard to the last one
+    const overflow = await row.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+    const lastBefore = await last.boundingBox();
+    await page.getByTestId("catalogue-usage-chip-all").focus();
+    for (let i = 0; i < 12; i += 1) await page.keyboard.press("Tab");
+
+    // THEN every chip sits on the first line, the row scrolls rather than
+    //      wraps, and the last chip, focused, is scrolled into view
+    expect(first && lastBefore).toBeTruthy();
+    if (first && lastBefore) expect(Math.abs(lastBefore.y - first.y)).toBeLessThan(2);
+    expect(overflow.scroll).toBeGreaterThan(overflow.client);
+    await expect(last).toBeFocused();
+    expect(await row.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    const rowBox = await row.boundingBox();
+    const lastBox = await last.boundingBox();
+    expect(rowBox && lastBox).toBeTruthy();
+    if (rowBox && lastBox) expect(lastBox.x + lastBox.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+  });
+});
+
 test.describe("adding a connection", () => {
   test("three clicks from the window add the connection, give it to Apollia and try it", async ({ page }) => {
     // GIVEN the add window open on an entry that needs no authentication

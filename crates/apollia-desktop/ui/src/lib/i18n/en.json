@@ -762,10 +762,11 @@
       "failed_public": "The public catalogue did not answer. Check the connection to the internet, then try again.",
       "needs_title": "What it asks",
       "needs": {
-        "sign_in": "A sign-in to your account, in your browser",
+        "sign_in": "Sign-in with your account, in your browser",
         "folder": "A folder you choose on this computer",
         "mailbox": "Your address and an app password from your mail provider",
         "key": "A key or a password the service gives you",
+        "key_fallback": "A key in reserve, if the sign-in does not go through",
         "values": "A few settings to fill in",
         "download": "A download to this computer, done by Apollia",
         "online": "The service is reached over the internet: what agents ask of it goes there",
@@ -806,7 +807,8 @@
         "usage": "Usage",
         "auth": "Connection",
         "auth_kinds": {
-          "account": "Your account, in the browser",
+          "account": "Sign-in with your account",
+          "account_or_key": "Sign-in with your account, a key in reserve",
           "key": "A key to type",
           "values": "A few settings to type",
           "folder": "A folder of this computer",

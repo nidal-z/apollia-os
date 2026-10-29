@@ -60,8 +60,11 @@
   }
 </script>
 
+<!-- A narrow window keeps the usages on one line that scrolls sideways, and
+     leaves its height to the list; a focused chip is scrolled into view, so
+     the keyboard reaches every one. From md up they wrap. -->
 <div
-  class="flex flex-wrap items-center gap-1.5"
+  class="-mx-0.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5 py-0.5 md:flex-wrap md:overflow-visible [&>button]:shrink-0 [&>button]:whitespace-nowrap"
   role="group"
   aria-label={$t("connections.add_window.browse.usages_label")}
   data-testid="catalogue-usages"

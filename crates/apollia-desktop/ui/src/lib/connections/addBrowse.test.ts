@@ -1,4 +1,5 @@
 import { describe, test, expect } from "vitest";
+import { readFileSync } from "node:fs";
 
 import {
   browseCatalogue,
@@ -8,7 +9,7 @@ import {
   sortsFor,
   sourceShowsPublic,
 } from "$lib/connections/addBrowse";
-import { BROWSE_DEFAULT, addWindowGroups, type AddEntry, type BrowseState } from "$lib/connections/addWindow";
+import { BROWSE_DEFAULT, addWindowGroups, entryNeeds, type AddEntry, type BrowseState } from "$lib/connections/addWindow";
 import type { RegistryServerView } from "$lib/types";
 
 function entry(name: string, title: string, category: string, over: Partial<RegistryServerView> = {}): RegistryServerView {
@@ -176,5 +177,130 @@ describe("how an entry connects", () => {
     expect(entryAuth({ key: "entry:com.slack/mcp", kind: "catalogue", entry: SLACK, source: "selection" })).toBe("keyless");
     expect(entryAuth({ key: "folder", kind: "folder" })).toBe("folder");
     expect(entryAuth({ key: "mailbox", kind: "mailbox" })).toBe("mailbox");
+  });
+});
+
+interface SelectionHeader {
+  name: string;
+  is_required: boolean;
+  is_secret: boolean;
+}
+
+interface SelectionEntry {
+  package_identifier: string;
+  registry_names?: string[];
+  operator_label: Record<string, string>;
+  category: string;
+  icon_name: string;
+  remote_url?: string;
+  remote_transport?: string;
+  remote_headers?: SelectionHeader[];
+  oauth?: boolean;
+}
+
+const selection = JSON.parse(
+  readFileSync(new URL("../../../../src/mcp/enrichments.json", import.meta.url), "utf8"),
+) as SelectionEntry[];
+
+/** A selection entry as `curated_view` (commands/mcp/discovery.rs) sends it: its remote, its own headers, its enrichment. */
+function curated(e: SelectionEntry): AddEntry {
+  const view: RegistryServerView = entry(e.registry_names?.[0] ?? e.package_identifier, e.operator_label.en, e.category, {
+    remotes:
+      e.remote_url && e.remote_transport
+        ? [{
+            type: e.remote_transport,
+            url: e.remote_url,
+            headers: (e.remote_headers ?? []).map((h) => ({
+              name: h.name, description: null, isRequired: h.is_required, isSecret: h.is_secret,
+              format: null, default: null, choices: null,
+            })),
+          }]
+        : [],
+    enrichment: {
+      operator_label: e.operator_label,
+      category: e.category,
+      icon_name: e.icon_name,
+      trust_level: "verified_official",
+      auth_help_url: null,
+      auth_help_text: null,
+      auth_help_i18n_key: null,
+      oauth_pre_registered_client_id_env: null,
+      oauth: e.oauth ?? false,
+    },
+  } as Partial<RegistryServerView>);
+  return { key: `entry:${view.name}`, kind: "catalogue", entry: view, source: "selection" };
+}
+
+describe("a service that signs in with the account", () => {
+  test("each entry of the selection connects the way its declared field says", () => {
+    // GIVEN every remote entry of the selection, as the window receives it
+    const remote = selection.filter((e) => e.remote_url?.startsWith("https://"));
+    expect(remote.length).toBeGreaterThanOrEqual(45);
+    for (const e of remote) {
+      const added = curated(e);
+      const keyed = (e.remote_headers ?? []).some((h) => h.is_required && h.is_secret);
+      // WHEN how it connects is read
+      const auth = entryAuth(added);
+      // THEN a declared sign-in is the account (with the key in reserve when one is
+      //      declared) and passes "no setup"; otherwise the key it declares is asked
+      if (e.oauth) {
+        expect(auth, e.package_identifier).toBe(keyed ? "account_or_key" : "account");
+        expect(isKeyless(added), e.package_identifier).toBe(true);
+      } else {
+        expect(auth, e.package_identifier).toBe(keyed ? "key" : "keyless");
+        expect(isKeyless(added), e.package_identifier).toBe(!keyed);
+      }
+    }
+  });
+
+  test("Notion, Linear and the five others the controller found keyed sign in, GitHub and Slack stay keyed", () => {
+    // GIVEN the nine remote services of the selection that declare a key
+    const byName = new Map(selection.map((e) => [e.registry_names?.[0] ?? e.package_identifier, e]));
+    const auth = (name: string) => {
+      const e = byName.get(name);
+      if (!e) throw new Error(name);
+      return entryAuth(curated(e));
+    };
+    // WHEN how each connects is read
+    // THEN the seven sign in with the account, a key in reserve; GitHub and Slack ask the key
+    for (const name of [
+      "com.notion/mcp",
+      "app.linear/mcp",
+      "com.atlassian/rovo-mcp",
+      "com.stripe/mcp",
+      "io.sentry/mcp",
+      "com.cloudflare/mcp",
+      "com.postman/postman-mcp-server",
+    ]) {
+      expect(auth(name), name).toBe("account_or_key");
+    }
+    expect(auth("io.github.github/github-mcp-server")).toBe("key");
+    expect(auth("com.slack/mcp")).toBe("key");
+  });
+
+  test("what it asks names the sign-in first and the key only as a fallback", () => {
+    // GIVEN Notion as the selection declares it
+    const notion = selection.find((e) => e.registry_names?.[0] === "com.notion/mcp");
+    if (!notion) throw new Error("notion");
+    // WHEN what adding it asks is read
+    const needs = entryNeeds(curated(notion));
+    // THEN the sign-in comes first, the key is in reserve, and no key is asked as such
+    expect(needs).toEqual(["sign_in", "key_fallback", "online"]);
+  });
+});
+
+describe("the note on community entries", () => {
+  test("it is due only when a public entry is shown", () => {
+    // GIVEN the selection alone, the public catalogue chosen, a search answered by it, and nothing left
+    const selectionOnly = view({});
+    const everything = view({ source: "all" });
+    const searched = view({}, "adyen");
+    const nothing = view({ source: "all", usage: "payments", keyless: true }, "zzzz");
+    // WHEN whether a public entry is shown is read
+    // THEN only the views that show one call for the note
+    expect(selectionOnly.communityShown).toBe(false);
+    expect(everything.communityShown).toBe(true);
+    expect(searched.communityShown).toBe(true);
+    expect(nothing.communityShown).toBe(false);
   });
 });

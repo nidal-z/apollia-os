@@ -10878,6 +10878,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitGone",
+      "testid": "catalogue-group-address",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
       "label": "13d-catalogue-usage-empty"
     },

@@ -72,6 +72,7 @@
     folder: "connections.add_window.needs.folder",
     mailbox: "connections.add_window.needs.mailbox",
     key: "connections.add_window.needs.key",
+    key_fallback: "connections.add_window.needs.key_fallback",
     values: "connections.add_window.needs.values",
     download: "connections.add_window.needs.download",
     online: "connections.add_window.needs.online",
@@ -81,6 +82,7 @@
 
   const AUTH_KEYS: Record<EntryAuth, string> = {
     account: "connections.add_window.card.auth_kinds.account",
+    account_or_key: "connections.add_window.card.auth_kinds.account_or_key",
     key: "connections.add_window.card.auth_kinds.key",
     values: "connections.add_window.card.auth_kinds.values",
     folder: "connections.add_window.card.auth_kinds.folder",

@@ -60,6 +60,8 @@ export interface BrowseView {
   community: AddEntry[];
   /** Nothing answers the usage, the source, the filter and the words together. */
   empty: boolean;
+  /** Some public entry is shown, in the groups or apart: the note on community entries is due. */
+  communityShown: boolean;
 }
 
 export interface BrowseInputs {
@@ -113,16 +115,26 @@ export function browseCatalogue(inputs: BrowseInputs): BrowseView {
   });
   const community =
     state.source === "verified" && searched ? ordered(publicEntries.filter(kept)) : [];
-  return { groups: usageGroups, community, empty: usageGroups.length === 0 && community.length === 0 };
+  const communityShown =
+    community.length > 0 || usageGroups.some((group) => group.entries.some((entry) => !isVerified(entry)));
+  return {
+    groups: usageGroups,
+    community,
+    empty: usageGroups.length === 0 && community.length === 0,
+    communityShown,
+  };
 }
 
 /** How an entry is connected, as the card names it. */
-export type EntryAuth = "account" | "key" | "values" | "folder" | "mailbox" | "keyless";
+export type EntryAuth = "account" | "account_or_key" | "key" | "values" | "folder" | "mailbox" | "keyless";
 
-/** How `entry` is connected: an account, a key, settings, a folder, a mailbox, or nothing to type. */
+/**
+ * How `entry` is connected: an account (with a key in reserve when it declares
+ * one), a key, settings, a folder, a mailbox, or nothing to type.
+ */
 export function entryAuth(entry: AddEntry): EntryAuth {
   const needs = entryNeeds(entry);
-  if (needs.includes("sign_in")) return "account";
+  if (needs.includes("sign_in")) return needs.includes("key_fallback") ? "account_or_key" : "account";
   if (needs.includes("mailbox")) return "mailbox";
   if (needs.includes("folder")) return "folder";
   if (needs.includes("key")) return "key";

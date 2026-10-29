@@ -175,6 +175,8 @@
   const chosenEntry = $derived(findEntry(groups, chosen));
   const searched = $derived(query.trim().length > 0);
   const view = $derived(browseCatalogue({ groups, state: browse, searched, nameOf: rowName, locale: $locale }));
+  /** Nothing answers: the empty state stands, and it offers the address. */
+  const emptyShown = $derived(view.empty && !loading);
   const address = $derived(groups.find((g) => g.key === "address")?.entries ?? []);
 
   const failureMessage = $derived.by((): string | null => {
@@ -340,13 +342,13 @@
       {/snippet}
 
       <div class="flex flex-col gap-5">
-        {#if sourceShowsPublic(browse.source) && catalogueTier === "full"}
+        {#if browse.source !== "verified" && view.communityShown}
           <p class="text-caption text-muted-foreground" data-testid="catalogue-public-note">
             {$t("connections.add_window.browse.community_note")}
           </p>
         {/if}
 
-        {#if view.empty && !loading}
+        {#if emptyShown}
           <div class="flex flex-col items-start gap-2 rounded-lg border border-dashed border-border p-4" data-testid="catalogue-empty">
             <p class="text-sm text-foreground">
               {#if searched}
@@ -426,7 +428,9 @@
               </ul>
             {/if}
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <p class="text-caption text-muted-foreground">{$t("connections.add_window.browse.community_note")}</p>
+              {#if view.community.length > 0}
+                <p class="text-caption text-muted-foreground">{$t("connections.add_window.browse.community_note")}</p>
+              {/if}
               <Button
                 variant="outline"
                 size="sm"
@@ -440,14 +444,17 @@
           </section>
         {/if}
 
-        <section class="flex flex-col gap-2" data-testid="catalogue-group-address">
-          <h3 class="text-overline text-muted-foreground">
-            {$developerMode ? $t("dev.connections.catalogue_tab_custom") : $t("connections.add_window.groups.address")}
-          </h3>
-          <ul class="space-y-1.5">
-            {#each address as entry (entry.key)}{@render row(entry)}{/each}
-          </ul>
-        </section>
+        {#if !emptyShown}
+          <!-- The empty state offers the address itself: it is not offered twice. -->
+          <section class="flex flex-col gap-2" data-testid="catalogue-group-address">
+            <h3 class="text-overline text-muted-foreground">
+              {$developerMode ? $t("dev.connections.catalogue_tab_custom") : $t("connections.add_window.groups.address")}
+            </h3>
+            <ul class="space-y-1.5">
+              {#each address as entry (entry.key)}{@render row(entry)}{/each}
+            </ul>
+          </section>
+        {/if}
       </div>
 
       {#snippet detail()}

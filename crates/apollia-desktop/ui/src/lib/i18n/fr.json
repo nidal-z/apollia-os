@@ -762,10 +762,11 @@
       "failed_public": "Le catalogue public n'a pas répondu. Vérifiez la connexion à internet, puis réessayez.",
       "needs_title": "Ce qu'elle demande",
       "needs": {
-        "sign_in": "Une connexion à votre compte, dans votre navigateur",
+        "sign_in": "Connexion avec votre compte, dans votre navigateur",
         "folder": "Un dossier que vous choisissez sur cet ordinateur",
         "mailbox": "Votre adresse et un mot de passe d'application de votre messagerie",
         "key": "Une clé ou un mot de passe que le service vous donne",
+        "key_fallback": "Une clé possible en secours, si la connexion ne passe pas",
         "values": "Quelques réglages à remplir",
         "download": "Un téléchargement sur cet ordinateur, fait par Apollia",
         "online": "Le service est joint par internet : ce que les agents lui demandent y part",
@@ -806,7 +807,8 @@
         "usage": "Usage",
         "auth": "Connexion",
         "auth_kinds": {
-          "account": "Votre compte, dans le navigateur",
+          "account": "Connexion avec votre compte",
+          "account_or_key": "Connexion avec votre compte, une clé possible en secours",
           "key": "Une clé à saisir",
           "values": "Quelques réglages à saisir",
           "folder": "Un dossier de cet ordinateur",
