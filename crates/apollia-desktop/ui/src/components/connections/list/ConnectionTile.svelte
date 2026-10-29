@@ -131,8 +131,6 @@
     reason={row.reason}
     checkedAt={row.checkedAt}
     inline
-    {oncheck}
-    {checking}
     data-testid="connection-state-{row.key}"
   />
 
@@ -162,6 +160,24 @@
         data-repair={repair.kind}
       >
         {$t(repair.labelKey)}
+      </Button>
+    </div>
+  {:else if oncheck && row.status === "not_checked"}
+    <!-- A connection nothing has tried yet: its one action, Check, sits in
+         the foot like every other tile's action. -->
+    <div class="mt-auto pt-0.5">
+      <Button
+        variant="outline"
+        size="sm"
+        loading={checking}
+        onclick={(event: MouseEvent) => {
+          event.stopPropagation();
+          oncheck?.();
+        }}
+        onkeydown={(event: KeyboardEvent) => event.stopPropagation()}
+        data-testid="connection-state-{row.key}-check"
+      >
+        {$t("connections.state.action.check")}
       </Button>
     </div>
   {/if}

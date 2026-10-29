@@ -524,7 +524,7 @@
     "custom_test_tools_detected": "{count} tool(s) detected.",
     "custom_error_oauth_required": "This server requires OAuth authentication. Install it from the catalogue rather than via the custom form.",
     "sidebar_no_results": "No results.",
-    "tools_count_label": "{count} tool(s)",
+    "tools_count_label": "{count, plural, one {# tool} other {# tools}}",
     "no_account_for": "No account connected for {name}.",
     "connect_account": "Connect an account",
     "settings_scope_gmail": "Gmail - send + drafts",

@@ -524,7 +524,7 @@
     "custom_test_tools_detected": "{count} outil(s) détecté(s).",
     "custom_error_oauth_required": "Ce serveur exige une authentification OAuth. Installez-le depuis le catalogue plutôt que via le formulaire personnalisé.",
     "sidebar_no_results": "Aucun résultat.",
-    "tools_count_label": "{count} outil(s)",
+    "tools_count_label": "{count, plural, one {# outil} other {# outils}}",
     "no_account_for": "Aucun compte connecté pour {name}.",
     "connect_account": "Connecter un compte",
     "settings_scope_gmail": "Gmail - envoi + brouillons",

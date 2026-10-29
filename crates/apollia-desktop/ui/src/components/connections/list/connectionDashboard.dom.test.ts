@@ -222,7 +222,7 @@ describe("the tiles", () => {
     await mountPage();
 
     // THEN the service names its tools, its three agents and its last use
-    expect(byTestid("connection-tile-brings-mcp:notion")?.textContent).toContain("2 tool(s)");
+    expect(byTestid("connection-tile-brings-mcp:notion")?.textContent).toContain("2 tools");
     expect(byTestid("connection-tile-use-mcp:notion")?.textContent).toMatch(/3 agents\s*·\s*Last used 3 h ago/);
     expect(byTestid("connection-state-mcp:notion")?.dataset.status).toBe("working");
     // AND the Google account shows the Google logo, its address, Sign in again
@@ -238,7 +238,10 @@ describe("the tiles", () => {
     expect(byTestid("connection-tile-brings-native:microsoft:ada@example.com")?.textContent).toContain(
       "Mail · Calendar · OneDrive",
     );
-    expect(byTestid("connection-state-native:microsoft:ada@example.com-check")).not.toBeNull();
+    const check = byTestid("connection-state-native:microsoft:ada@example.com-check");
+    expect(check).not.toBeNull();
+    // the one action of a tile never checked sits in its foot, not in its state line
+    expect(byTestid("connection-state-native:microsoft:ada@example.com")?.contains(check ?? null)).toBe(false);
     // AND the folder shows its path, its files and its one agent
     expect(byTestid("connection-tile-where-folder:demo")?.textContent?.trim()).toBe("/Users/ada/Demo");
     expect(byTestid("connection-tile-brings-folder:demo")?.textContent).toContain("Files");
