@@ -180,7 +180,7 @@ pdf_oxide = { version = "=0.3.78", default-features = false, features = ["legacy
 # took 0.1.12 or later and failed to compile. Default features off: this line
 # adds no feature to the one pdf_oxide selects. See the `documents-and-sources`
 # decision.
-office_oxide = { version = "=0.1.11", default-features = false }
+office_oxide = { version = "=0.1.15", default-features = false }
 # Reads the text of a scanned page or a picture (apollia-sources, behind its
 # `ocr` feature, off by default). Its build script compiles Tesseract and
 # Leptonica from source with cmake and links them statically, so nothing is
