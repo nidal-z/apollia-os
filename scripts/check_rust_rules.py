@@ -321,7 +321,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # that never answers, to show the deadline of the search stops it.
     "crates/apollia-mcp/src/transport/node/machine/tests.rs": 1,
     "crates/apollia-mcp/src/transport/sse.rs": 3,
-    "crates/apollia-mcp/src/transport/stdio.rs": 1,
+    # The process is the subject: one test spawns a subprocess, another writes
+    # the store's fake `node` as a script that execs `cat`, since a link to
+    # `cat` runs no tool where coreutils is one multicall binary (uutils).
+    "crates/apollia-mcp/src/transport/stdio.rs": 2,
     "crates/apollia-notifications/src/channels/webhook.rs": 8,
     "crates/apollia-notifications/src/engine.rs": 1,
     "crates/apollia-notifications/src/inactivity_watcher.rs": 5,
