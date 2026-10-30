@@ -209,7 +209,14 @@ fn glob_files(
     let mut yielded = 0usize;
 
     for path_result in paths {
-        let path = path_result.map_err(|e| FileGlobError::IoError(e.to_string()))?;
+        let path = match path_result {
+            Ok(path) => path,
+            // Where the system stops following links (a long walk through a
+            // cycle of them), that branch is skipped like any entry the walk
+            // does not serve; the rest of the glob goes on.
+            Err(error) if stops_at_links(error.error()) => continue,
+            Err(error) => return Err(FileGlobError::IoError(error.to_string())),
+        };
 
         if path.is_dir() {
             continue;
@@ -246,6 +253,16 @@ fn glob_files(
         .collect();
 
     Ok(matches)
+}
+
+/// Whether `error` is the system refusing to follow one more link ("too many
+/// levels of symbolic links").
+fn stops_at_links(error: &std::io::Error) -> bool {
+    // ELOOP; `ErrorKind::FilesystemLoop` names it but is not stable yet.
+    #[cfg(unix)]
+    return error.raw_os_error() == Some(libc::ELOOP);
+    #[cfg(not(unix))]
+    return false;
 }
 
 #[cfg(test)]
@@ -445,6 +462,62 @@ mod tests {
 
         // THEN all 5 files are returned
         assert_eq!(result.matches.len(), 5);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_the_refusal_to_follow_more_links_is_told_apart_from_other_errors() {
+        // GIVEN the error the system gives for a path holding too many links,
+        // and two other read errors
+        let too_many_links = std::io::Error::from_raw_os_error(libc::ELOOP);
+        let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        let missing = std::io::Error::from(std::io::ErrorKind::NotFound);
+
+        // WHEN each is classified
+        // THEN only the first is where the glob skips and goes on
+        assert!(stops_at_links(&too_many_links));
+        assert!(!stops_at_links(&denied));
+        assert!(!stops_at_links(&missing));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_file_glob_through_a_cycle_of_links_skips_where_the_system_stops() {
+        // GIVEN two folders that link to each other and hold one note each:
+        // the glob walks `a/b/a/b/...` until the system refuses a path holding
+        // too many links ("too many levels of symbolic links"), long before
+        // the limit of results
+        let tmp = TempDir::new().expect("temp dir");
+        let a = tmp.path().join("a");
+        let b = tmp.path().join("b");
+        std::fs::create_dir_all(&a).expect("mkdir");
+        std::fs::create_dir_all(&b).expect("mkdir");
+        create_file(&a, "a.md", b"content");
+        create_file(&b, "b.md", b"content");
+        std::os::unix::fs::symlink(&b, a.join("to_b")).expect("symlink");
+        std::os::unix::fs::symlink(&a, b.join("to_a")).expect("symlink");
+        let tool = FileGlob::new(tmp.path().to_path_buf()).expect("FileGlob::new");
+
+        // WHEN every note is globbed
+        let result = tool
+            .run(FileGlobInput {
+                pattern: "**/*.md".to_string(),
+                path: None,
+            })
+            .await
+            .expect("where the system stops following links, the glob skips and goes on");
+
+        // THEN both notes are found by their own paths
+        assert!(
+            result.matches.contains(&"a/a.md".to_string()),
+            "{:?}",
+            result.matches
+        );
+        assert!(
+            result.matches.contains(&"b/b.md".to_string()),
+            "{:?}",
+            result.matches
+        );
     }
 
     #[tokio::test]
