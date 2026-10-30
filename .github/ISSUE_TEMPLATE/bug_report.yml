@@ -68,7 +68,7 @@ body:
     attributes:
       label: Apollia version
       description: The version string, or the commit hash for a build from source.
-      placeholder: 0.3.0
+      placeholder: 0.3.1
     validations:
       required: true
 

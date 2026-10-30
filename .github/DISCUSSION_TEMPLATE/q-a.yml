@@ -27,7 +27,7 @@ body:
     id: version
     attributes:
       label: Apollia version and platform
-      placeholder: 0.3.0, macOS 15.3
+      placeholder: 0.3.1, macOS 15.3
     validations:
       required: true
 

@@ -5,7 +5,7 @@ All notable changes to Apollia OS are documented in this file.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
 This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
-## [0.3.1] - Unreleased
+## [0.3.1] - 2026-10-31
 
 Changes since `0.3.0`. Connections are rebuilt from the screen to the engine:
 one page shows every connection with its true state, one window adds any of
@@ -1428,6 +1428,7 @@ cycle, before anything was published.
   are on no Apollia code path. Lift condition: the pyo3 0.29 migration.
 - Private vulnerability reporting via GitHub Security Advisories.
 
-[0.3.0]: https://github.com/Apollia-OS/apollia-os/compare/v0.2.0-preview...main
+[0.3.1]: https://github.com/Apollia-OS/apollia-os/compare/v0.3.0...main
+[0.3.0]: https://github.com/Apollia-OS/apollia-os/compare/v0.2.0-preview...v0.3.0
 [0.2.0-preview]: https://github.com/Apollia-OS/apollia-os/compare/v0.1.0-preview...v0.2.0-preview
 [0.1.0-preview]: https://github.com/Apollia-OS/apollia-os/releases/tag/v0.1.0-preview

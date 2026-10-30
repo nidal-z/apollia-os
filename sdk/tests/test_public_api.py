@@ -71,11 +71,11 @@ def test_exceptions_re_exported() -> None:
 def test_version_is_string() -> None:
     # GIVEN the package root
     # WHEN its version is read
-    # THEN it is a string on the 0.3.0 line, not a tuple or an int
+    # THEN it is a string on the 0.3.1 line, not a tuple or an int
     import apollia
 
     assert isinstance(apollia.__version__, str)
-    assert apollia.__version__.startswith("0.3.0")
+    assert apollia.__version__.startswith("0.3.1")
 
 
 def test_all_is_exactly_the_published_surface() -> None:

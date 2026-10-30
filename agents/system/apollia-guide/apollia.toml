@@ -7,7 +7,7 @@
 
 [package]
 name = "apollia-guide"
-version = "0.3.0"
+version = "0.3.1"
 publisher = "Apollia"
 description = "The guide of Apollia Desktop: answers questions about the application and points to the screen that does what you ask."
 sdk = ">=0.3.0"

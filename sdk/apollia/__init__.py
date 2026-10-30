@@ -29,7 +29,7 @@ from apollia.workflow_decorator import WorkflowCtx, workflow
 
 # REASON: the SDK ships with the runtime and carries the product version, not a
 # lifecycle of its own. The string is the one the tag and the changelog use.
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 __all__ = [
     "AgentConfigError",

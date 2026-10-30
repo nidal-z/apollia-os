@@ -65,9 +65,9 @@ writes them:
 <!-- release-artifacts:begin - generated from packaging/artifacts.json by docs/site/regen.sh; do not edit by hand -->
 | Platform | Files on the release page |
 |---|---|
-| macOS (Apple Silicon) | `Apollia-OS_0.3.0_aarch64.dmg` |
-| Linux (x86-64) | `Apollia-OS_0.3.0_amd64.AppImage`, `Apollia-OS_0.3.0_amd64.deb` |
-| Windows (x86-64) | `Apollia-OS_0.3.0_x64_en-US.msi`, `Apollia-OS_0.3.0_x64-setup.exe` |
+| macOS (Apple Silicon) | `Apollia-OS_0.3.1_aarch64.dmg` |
+| Linux (x86-64) | `Apollia-OS_0.3.1_amd64.AppImage`, `Apollia-OS_0.3.1_amd64.deb` |
+| Windows (x86-64) | `Apollia-OS_0.3.1_x64_en-US.msi`, `Apollia-OS_0.3.1_x64-setup.exe` |
 <!-- release-artifacts:end -->
 
 Each release also attaches a `SHA256SUMS` file. To confirm your download is

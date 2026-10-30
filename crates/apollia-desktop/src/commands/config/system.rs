@@ -13,7 +13,7 @@ use crate::attached::{AttachedClient, AttachedError, RuntimeLink};
 /// System information shown in the Advanced section of Settings.
 #[derive(Debug, Serialize)]
 pub struct SystemInfo {
-    /// Apollia OS version (e.g. `"0.3.0"`), shown on the About screen.
+    /// Apollia OS version (e.g. `"0.3.1"`), shown on the About screen.
     pub version: String,
     /// Operating system and architecture (e.g. `"macos aarch64"`).
     pub os: String,

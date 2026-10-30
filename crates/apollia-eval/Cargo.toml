@@ -1,6 +1,6 @@
 [package]
 name = "apollia-eval"
-version = "0.3.0"
+version = "0.3.1"
 edition.workspace = true
 rust-version.workspace = true
 description = "Apollia OS - sovereign agent evaluation harness (TOML suites, N-run execution, metric aggregation)"

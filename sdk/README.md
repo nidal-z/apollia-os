@@ -1,6 +1,6 @@
 # Apollia Python SDK
 
-> **Apollia AgentKit v0.3.0** - the Python a package brings to [Apollia OS](https://github.com/Apollia-OS/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
+> **Apollia AgentKit v0.3.1** - the Python a package brings to [Apollia OS](https://github.com/Apollia-OS/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
 
 An agent is data: its mission, its examples and what it may reach are written in the `apollia.toml` of a package. No Python stands for an agent. The Python of a package brings two things, and the SDK offers one decorator for each:
 
@@ -26,7 +26,7 @@ Verify:
 
 ```bash
 python -c "import apollia; print(apollia.__version__)"
-# 0.3.0
+# 0.3.1
 ```
 
 ## Quickstart

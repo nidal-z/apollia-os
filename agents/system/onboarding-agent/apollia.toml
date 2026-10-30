@@ -8,7 +8,7 @@
 
 [package]
 name = "onboarding-agent"
-version = "0.3.0"
+version = "0.3.1"
 publisher = "Apollia"
 description = "The onboarding of Apollia Desktop: a short conversation that proposes a profile for you to review."
 sdk = ">=0.3.0"
