@@ -378,7 +378,11 @@ jobs:
           node-version: "22"
       - name: npm audit (desktop UI runtime dependencies)
         working-directory: crates/apollia-desktop/ui
-        run: npm audit --omit=dev
+        # Any advisory fails, whatever its severity, unless audit-ignore.json
+        # accepts it with its reason and its lift condition.
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/npm-audit.json" || true
+          python3 ../../../scripts/check_npm_audit.py "$RUNNER_TEMP/npm-audit.json"
       - name: Download sums (pinned archives match the upstream digests)
         env:
           GH_TOKEN: ${{ github.token }}

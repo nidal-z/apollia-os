@@ -1,0 +1,12 @@
+{
+  "description": "Advisories npm audit reports on the runtime dependencies of the desktop UI that are accepted, each with the reason it cannot reach Apollia and the condition that lifts it. scripts/check_npm_audit.py fails on any advisory not listed here, whatever its severity, and names an entry no longer encountered.",
+  "advisories": [
+    {
+      "id": "GHSA-gcqx-w48m-w2h4",
+      "package": "deepmerge",
+      "via": "svelte-i18n",
+      "reason": "Prototype poisoning through mergeObject() needs attacker-controlled input to merge. svelte-i18n calls deepmerge only in addMessages (dist/runtime.js), and the interface feeds it nothing but the two catalogues bundled with the application, en.json and fr.json (src/lib/i18n/index.ts). No version of deepmerge carries a fix.",
+      "lift": "a fixed deepmerge, or a svelte-i18n that no longer depends on it"
+    }
+  ]
+}
