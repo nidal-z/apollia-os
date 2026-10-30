@@ -12,6 +12,7 @@ import { LOCALE_STORAGE_KEY } from "$lib/i18n";
 import { NOTICE_SEEN_KEY } from "$lib/projectMigration/notice";
 import { CHAT_TRASH_DEFAULT, chatTrashEnabled } from "$lib/stores/chatTrash";
 import { CHAT_TOKEN_COUNT_DEFAULT, chatTokenCount } from "$lib/stores/chatTokenCount";
+import { endCreation } from "../../components/agents/create/creationDraft";
 
 /**
  * Pins the interface language for the run.
@@ -66,6 +67,11 @@ export function resetDeterministicUiState(): void {
   // chatTokenCount.ts: the count under each conversation is off by default,
   // and the books read the rows of the list without it.
   chatTokenCount.set(CHAT_TOKEN_COUNT_DEFAULT);
+  // creationDraft.ts: a creation of an agent left under way by an earlier run
+  // reopens the Agents screen on its workshop or its review instead of the
+  // form. Ended through its store, which may already hold the stored draft.
+  endCreation("agents");
+  endCreation("onboarding");
   // The seeded home still holds the former projects, so every boot migrates
   // them and the notice of that migration would cover the first page a book
   // opens. It is marked as shown for both outcomes: the notice itself is a
