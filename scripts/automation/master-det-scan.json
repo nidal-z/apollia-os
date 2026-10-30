@@ -9968,6 +9968,10 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "expect",
+      "testid": "connections-sidebar-empty"
+    },
+    {
       "kind": "screenshot",
       "label": "02d-dashboard-empty"
     },
