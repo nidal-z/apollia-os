@@ -24,10 +24,21 @@ export const chatTargets = writable<ChatTargetsState>({
   unreachable: [],
 });
 
-/** Reads the list again; a read that fails leaves what was known. */
+// The reads overlap: one asked earlier can answer after a later one, which
+// probes the servers again, and it would put back what was known before.
+let asked = 0;
+let shown = 0;
+
+/**
+ * Reads the list again; a read that fails leaves what was known, and so
+ * does one answering after a read asked later.
+ */
 export async function refreshChatTargets(): Promise<void> {
+  const read = ++asked;
   try {
     const payload = await listChatTargets();
+    if (read < shown) return;
+    shown = read;
     const fallback = payload.default_model?.model_id;
     chatTargets.set({
       loaded: true,

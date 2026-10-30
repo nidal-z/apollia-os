@@ -20,22 +20,34 @@ export const lastLoadedModel = writable<LastLoadedModel | null>(null);
 /** The paths of the models kept in memory. */
 export const modelPins = writable<string[]>([]);
 
+/**
+ * Applies the answer of the latest read asked, whatever the order the reads
+ * answer in: a read asked earlier that answers later would put
+ * back what was known before. A read that fails leaves what was known.
+ */
+function latestRead<T>(read: () => Promise<T>, apply: (value: T) => void): () => Promise<void> {
+  let asked = 0;
+  let shown = 0;
+  return async () => {
+    const mine = ++asked;
+    try {
+      const value = await read();
+      if (mine < shown) return;
+      shown = mine;
+      apply(value);
+    } catch {
+      // What was known stays.
+    }
+  };
+}
+
+const readLoaded = latestRead(listLoadedModels, (view) => loadedModels.set(view));
+const readLast = latestRead(getLastLoadedModel, (last) => lastLoadedModel.set(last));
+const readPins = latestRead(listModelPins, (view) => modelPins.set(view.pins));
+
 /** Reads the three again; a read that fails leaves what was known. */
 export async function refreshModelResidency(): Promise<void> {
-  await Promise.all([
-    listLoadedModels().then(
-      (view) => loadedModels.set(view),
-      () => undefined,
-    ),
-    getLastLoadedModel().then(
-      (last) => lastLoadedModel.set(last),
-      () => undefined,
-    ),
-    listModelPins().then(
-      (view) => modelPins.set(view.pins),
-      () => undefined,
-    ),
-  ]);
+  await Promise.all([readLoaded(), readLast(), readPins()]);
 }
 
 /** What the loading window is asked to open on. */
