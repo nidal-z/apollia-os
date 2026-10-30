@@ -429,7 +429,11 @@ mod tests {
             .join("nodejs/v22.11.0/cpu/node-v22.11.0-linux-x64");
         std::fs::create_dir_all(prefix.join("bin")).unwrap();
         let node = prefix.join("bin/node");
-        std::os::unix::fs::symlink("/bin/cat", &node).unwrap();
+        // A script rather than a link to `cat`: where coreutils is one
+        // multicall binary (uutils), a link named `node` runs no tool at all.
+        std::fs::write(&node, "#!/bin/sh\nexec cat \"$@\"\n").unwrap();
+        std::fs::set_permissions(&node, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+            .unwrap();
         let cli = prefix.join("lib/node_modules/npm/bin/npx-cli.js");
         std::fs::create_dir_all(cli.parent().unwrap()).unwrap();
         std::fs::write(&cli, "{\"id\":1}\n").unwrap();
