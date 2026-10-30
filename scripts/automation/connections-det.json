@@ -25,8 +25,8 @@
     "connection-agent-automation-agent",
     "connection-give-agent-automation-agent",
     "connection-logo-mcp:com-paypal-mcp-mcp",
-    "connection-tile-brings-folder:automation",
-    "connection-tile-name-folder:automation",
+    "connection-tile-brings-folder:seed-checkout",
+    "connection-tile-name-folder:seed-checkout",
     "connections-kind-filter-all",
     "connections-kind-filter-folder",
     "connections-kind-filter-imap",
@@ -174,12 +174,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connection-tile-name-folder:automation",
+      "testid": "connection-tile-name-folder:seed-checkout",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "connection-tile-brings-folder:automation",
+      "testid": "connection-tile-brings-folder:seed-checkout",
       "timeoutMs": 3000
     },
     {
@@ -232,12 +232,12 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
+      "testid": "app-main",
+      "timeoutMs": 10000
     },
     {
       "kind": "goto",
@@ -258,12 +258,12 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
+      "testid": "app-main",
+      "timeoutMs": 10000
     },
     {
       "kind": "goto",
@@ -4013,7 +4013,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "connections-sidebar-empty",
+      "testid": "connections-grid-empty",
       "timeoutMs": 4000
     },
     {
@@ -4024,7 +4024,7 @@
     },
     {
       "kind": "waitGone",
-      "testid": "connections-sidebar-empty",
+      "testid": "connections-grid-empty",
       "timeoutMs": 4000
     },
     {
