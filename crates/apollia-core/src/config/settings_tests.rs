@@ -288,6 +288,36 @@ fn test_a_server_port_out_of_range_is_refused_and_the_file_unchanged() {
     );
 }
 
+#[test]
+fn test_the_gguf_engine_takes_cuda_13_and_refuses_a_runtime_without_build() {
+    // GIVEN a file without an engine choice
+    let (_dir, path) = config_with("[engines]\nlog_level = \"info\"\n");
+
+    // WHEN CUDA 13 is chosen, then a CUDA runtime no build carries
+    let thirteen = write_setting(
+        &path,
+        "engines.gguf",
+        json!("cuda-13"),
+        &PolicySettings::none(),
+    );
+    let fourteen = write_setting(
+        &path,
+        "engines.gguf",
+        json!("cuda-14"),
+        &PolicySettings::none(),
+    );
+
+    // THEN the first is written and read back, the second is refused and the
+    // file keeps the first
+    assert_eq!(thirteen.unwrap().value, json!("cuda-13"));
+    assert!(
+        matches!(fourteen, Err(SettingError::InvalidValue { .. })),
+        "{fourteen:?}"
+    );
+    let resolved = resolve_setting(&path, "engines.gguf", &PolicySettings::none()).unwrap();
+    assert_eq!(resolved.value, json!("cuda-13"));
+}
+
 // ── What a policy may impose ─────────────────────────────────────────────
 
 #[test]

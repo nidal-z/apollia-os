@@ -15,7 +15,7 @@ async fn outcome(s: &EngineStore) -> InstallationState {
 }
 
 fn start_cuda(s: &EngineStore, settings: &EngineStoreSettings) -> InstallationState {
-    start_download(s, settings, Engine::LlamaServer, Variant::Cuda)
+    start_download(s, settings, Engine::LlamaServer, Variant::Cuda12)
 }
 
 #[tokio::test]
@@ -43,7 +43,7 @@ async fn test_a_download_is_an_install_then_an_update_and_ends_installed() {
     let kind = InstallKind::Update;
     assert_eq!(second, InstallationState::Verifying { kind });
     assert_eq!(updated, InstallationState::Installed { kind });
-    let newest = newest_installed(&s.root, Engine::LlamaServer, Variant::Cuda).unwrap();
+    let newest = newest_installed(&s.root, Engine::LlamaServer, Variant::Cuda12).unwrap();
     assert_eq!(newest.tag, "b7000");
 }
 
@@ -301,12 +301,12 @@ fn test_updates_carry_the_size_and_the_release_days() {
     );
     let manifest = Manifest::parse(text.as_bytes()).unwrap();
     let dir = tempfile::tempdir().unwrap();
-    let held = package_dir(dir.path(), Engine::LlamaServer, "b6000", Variant::Cuda);
+    let held = package_dir(dir.path(), Engine::LlamaServer, "b6000", Variant::Cuda12);
     std::fs::create_dir_all(&held).unwrap();
     let record = InstalledPackage {
         engine: Engine::LlamaServer,
         tag: "b6000".to_owned(),
-        variant: Variant::Cuda,
+        variant: Variant::Cuda12,
         platform: "linux-x64".to_owned(),
         sha256: "0".repeat(64),
         source: Source::Downloaded,

@@ -131,8 +131,8 @@ async fn test_list_names_installed_engines_with_their_source() {
         .clone();
     assert_eq!(engine["engine"], "llama-server");
     assert_eq!(engine["tag"], "b6000");
-    assert_eq!(engine["variant"], "cuda");
-    assert!(engine["path"].as_str().unwrap().ends_with("cuda"));
+    assert_eq!(engine["variant"], "cuda-12");
+    assert!(engine["path"].as_str().unwrap().ends_with("cuda-12"));
     assert_eq!(body["channel"], "stable");
     assert!(!view.cuda_proposable);
     // AND the answer says whether this build can verify the channel, which is

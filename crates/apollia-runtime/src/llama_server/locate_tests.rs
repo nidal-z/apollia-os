@@ -77,7 +77,7 @@ fn test_store_cuda_build_is_taken_on_an_nvidia_machine() {
     .unwrap();
 
     // THEN the store's CUDA build is taken
-    assert!(chosen.starts_with(root.join("llama-server/b6000/cuda")));
+    assert!(chosen.starts_with(root.join("llama-server/b6000/cuda-12")));
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn test_a_chosen_variant_is_taken_where_the_automatic_choice_keeps_the_embedded_
 
     // THEN the store's CUDA build is taken, card or no card
     assert_eq!(automatic, None);
-    assert!(chosen.starts_with(root.join("llama-server/b6000/cuda")));
+    assert!(chosen.starts_with(root.join("llama-server/b6000/cuda-12")));
 }
 
 #[test]

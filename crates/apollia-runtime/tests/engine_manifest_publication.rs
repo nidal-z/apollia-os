@@ -150,12 +150,12 @@ fn upstream(root: &Path) -> Upstream {
     let pins = serde_json::json!({
         "packages": [
             {
-                "engine": "llama-server", "tag": LLAMA_TAG, "variant": "cuda",
+                "engine": "llama-server", "tag": LLAMA_TAG, "variant": "cuda-12",
                 "platform": "windows-x64", "released": "2026-10-01",
                 "sources": [source(&win), runtime],
             },
             {
-                "engine": "llama-server", "tag": LLAMA_TAG, "variant": "cuda",
+                "engine": "llama-server", "tag": LLAMA_TAG, "variant": "cuda-12",
                 "platform": "linux-x64",
                 "sources": [source(&linux)],
             },
@@ -184,8 +184,8 @@ fn script(upstream: &Upstream, out: &Path, sequence: u64) -> Command {
         .arg(&upstream.dir)
         .arg("--out")
         .arg(out)
-        .args(["--require", "llama-server/cuda/windows-x64"])
-        .args(["--require", "llama-server/cuda/linux-x64"])
+        .args(["--require", "llama-server/cuda-12/windows-x64"])
+        .args(["--require", "llama-server/cuda-12/linux-x64"])
         .args(["--require", "nodejs/cpu/linux-x64"])
         .env_remove("APOLLIA_DIST_SIGNING_KEY")
         .env_remove("APOLLIA_DIST_SIGNING_KEY_PASSWORD")
@@ -273,7 +273,7 @@ fn test_unsigned_manifest_is_one_the_store_parses_and_lists_only_zips() {
         assert_eq!(sha256_hex(&archive), package.sha256);
     }
     let windows = manifest
-        .newest(Engine::LlamaServer, Variant::Cuda, "windows-x64")
+        .newest(Engine::LlamaServer, Variant::Cuda12, "windows-x64")
         .unwrap();
     assert_eq!(windows.released.as_deref(), Some("2026-10-01"));
     assert!(!out.join(SIGNATURE_FILE).exists());
@@ -323,7 +323,7 @@ fn test_missing_required_package_is_refused() {
 
     // THEN it refuses and names the packages the channel would lose
     assert!(!ok);
-    assert!(text.contains("llama-server/cuda/linux-x64"), "{text}");
+    assert!(text.contains("llama-server/cuda-12/linux-x64"), "{text}");
     assert!(!out.join(MANIFEST_FILE).exists());
 }
 
@@ -362,10 +362,10 @@ fn test_signed_manifest_is_accepted_then_refused_once_altered() {
     // THEN the manifest is accepted with its packages
     assert_eq!(manifest.sequence, 7);
     assert!(manifest
-        .newest(Engine::LlamaServer, Variant::Cuda, "windows-x64")
+        .newest(Engine::LlamaServer, Variant::Cuda12, "windows-x64")
         .is_some());
     assert!(manifest
-        .newest(Engine::LlamaServer, Variant::Cuda, "linux-x64")
+        .newest(Engine::LlamaServer, Variant::Cuda12, "linux-x64")
         .is_some());
 
     // WHEN one byte of the manifest changes
@@ -396,7 +396,7 @@ fn test_tar_gz_engine_comes_out_as_a_zip_the_store_installs() {
         .find(|p| p.engine == Engine::LlamaServer)
         .unwrap();
     assert_eq!(engine.tag, LLAMA_TAG);
-    assert_eq!(engine.variant, Variant::Cuda);
+    assert_eq!(engine.variant, Variant::Cuda12);
     let binary = find_binary(&engine.path, "llama-server").unwrap();
     assert_ne!(binary.metadata().unwrap().permissions().mode() & 0o111, 0);
     let link = binary.with_file_name("libllama.so");

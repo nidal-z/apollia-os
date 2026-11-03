@@ -20,9 +20,10 @@ Five surfaces are held to the same rule:
      cannot come back through the closure.
   4. The engine channel: every source of every package pinned in
      `packaging/engine-sources.json` is an https address with a 64-hex sum,
-     no archive is pinned twice with two sums, and
-     `packaging/build-engine-manifest.py`, which publishes them under a
-     signed manifest, reads that file and compares each digest to its pin.
+     no archive is pinned twice with two sums, every `variant` is one of the
+     `VARIANTS` of `packaging/build-engine-manifest.py`, and that script,
+     which publishes them under a signed manifest, reads that file and
+     compares each digest to its pin.
   5. The workflow `run:` blocks: a step that downloads with wget, curl or
      Invoke-WebRequest either verifies a sha256 in the same step or sits on
      the named exemption list below, which only ever shrinks.
@@ -83,6 +84,7 @@ EXEMPT_WORKFLOW_STEPS = {
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 DOWNLOAD_CMD = re.compile(r"(?:^|[|&;(\s])(?:wget|curl|Invoke-WebRequest)\b")
 REMOTE_URL = re.compile(r"https?://(?!127\.0\.0\.1|localhost)\S+")
+PUBLISHED_VARIANTS = re.compile(r"^VARIANTS = \(([^)]*)\)", re.MULTILINE)
 VERIFY_TOKEN = re.compile(
     r"sha256sum|shasum\s+-a\s*256|sha256_of|Get-FileHash|--require-hashes"
 )
@@ -432,12 +434,23 @@ def check_engine_sources(sources_path: Path, script_path: Path) -> int:
         print(f"no package in {sources_path.name}", file=sys.stderr)
         sys.exit(2)
     problems = 0
+    declared = PUBLISHED_VARIANTS.search(script)
+    variants = set(re.findall(r'"([^"]+)"', declared.group(1))) if declared else set()
+    if not variants:
+        print(f"  GAP    {script_path.name} declares no VARIANTS tuple")
+        problems += 1
     sums: dict[str, str] = {}
     for package in packages:
         label = "{} {} {} {}".format(
             package.get("engine"), package.get("tag"),
             package.get("variant"), package.get("platform"),
         )
+        if variants and package.get("variant") not in variants:
+            print(
+                f"  GAP    {label}: variant {package.get('variant')!r} is not "
+                f"one {script_path.name} publishes"
+            )
+            problems += 1
         sources = package.get("sources") or []
         if not sources:
             print(f"  GAP    {label}: no source")
@@ -689,19 +702,20 @@ def selftest() -> int:
         engine_script = tmp / "build-engine-manifest.py"
         engine_script.write_text(
             'SOURCES = "engine-sources.json"\n'
+            'VARIANTS = ("cuda-12", "cpu")\n'
             'raise SystemExit("sha256 differs from the pinned one")\n',
             encoding="utf-8",
         )
         engine_pins = tmp / "engine-sources.json"
 
-        def engine_pin(url: str, pinned: str) -> None:
+        def engine_pin(url: str, pinned: str, variant: str = "cuda-12") -> None:
             engine_pins.write_text(
                 json.dumps(
                     {
                         "packages": [
                             {
                                 "engine": "llama-server", "tag": "b1",
-                                "variant": "cuda", "platform": "linux-x64",
+                                "variant": variant, "platform": "linux-x64",
                                 "sources": [{"url": url, "sha256": pinned}],
                             }
                         ]
@@ -725,8 +739,15 @@ def selftest() -> int:
             "an engine source over plain http is a gap",
             check_engine_sources(engine_pins, engine_script) > 0,
         )
+        engine_pin("https://example.invalid/a.zip", "a" * 64, "cuda")
+        control(
+            "a pin whose variant the publication script does not publish is a gap",
+            check_engine_sources(engine_pins, engine_script) > 0,
+        )
         engine_pin("https://example.invalid/a.zip", "a" * 64)
-        engine_script.write_text("# engine-sources.json\n", encoding="utf-8")
+        engine_script.write_text(
+            '# engine-sources.json\nVARIANTS = ("cuda-12", "cpu")\n', encoding="utf-8"
+        )
         control(
             "a publication script that compares no digest is a gap",
             check_engine_sources(engine_pins, engine_script) > 0,

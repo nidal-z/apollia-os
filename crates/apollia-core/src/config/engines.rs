@@ -9,8 +9,11 @@ use serde::{Deserialize, Serialize};
 pub const ENGINE_LOG_LEVELS: &[&str] = &["error", "warning", "info", "debug"];
 
 /// The values `engines.gguf` accepts: the automatic choice, the engine the
-/// application ships, or a variant the engine store holds.
-pub const GGUF_ENGINE_CHOICES: &[&str] = &["auto", "embedded", "cuda", "vulkan", "cpu", "metal"];
+/// application ships, or a variant the engine store holds. `cuda` names the
+/// best CUDA build installed.
+pub const GGUF_ENGINE_CHOICES: &[&str] = &[
+    "auto", "embedded", "cuda", "cuda-12", "cuda-13", "rocm", "vulkan", "cpu", "metal",
+];
 
 /// The values `engines.mlx` accepts. The MLX engine has one variant.
 pub const MLX_ENGINE_CHOICES: &[&str] = &["auto", "embedded", "metal"];
@@ -83,8 +86,17 @@ pub enum EngineChoice {
     Auto,
     /// The engine shipped with the application, whatever the store holds.
     Embedded,
-    /// The CUDA build of the store.
+    /// The best CUDA build of the store: CUDA 13 when it is installed, CUDA
+    /// 12 otherwise.
     Cuda,
+    /// The CUDA 12 build of the store.
+    #[serde(rename = "cuda-12")]
+    Cuda12,
+    /// The CUDA 13 build of the store.
+    #[serde(rename = "cuda-13")]
+    Cuda13,
+    /// The ROCm build of the store, for AMD cards.
+    Rocm,
     /// The Vulkan build of the store.
     Vulkan,
     /// The processor-only build of the store.
@@ -101,6 +113,9 @@ impl EngineChoice {
             "auto" => Some(Self::Auto),
             "embedded" => Some(Self::Embedded),
             "cuda" => Some(Self::Cuda),
+            "cuda-12" => Some(Self::Cuda12),
+            "cuda-13" => Some(Self::Cuda13),
+            "rocm" => Some(Self::Rocm),
             "vulkan" => Some(Self::Vulkan),
             "cpu" => Some(Self::Cpu),
             "metal" => Some(Self::Metal),
@@ -115,6 +130,9 @@ impl EngineChoice {
             Self::Auto => "auto",
             Self::Embedded => "embedded",
             Self::Cuda => "cuda",
+            Self::Cuda12 => "cuda-12",
+            Self::Cuda13 => "cuda-13",
+            Self::Rocm => "rocm",
             Self::Vulkan => "vulkan",
             Self::Cpu => "cpu",
             Self::Metal => "metal",
@@ -237,6 +255,31 @@ mod tests {
                 Some(*name)
             );
         }
+    }
+
+    #[test]
+    fn test_engines_config_reads_each_cuda_runtime_and_rocm() {
+        // GIVEN sections naming each CUDA runtime, ROCm, and a runtime that
+        // has no build
+        let read =
+            |name: &str| EnginesConfig::from_toml_str(&format!("[engines]\ngguf = \"{name}\"\n"));
+
+        // WHEN they are read
+        let (twelve, thirteen, rocm, fourteen) = (
+            read("cuda-12"),
+            read("cuda-13"),
+            read("rocm"),
+            read("cuda-14"),
+        );
+
+        // THEN each named build is its own choice, `cuda` stays one, and the
+        // runtime without a build is refused
+        assert_eq!(twelve.unwrap().gguf, EngineChoice::Cuda12);
+        assert_eq!(thirteen.unwrap().gguf, EngineChoice::Cuda13);
+        assert_eq!(rocm.unwrap().gguf, EngineChoice::Rocm);
+        assert!(fourteen.is_err());
+        assert_eq!(EngineChoice::from_wire("cuda"), Some(EngineChoice::Cuda));
+        assert_eq!(EngineChoice::from_wire("cuda-14"), None);
     }
 
     #[test]

@@ -38,7 +38,7 @@ here: a run where the two hold the same value is refused.
 Usage:
     build-engine-manifest.py --channel stable --sequence 1760000000 \\
         --llama-tag b11541 --out dist/engines-stable
-    build-engine-manifest.py ... --require llama-server/cuda/windows-x64
+    build-engine-manifest.py ... --require llama-server/cuda-12/windows-x64
     build-engine-manifest.py ... --offline-dir downloads --no-sign
 
   --channel       `stable` or `preview`
@@ -85,7 +85,7 @@ MANIFEST_FILE = "engines.json"
 SIGNATURE_FILE = "engines.json.minisig"
 CHANNELS = ("stable", "preview")
 ENGINES = ("llama-server", "vllm-mlx", "nodejs")
-VARIANTS = ("cuda", "vulkan", "cpu", "metal")
+VARIANTS = ("cuda-12", "cuda-13", "rocm", "vulkan", "cpu", "metal")
 PLATFORM = re.compile(r"^(macos|linux|windows)-(x64|arm64)$")
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 SAFE_TAG = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
