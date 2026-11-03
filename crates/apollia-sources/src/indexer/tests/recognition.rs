@@ -151,7 +151,7 @@ async fn test_a_page_left_waiting_has_the_indexer_fetch_the_pinned_language_data
     world
         .start_fetching(&Stub::new("e5-small"), fetch_from(&server, &catalogue))
         .await;
-    let tessdata = tessdata_dir(world.data.path());
+    let tessdata = tessdata_dir(&world.models());
 
     // WHEN the folder becomes a source and is indexed, then indexed again
     world.folder_source().await;
@@ -181,7 +181,7 @@ async fn test_language_data_of_another_digest_is_left_off_the_disk_and_the_page_
     world
         .start_fetching(&Stub::new("e5-small"), fetch_from(&server, &catalogue))
         .await;
-    let tessdata = tessdata_dir(world.data.path());
+    let tessdata = tessdata_dir(&world.models());
 
     // WHEN the folder becomes a source and is indexed, the download answered
     let id = world.folder_source().await;

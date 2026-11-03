@@ -250,8 +250,10 @@ impl SourceRegistryHandle {
 
     /// Starts the indexer over this registry: every folder and file source
     /// is indexed in the background and kept in step with its files, its
-    /// vectors computed by `embedder`; see [`crate::indexer`]. Must be called
-    /// within a Tokio runtime. A second call replaces the first indexer.
+    /// vectors computed by `embedder`, its scanned pages read with the
+    /// language data in `models_dir`, the models folder in force; see
+    /// [`crate::indexer`]. Must be called within a Tokio runtime. A second
+    /// call replaces the first indexer.
     ///
     /// # Errors
     /// [`SourcesError::NoDataDirectory`] for a registry outside any
@@ -259,8 +261,10 @@ impl SourceRegistryHandle {
     pub async fn start_indexing<E: PassageEmbedder>(
         &self,
         embedder: E,
+        models_dir: PathBuf,
     ) -> Result<(), SourcesError> {
-        self.start_indexing_every(embedder, SWEEP_INTERVAL).await
+        self.start_indexing_every(embedder, models_dir, SWEEP_INTERVAL)
+            .await
     }
 
     /// [`Self::start_indexing`], sweeping every `interval`.
@@ -270,19 +274,21 @@ impl SourceRegistryHandle {
     pub async fn start_indexing_every<E: PassageEmbedder>(
         &self,
         embedder: E,
+        models_dir: PathBuf,
         interval: Duration,
     ) -> Result<(), SourcesError> {
-        self.start_indexing_fetching(embedder, interval, crate::indexer::OcrDataFetch::shipped())
+        let recognition = crate::indexer::Recognition::shipped(models_dir);
+        self.start_indexing_with(embedder, interval, recognition)
             .await
     }
 
-    /// [`Self::start_indexing_every`], the language data of recognition
-    /// fetched through `ocr_data`.
-    pub(crate) async fn start_indexing_fetching<E: PassageEmbedder>(
+    /// [`Self::start_indexing_every`], scanned pages read through
+    /// `recognition`.
+    pub(crate) async fn start_indexing_with<E: PassageEmbedder>(
         &self,
         embedder: E,
         interval: Duration,
-        ocr_data: Option<crate::indexer::OcrDataFetch>,
+        recognition: crate::indexer::Recognition,
     ) -> Result<(), SourcesError> {
         let (system_db, data_dir) = self.ask(Command::Paths).await?;
         let data_dir = data_dir.ok_or(SourcesError::NoDataDirectory)?;
@@ -294,7 +300,7 @@ impl SourceRegistryHandle {
                 system_db,
                 data_dir,
                 interval,
-                ocr_data,
+                recognition,
             },
         );
         self.tx

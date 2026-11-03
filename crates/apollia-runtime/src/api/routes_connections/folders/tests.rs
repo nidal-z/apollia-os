@@ -429,7 +429,11 @@ async fn test_a_folder_chosen_again_is_searched_in_its_new_content_at_once() {
     let (state, folder_id, source_id, _) = folder_with_source(&dir, &old).await;
     let registry = state.source_registry.clone().unwrap();
     registry
-        .start_indexing_every(NoModel, std::time::Duration::from_secs(3600))
+        .start_indexing_every(
+            NoModel,
+            dir.path().join("models"),
+            std::time::Duration::from_secs(3600),
+        )
         .await
         .unwrap();
     registry.refresh_indexes().await.unwrap().await.unwrap();
