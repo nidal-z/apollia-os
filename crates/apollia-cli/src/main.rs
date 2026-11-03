@@ -232,7 +232,7 @@ enum Commands {
         command: ModelCommand,
     },
 
-    /// The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete, inspect)
+    /// The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, show, create, delete, inspect)
     Source {
         #[command(subcommand)]
         command: SourceCommand,

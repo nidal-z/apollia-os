@@ -526,6 +526,8 @@ check_exit   "source delete without --confirm → 1" 1 "$BIN" --socket "$OFFSOCK
 # The report of the migration of the former projects is read from the daemon:
 # daemon off it refuses with 2, in human and in --json mode.
 check_exit   "source report (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source report
+check_exit   "source show (off) → 2"           2     "$BIN" --socket "$OFFSOCK" source show src-absent
+check_exit   "source show --json (off) → 2"    2     "$BIN" --socket "$OFFSOCK" --json source show src-absent
 check_exit   "source report --json (off) → 2"  2     "$BIN" --socket "$OFFSOCK" --json source report
 # The preview of a workbook or a CSV file is read by the daemon: daemon off it
 # refuses with 2, in human and in --json mode; a file that is not there is
