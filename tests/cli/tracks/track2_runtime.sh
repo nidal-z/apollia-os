@@ -59,6 +59,16 @@ check_exit    "source create mail without reference → 1" 1 "${Q[@]}" source cr
 SRCID=$("${Q[@]}" -q source create --kind folder --label E2E-Contracts --reference conn-e2e 2>/dev/null)
 check_content "source list shows the folder" "E2E-Contracts" "${Q[@]}" source list
 check_json    "source list --json"                 "${Q[@]}" source list --json
+# `show` reads a source the seed carries (the instructions file the migration
+# of the former projects turns into a file source) and where its index stands.
+# An unknown identifier is refused with 1.
+SEEDSRC=$("${Q[@]}" --json source list 2>/dev/null | "${E2E_PYTHON:-python3}" -c \
+  'import sys,json; print(next((s["id"] for s in json.load(sys.stdin) if s["label"] == "instructions.md"), "src-missing"))' 2>/dev/null)
+check_content "source show names the seeded file" "instructions.md" "${Q[@]}" source show "$SEEDSRC"
+check_content "source show reads its index" "Documents:" "${Q[@]}" source show "$SEEDSRC"
+check_json    "source show --json"                 "${Q[@]}" --json source show "$SEEDSRC"
+check_content "source show --json carries unreadPages" "unreadPages" "${Q[@]}" --json source show "$SEEDSRC"
+check_exit    "source show unknown → 1"      1     "${Q[@]}" source show src-absent
 check_exit    "source delete the folder → 0" 0     "${Q[@]}" source delete "$SRCID" --confirm
 check_exit    "source delete again → 1"      1     "${Q[@]}" source delete "$SRCID" --confirm
 check         "digest --since 24h"                 "${Q[@]}" digest --since 24h

@@ -11,6 +11,10 @@
 //! first rows, and whether results may be written into the original. A file
 //! that is not there is refused with exit 1 before the runtime is reached.
 //!
+//! `show` reads one source from the list and where its index stands
+//! (`GET /api/v1/sources/{id}/index`): documents and passages, the files left
+//! out, and the pages waiting for recognition or not read.
+//!
 //! `report` shows what the migration of the former projects carried over into
 //! sources at boot, and what it listed instead
 //! (`GET /api/v1/sources/project-migration`); exit 1 when no migration has run.
@@ -74,6 +78,12 @@ pub enum SourceCommand {
     /// Show the report of the migration of the former projects into sources:
     /// what each project became, and what could not be carried over.
     Report,
+    /// Show one source and where its index stands: documents and passages,
+    /// the files left out, and the pages waiting for recognition or not read.
+    Show {
+        /// Source identifier, as `source list` shows it.
+        id: String,
+    },
 }
 
 /// Run one leaf; returns the process exit code.
@@ -81,6 +91,7 @@ pub async fn run(cmd: &SourceCommand, socket: Option<PathBuf>, json: bool) -> i3
     let socket = socket.unwrap_or_else(crate::client::default_socket_path);
     let client = RuntimeClient::new(socket);
     let response = match cmd {
+        SourceCommand::Show { id } => return show(&client, id, json).await,
         SourceCommand::List => client.get(SOURCES_ROUTE).await,
         SourceCommand::Create {
             kind,
@@ -136,20 +147,138 @@ pub async fn run(cmd: &SourceCommand, socket: Option<PathBuf>, json: bool) -> i3
             }
             exit_codes::SUCCESS
         }
-        Ok(resp) => {
-            let message = serde_json::from_str::<Value>(&resp.body)
-                .ok()
-                .and_then(|v| v.get("error").and_then(Value::as_str).map(str::to_owned))
-                .unwrap_or(resp.body);
-            let code = if resp.status < 500 {
-                exit_codes::GENERAL_ERROR
-            } else {
-                exit_codes::RUNTIME_ERROR
-            };
-            crate::output::emit_error(json, code, &message)
-        }
+        Ok(resp) => refusal(json, resp),
         Err(e) => crate::output::emit_client_error(json, &e),
     }
+}
+
+/// The exit code and message of a runtime answer at or over 400: 1 for a
+/// refusal, 2 when the runtime failed.
+fn refusal(json: bool, resp: RawResponse) -> i32 {
+    let message = serde_json::from_str::<Value>(&resp.body)
+        .ok()
+        .and_then(|v| v.get("error").and_then(Value::as_str).map(str::to_owned))
+        .unwrap_or(resp.body);
+    let code = if resp.status < 500 {
+        exit_codes::GENERAL_ERROR
+    } else {
+        exit_codes::RUNTIME_ERROR
+    };
+    crate::output::emit_error(json, code, &message)
+}
+
+/// `source show <id>`: the source from `GET /api/v1/sources` and its index
+/// from `GET /api/v1/sources/{id}/index`, rendered as one document.
+async fn show(client: &RuntimeClient, id: &str, json: bool) -> i32 {
+    let index = match client.get(&format!("{SOURCES_ROUTE}/{id}/index")).await {
+        Ok(resp) if resp.status < 400 => resp,
+        Ok(resp) => return refusal(json, resp),
+        Err(e) => {
+            let code = crate::output::emit_client_error(json, &e);
+            if !json && matches!(e, crate::client::ClientError::ConnectionRefused) {
+                eprintln!("Hint: run `apollia-os start` first.");
+            }
+            return code;
+        }
+    };
+    let sources = match client.get(SOURCES_ROUTE).await {
+        Ok(resp) if resp.status < 400 => resp,
+        Ok(resp) => return refusal(json, resp),
+        Err(e) => return crate::output::emit_client_error(json, &e),
+    };
+    let parsed = (
+        serde_json::from_str::<Value>(&sources.body),
+        serde_json::from_str::<Value>(&index.body),
+    );
+    let (Ok(sources), Ok(index)) = parsed else {
+        return crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "the runtime answered a document that is not JSON",
+        );
+    };
+    let Some(document) = show_document(&sources, &index, id) else {
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("source not found: {id}"),
+        );
+    };
+    if json {
+        println!("{document}");
+    } else {
+        for line in show_lines(&document) {
+            println!("{line}");
+        }
+    }
+    exit_codes::SUCCESS
+}
+
+/// One document for `source show`: the fields of the source as
+/// `GET /api/v1/sources` lists it, then those of its index as
+/// `GET /api/v1/sources/{id}/index` returns them. `None` when the list does
+/// not hold `id`.
+fn show_document(sources: &Value, index: &Value, id: &str) -> Option<Value> {
+    let source = sources
+        .as_array()?
+        .iter()
+        .find(|s| s.get("id").and_then(Value::as_str) == Some(id))?;
+    let mut document = source.as_object()?.clone();
+    for (key, value) in index.as_object()? {
+        document.insert(key.clone(), value.clone());
+    }
+    Some(Value::Object(document))
+}
+
+/// The human rendering of a `source show` document.
+fn show_lines(value: &Value) -> Vec<String> {
+    let number = |key: &str| value.get(key).and_then(Value::as_u64).unwrap_or(0);
+    let entries = |key: &str| -> Vec<&Value> {
+        value
+            .get(key)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .collect()
+    };
+    let count = |key: &str, reason: &str| {
+        entries(key)
+            .iter()
+            .filter(|e| field(e, "reason") == reason)
+            .count()
+    };
+    let mut lines = vec![
+        format!("ID:        {}", field(value, "id")),
+        format!("Kind:      {}", field(value, "kind")),
+        format!("Label:     {}", field(value, "label")),
+        format!("Index:     {}", field(value, "indexState")),
+        format!("Documents: {}", number("documents")),
+        format!("Chunks:    {}", number("chunks")),
+    ];
+    let skipped: Vec<String> = [("too_large", "too large"), ("unreadable", "unreadable")]
+        .into_iter()
+        .filter_map(|(reason, words)| match count("skipped", reason) {
+            0 => None,
+            n => Some(format!("{n} {words}")),
+        })
+        .collect();
+    lines.push(format!(
+        "Skipped:   {}",
+        if skipped.is_empty() {
+            "none".to_owned()
+        } else {
+            skipped.join(", ")
+        }
+    ));
+    match count("unreadPages", "ocr_unavailable") {
+        0 => {}
+        n => lines.push(format!("{n} page(s) awaiting recognition")),
+    }
+    match count("unreadPages", "not_read") {
+        0 => {}
+        n => lines.push(format!("{n} page(s) not read")),
+    }
+    lines
 }
 
 /// The human rendering of a successful answer.
@@ -192,6 +321,11 @@ fn render(cmd: &SourceCommand, resp: &RawResponse) {
         }
         SourceCommand::Report => {
             for line in report_lines(&value) {
+                println!("{line}");
+            }
+        }
+        SourceCommand::Show { .. } => {
+            for line in show_lines(&value) {
                 println!("{line}");
             }
         }
@@ -498,6 +632,121 @@ mod tests {
         let leaf = parse(&["apollia-os", "source", "report"]);
         // THEN the report leaf is selected
         assert!(matches!(leaf, SourceCommand::Report));
+    }
+
+    #[test]
+    fn test_cli_parses_source_show() {
+        // GIVEN "apollia-os source show src-1"
+        // WHEN the top-level parser reads it
+        let leaf = parse(&["apollia-os", "source", "show", "src-1"]);
+        // THEN the show leaf is selected with the identifier
+        assert!(
+            matches!(&leaf, SourceCommand::Show { id } if id == "src-1"),
+            "{leaf:?}"
+        );
+    }
+
+    /// The answers of `GET /api/v1/sources` and `GET /api/v1/sources/src-1/index`
+    /// for a folder with two pages waiting for recognition and one not read.
+    fn scanned_folder() -> (Value, Value) {
+        let sources = serde_json::json!([
+            { "id": "src-0", "kind": "file", "label": "Other", "group": null,
+              "reference": "/a.pdf", "indexState": "ready", "addedAt": "2026-11-01T00:00:00.000Z" },
+            { "id": "src-1", "kind": "folder", "label": "Scans", "group": null,
+              "reference": "conn-scans", "indexState": "ready", "addedAt": "2026-11-02T00:00:00.000Z" }
+        ]);
+        let index = serde_json::json!({
+            "id": "src-1", "indexState": "keywords_only", "documents": 3, "chunks": 41,
+            "skipped": [
+                { "path": "/scans/huge.pdf", "sizeBytes": 60_000_000_u64, "reason": "too_large" },
+                { "path": "/scans/locked.pdf", "sizeBytes": 1200, "reason": "unreadable" },
+                { "path": "/scans/broken.docx", "sizeBytes": 900, "reason": "unreadable" }
+            ],
+            "unreadPages": [
+                { "path": "/scans/invoice.pdf", "page": 1, "reason": "ocr_unavailable" },
+                { "path": "/scans/photo.png", "page": 1, "reason": "ocr_unavailable" },
+                { "path": "/scans/mixed.pdf", "page": 4, "reason": "not_read" }
+            ]
+        });
+        (sources, index)
+    }
+
+    #[test]
+    fn test_the_show_lines_count_the_pages_waiting_and_not_read() {
+        // GIVEN a folder whose index holds two pages waiting for recognition
+        // and one not read
+        let (sources, index) = scanned_folder();
+        let document = show_document(&sources, &index, "src-1").expect("src-1 is listed");
+
+        // WHEN it is rendered for a human
+        let lines = show_lines(&document);
+
+        // THEN the source, the index counts, the skipped files by reason and
+        // both page lines are shown
+        assert_eq!(
+            lines,
+            vec![
+                "ID:        src-1".to_owned(),
+                "Kind:      folder".to_owned(),
+                "Label:     Scans".to_owned(),
+                "Index:     keywords_only".to_owned(),
+                "Documents: 3".to_owned(),
+                "Chunks:    41".to_owned(),
+                "Skipped:   1 too large, 2 unreadable".to_owned(),
+                "2 page(s) awaiting recognition".to_owned(),
+                "1 page(s) not read".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_the_show_lines_say_nothing_of_pages_when_every_page_is_read() {
+        // GIVEN a folder whose index left nothing out and read every page
+        let (sources, _) = scanned_folder();
+        let index = serde_json::json!({
+            "id": "src-1", "indexState": "ready", "documents": 2, "chunks": 8,
+            "skipped": [], "unreadPages": []
+        });
+        let document = show_document(&sources, &index, "src-1").expect("src-1 is listed");
+
+        // WHEN it is rendered for a human
+        let lines = show_lines(&document);
+
+        // THEN no page line is shown and the skipped files read none
+        assert!(lines.contains(&"Skipped:   none".to_owned()), "{lines:?}");
+        assert!(!lines.iter().any(|l| l.contains("page(s)")), "{lines:?}");
+    }
+
+    #[test]
+    fn test_the_show_document_carries_the_source_and_the_shape_of_the_index_route() {
+        // GIVEN the same folder
+        let (sources, index) = scanned_folder();
+
+        // WHEN the `--json` document is built and an unlisted id is asked for
+        let document = show_document(&sources, &index, "src-1").expect("src-1 is listed");
+        let unknown = show_document(&sources, &index, "src-9");
+
+        // THEN it holds the source fields, the index fields with the state
+        // the index reports, and the unread pages as the route returns them;
+        // an id the list does not hold has no document
+        for key in [
+            "id",
+            "kind",
+            "label",
+            "indexState",
+            "documents",
+            "chunks",
+            "skipped",
+            "unreadPages",
+        ] {
+            assert!(document.get(key).is_some(), "{key} missing: {document}");
+        }
+        assert_eq!(document["kind"], "folder");
+        assert_eq!(document["label"], "Scans");
+        assert_eq!(document["indexState"], "keywords_only");
+        assert_eq!(document["unreadPages"], index["unreadPages"]);
+        assert_eq!(document["skipped"], index["skipped"]);
+        assert!(unknown.is_none());
     }
 
     #[test]

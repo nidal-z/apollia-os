@@ -109,6 +109,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os source delete`↴](#apollia-os-source-delete)
 * [`apollia-os source inspect`↴](#apollia-os-source-inspect)
 * [`apollia-os source report`↴](#apollia-os-source-report)
+* [`apollia-os source show`↴](#apollia-os-source-show)
 * [`apollia-os trigger`↴](#apollia-os-trigger)
 * [`apollia-os trigger list`↴](#apollia-os-trigger-list)
 * [`apollia-os trigger status`↴](#apollia-os-trigger-status)
@@ -321,7 +322,7 @@ Apollia OS CLI binary (apollia-os)
 * `memory` - Memory management
 * `llm` - LLM backend diagnostics (status, ping, chat, costs, backends, reload)
 * `model` - Local model file management
-* `source` - The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete, inspect)
+* `source` - The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, show, create, delete, inspect)
 * `trigger` - Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete)
 * `notify` - Notification channel management (test, list, logs, create, update, delete, events)
 * `stt` - Speech-to-Text management (status, transcribe, transcriptions, model, config)
@@ -1813,7 +1814,7 @@ Remove a local model file from `~/.apollia/models/`
 
 ## `apollia-os source`
 
-The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete, inspect)
+The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, show, create, delete, inspect)
 
 **Usage:** `apollia-os source <COMMAND>`
 
@@ -1824,6 +1825,7 @@ The sources an agent may consult once checked: folders, files, mailboxes, the pr
 * `delete` - Remove a source. Agents that list it stop seeing it
 * `inspect` - Preview a workbook or a CSV file as a batch would read it: the sheet and header row proposed, the first twenty rows, the columns
 * `report` - Show the report of the migration of the former projects into sources: what each project became, and what could not be carried over
+* `show` - Show one source and where its index stands: documents and passages, the files left out, and the pages waiting for recognition or not read
 
 
 
@@ -1888,6 +1890,18 @@ Preview a workbook or a CSV file as a batch would read it: the sheet and header 
 Show the report of the migration of the former projects into sources: what each project became, and what could not be carried over
 
 **Usage:** `apollia-os source report`
+
+
+
+## `apollia-os source show`
+
+Show one source and where its index stands: documents and passages, the files left out, and the pages waiting for recognition or not read
+
+**Usage:** `apollia-os source show <ID>`
+
+###### **Arguments:**
+
+* `<ID>` - Source identifier, as `source list` shows it
 
 
 

@@ -117,7 +117,7 @@ keyring, the connections and the governance, adds the MCP servers a package
 brings and journals the installation. The archive is sent by its absolute
 path; a missing file is refused before the runtime is reached.
 
-**`source`** (`list`, `create`, `delete`, `inspect`, `report`) reads and writes the registry of
+**`source`** (`list`, `show`, `create`, `delete`, `inspect`, `report`) reads and writes the registry of
 sources an agent may consult once checked: a folder, a file or a mailbox,
 which name what they point at with `--reference`, the profile, the memory, a
 code folder. Every leaf goes through the runtime, whose actor owns the
@@ -128,6 +128,10 @@ a workbook or a CSV file as a batch would read it, through the runtime too:
 the sheet and header row proposed, the first twenty rows, the columns by
 letter and name, and whether results may be written into the original. A
 file that is not there is refused with exit 1 before the runtime is reached.
+`show <id>` reads one source and where its index stands: documents and
+passages, the files left out by reason, and the pages waiting for
+recognition or not read, from `GET /api/v1/sources/{id}/index`; an unknown
+identifier exits 1.
 `report` shows what the migration of the former projects carried over into
 sources at boot, and what it listed instead; exit 1 when no migration has run.
 
