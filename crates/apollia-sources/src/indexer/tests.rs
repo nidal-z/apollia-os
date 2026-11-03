@@ -10,6 +10,7 @@ use super::*;
 use crate::index::{index_path, SkipReason};
 use crate::SourceRegistryHandle;
 
+mod arrival;
 mod recognition;
 mod repointed;
 
@@ -89,6 +90,11 @@ impl World {
         }
     }
 
+    /// The models folder by default, `<data_dir>/models`.
+    fn models(&self) -> PathBuf {
+        self.data.path().join("models")
+    }
+
     fn root(&self) -> PathBuf {
         std::fs::canonicalize(self.docs.path()).unwrap()
     }
@@ -123,7 +129,11 @@ impl World {
 
     async fn start(&self, stub: &Arc<Stub>) {
         self.registry
-            .start_indexing_every(Shared(Arc::clone(stub)), Duration::from_secs(3600))
+            .start_indexing_every(
+                Shared(Arc::clone(stub)),
+                self.models(),
+                Duration::from_secs(3600),
+            )
             .await
             .unwrap();
     }
@@ -131,12 +141,20 @@ impl World {
     /// [`Self::start`], the language data of recognition fetched through
     /// `ocr_data`.
     async fn start_fetching(&self, stub: &Arc<Stub>, ocr_data: OcrDataFetch) {
+        let recognition = Recognition {
+            models_dir: self.models(),
+            fetch: Some(ocr_data),
+            open: Arc::new(Ocr::open),
+        };
+        self.start_with(stub, Duration::from_secs(3600), recognition)
+            .await;
+    }
+
+    /// Starts the indexer sweeping every `interval`, scanned pages read
+    /// through `recognition`.
+    async fn start_with(&self, stub: &Arc<Stub>, interval: Duration, recognition: Recognition) {
         self.registry
-            .start_indexing_fetching(
-                Shared(Arc::clone(stub)),
-                Duration::from_secs(3600),
-                Some(ocr_data),
-            )
+            .start_indexing_with(Shared(Arc::clone(stub)), interval, recognition)
             .await
             .unwrap();
     }

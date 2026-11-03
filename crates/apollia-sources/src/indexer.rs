@@ -32,6 +32,12 @@
 //!   then reads those pages. That fetch carries nothing of the documents; it
 //!   is tried once per run, and a machine without the network takes the same
 //!   files from a disk.
+//! - **A language that arrives.** The language data is read in the models
+//!   folder in force (the `[models] dir` key), which the runtime resolves and
+//!   hands over at the start. Each sweep notes whether the engine opens; when
+//!   it opens where it did not, a language was imported or copied there, and
+//!   every source is read again, as after a download, so the pages that
+//!   waited are read within one sweep, without a restart.
 //!
 //! The actor stops when the registry that started it stops.
 //!
@@ -144,6 +150,13 @@ struct Indexer<E> {
     rescan_rx: mpsc::Receiver<()>,
     tracked: HashMap<String, Tracked>,
     model: Option<Option<String>>,
+    /// Where the language data of recognition lives: `tessdata` in the
+    /// models folder the indexer was started with.
+    tessdata: PathBuf,
+    /// Opens the engine over that folder.
+    open_ocr: OpenOcr,
+    /// Whether the engine opened at the last sweep; `None` before the first.
+    ocr_opened: Option<bool>,
     /// Where the language data of recognition is fetched from; `None` in a
     /// build without the engine, which asks for nothing.
     ocr_data: Option<Arc<OcrDataFetch>>,
@@ -186,9 +199,35 @@ impl OcrDataFetch {
     }
 }
 
-/// Where the language data of recognition lives under `data_dir`.
-fn tessdata_dir(data_dir: &Path) -> PathBuf {
-    apollia_llm::ocr_data::tessdata_dir(&data_dir.join("models"))
+/// Opens the recognition engine over a folder of language data.
+pub(crate) type OpenOcr = Arc<dyn Fn(&Path) -> Ocr + Send + Sync>;
+
+/// Where the language data of recognition lives in the models folder
+/// `models_dir`.
+fn tessdata_dir(models_dir: &Path) -> PathBuf {
+    apollia_llm::ocr_data::tessdata_dir(models_dir)
+}
+
+/// How an indexer reads scanned pages and pictures.
+pub(crate) struct Recognition {
+    /// The models folder in force, whose `tessdata` holds the language data.
+    pub(crate) models_dir: PathBuf,
+    /// Where the language data is fetched from; `None` never fetches it.
+    pub(crate) fetch: Option<OcrDataFetch>,
+    /// Opens the engine over the language data.
+    pub(crate) open: OpenOcr,
+}
+
+impl Recognition {
+    /// The engine of this build over `models_dir`, its language data
+    /// fetched from the registry shipped in the binary.
+    pub(crate) fn shipped(models_dir: PathBuf) -> Self {
+        Self {
+            models_dir,
+            fetch: OcrDataFetch::shipped(),
+            open: Arc::new(Ocr::open),
+        }
+    }
 }
 
 /// What an indexer is started over, beside its registry and its embedder.
@@ -199,9 +238,8 @@ pub(crate) struct Start {
     pub(crate) data_dir: PathBuf,
     /// Time between two sweeps.
     pub(crate) interval: Duration,
-    /// Where the language data of recognition is fetched from; `None` never
-    /// fetches it.
-    pub(crate) ocr_data: Option<OcrDataFetch>,
+    /// How scanned pages and pictures are read.
+    pub(crate) recognition: Recognition,
 }
 
 /// Starts the indexer over the registry `registry` and returns the handle the
@@ -215,7 +253,7 @@ pub(crate) fn spawn<E: PassageEmbedder>(
         system_db,
         data_dir,
         interval,
-        ocr_data,
+        recognition,
     } = start;
     let (tx, rx) = mpsc::channel(INDEXER_CAPACITY);
     let (rescan_tx, rescan_rx) = mpsc::channel(1);
@@ -230,7 +268,10 @@ pub(crate) fn spawn<E: PassageEmbedder>(
         rescan_rx,
         tracked: HashMap::new(),
         model: None,
-        ocr_data: ocr_data.map(Arc::new),
+        tessdata: tessdata_dir(&recognition.models_dir),
+        open_ocr: recognition.open,
+        ocr_opened: None,
+        ocr_data: recognition.fetch.map(Arc::new),
         ocr_data_asked: AtomicBool::new(false),
     };
     tokio::spawn(indexer.run(interval));
@@ -292,13 +333,32 @@ impl<E: PassageEmbedder> Indexer<E> {
         }
     }
 
+    /// Whether the engine opens now, read under `spawn_blocking`: opening
+    /// checks the language data against its digests. `true` the first time
+    /// it opens after a sweep where it did not, a language having arrived.
+    async fn ocr_arrived(&mut self) -> bool {
+        let open = Arc::clone(&self.open_ocr);
+        let tessdata = self.tessdata.clone();
+        let opens = tokio::task::spawn_blocking(move || open(&tessdata).is_available())
+            .await
+            .unwrap_or(false);
+        let arrived = self.ocr_opened == Some(false) && opens;
+        self.ocr_opened = Some(opens);
+        if arrived {
+            tracing::event!(tracing::Level::INFO, "sources.indexer.ocr_arrived");
+        }
+        arrived
+    }
+
     /// Reads the registry and the model again: stops keeping the sources
     /// removed, starts keeping the new ones, and runs a full pass over the
-    /// new ones, or over every one when `all` is set or the model changed.
+    /// new ones, or over every one when `all` is set, the model changed or
+    /// the engine opens where it did not.
     async fn sweep(&mut self, all: bool) {
         let Some(sources) = self.registry.list().await else {
             return;
         };
+        let ocr_arrived = self.ocr_arrived().await;
         let model = self.current_model().await;
         let model_changed = self.model.as_ref().is_some_and(|m| *m != model);
         self.model = Some(model.clone());
@@ -319,8 +379,8 @@ impl<E: PassageEmbedder> Indexer<E> {
         let roots = self.resolve(&wanted).await;
         for source in wanted {
             let root = roots.get(&source.id).cloned();
-            self.follow(&source, root, all || model_changed, model.clone())
-                .await;
+            let again = all || model_changed || ocr_arrived;
+            self.follow(&source, root, again, model.clone()).await;
         }
     }
 
@@ -429,6 +489,12 @@ impl<E: PassageEmbedder> Indexer<E> {
         let Some(root) = self.tracked.get(id).map(|t| t.root.clone()) else {
             return;
         };
+        tracing::event!(
+            tracing::Level::DEBUG,
+            source = %id,
+            root = %root.display(),
+            "sources.indexer.full_pass"
+        );
         self.registry.set_state(id, IndexState::Indexing).await;
         let scopes = vec![root.clone()];
         let outcome = self.pass(id, root.clone(), scopes, model.clone()).await;
@@ -486,7 +552,7 @@ impl<E: PassageEmbedder> Indexer<E> {
         if self.ocr_data_asked.swap(true, Ordering::AcqRel) {
             return;
         }
-        let dir = tessdata_dir(&self.data_dir);
+        let dir = self.tessdata.clone();
         let rescan = self.rescan_tx.clone();
         tokio::spawn(async move {
             let fetched = apollia_llm::ocr_data::fetch_missing(
@@ -527,11 +593,13 @@ impl<E: PassageEmbedder> Indexer<E> {
         let data_dir = self.data_dir.clone();
         let source = id.to_owned();
         let embedder = Arc::clone(&self.embedder);
+        let open = Arc::clone(&self.open_ocr);
+        let tessdata = self.tessdata.clone();
         let runtime = tokio::runtime::Handle::current();
         let outcome = tokio::task::spawn_blocking(move || -> Result<PassOutcome, IndexError> {
             let mut index = SourceIndex::open(&data_dir, &source)?;
             let embed = |texts: &[String]| runtime.block_on(embedder.embed_passages(texts));
-            let ocr = Ocr::open(&tessdata_dir(&data_dir));
+            let ocr = open(&tessdata);
             let means = pass::Means {
                 model: model.as_deref(),
                 embed: &embed,

@@ -424,6 +424,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # interval inside it; every other test of the indexer asks for its pass
     # and awaits the reply.
     "crates/apollia-sources/src/indexer/tests.rs": 2,
+    # The periodic sweep is the subject: a language copied into the models
+    # folder is noticed with no request, so the only observable is the state
+    # of the source once a sweep has run. One bounded poll interval.
+    "crates/apollia-sources/src/indexer/tests/arrival.rs": 1,
     "crates/apollia-tools/src/executor.rs": 1,
     "crates/apollia-tools/src/file_path_extractor.rs": 2,
     "crates/apollia-tools/src/journal.rs": 2,

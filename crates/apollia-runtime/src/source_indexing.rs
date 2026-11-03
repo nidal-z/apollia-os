@@ -32,16 +32,18 @@ impl PassageEmbedder for LocalEmbedder {
 }
 
 /// Starts the indexer over `registry`, its vectors computed by the default
-/// embeddings model of `data_dir`, served by `supervisor`. A failure is
-/// traced and leaves the sources without a live index; nothing else depends
-/// on it.
+/// embeddings model of `data_dir`, served by `supervisor`, its scanned pages
+/// read with the language data of the models folder in force, the one the
+/// desktop imports a language into. A failure is traced and leaves the
+/// sources without a live index; nothing else depends on it.
 pub async fn start(
     registry: &SourceRegistryHandle,
     data_dir: &Path,
     supervisor: Option<Arc<LlamaServerSupervisor>>,
 ) {
     let embedder = LocalEmbedder::new(data_dir.to_path_buf(), supervisor);
-    match registry.start_indexing(embedder).await {
+    let models_dir = crate::installed_models::models_dir(data_dir);
+    match registry.start_indexing(embedder, models_dir).await {
         Ok(()) => tracing::event!(tracing::Level::INFO, "supervisor.source_indexer.ready"),
         Err(e) => tracing::event!(
             tracing::Level::WARN,
