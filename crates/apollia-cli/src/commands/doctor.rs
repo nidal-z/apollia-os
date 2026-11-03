@@ -5,6 +5,7 @@
 //! - `apollia.toml` parses successfully
 //! - Local SQLite databases (agents, governance, plan_cache) are openable
 //! - Models directory state
+//! - Optical character recognition: engine compiled in, language data verified
 //! - Python availability for the PyO3 bridge
 //! - Runtime socket reachability (informational)
 //!
@@ -43,6 +44,10 @@ pub struct CheckResult {
     pub message: String,
     /// Optional next-step hint shown when status is `Warn` or `Error`.
     pub hint: Option<String>,
+    /// Machine-readable facts behind the message, for the checks that have
+    /// some; absent from the JSON of the others.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<serde_json::Value>,
 }
 
 impl CheckResult {
@@ -53,6 +58,7 @@ impl CheckResult {
             status: CheckStatus::Ok,
             message: message.into(),
             hint: None,
+            detail: None,
         }
     }
 
@@ -63,6 +69,7 @@ impl CheckResult {
             status: CheckStatus::Warn,
             message: message.into(),
             hint: Some(hint.into()),
+            detail: None,
         }
     }
 
@@ -73,6 +80,7 @@ impl CheckResult {
             status: CheckStatus::Error,
             message: message.into(),
             hint: Some(hint.into()),
+            detail: None,
         }
     }
 }
@@ -94,6 +102,11 @@ pub async fn run(socket: Option<PathBuf>, json: bool) -> i32 {
     checks.push(check_governance_db(&data_dir));
     checks.push(check_agents_db(&data_dir));
     checks.push(check_models_dir(&data_dir));
+    checks.push(check_recognition(
+        apollia_sources::Ocr::compiled(),
+        &apollia_llm::ocr_data::tessdata_dir(&apollia_core::config::models_dir(&data_dir)),
+        apollia_llm::recommend::OcrCatalogue::embedded(),
+    ));
     checks.push(check_python());
     checks.push(check_sandbox_posture());
     checks.push(check_runtime_socket(socket).await);
@@ -319,6 +332,56 @@ fn check_models_dir(data_dir: &Path) -> CheckResult {
             format!("{count} model(s) in {}", dir.display()),
         )
     }
+}
+
+/// Report whether scanned pages and pictures in sources will be read: the
+/// engine compiled into this build, and how many of the languages the registry
+/// pins are in `tessdata` with their pinned digest. A warning, never an error,
+/// in both missing cases: a source still indexes its text without them.
+fn check_recognition<E: std::fmt::Display>(
+    compiled: bool,
+    tessdata: &Path,
+    catalogue: Result<apollia_llm::recommend::OcrCatalogue, E>,
+) -> CheckResult {
+    const ID: &str = "recognition";
+    const LABEL: &str = "Recognition";
+    let catalogue = match catalogue {
+        Ok(c) => c,
+        Err(e) => {
+            return CheckResult::error(
+                ID,
+                LABEL,
+                format!("the language data registry of this build does not load: {e}"),
+                "Reinstall Apollia OS: the registry is embedded in the binary",
+            );
+        }
+    };
+    let verified = apollia_llm::ocr_data::verified_languages(tessdata, &catalogue).len();
+    let pinned = catalogue.languages().len();
+    let counts = format!("{verified}/{pinned} languages verified");
+    let mut check = if !compiled {
+        CheckResult::warn(
+            ID,
+            LABEL,
+            format!("not compiled, {counts}: this build does not read scanned pages"),
+            "Install a build that carries recognition, or build with `--features ocr`",
+        )
+    } else if verified == 0 {
+        CheckResult::warn(
+            ID,
+            LABEL,
+            format!("compiled, {counts} in {}", tessdata.display()),
+            "The language data downloads with the first scanned page, or import it",
+        )
+    } else {
+        CheckResult::ok(ID, LABEL, format!("compiled, {counts}"))
+    };
+    check.detail = Some(serde_json::json!({
+        "compiled": compiled,
+        "languages_verified": verified,
+        "languages_pinned": pinned,
+    }));
+    check
 }
 
 /// Verify that the Python interpreter linked against PyO3 is usable.
@@ -605,5 +668,170 @@ mod tests {
             "an unreadable directory must not be reported as empty: {}",
             check.message
         );
+    }
+
+    /// A registry pinning two languages, `fra` and `eng`, to the digests of
+    /// `fra` and `eng`.
+    fn two_languages(fra: &[u8], eng: &[u8]) -> apollia_llm::recommend::OcrCatalogue {
+        use sha2::{Digest, Sha256};
+        let entry = |language: &str, bytes: &[u8]| {
+            format!(
+                "[[ocr]]\nlanguage = \"{language}\"\nlabel = \"{language}\"\npublisher = \"test\"\n\
+                 released = \"2017-09-14\"\nlicense = \"apache-2.0\"\nrepo = \"owner/tessdata\"\n\
+                 file = \"{language}.traineddata\"\nsize_bytes = {}\nsha256 = \"{:x}\"\n\
+                 source = \"https://example.invalid\"\n",
+                bytes.len(),
+                Sha256::digest(bytes)
+            )
+        };
+        apollia_llm::recommend::OcrCatalogue::from_toml(&format!(
+            "{}\n{}",
+            entry("fra", fra),
+            entry("eng", eng)
+        ))
+        .expect("the test registry loads")
+    }
+
+    type NoError = std::convert::Infallible;
+
+    #[test]
+    fn the_recognition_check_is_named_recognition_and_carries_its_counts() {
+        // GIVEN a build with the engine and an empty language folder
+        let tessdata = tempfile::tempdir().unwrap();
+        let catalogue = Ok::<_, NoError>(two_languages(b"fra data", b"eng data"));
+        // WHEN the recognition check runs and is serialised for `--json`
+        let check = check_recognition(true, tessdata.path(), catalogue);
+        let json = serde_json::to_value(&check).unwrap();
+        // THEN it has the stable id and the facts behind its message
+        assert_eq!(json["id"], "recognition");
+        assert_eq!(json["detail"]["compiled"], true);
+        assert_eq!(json["detail"]["languages_verified"], 0);
+        assert_eq!(json["detail"]["languages_pinned"], 2);
+    }
+
+    #[test]
+    fn the_other_checks_keep_their_json_shape() {
+        // GIVEN a check that has no detail
+        let check = CheckResult::ok("agents_db", "Agents DB", "openable");
+        // WHEN it is serialised for `--json`
+        let json = serde_json::to_value(&check).unwrap();
+        // THEN it holds the same five keys as before, and no detail
+        let keys: Vec<&str> = json
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(keys.len(), 5, "{json}");
+        assert!(json.get("detail").is_none(), "{json}");
+    }
+
+    #[test]
+    fn recognition_without_language_data_warns_with_the_way_to_get_it() {
+        // GIVEN a build with the engine and no language file
+        let tessdata = tempfile::tempdir().unwrap();
+        let catalogue = Ok::<_, NoError>(two_languages(b"fra data", b"eng data"));
+        // WHEN the recognition check runs
+        let check = check_recognition(true, tessdata.path(), catalogue);
+        // THEN it warns, counts none of two, and says how the data arrives
+        assert_eq!(check.status, CheckStatus::Warn, "{}", check.message);
+        assert!(
+            check
+                .message
+                .starts_with("compiled, 0/2 languages verified"),
+            "{}",
+            check.message
+        );
+        let hint = check.hint.unwrap();
+        assert!(
+            hint.contains("downloads with the first scanned page"),
+            "{hint}"
+        );
+        assert!(hint.contains("import it"), "{hint}");
+    }
+
+    #[test]
+    fn recognition_with_one_language_at_its_digest_is_ok() {
+        // GIVEN a build with the engine and `fra.traineddata` holding the
+        // bytes the registry pins
+        let tessdata = tempfile::tempdir().unwrap();
+        std::fs::write(tessdata.path().join("fra.traineddata"), b"fra data").unwrap();
+        let catalogue = Ok::<_, NoError>(two_languages(b"fra data", b"eng data"));
+        // WHEN the recognition check runs
+        let check = check_recognition(true, tessdata.path(), catalogue);
+        // THEN it passes and counts one of two
+        assert_eq!(check.status, CheckStatus::Ok, "{}", check.message);
+        assert_eq!(check.message, "compiled, 1/2 languages verified");
+        assert_eq!(check.detail.unwrap()["languages_verified"], 1);
+    }
+
+    #[test]
+    fn recognition_with_an_altered_language_file_does_not_count_it() {
+        // GIVEN a build with the engine and a `fra.traineddata` whose bytes
+        // are not the pinned ones
+        let tessdata = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tessdata.path().join("fra.traineddata"),
+            b"fra data, altered",
+        )
+        .unwrap();
+        let catalogue = Ok::<_, NoError>(two_languages(b"fra data", b"eng data"));
+        // WHEN the recognition check runs
+        let check = check_recognition(true, tessdata.path(), catalogue);
+        // THEN the file is not counted and the check warns
+        assert_eq!(check.status, CheckStatus::Warn, "{}", check.message);
+        assert_eq!(check.detail.unwrap()["languages_verified"], 0);
+    }
+
+    #[test]
+    fn recognition_not_compiled_warns_even_with_language_data() {
+        // GIVEN a build without the engine and a verified language file
+        let tessdata = tempfile::tempdir().unwrap();
+        std::fs::write(tessdata.path().join("eng.traineddata"), b"eng data").unwrap();
+        let catalogue = Ok::<_, NoError>(two_languages(b"fra data", b"eng data"));
+        // WHEN the recognition check runs
+        let check = check_recognition(false, tessdata.path(), catalogue);
+        // THEN it warns that scanned pages are not read, and still counts the file
+        assert_eq!(check.status, CheckStatus::Warn, "{}", check.message);
+        assert!(
+            check
+                .message
+                .contains("this build does not read scanned pages"),
+            "{}",
+            check.message
+        );
+        let detail = check.detail.unwrap();
+        assert_eq!(detail["compiled"], false);
+        assert_eq!(detail["languages_verified"], 1);
+    }
+
+    #[test]
+    fn recognition_reports_the_engine_of_this_build_over_the_shipped_registry() {
+        // GIVEN this build, the registry it embeds, and an empty language folder
+        let tessdata = tempfile::tempdir().unwrap();
+        let compiled = apollia_sources::Ocr::compiled();
+        // WHEN the recognition check runs as `doctor` runs it
+        let check = check_recognition(
+            compiled,
+            tessdata.path(),
+            apollia_llm::recommend::OcrCatalogue::embedded(),
+        );
+        // THEN it says whether the engine is in this build (the `ocr` feature),
+        // over the two languages the registry pins, and warns for the folder
+        let detail = check.detail.unwrap();
+        assert_eq!(detail["compiled"], cfg!(feature = "ocr"));
+        assert_eq!(detail["languages_pinned"], 2);
+        assert_eq!(check.status, CheckStatus::Warn);
+    }
+
+    #[test]
+    fn recognition_with_a_registry_that_does_not_load_is_an_error() {
+        // GIVEN a registry that fails to load
+        let tessdata = tempfile::tempdir().unwrap();
+        // WHEN the recognition check runs
+        let check = check_recognition(true, tessdata.path(), Err("broken table"));
+        // THEN it fails with the reason, since the binary itself is at fault
+        assert_eq!(check.status, CheckStatus::Error);
+        assert!(check.message.contains("broken table"), "{}", check.message);
     }
 }
