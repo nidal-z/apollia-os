@@ -24286,7 +24286,9 @@
         "type": "string",
         "description": "A build of an engine for one kind of hardware.",
         "enum": [
-          "cuda",
+          "cuda-12",
+          "cuda-13",
+          "rocm",
           "vulkan",
           "cpu",
           "metal"

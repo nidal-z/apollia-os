@@ -175,8 +175,8 @@ jobs:
             --sequence "$(date -u +%s)" \
             --llama-tag "$LLAMA_TAG" \
             --out "$OUT" \
-            --require llama-server/cuda/windows-x64 \
-            --require llama-server/cuda/linux-x64 \
+            --require llama-server/cuda-12/windows-x64 \
+            --require llama-server/cuda-12/linux-x64 \
             --require nodejs/cpu/macos-arm64 \
             --require nodejs/cpu/linux-x64 \
             --require nodejs/cpu/linux-arm64 \

@@ -54,7 +54,9 @@ pub fn package_dir(root: &Path, engine: Engine, tag: &str, variant: Variant) -> 
 fn read_record(dir: &Path) -> Option<InstalledPackage> {
     let bytes = std::fs::read(dir.join(RECORD_FILE)).ok()?;
     let mut record: InstalledPackage = serde_json::from_slice(&bytes).ok()?;
-    let expected = dir.file_name()?.to_str()? == record.variant.as_str()
+    let dir_name = dir.file_name()?.to_str()?;
+    let expected = (dir_name == record.variant.as_str()
+        || record.variant.former_name() == Some(dir_name))
         && dir.parent()?.file_name()?.to_str()? == record.tag
         && is_safe_component(&record.tag);
     if !expected {
@@ -65,7 +67,8 @@ fn read_record(dir: &Path) -> Option<InstalledPackage> {
 }
 
 /// Every installed package of the store, verified records only, ordered by
-/// engine, variant, then tag.
+/// engine, variant, then tag. A package an earlier version filed under the
+/// former name of its variant (`cuda`) is listed under the current one.
 #[must_use]
 pub fn installed_packages(root: &Path) -> Vec<InstalledPackage> {
     let mut found = Vec::new();
@@ -74,9 +77,11 @@ pub fn installed_packages(root: &Path) -> Vec<InstalledPackage> {
             continue;
         };
         for tag in tags.flatten() {
-            for variant in Variant::ALL {
-                let dir = tag.path().join(variant.as_str());
-                if let Some(record) = read_record(&dir) {
+            let names = Variant::ALL
+                .into_iter()
+                .flat_map(|variant| std::iter::once(variant.as_str()).chain(variant.former_name()));
+            for name in names {
+                if let Some(record) = read_record(&tag.path().join(name)) {
                     if record.engine == engine {
                         found.push(record);
                     }
@@ -126,10 +131,10 @@ pub fn find_binary(dir: &Path, name: &str) -> Option<PathBuf> {
 }
 
 /// The engine variant the launcher wants on this hardware, when the store
-/// holds one: CUDA on a machine with an NVIDIA card, nothing otherwise.
+/// holds one: CUDA 12 on a machine with an NVIDIA card, nothing otherwise.
 #[must_use]
 pub fn wanted_llama_variant(nvidia_detected: bool) -> Option<Variant> {
-    nvidia_detected.then_some(Variant::Cuda)
+    nvidia_detected.then_some(Variant::Cuda12)
 }
 
 /// The installed `llama-server` the launcher should take, or `None` to keep
@@ -142,7 +147,7 @@ pub fn preferred_llama_server(
     binary_name: &str,
     nvidia_detected: impl FnOnce() -> bool,
 ) -> Option<PathBuf> {
-    let newest = newest_installed(root, Engine::LlamaServer, Variant::Cuda)?;
+    let newest = newest_installed(root, Engine::LlamaServer, Variant::Cuda12)?;
     let variant = wanted_llama_variant(nvidia_detected())?;
     if variant != newest.variant {
         return None;

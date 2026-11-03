@@ -21,6 +21,7 @@ use super::*;
 
 mod auto_update;
 mod install_job;
+mod variants;
 
 fn fixture(name: &str) -> Vec<u8> {
     std::fs::read(
@@ -122,7 +123,7 @@ fn test_manifest_round_trips() {
     let p = &parsed.packages[0];
     assert_eq!(
         (p.engine, p.tag.as_str(), p.variant, p.platform.as_str()),
-        (Engine::LlamaServer, "b6000", Variant::Cuda, "linux-x64")
+        (Engine::LlamaServer, "b6000", Variant::Cuda12, "linux-x64")
     );
     assert_eq!(p.url, "llama-b6000-cuda.zip");
     assert_eq!(p.sha256.len(), 64);
@@ -197,7 +198,7 @@ async fn test_valid_signature_downloads_the_archive() {
         &store(dir.path(), "linux-x64"),
         &settings,
         Engine::LlamaServer,
-        Variant::Cuda,
+        Variant::Cuda12,
     )
     .await
     .unwrap();
@@ -211,7 +212,7 @@ async fn test_valid_signature_downloads_the_archive() {
 async fn refused_before_any_archive(fake: &Fake, store: EngineStore) -> EngineStoreError {
     fake.archives();
     let settings = start(fake).await;
-    let err = install_package(&store, &settings, Engine::LlamaServer, Variant::Cuda)
+    let err = install_package(&store, &settings, Engine::LlamaServer, Variant::Cuda12)
         .await
         .unwrap_err();
     assert_eq!(fake.archive_hits(), 0, "an archive was requested: {err}");
@@ -281,7 +282,7 @@ async fn test_older_sequence_is_refused_as_a_rollback() {
     fake.archives();
 
     // WHEN an install is asked for
-    let err = install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda)
+    let err = install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda12)
         .await
         .unwrap_err();
 
@@ -396,13 +397,13 @@ async fn test_archive_is_filed_by_tag_and_variant_with_its_record() {
     let s = store(dir.path(), "linux-x64");
 
     // WHEN the CUDA engine is installed
-    install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda)
+    install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda12)
         .await
         .unwrap();
 
     // THEN it sits under llama-server/b6000/cuda with its record, and no
     //      downloaded archive is left behind
-    let dir_of = s.root.join("llama-server/b6000/cuda");
+    let dir_of = s.root.join("llama-server/b6000/cuda-12");
     assert!(dir_of.join(RECORD_FILE).is_file());
     assert!(find_binary(&dir_of, "llama-server").is_some());
     assert_eq!(
@@ -428,7 +429,7 @@ async fn test_archive_with_wrong_digest_is_deleted_and_not_installed() {
     let s = store(dir.path(), "linux-x64");
 
     // WHEN the CUDA engine is installed
-    let err = install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda)
+    let err = install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda12)
         .await
         .unwrap_err();
 
@@ -458,7 +459,7 @@ async fn test_newer_tag_on_the_channel_is_offered_as_an_update() {
     let settings = start(&fake).await;
     let dir = tempfile::tempdir().unwrap();
     let s = store(dir.path(), "linux-x64");
-    install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda)
+    install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda12)
         .await
         .unwrap();
     fake.publish("stable-6.json", "stable-6.json.minisig");
@@ -468,7 +469,7 @@ async fn test_newer_tag_on_the_channel_is_offered_as_an_update() {
     let found = updates(&s.root, &manifest, &s.platform);
 
     // THEN the CUDA update to b7000 is offered
-    let cuda = found.iter().find(|u| u.variant == Variant::Cuda).unwrap();
+    let cuda = found.iter().find(|u| u.variant == Variant::Cuda12).unwrap();
     assert_eq!(cuda.installed_tag.as_deref(), Some("b6000"));
     assert_eq!(cuda.latest_tag, "b7000");
     assert!(cuda.update_available);
@@ -483,7 +484,7 @@ async fn test_same_tag_on_the_channel_offers_nothing() {
     let settings = start(&fake).await;
     let dir = tempfile::tempdir().unwrap();
     let s = store(dir.path(), "linux-x64");
-    install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda)
+    install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda12)
         .await
         .unwrap();
 
@@ -547,7 +548,7 @@ fn test_import_from_a_disk_verifies_and_files_the_engine() {
     assert_eq!(done[0].source, Source::Imported);
     assert!(s
         .root
-        .join("llama-server/b6000/cuda")
+        .join("llama-server/b6000/cuda-12")
         .join(RECORD_FILE)
         .is_file());
 }
@@ -690,7 +691,7 @@ fn test_newest_verified_cuda_build_is_preferred_on_an_nvidia_machine() {
 
     // THEN it takes the b7000 build
     assert!(
-        chosen.starts_with(s.root.join("llama-server/b7000/cuda")),
+        chosen.starts_with(s.root.join("llama-server/b7000/cuda-12")),
         "{}",
         chosen.display()
     );

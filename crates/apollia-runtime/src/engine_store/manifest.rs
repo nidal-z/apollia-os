@@ -40,22 +40,38 @@ impl Engine {
         }
     }
 
+    /// Reads a wire name, `None` for an engine this build does not know.
+    #[must_use]
+    pub fn from_wire(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|e| e.as_str() == name)
+    }
+
     /// Every engine, in a stable order.
     pub const ALL: [Engine; 3] = [Engine::LlamaServer, Engine::VllmMlx, Engine::NodeJs];
 }
 
 /// A build of an engine for one kind of hardware.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "lowercase")]
 #[schema(as = EngineVariant)]
 pub enum Variant {
-    /// NVIDIA cards.
-    Cuda,
+    /// NVIDIA cards, CUDA 12 runtime. `cuda`, the name of the one CUDA
+    /// build published before there were two, reads as this one.
+    #[serde(rename = "cuda-12", alias = "cuda")]
+    Cuda12,
+    /// NVIDIA cards, CUDA 13 runtime.
+    #[serde(rename = "cuda-13")]
+    Cuda13,
+    /// AMD cards, ROCm runtime.
+    #[serde(rename = "rocm")]
+    Rocm,
     /// Any Vulkan card.
+    #[serde(rename = "vulkan")]
     Vulkan,
     /// No accelerator.
+    #[serde(rename = "cpu")]
     Cpu,
     /// Apple Silicon.
+    #[serde(rename = "metal")]
     Metal,
 }
 
@@ -64,15 +80,49 @@ impl Variant {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Variant::Cuda => "cuda",
+            Variant::Cuda12 => "cuda-12",
+            Variant::Cuda13 => "cuda-13",
+            Variant::Rocm => "rocm",
             Variant::Vulkan => "vulkan",
             Variant::Cpu => "cpu",
             Variant::Metal => "metal",
         }
     }
 
+    /// The directory name an earlier version gave this variant under a tag,
+    /// when it had another one: `cuda` for [`Variant::Cuda12`].
+    #[must_use]
+    pub const fn former_name(self) -> Option<&'static str> {
+        match self {
+            Variant::Cuda12 => Some("cuda"),
+            _ => None,
+        }
+    }
+
+    /// Reads a wire name, the former one included; `None` for a variant
+    /// this build does not know.
+    #[must_use]
+    pub fn from_wire(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|v| v.as_str() == name || v.former_name() == Some(name))
+    }
+
+    /// True for a CUDA build, whatever its runtime.
+    #[must_use]
+    pub const fn is_cuda(self) -> bool {
+        matches!(self, Variant::Cuda12 | Variant::Cuda13)
+    }
+
     /// Every variant, in a stable order.
-    pub const ALL: [Variant; 4] = [Variant::Cuda, Variant::Vulkan, Variant::Cpu, Variant::Metal];
+    pub const ALL: [Variant; 6] = [
+        Variant::Cuda12,
+        Variant::Cuda13,
+        Variant::Rocm,
+        Variant::Vulkan,
+        Variant::Cpu,
+        Variant::Metal,
+    ];
 }
 
 /// An update channel.
@@ -143,24 +193,50 @@ impl Manifest {
     /// Parse and check a manifest's bytes. Does not verify the signature: call
     /// [`verify_manifest`] for bytes that come from outside.
     ///
+    /// A package of an engine or a variant this build does not know is left
+    /// out and logged, so a manifest that publishes a newer variant still
+    /// serves the packages this build can install.
+    ///
     /// # Errors
     ///
     /// [`EngineStoreError::ManifestInvalid`] when the bytes are not a manifest
     /// of this format, or a package is malformed.
     pub fn parse(bytes: &[u8]) -> Result<Self, EngineStoreError> {
-        let manifest: Manifest =
-            serde_json::from_slice(bytes).map_err(|e| EngineStoreError::ManifestInvalid {
-                reason: e.to_string(),
-            })?;
-        if manifest.format != MANIFEST_FORMAT {
+        let invalid = |e: serde_json::Error| EngineStoreError::ManifestInvalid {
+            reason: e.to_string(),
+        };
+        let raw: RawManifest = serde_json::from_slice(bytes).map_err(invalid)?;
+        if raw.format != MANIFEST_FORMAT {
             return Err(EngineStoreError::ManifestInvalid {
-                reason: format!("unsupported format {}", manifest.format),
+                reason: format!("unsupported format {}", raw.format),
             });
         }
-        for package in &manifest.packages {
-            check_package(package)?;
+        let mut packages = Vec::with_capacity(raw.packages.len());
+        for value in raw.packages {
+            let name = |field: &str| value.get(field).and_then(serde_json::Value::as_str);
+            let (engine, variant) = (name("engine"), name("variant"));
+            let known_engine = engine.is_none_or(|e| Engine::from_wire(e).is_some());
+            let known_variant = variant.is_none_or(|v| Variant::from_wire(v).is_some());
+            if !known_engine || !known_variant {
+                tracing::event!(
+                    tracing::Level::INFO,
+                    engine = engine.unwrap_or_default(),
+                    variant = variant.unwrap_or_default(),
+                    detail = "a package this build does not know is left out",
+                    "engine_store.manifest.package_skipped"
+                );
+                continue;
+            }
+            let package: Package = serde_json::from_value(value).map_err(invalid)?;
+            check_package(&package)?;
+            packages.push(package);
         }
-        Ok(manifest)
+        Ok(Manifest {
+            format: raw.format,
+            channel: raw.channel,
+            sequence: raw.sequence,
+            packages,
+        })
     }
 
     /// The newest package of `engine` and `variant` for `platform`.
@@ -171,6 +247,17 @@ impl Manifest {
             .filter(|p| p.engine == engine && p.platform == platform && p.variant == variant)
             .max_by(|a, b| compare_tags(&a.tag, &b.tag))
     }
+}
+
+/// A manifest as it is read, before its packages are sorted between the ones
+/// this build knows and the others.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawManifest {
+    format: u32,
+    channel: Channel,
+    sequence: u64,
+    packages: Vec<serde_json::Value>,
 }
 
 fn check_package(package: &Package) -> Result<(), EngineStoreError> {

@@ -314,7 +314,7 @@ fn engines_view(
     let installed = installed_packages(&root);
     let has_cuda = installed
         .iter()
-        .any(|p| p.engine == Engine::LlamaServer && p.variant == Variant::Cuda);
+        .any(|p| p.engine == Engine::LlamaServer && p.variant.is_cuda());
     let key = apollia_signing::distribution::distribution_public_key();
     let manifest = key.and_then(|key| cached_manifest(&root, settings.channel, key));
     let platform = engine_store::current_platform();

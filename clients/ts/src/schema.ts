@@ -8386,7 +8386,7 @@ export interface components {
          * @description A build of an engine for one kind of hardware.
          * @enum {string}
          */
-        EngineVariant: "cuda" | "vulkan" | "cpu" | "metal";
+        EngineVariant: "cuda-12" | "cuda-13" | "rocm" | "vulkan" | "cpu" | "metal";
         /** @description Body of `GET /api/v1/engines`. */
         EnginesResponse: {
             /** @description The followed channel. */

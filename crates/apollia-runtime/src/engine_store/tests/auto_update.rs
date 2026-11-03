@@ -15,7 +15,7 @@ async fn store_behind_its_channel() -> (Fake, EngineStoreSettings, tempfile::Tem
     let settings = start(&fake).await;
     let dir = tempfile::tempdir().unwrap();
     let s = store(dir.path(), "linux-x64");
-    install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda)
+    install_package(&s, &settings, Engine::LlamaServer, Variant::Cuda12)
         .await
         .unwrap();
     fake.publish("stable-6.json", "stable-6.json.minisig");
@@ -23,12 +23,12 @@ async fn store_behind_its_channel() -> (Fake, EngineStoreSettings, tempfile::Tem
 }
 
 fn newest_cuda_tag(s: &EngineStore) -> String {
-    newest_installed(&s.root, Engine::LlamaServer, Variant::Cuda)
+    newest_installed(&s.root, Engine::LlamaServer, Variant::Cuda12)
         .unwrap()
         .tag
 }
 
-const CUDA: (Engine, Variant) = (Engine::LlamaServer, Variant::Cuda);
+const CUDA: (Engine, Variant) = (Engine::LlamaServer, Variant::Cuda12);
 
 #[tokio::test]
 async fn test_an_announced_update_of_a_chosen_engine_is_downloaded_and_verified() {
@@ -65,7 +65,7 @@ async fn test_with_automatic_update_off_the_update_is_only_announced() {
     let cuda = report
         .updates
         .iter()
-        .find(|u| u.variant == Variant::Cuda)
+        .find(|u| u.variant == Variant::Cuda12)
         .unwrap();
     assert!(cuda.update_available);
     assert_eq!(cuda.latest_tag, "b7000");
@@ -131,7 +131,7 @@ async fn test_an_update_is_never_installed_without_verification() {
         report.refused.as_slice(),
         [(
             Engine::LlamaServer,
-            Variant::Cuda,
+            Variant::Cuda12,
             EngineStoreError::DigestMismatch { .. }
         )]
     ));

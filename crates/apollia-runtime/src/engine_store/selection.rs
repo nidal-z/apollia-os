@@ -94,16 +94,20 @@ impl EngineChoices {
     }
 }
 
-/// The store variant a choice names, `None` for the automatic choice and for
-/// the shipped engine.
+/// The store variants a choice names, the preferred first: none for the
+/// automatic choice and for the shipped engine, CUDA 13 then CUDA 12 for
+/// `cuda`, the one it names otherwise.
 #[must_use]
-pub const fn named_variant(choice: EngineChoice) -> Option<Variant> {
+pub const fn named_variants(choice: EngineChoice) -> &'static [Variant] {
     match choice {
-        EngineChoice::Auto | EngineChoice::Embedded => None,
-        EngineChoice::Cuda => Some(Variant::Cuda),
-        EngineChoice::Vulkan => Some(Variant::Vulkan),
-        EngineChoice::Cpu => Some(Variant::Cpu),
-        EngineChoice::Metal => Some(Variant::Metal),
+        EngineChoice::Auto | EngineChoice::Embedded => &[],
+        EngineChoice::Cuda => &[Variant::Cuda13, Variant::Cuda12],
+        EngineChoice::Cuda12 => &[Variant::Cuda12],
+        EngineChoice::Cuda13 => &[Variant::Cuda13],
+        EngineChoice::Rocm => &[Variant::Rocm],
+        EngineChoice::Vulkan => &[Variant::Vulkan],
+        EngineChoice::Cpu => &[Variant::Cpu],
+        EngineChoice::Metal => &[Variant::Metal],
     }
 }
 
@@ -134,7 +138,8 @@ pub struct Resolution {
 /// choice, with a warning.
 #[must_use]
 pub fn resolve(root: Option<&Path>, engine: Engine, choice: EngineChoice) -> Resolution {
-    let Some(variant) = named_variant(choice) else {
+    let variants = named_variants(choice);
+    if variants.is_empty() {
         let resolved = if choice == EngineChoice::Embedded {
             Resolved::Embedded
         } else {
@@ -144,8 +149,13 @@ pub fn resolve(root: Option<&Path>, engine: Engine, choice: EngineChoice) -> Res
             resolved,
             fell_back: false,
         };
-    };
-    match root.and_then(|root| newest_installed(root, engine, variant)) {
+    }
+    let installed = root.and_then(|root| {
+        variants
+            .iter()
+            .find_map(|variant| newest_installed(root, engine, *variant))
+    });
+    match installed {
         Some(package) => Resolution {
             resolved: Resolved::Stored(package),
             fell_back: false,
@@ -154,7 +164,7 @@ pub fn resolve(root: Option<&Path>, engine: Engine, choice: EngineChoice) -> Res
             tracing::event!(
                 tracing::Level::WARN,
                 engine = engine.as_str(),
-                variant = variant.as_str(),
+                variant = choice.as_str(),
                 detail = "the chosen variant is no longer installed, the automatic choice applies",
                 "engine_store.selection.fell_back"
             );
@@ -181,10 +191,10 @@ pub fn chosen_variants(
     match resolve(Some(root), Engine::LlamaServer, choices.gguf).resolved {
         Resolved::Stored(package) => chosen.push((Engine::LlamaServer, package.variant)),
         Resolved::Automatic => {
-            if newest_installed(root, Engine::LlamaServer, Variant::Cuda).is_some()
+            if newest_installed(root, Engine::LlamaServer, Variant::Cuda12).is_some()
                 && nvidia_detected()
             {
-                chosen.push((Engine::LlamaServer, Variant::Cuda));
+                chosen.push((Engine::LlamaServer, Variant::Cuda12));
             }
         }
         Resolved::Embedded => {}
@@ -285,5 +295,54 @@ mod tests {
             (removed.resolved, removed.fell_back),
             (Resolved::Automatic, true)
         );
+    }
+
+    /// File a verified build of `variant` under `root`, as the store does.
+    fn file(root: &Path, variant: Variant) {
+        use crate::engine_store::installed::{package_dir, Source, RECORD_FILE};
+        let dir = package_dir(root, Engine::LlamaServer, "b6000", variant);
+        std::fs::create_dir_all(&dir).unwrap();
+        let record = InstalledPackage {
+            engine: Engine::LlamaServer,
+            tag: "b6000".to_owned(),
+            variant,
+            platform: "linux-x64".to_owned(),
+            sha256: "0".repeat(64),
+            source: Source::Downloaded,
+            released: None,
+            path: dir.clone(),
+        };
+        std::fs::write(dir.join(RECORD_FILE), serde_json::to_vec(&record).unwrap()).unwrap();
+    }
+
+    fn stored_variant(resolution: Resolution) -> Option<Variant> {
+        match resolution.resolved {
+            Resolved::Stored(package) => Some(package.variant),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn test_cuda_takes_cuda_13_when_installed_and_cuda_12_otherwise() {
+        // GIVEN a store holding CUDA 12 only, and one holding both runtimes
+        let twelve = tempfile::tempdir().unwrap();
+        file(twelve.path(), Variant::Cuda12);
+        let both = tempfile::tempdir().unwrap();
+        file(both.path(), Variant::Cuda12);
+        file(both.path(), Variant::Cuda13);
+
+        // WHEN `cuda` and each named runtime are resolved
+        let resolve_in = |root: &Path, choice| resolve(Some(root), Engine::LlamaServer, choice);
+        let alone = resolve_in(twelve.path(), EngineChoice::Cuda);
+        let best = resolve_in(both.path(), EngineChoice::Cuda);
+        let named = resolve_in(both.path(), EngineChoice::Cuda12);
+        let missing = resolve_in(twelve.path(), EngineChoice::Cuda13);
+
+        // THEN `cuda` is the best one installed, a named runtime is itself,
+        // and a named runtime absent falls back
+        assert_eq!(stored_variant(alone), Some(Variant::Cuda12));
+        assert_eq!(stored_variant(best), Some(Variant::Cuda13));
+        assert_eq!(stored_variant(named), Some(Variant::Cuda12));
+        assert!(missing.fell_back);
     }
 }

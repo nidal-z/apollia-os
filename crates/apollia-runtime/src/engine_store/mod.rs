@@ -19,7 +19,7 @@
 //!     {
 //!       "engine": "llama-server",
 //!       "tag": "b6000",
-//!       "variant": "cuda",
+//!       "variant": "cuda-12",
 //!       "platform": "windows-x64",
 //!       "size": 412345678,
 //!       "url": "llama-b6000-bin-win-cuda-12.4-x64.zip",
@@ -29,9 +29,14 @@
 //! }
 //! ```
 //!
-//! - `engine` is `llama-server`, `vllm-mlx` or `nodejs`; `variant` is `cuda`,
-//!   `vulkan`, `cpu` or `metal`; `platform` is `<os>-<arch>`, with `os` in
-//!   `macos`, `linux`, `windows` and `arch` in `x64`, `arm64`.
+//! - `engine` is `llama-server`, `vllm-mlx` or `nodejs`; `variant` is
+//!   `cuda-12`, `cuda-13`, `rocm`, `vulkan`, `cpu` or `metal`, and `cuda`, the
+//!   name of the one CUDA build published before, reads as `cuda-12`;
+//!   `platform` is `<os>-<arch>`, with `os` in `macos`, `linux`, `windows`
+//!   and `arch` in `x64`, `arm64`.
+//! - A package of an engine or a variant this build does not know is left
+//!   out and logged; the other packages of the manifest stay installable, so
+//!   a channel can publish a new variant without breaking older copies.
 //! - A `nodejs` package is a pinned Node.js LTS release (`tag` `v22.11.0`),
 //!   always under the `cpu` variant. Its upstream archive is repackaged as
 //!   zip like the others, and installed the first time a tool server needs
@@ -68,7 +73,8 @@
 //!   verified again whenever it is read;
 //! - `<engine>/<tag>/<variant>/`: an installed package, with its record
 //!   `.apollia-engine.json` written only once the digest matched and the
-//!   archive was extracted. A directory without it is not an engine.
+//!   archive was extracted. A directory without it is not an engine. A CUDA
+//!   12 build an earlier version filed under `cuda/` is read where it is.
 //!
 //! The manifest of a channel is fetched from
 //! `<base_url>/engines-<channel>/engines.json`, and each archive from its
