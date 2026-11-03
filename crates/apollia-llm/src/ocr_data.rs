@@ -25,7 +25,7 @@ pub const LANGUAGE_DATA_EXTENSION: &str = "traineddata";
 
 /// Address the language data is fetched from.
 #[cfg(feature = "cloud")]
-pub const REGISTRY_BASE: &str = "https://huggingface.co";
+pub const REGISTRY_BASE: &str = "https://raw.githubusercontent.com";
 
 /// Why language data could not be brought into the folder.
 #[derive(Debug, Error)]

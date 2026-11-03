@@ -27,6 +27,7 @@ publisher = "test"
 released = "2017-09-14"
 license = "apache-2.0"
 repo = "owner/tessdata"
+commit = "0123456789abcdef0123456789abcdef01234567"
 file = "fra.traineddata"
 size_bytes = {}
 sha256 = "{}"
@@ -126,7 +127,9 @@ async fn test_missing_data_is_fetched_from_the_registry_and_checked() {
     // GIVEN a registry serving the pinned file, and an empty folder
     let server = MockServer::start().await;
     Mock::given(method("GET"))
-        .and(path("/owner/tessdata/resolve/main/fra.traineddata"))
+        .and(path(
+            "/owner/tessdata/0123456789abcdef0123456789abcdef01234567/fra.traineddata",
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_bytes(FRENCH))
         .expect(1)
         .mount(&server)
@@ -156,7 +159,9 @@ async fn test_fetched_data_with_another_digest_is_refused_and_left_off_the_disk(
     // GIVEN a registry serving other bytes than the pinned ones
     let server = MockServer::start().await;
     Mock::given(method("GET"))
-        .and(path("/owner/tessdata/resolve/main/fra.traineddata"))
+        .and(path(
+            "/owner/tessdata/0123456789abcdef0123456789abcdef01234567/fra.traineddata",
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_bytes(b"tampered".to_vec()))
         .mount(&server)
         .await;
