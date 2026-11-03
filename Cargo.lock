@@ -314,6 +314,7 @@ dependencies = [
  "apollia-permissions",
  "apollia-runtime",
  "apollia-signing",
+ "apollia-sources",
  "apollia-tools",
  "apollia-workspace",
  "chrono",
