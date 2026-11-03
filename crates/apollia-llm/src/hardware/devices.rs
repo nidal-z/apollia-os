@@ -9,10 +9,13 @@
 //! accelerator, so the badge, the guardrail and the offload plan count the
 //! same memory the engine is given.
 
+use std::path::Path;
 use std::sync::{OnceLock, RwLock};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use super::bounded::{output_within, ProbeRunError, PROBE_LIMIT};
 use super::AcceleratorProfile;
 
 /// One graphics device of the machine.
@@ -105,15 +108,49 @@ fn probe_engine_devices() -> Option<Vec<GpuDevice>> {
             .map(|d| d.join(&file)),
     );
     let binary = candidates.into_iter().find(|c| c.exists())?;
+    list_devices(&binary).ok()
+}
 
+/// Why an engine could not list its devices.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ListDevicesError {
+    /// The engine could not be started, or hung past the probe limit.
+    #[error("the engine could not be run")]
+    Launch(#[from] ProbeRunError),
+    /// The engine ran and exited in error.
+    #[error("the engine exited with status {status:?}")]
+    Exit {
+        /// Its exit code, `None` when a signal ended it.
+        status: Option<i32>,
+        /// What it wrote to its error stream.
+        stderr: String,
+    },
+}
+
+/// The devices the engine at `binary` offers, by its own `--list-devices`.
+///
+/// Any engine build, not only the bundled one: after an installation, this is
+/// what proves the build loads a backend for the machine's card. An empty list
+/// is an answer (the build sees no device); a build that cannot be run is an
+/// error, and the two are not confused.
+pub fn list_devices(binary: &Path) -> Result<Vec<GpuDevice>, ListDevicesError> {
+    list_devices_within(binary, PROBE_LIMIT)
+}
+
+/// [`list_devices`] under a given limit.
+fn list_devices_within(binary: &Path, limit: Duration) -> Result<Vec<GpuDevice>, ListDevicesError> {
     let mut cmd = std::process::Command::new(binary);
     cmd.arg("--list-devices");
     apollia_core::subprocess_window::hide_console(&mut cmd);
-    let out = cmd.output().ok()?;
+    let out = output_within(&mut cmd, limit)?;
     if !out.status.success() {
-        return None;
+        return Err(ListDevicesError::Exit {
+            status: out.status.code(),
+            stderr: String::from_utf8_lossy(&out.stderr).trim().to_owned(),
+        });
     }
-    Some(parse_engine_devices(&String::from_utf8_lossy(&out.stdout)))
+    Ok(parse_engine_devices(&String::from_utf8_lossy(&out.stdout)))
 }
 
 /// The identifiers held back, process-wide.
@@ -295,6 +332,55 @@ mod tests {
         );
         assert_eq!(pc[1].api, "CUDA");
         assert!((pc[1].vram_gb - 24.0).abs() < 0.001);
+    }
+
+    #[cfg(unix)]
+    mod listing_of_a_given_binary {
+        use super::super::*;
+        use crate::hardware::bounded::tests::{fake_tool, ANSWER_LIMIT};
+
+        #[test]
+        fn an_engine_at_any_path_lists_its_devices() {
+            // GIVEN an engine build outside the bundle, which sees one card
+            let dir = tempfile::tempdir().expect("tempdir");
+            let engine = fake_tool(
+                dir.path(),
+                "llama-server",
+                r#"[ "$1" = "--list-devices" ] || exit 9
+printf 'Available devices:\n  Vulkan0: AMD Radeon RX 6900 XT (16368 MiB, 7313 MiB free)\n'"#,
+            );
+
+            // WHEN its devices are listed
+            let devices = list_devices_within(&engine, ANSWER_LIMIT).expect("the engine answers");
+
+            // THEN its card comes back under the identifier it printed
+            assert_eq!(devices.len(), 1);
+            assert_eq!(devices[0].id.as_deref(), Some("Vulkan0"));
+        }
+
+        #[test]
+        fn an_empty_listing_is_told_apart_from_a_failed_launch() {
+            // GIVEN a build that sees no device, one that exits in error, and
+            //       a path where no engine is
+            let dir = tempfile::tempdir().expect("tempdir");
+            let blind = fake_tool(dir.path(), "blind", "echo 'Available devices:'");
+            let broken = fake_tool(dir.path(), "broken", "echo 'missing library' >&2; exit 127");
+            let absent = dir.path().join("absent");
+
+            // WHEN each is asked for its devices
+            let blind = list_devices_within(&blind, ANSWER_LIMIT);
+            let broken = list_devices_within(&broken, ANSWER_LIMIT);
+            let absent = list_devices(&absent);
+
+            // THEN the first answers an empty list, the other two an error,
+            //      each saying which failure it was
+            assert!(blind.is_ok_and(|d| d.is_empty()));
+            assert!(matches!(
+                broken,
+                Err(ListDevicesError::Exit { status: Some(127), ref stderr }) if stderr == "missing library"
+            ));
+            assert!(matches!(absent, Err(ListDevicesError::Launch(ref e)) if e.is_not_found()));
+        }
     }
 
     #[test]

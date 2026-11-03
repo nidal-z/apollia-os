@@ -307,6 +307,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # helper writes the fake `node` of the machine, which answers `--version`
     # and plays npm, to show that the fallback installs with `npm ci`.
     "crates/apollia-desktop/src/mcp/npm_server/tests.rs": 3,
+    # The process is the subject: the bounded runner of the hardware probes is
+    # proven on a fake tool that answers, one that hangs and must be killed,
+    # and a program that is absent; none is observable without a process. The
+    # helper that writes those fake tools is shared by the probe tests.
+    "crates/apollia-llm/src/hardware/bounded.rs": 4,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
     "crates/apollia-llm/src/repository.rs": 1,
     "crates/apollia-llm/src/retry.rs": 1,

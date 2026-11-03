@@ -6,9 +6,14 @@
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
+pub mod bounded;
 pub mod devices;
+pub mod gpu_probe;
 
-pub use devices::{disabled_devices, set_disabled_devices, GpuDevice};
+pub use devices::{
+    disabled_devices, list_devices, set_disabled_devices, GpuDevice, ListDevicesError,
+};
+pub use gpu_probe::{gpu_profile, refresh_gpu_profile, CardProbe, GpuCard, GpuProfile, GpuVendor};
 
 /// Detected hardware profile of the local machine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -203,9 +208,9 @@ fn compute_budget(accel: &AcceleratorProfile, total_ram_gb: f64) -> f64 {
 
 #[cfg(target_os = "macos")]
 fn detect_apple_silicon(total_ram_gb: f64) -> AcceleratorProfile {
-    let output = std::process::Command::new("system_profiler")
-        .args(["SPHardwareDataType", "-json"])
-        .output();
+    let mut cmd = std::process::Command::new("system_profiler");
+    cmd.args(["SPHardwareDataType", "-json"]);
+    let output = bounded::output_within(&mut cmd, bounded::PROBE_LIMIT);
 
     let Ok(output) = output else {
         return AcceleratorProfile::None;
@@ -364,7 +369,7 @@ fn probe_generic_gpu() -> Option<String> {
     let mut cmd = std::process::Command::new("powershell");
     cmd.args(["-NoProfile", "-NonInteractive", "-Command", SCRIPT]);
     apollia_core::subprocess_window::hide_console(&mut cmd);
-    let out = cmd.output().ok()?;
+    let out = bounded::output_within(&mut cmd, bounded::PROBE_LIMIT).ok()?;
     if !out.status.success() {
         return None;
     }
@@ -394,7 +399,17 @@ fn probe_generic_gpu() -> Option<String> {
 
 #[cfg(not(target_os = "macos"))]
 fn detect_nvidia_cuda() -> Option<AcceleratorProfile> {
-    let mut cmd = std::process::Command::new("nvidia-smi");
+    detect_nvidia_cuda_with(std::ffi::OsStr::new("nvidia-smi"), bounded::PROBE_LIMIT)
+}
+
+/// [`detect_nvidia_cuda`] on a given program and limit, so a test can hand it
+/// a `nvidia-smi` that hangs.
+#[cfg(any(not(target_os = "macos"), test))]
+fn detect_nvidia_cuda_with(
+    program: &std::ffi::OsStr,
+    limit: std::time::Duration,
+) -> Option<AcceleratorProfile> {
+    let mut cmd = std::process::Command::new(program);
     cmd.args([
         "--query-gpu=name,memory.total,compute_cap",
         "--format=csv,noheader,nounits",
@@ -405,7 +420,7 @@ fn detect_nvidia_cuda() -> Option<AcceleratorProfile> {
     // hardware panel was read. It went unnoticed because the guard that holds
     // this rule did not scan this crate; it does now.
     apollia_core::subprocess_window::hide_console(&mut cmd);
-    let output = cmd.output().ok()?;
+    let output = bounded::output_within(&mut cmd, limit).ok()?;
 
     if !output.status.success() {
         return None;
@@ -475,6 +490,28 @@ mod tests {
         assert!(profile.total_ram_gb > 0.0, "RAM should be > 0");
         assert!(profile.cpu_cores > 0, "CPU cores should be > 0");
         assert!(profile.memory_budget_gb > 0.0, "Budget should be > 0");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_hung_nvidia_smi_no_longer_holds_the_accelerator_profile() {
+        // GIVEN a `nvidia-smi` that sleeps thirty seconds
+        let dir = tempfile::tempdir().expect("tempdir");
+        let tool = super::bounded::tests::fake_tool(dir.path(), "nvidia-smi", "exec sleep 30");
+        let started = std::time::Instant::now();
+
+        // WHEN the NVIDIA detection runs on it with a short limit
+        let detected =
+            detect_nvidia_cuda_with(tool.as_os_str(), std::time::Duration::from_millis(300));
+
+        // THEN it gives up quickly and reports no NVIDIA card, where it used
+        //      to wait the thirty seconds out
+        assert!(detected.is_none());
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(3),
+            "took {:?}",
+            started.elapsed()
+        );
     }
 
     // GIVEN chip "M4 Max"
