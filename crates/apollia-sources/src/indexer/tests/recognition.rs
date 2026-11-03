@@ -22,6 +22,7 @@ publisher = "test"
 released = "2017-09-14"
 license = "apache-2.0"
 repo = "owner/tessdata"
+commit = "0123456789abcdef0123456789abcdef01234567"
 file = "fra.traineddata"
 size_bytes = {}
 sha256 = "{:x}"
@@ -37,7 +38,9 @@ source = "https://example.invalid"
 async fn registry_serving(bytes: &[u8]) -> MockServer {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
-        .and(url_path("/owner/tessdata/resolve/main/fra.traineddata"))
+        .and(url_path(
+            "/owner/tessdata/0123456789abcdef0123456789abcdef01234567/fra.traineddata",
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_bytes(bytes.to_vec()))
         .mount(&server)
         .await;

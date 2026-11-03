@@ -264,6 +264,7 @@ fn test_a_language_data_file_enters_the_tessdata_folder_only_when_the_registry_p
     let catalogue = apollia_llm::recommend::OcrCatalogue::from_toml(&format!(
         "[[ocr]]\nlanguage = \"fra\"\nlabel = \"French\"\npublisher = \"test\"\n\
          released = \"2017-09-14\"\nlicense = \"apache-2.0\"\nrepo = \"owner/tessdata\"\n\
+         commit = \"0123456789abcdef0123456789abcdef01234567\"\n\
          file = \"fra.traineddata\"\nsize_bytes = 21\nsha256 = \"{PINNED_SHA256}\"\n\
          source = \"https://example.invalid\"\n"
     ))
