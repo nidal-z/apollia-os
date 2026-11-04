@@ -678,6 +678,7 @@ mod tests {
             format!(
                 "[[ocr]]\nlanguage = \"{language}\"\nlabel = \"{language}\"\npublisher = \"test\"\n\
                  released = \"2017-09-14\"\nlicense = \"apache-2.0\"\nrepo = \"owner/tessdata\"\n\
+                 commit = \"0123456789abcdef0123456789abcdef01234567\"\n\
                  file = \"{language}.traineddata\"\nsize_bytes = {}\nsha256 = \"{:x}\"\n\
                  source = \"https://example.invalid\"\n",
                 bytes.len(),
