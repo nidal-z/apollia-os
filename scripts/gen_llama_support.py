@@ -23,10 +23,11 @@ it describes refuses models that work and accepts models that do not, with
 equal confidence. The first generated run found the hand-seeded architecture
 list short by 64 entries.
 
-Two modes:
+Three modes:
 
     python3 scripts/gen_llama_support.py            rewrite the generated block
     python3 scripts/gen_llama_support.py --check    fail if it is out of date
+    python3 scripts/gen_llama_support.py --selftest run its own cases, offline
 
 `--check` runs in the hook. It needs the network only when the cache under
 `.cache/llama-support/` has no copy of the pinned tag, and it skips rather than
@@ -96,6 +97,8 @@ NON_GENERATIVE = [
     "clip",
     # Audio codec.
     "wavtokenizer-dec",
+    # A scoring head over a Qwen3 trunk: one score per token, no text out.
+    "vllm-decision2",
 ]
 
 RULE = "─"
@@ -188,6 +191,49 @@ def extract_pre_tokenizers(source: str) -> list[str]:
     return sorted(names)
 
 
+def attention_of(source: str):
+    """Read one loader file's attention shape.
+
+    Returns `(window, interval)`: `window` is `(n_pattern, dense_first,
+    fixed_n_swa)` or `None`, `interval` is the hybrid full-attention interval or
+    `None`.
+
+    The whole file is read. An earlier version kept only the first 6000
+    characters, on the assumption that the hyperparameter loader comes first;
+    `dflash.cpp` sets its sliding window past that point and silently dropped
+    out of the table.
+    """
+    window = None
+    kinds = set(re.findall(r"swa_type\s*=\s*LLAMA_SWA_TYPE_(\w+)", source))
+    kinds.discard("NONE")
+    if kinds:
+        pattern = None
+        dense_first = False
+        # Upstream sets the pattern either directly (`set_swa_pattern(6)`)
+        # or through `load_swa_pattern(ml, 6)`, which takes the same value
+        # as a default the file may override with its own
+        # `attention.sliding_window_pattern`.
+        call = r"(?:set_swa_pattern\(|load_swa_pattern\(\s*ml\s*,)"
+        dense = r"(?:,\s*(?:/\*.*?\*/\s*)?(true))?\s*\)"
+        literal = re.search(call + r"\s*(\d+)\s*" + dense, source)
+        via_var = re.search(call + r"\s*(\w+)\s*" + dense, source)
+        if literal:
+            pattern, dense_first = int(literal.group(1)), bool(literal.group(2))
+        elif via_var:
+            default = re.search(via_var.group(1) + r"\s*=\s*(\d+)", source)
+            if default:
+                pattern, dense_first = int(default.group(1)), bool(via_var.group(2))
+        fixed = re.search(r"hparams\.n_swa\s*=\s*(\d+)", source)
+        if pattern is not None:
+            window = (pattern, dense_first, int(fixed.group(1)) if fixed else 0)
+
+    interval = None
+    found = re.search(r"full_attn_interval\s*=\s*(\d+)", source)
+    if found and "is_recr_impl" in source:
+        interval = int(found.group(1))
+    return window, interval
+
+
 def extract_attention(tag: str, arch_source: str):
     """Read each architecture's attention shape out of its own loader.
 
@@ -201,37 +247,12 @@ def extract_attention(tag: str, arch_source: str):
     hybrid: list[tuple] = []
 
     for name in list_model_files(tag):
-        head = fetch(tag, f"{MODELS_DIR}/{name}")[:6000]
+        window, interval = attention_of(fetch(tag, f"{MODELS_DIR}/{name}"))
         arch = name[:-4]
-
-        kinds = set(re.findall(r"swa_type\s*=\s*LLAMA_SWA_TYPE_(\w+)", head))
-        kinds.discard("NONE")
-        if kinds:
-            pattern = None
-            dense_first = False
-            # Upstream sets the pattern either directly (`set_swa_pattern(6)`)
-            # or through `load_swa_pattern(ml, 6)`, which takes the same value
-            # as a default the file may override with its own
-            # `attention.sliding_window_pattern`.
-            call = r"(?:set_swa_pattern\(|load_swa_pattern\(\s*ml\s*,)"
-            dense = r"(?:,\s*(?:/\*.*?\*/\s*)?(true))?\s*\)"
-            literal = re.search(call + r"\s*(\d+)\s*" + dense, head)
-            via_var = re.search(call + r"\s*(\w+)\s*" + dense, head)
-            if literal:
-                pattern, dense_first = int(literal.group(1)), bool(literal.group(2))
-            elif via_var:
-                default = re.search(via_var.group(1) + r"\s*=\s*(\d+)", head)
-                if default:
-                    pattern, dense_first = int(default.group(1)), bool(via_var.group(2))
-            fixed = re.search(r"hparams\.n_swa\s*=\s*(\d+)", head)
-            if pattern is not None:
-                swa.append(
-                    (arch, pattern, dense_first, int(fixed.group(1)) if fixed else 0)
-                )
-
-        interval = re.search(r"full_attn_interval\s*=\s*(\d+)", head)
-        if interval and "is_recr_impl" in head:
-            hybrid.append((arch, int(interval.group(1))))
+        if window is not None:
+            swa.append((arch, *window))
+        if interval is not None:
+            hybrid.append((arch, interval))
 
     by_enum = enum_to_name(arch_source)
     recurrent: list[str] = []
@@ -478,6 +499,47 @@ def splice(current: str, tag: str, block: str) -> str:
     )
 
 
+def selftest() -> int:
+    """Pin the two ways the generator has drifted from the sources it reads."""
+    failures: list[str] = []
+
+    # GIVEN a loader whose sliding window is set past its first 6000 characters,
+    # the way `dflash.cpp` sets it at b12064
+    late = (
+        "// " + "x" * 7000 + "\n"
+        "hparams.swa_type = LLAMA_SWA_TYPE_STANDARD;\n"
+        "hparams.set_swa_pattern(0);\n"
+    )
+    # WHEN its attention shape is read
+    window, _ = attention_of(late)
+    # THEN the window is found
+    if window != (0, False, 0):
+        failures.append(f"a window set after 6000 characters was read as {window}")
+
+    # GIVEN a hybrid loader whose interval sits far into the file, like `qwen4exp.cpp`
+    hybrid = "// " + "x" * 8000 + "\nuint32_t full_attn_interval = 4;\nis_recr_impl\n"
+    # WHEN its attention shape is read
+    _, interval = attention_of(hybrid)
+    # THEN the interval is found
+    if interval != 4:
+        failures.append(f"a hybrid interval set late was read as {interval}")
+
+    # GIVEN the architecture list of a build that knows `vllm-decision2`
+    architectures = ["qwen3", "vllm-decision2"]
+    # WHEN the generative table is derived
+    tables = derived_tables("tag", architectures, [], [], [], [])
+    # THEN the scoring head is not offered as a chat engine
+    if tables["generative"] != ["qwen3"]:
+        failures.append(f"generative table was {tables['generative']}")
+
+    for failure in failures:
+        fail(f"selftest: {failure}")
+    if failures:
+        return 1
+    print("gen_llama_support: selftest holds")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -485,7 +547,14 @@ def main() -> int:
         action="store_true",
         help="fail instead of writing when the tables are out of date",
     )
+    parser.add_argument(
+        "--selftest",
+        action="store_true",
+        help="run the generator's own cases against synthetic sources",
+    )
     args = parser.parse_args()
+    if args.selftest:
+        return selftest()
 
     tag = read_pinned_tag()
     try:

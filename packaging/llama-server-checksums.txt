@@ -13,21 +13,21 @@
 # to stage an asset it cannot verify, which is what keeps an unverified binary
 # out of a release bundle.
 #
-# Tag: b11541 (published 2026-10-10)
+# Tag: b12064 (published 2026-11-03)
 
 # macOS: the shipped Apple Silicon desktop target, plus the Intel CPU build.
-226929037cfcb956f50ae1d54bac13d3d9446d8d819c439580e1e2c00197da5e  llama-b11541-bin-macos-arm64.tar.gz
-f74c3e79f68e9d0099bd2adc45c72208ec9748cd39e4098eeef7e49011445565  llama-b11541-bin-macos-x64.tar.gz
+e566137a3c42aa91b3873f1728d8ba2922b2f70cf3cd5735839bdcd481cc1f2f  llama-b12064-bin-macos-arm64.tar.gz
+72dd715f245d710d7990467b2712e5033c91bcf33cd7fdd18bf43a76f09348da  llama-b12064-bin-macos-x64.tar.gz
 
 # Linux x86_64: CPU baseline, plus the two GPU paths. Linux aarch64: CPU only,
 # no GPU build is staged for that arch.
-36ca310be4405acb7ba59b32dbdce32bb9cd7b1ef95358997b7eaed2c6f0188b  llama-b11541-bin-ubuntu-x64.tar.gz
-bf91ce14ddfda55c01c8b8846aa7d6093a07b0213913b6216ed4a2d6ea78b1f8  llama-b11541-bin-ubuntu-vulkan-x64.tar.gz
-22d3c8165192f88bbf9c77e2a72d44dede698faf5679a738b610291e3d0755ee  llama-b11541-bin-ubuntu-rocm-10.0-x64.tar.gz
-fcd44afd8ecdd2068d0c8505c0f96fa32014b4814d0dc74947a471deddcb9998  llama-b11541-bin-ubuntu-arm64.tar.gz
+9032dd278610d0f21fca50ba9e5037b6e4892d1854027572cb3a0aaba2104af3  llama-b12064-bin-ubuntu-x64.tar.gz
+156e0010e92079dd931c82f50cbf8be94de47d06dba637c29261bfda3f2ff297  llama-b12064-bin-ubuntu-vulkan-x64.tar.gz
+58234fde9ad97d04b1308ea3e6c8b809f8ad205548e28d59c842ccdc2d40ec04  llama-b12064-bin-ubuntu-rocm-10.0-x64.tar.gz
+5197a6848bc084c72e127940557bd60d6453d862da3daa34db398270ad8e2cbc  llama-b12064-bin-ubuntu-arm64.tar.gz
 
 # Windows x86_64. The CUDA build and its runtime companion are not here: no
 # bundle carries them. They are pinned in packaging/engine-sources.json, the
 # file the engine channel is published from.
-cdc0535d11038bb337dfba3c15682050eaa9c07aedd0f915b4c09e8a8e8c0a5c  llama-b11541-bin-win-cpu-x64.zip
-37bba511d120222f13c3d520dd875f739a530cc124e78f7cbce0026de0173d8a  llama-b11541-bin-win-vulkan-x64.zip
+c1ced7358438e19c2af6debefe188280ba39ac0242352719cd30d931ca8eec73  llama-b12064-bin-win-cpu-x64.zip
+e0fee991887711ce74cb9c1f7715a1234e27d94f13ccfc594dc01310e5da6e22  llama-b12064-bin-win-vulkan-x64.zip

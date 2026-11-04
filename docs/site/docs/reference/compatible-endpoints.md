@@ -566,9 +566,10 @@ The table lists every path the compatible server serves.
 | `POST` | `/v1/messages` | Anthropic. Relayed to the model's engine; on an `apollia/...` model, or with `mcp_servers`, run by Apollia |
 | `POST` | `/v1/messages/count_tokens` | Anthropic. Relayed to the model's engine (`llama-server` only) |
 
-Measured on `llama-server` at the release Apollia pins (`b11541`): the four
-chat endpoints answer `200` on a chat model, and `/v1/embeddings` answers only
-on the instance launched for search by meaning.
+Measured on `llama-server` `b11541`: the four chat endpoints answer `200` on a
+chat model, and `/v1/embeddings` answers only on the instance launched for
+search by meaning. The release Apollia pins, `b12064`, still registers each
+of these routes (`tools/server/server.cpp`).
 
 ### Not the agent mailbox
 

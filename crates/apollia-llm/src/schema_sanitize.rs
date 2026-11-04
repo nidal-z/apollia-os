@@ -14,7 +14,9 @@
 //! A short `maxLength` is kept, because it does work nothing else does: a
 //! local model can fall into repeating itself inside a free string of a tool
 //! call and never close it, and the bound in the grammar is what ends the
-//! string. Measured on llama-server `b11541` (2026-10-12): bounds of 64 to 400
+//! string. Measured on llama-server `b11541` (2026-10-12); at `b12064` the
+//! converter, `common/json-schema-to-grammar.cpp`, adds depth limits and
+//! translates a string bound as before: bounds of 64 to 400
 //! characters on strings nested in array items are accepted and enforced, and
 //! a plan proposal that ran to tens of thousands of tokens without them closes
 //! in seconds with them. A bound above [`MAX_KEPT_LENGTH`] is still dropped.

@@ -138,8 +138,9 @@ impl<E: LocalEngine> LocalModelBackend<E> {
             // A llama.cpp server reads the `grammar` field its protocol adds,
             // so a structured-output call there is constrained by the GBNF
             // Apollia builds rather than by the server's own schema converter
-            // (measured on llama-server 10092, 2026-09-16: both forms are
-            // accepted on `/v1/chat/completions`). `vllm-mlx` reads
+            // (measured on llama-server `b10092`, 2026-09-16: both forms are
+            // accepted on `/v1/chat/completions`; at `b12064` the server still
+            // reads `grammar` and `response_format`). `vllm-mlx` reads
             // `response_format` with the schema and constrains natively.
             llama_cpp_extensions: self.supervisor.reads_llama_cpp_grammar(),
         };
