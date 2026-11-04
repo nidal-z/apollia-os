@@ -261,6 +261,7 @@ guards:
       "scripts/check_embedded_docs_size.py"
       "scripts/check_embedded_docs_size.py --selftest"
       "scripts/check_download_sums.py"
+      "scripts/gen_llama_support.py --selftest"
       "scripts/check_guard_verdicts.py"
       "scripts/check_http_clients.py"
       "scripts/check_i18n_catalogue.py"

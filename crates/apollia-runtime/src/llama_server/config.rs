@@ -35,9 +35,9 @@
 //! a tool result that template opens the channel in the prompt, so the output
 //! carries only the closing marker, and no text parser can recover where the
 //! reasoning began. Only the engine, which rendered the prompt, knows.
-//! Measured with the bundled 10092 build and Gemma 4 12B: both the first turn
-//! and the turn after a tool result come back with the reasoning separated and
-//! no marker left in the content, streamed or not.
+//! Measured at llama.cpp `b10092`, the build bundled then, with Gemma 4 12B:
+//! both the first turn and the turn after a tool result come back with the
+//! reasoning separated and no marker left in the content, streamed or not.
 //!
 //! Neither flag is performance-relevant. `extra_args` is the escape hatch if
 //! either genuinely needs to move.
@@ -262,10 +262,10 @@ pub struct LlamaServerConfig {
 /// Speculative decoding mode accepted by `--spec-type`.
 ///
 /// Only the modes the model sheet offers are named, and only those the
-/// bundled engine (tag 10092) accepts: a draft model, the model's own
-/// multi-token prediction head, and DFlash. A mode absent from that build has
-/// no variant, so a preset naming it is refused while it is read rather than
-/// by a process that will not start.
+/// bundled engine accepts (`common/speculative.cpp` at `b12064`): a draft
+/// model, the model's own multi-token prediction head, and DFlash. A mode
+/// absent from that build has no variant, so a preset naming it is refused
+/// while it is read rather than by a process that will not start.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SpecType {

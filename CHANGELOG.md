@@ -188,6 +188,8 @@ OAuth client is entered has moved, into developer mode.
   and follows the one choice you make with its toggle; it no longer folds into
   a rail by itself when the chat is shown. Its icons are drawn at one size and
   one stroke, and the breadcrumb and the command palette use the same ones.
+- The embedded llama.cpp engine moves to build b12064: eleven more model
+  architectures are offered for chat, and five more tokenizers load.
 
 ### Fixed
 

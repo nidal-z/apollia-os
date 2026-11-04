@@ -315,9 +315,12 @@ pub(super) fn estimate_cost_usd(
 ///
 /// A schema travels as `response_format` on every backend. The embedded
 /// llama-server used to get the GBNF grammar this crate builds instead, and that
-/// stopped holding (llama-server `b11541`, 2026-10-12): a grammar constrains the
-/// generation from its first token, and a model whose template opens on a
-/// channel marker cannot write that marker under it. Measured on such a model,
+/// stopped holding (measured on llama-server `b11541`, 2026-10-12; at `b12064`
+/// neither the reading of `grammar` in `tools/server/server-schema.cpp` nor
+/// the `response_format` path of `tools/server/server-common.cpp` has
+/// changed): a grammar constrains the generation from its first token, and a
+/// model whose template opens on a channel marker cannot write that marker
+/// under it. Measured on such a model,
 /// the grammar form is answered with a 500 or runs until the caller gives up,
 /// while `response_format` lets the server place the constraint after the
 /// reasoning, which is where its template parser expects the answer.
@@ -372,7 +375,8 @@ pub(super) fn with_structured_output(
 ///
 /// `top_k`, `min_p` and `repeat_penalty` have no place in the typed builder, so
 /// they are added to the serialized body under the names llama-server reads
-/// (`tools/server/README.md` at llama.cpp `b11541`). Each one is written only
+/// (`tools/server/README.md` and `tools/server/server-schema.cpp` at llama.cpp
+/// `b12064`). Each one is written only
 /// when the caller fixed it: an unset field leaves the body as the protocol
 /// shapes it, so a server that knows none of the three never sees them.
 ///
@@ -444,8 +448,9 @@ fn with_earlier_reasoning(
 ///
 /// It is the one per-request form both local engines read: llama-server
 /// (`chat_template_kwargs` in its request parser; at `b10092`
-/// `reasoning_effort` was not a request field of its own, at `b11541` it is,
-/// and the template arguments are read as before) and vllm-mlx 0.5.0
+/// `reasoning_effort` was not a request field of its own, from `b11541` on it
+/// is, `tools/server/server-common.cpp` at `b12064` included, and the template
+/// arguments are read as before) and vllm-mlx 0.5.0
 /// (`ChatCompletionRequest.chat_template_kwargs`, merged into the template
 /// arguments). Each variable is written only when fixed, so the template keeps
 /// its own default otherwise. `preserve_thinking` is written only when it is

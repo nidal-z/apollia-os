@@ -40,7 +40,7 @@ DEST="${2:?usage: fetch-llama-server.sh <backend> <dest_runners_dir>}"
 
 # Pinned upstream llama.cpp release. Bump deliberately (new architectures land
 # here); re-fill the checksums file when you do.
-LLAMA_CPP_TAG="${LLAMA_CPP_TAG:-b11541}"
+LLAMA_CPP_TAG="${LLAMA_CPP_TAG:-b12064}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CHECKSUMS="${SCRIPT_DIR}/llama-server-checksums.txt"

@@ -80,7 +80,7 @@ impl ReasoningEnvelope {
 ///
 /// A grammar constrains the whole generation, thinking phase included, so on a
 /// reasoning model there is no thinking to separate: everything the model
-/// emitted is the answer. Measured on llama-server 10092 with a Qwen3.6 MoE
+/// emitted is the answer. Measured on llama-server `b10092` with a Qwen3.6 MoE
 /// (2026-09-16): a grammar-constrained call comes back with `content` empty and
 /// the constrained value in `reasoning_content`, because the template opens on
 /// the reasoning channel and the grammar is what the model can emit there.
