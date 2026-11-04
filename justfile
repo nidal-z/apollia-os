@@ -124,6 +124,11 @@ build-desktop target="" runners="" backend="": _require-tauri
     export APOLLIA_DESKTOP_RUNNERS="$RUNNERS" APOLLIA_DESKTOP_LLAMA_BACKEND="$BACKEND" CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
     cargo tauri build ${ARGS[@]+"${ARGS[@]}"}
 
+# Stage verified Tesseract and Leptonica sources for a build with the ocr feature
+[group('build')]
+ocr-sources:
+    bash "{{root}}/packaging/fetch-tesseract-sources.sh"
+
 # Remove the build artifacts
 [group('build')]
 clean:

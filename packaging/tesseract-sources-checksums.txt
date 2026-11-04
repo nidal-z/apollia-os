@@ -1,0 +1,23 @@
+# SHA256 checksums of the C++ sources the build script of `tesseract-rs`
+# compiles, read by packaging/fetch-tesseract-sources.sh.
+#
+# The first non-comment line names the `tesseract-rs` version these archives
+# serve: its build script hardcodes both URLs, so a bump of the crate in
+# Cargo.toml means new URLs and new lines here. Then one line per archive:
+#   <sha256>  <url>  <commit>
+# The URL is exactly the one the build script downloads. The commit is the one
+# GitHub writes in the comment of a tag archive (`unzip -z`); it ties the
+# archive to the upstream tag, read with
+#   gh api repos/<owner>/<project>/git/ref/tags/<tag>
+# (for an annotated tag, follow the tag object with `git/tags/<sha>`).
+#
+# Provenance: every sum below was computed locally with `shasum -a 256` on the
+# downloaded archive, and every commit read from the archive and compared with
+# the upstream tag. GitHub does not promise tag archives byte for byte: if one
+# is ever regenerated, the script fails, it never accepts it.
+#
+# To bump: for each URL, `curl -fsSL <url> -o <file> && shasum -a 256 <file>`
+# and `unzip -z <file>`, compare the commit with the tag, replace the line.
+tesseract-rs 0.4.0
+2cfb7ebe6036f3d017280fa9a000c9699ab28be8dff8be8e2e948e2c79917eda  https://github.com/DanBloomberg/leptonica/archive/refs/tags/1.87.0.zip  13275a278eb55b5746e33f95fbf5a2c8f604b3ab
+449621680d529fde7a2d079805dce4687fef0a692c272be3ce431c30c69162d2  https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.2.zip  6e1d56a847e697de07b38619356550e5cf4e8633
