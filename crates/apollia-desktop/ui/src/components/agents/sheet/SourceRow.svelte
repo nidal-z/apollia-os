@@ -4,7 +4,8 @@
    * index stands (waiting, being read with the files read so far, ready,
    * failed, keywords only with a link to the AI screen), and the files left
    * out, over 50 MB or unreadable, then the pages without text: waiting for
-   * recognition, or that it cannot read. In adjustment the row carries its box and,
+   * recognition, with a link to the AI screen where its language is imported,
+   * or that it cannot read. In adjustment the row carries its box and,
    * for a source of the registry, its removal. A source read through a
    * connection its user paused carries the "Paused" badge.
    */
@@ -96,6 +97,14 @@
           <span data-testid="agent-sheet-source-awaiting-ocr">
             {$t("agent_sources.awaiting_ocr", { values: { count: row.awaitingOcr } })}
           </span>
+          <button
+            type="button"
+            class="ml-1 text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            onclick={() => navigateTo("llm")}
+            data-testid="agent-sheet-source-import-language"
+          >
+            {$t("agent_sources.import_language")}
+          </button>
         {/if}
         {#if row.notRead > 0}
           ·

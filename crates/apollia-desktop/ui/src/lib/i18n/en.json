@@ -5492,6 +5492,8 @@
       "filter_placeholder": "Filter models…",
       "filter_label": "Filter models",
       "import": "Import a file",
+      "import_language_data": "Import a reading language",
+      "import_language_data_title": "Import a reading language",
       "discover": "Discover models",
       "params_billions": "{n}B",
       "params_millions": "{n}M",
@@ -5560,7 +5562,8 @@
       "default_set": "{name} now answers by default.",
       "search_set": "{name} now serves search. The sources and the memory are being indexed again.",
       "deleted": "{name} deleted.",
-      "imported": "{name} imported."
+      "imported": "{name} imported.",
+      "language_data_unknown": "This file is not a reading language Apollia knows. Ask for the language file of your version."
     },
     "search_dialog": {
       "title": "Use {name} for search?",
@@ -7089,6 +7092,7 @@
     "awaiting_ocr": "{count, plural, one {# page awaiting recognition} other {# pages awaiting recognition}}",
     "not_read": "{count, plural, one {# page not read} other {# pages not read}}",
     "open_ai": "Install a model in AI",
+    "import_language": "Import the language",
     "reading_note": "The agent can search this folder, not open its files.",
     "grant_reading": "Let it open its files",
     "pick_folder_title": "Choose a folder",

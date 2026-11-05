@@ -6,7 +6,7 @@
    * a row, or on its gear, opens the panel of that model.
    */
   import { locale, t } from "svelte-i18n";
-  import { ArrowUpToLine, Download, FolderOpen, Search, Settings, Upload } from "lucide-svelte";
+  import { ArrowUpToLine, Download, FolderOpen, Languages, Search, Settings, Upload } from "lucide-svelte";
   import type { InstalledModel } from "$lib/ipc/modelHub";
   import { cn, formatRelativeTime } from "$lib/utils";
   import { Button } from "$lib/components/ui/button";
@@ -42,12 +42,16 @@
     modelsDir: string | null;
     error: string | null;
     importing: boolean;
+    /** Whether a language data file of recognition is being imported. */
+    importingLanguage: boolean;
     /** Identifier of the model whose panel is open, if any. */
     openId: string | null;
     onselect: (model: InstalledModel, entry: MenuEntryId) => void;
     /** Opens the panel of a model. */
     onopen: (model: InstalledModel) => void;
     onimport: () => void;
+    /** Imports a language data file of recognition, not a model. */
+    onimportlanguage: () => void;
     ondiscover: () => void;
     onrevealfolder: () => void;
     onretry: () => void;
@@ -62,10 +66,12 @@
     modelsDir,
     error,
     importing,
+    importingLanguage,
     openId,
     onselect,
     onopen,
     onimport,
+    onimportlanguage,
     ondiscover,
     onrevealfolder,
     onretry,
@@ -105,6 +111,16 @@
     <Button variant="outline" size="sm" onclick={onimport} disabled={importing} data-testid="ai-import-btn">
       <Upload size={14} aria-hidden="true" />
       {$t("ai.installed.import")}
+    </Button>
+    <Button
+      variant="outline"
+      size="sm"
+      onclick={onimportlanguage}
+      disabled={importingLanguage}
+      data-testid="ai-import-language-data"
+    >
+      <Languages size={14} aria-hidden="true" />
+      {$t("ai.installed.import_language_data")}
     </Button>
     <Button variant="primary-solid" size="sm" onclick={ondiscover} data-testid="ai-discover-btn">
       <Download size={14} aria-hidden="true" />
