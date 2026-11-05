@@ -46,10 +46,12 @@ Depuis un terminal :
 ~/Applications/Apollia\ OS.app/Contents/Resources/apollia-os doctor
 ```
 
-`doctor` vérifie le répertoire de données, le fichier de configuration, les deux
-bases, le répertoire des modèles, Python, la posture de bac à sable et la socket
-du runtime. Il ne détecte **pas** votre GPU. La commande qui rapporte le matériel
-détecté est une autre, et elle a besoin du daemon démarré :
+`doctor` vérifie le répertoire de données, le fichier de configuration, les
+deux bases, le répertoire des modèles, `recognition` (si cette version lit les
+pages scannées, et quelles langues de lecture sont en place), Python, la
+posture de bac à sable et la socket du runtime. Il ne détecte **pas** votre
+GPU. La commande qui rapporte le matériel détecté est une autre, et elle a
+besoin du daemon démarré :
 
 ```sh
 ~/Applications/Apollia\ OS.app/Contents/Resources/apollia-os model hardware --json

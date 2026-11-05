@@ -88,10 +88,12 @@ install, replace it with the destination the wizard showed you.
 & "C:\Program Files\Apollia OS\apollia-os.exe" doctor
 ```
 
-`doctor` runs eight checks: the data directory, the configuration file, the two
-databases, the models directory, Python, the sandbox posture and the runtime
-socket. It does **not** detect your GPU. The command that reports the detected
-hardware is a separate one, and it needs the daemon running:
+`doctor` runs nine checks: the data directory, the configuration file, the two
+databases, the models directory, `recognition` (whether this build reads
+scanned pages, and which reading languages are in place), Python, the sandbox
+posture and the runtime socket. It does **not** detect your GPU. The command
+that reports the detected hardware is a separate one, and it needs the daemon
+running:
 
 ```powershell
 & "C:\Program Files\Apollia OS\apollia-os.exe" model hardware --json
