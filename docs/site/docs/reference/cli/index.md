@@ -4047,7 +4047,7 @@ Report whether the service is installed and running
 
 Diagnose the local Apollia environment (no runtime required).
 
-Verifies the Apollia home directory, the config file, local SQLite databases, the Python bridge, and the runtime socket. Prints a status table and exits 0 when healthy, 1 when at least one check errors.
+Verifies the Apollia home directory, the config file, local SQLite databases, the models directory, recognition (whether this build reads scanned pages, and which reading languages are in place), the Python bridge, the sandbox posture, and the runtime socket. Prints a status table and exits 0 when healthy, 1 when at least one check errors.
 
 **Usage:** `apollia-os doctor`
 

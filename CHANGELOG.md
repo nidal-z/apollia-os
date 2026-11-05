@@ -170,6 +170,23 @@ OAuth client is entered has moved, into developer mode.
   signature of the manifest decides in both cases.
 - A how-to, **Enable CUDA on a server**, online and without a network.
 
+#### Scanned pages and pictures
+
+- A source now reads scanned pages and pictures: a PDF page that is a single
+  scanned image, and `.png`, `.jpg` and `.tiff` files, are recognised and
+  found by the search like any other text. The command-line binary and the
+  desktop application carry the recognition engine on macOS, Linux and
+  Windows, and nothing has to be installed beside them.
+- The reading language downloads the first time a source holds a scanned
+  page, checked against its pinned digest. Without a network, it is imported
+  from a file with **Import a reading language** on the AI screen, or copied
+  into the `tessdata/` folder of the models directory on a server; the pages
+  waiting for it are read again without a restart.
+- The pages waiting for recognition, and those that cannot be read, show on
+  the source in the agent's sheet and in `apollia-os source show`.
+- `apollia-os doctor` reports whether recognition is compiled in and how many
+  reading languages are in place.
+
 ### Changed
 
 - MCP servers start at the first call of one of their tools and stop after

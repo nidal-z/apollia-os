@@ -783,32 +783,55 @@ the documents.
 
 The engine reads with one data file per language. French and English, from the
 `tessdata_fast` set (Apache-2.0), are entries of the model registry, each
-pinned by its SHA-256. They are fetched the first time a source holds a scanned
-page, once per run, by the downloader that checks every model against its
-digest; a machine without the network takes the same files from a disk through
-the model import, which accepts a language data file only when its digest is a
-pinned one. A file whose digest is not pinned is never handed to the engine.
-Until the data is there, each page that waits is listed in the state of its
-source as waiting for recognition, and is read once it arrives; a page without
-text that is not a single picture is listed as not read. No rendering engine is
-shipped: `hayro` and PDFium, the ones weighed, stay out until documents show
-the need.
+pinned by its SHA-256 and by the upstream commit it is taken at: the files come
+from the `tesseract-ocr/tessdata_fast` repository itself, at a fixed commit,
+and a weekly check downloads each pinned language from the address the
+application composes and compares it with its pinned size and digest, so that
+an address that stops answering is seen within a week. They are fetched the
+first time a source holds a scanned page, once per run, by the downloader that
+checks every model against its digest; a machine without the network takes the
+same files from a disk through the model import, which accepts a language data
+file only when its digest is a pinned one. A file whose digest is not pinned is
+never handed to the engine. Until the data is there, each page that waits is
+listed in the state of its source as waiting for recognition, and is read once
+it arrives; a page without text that is not a single picture is listed as not
+read. No rendering engine is shipped: `hayro` and PDFium, the ones weighed,
+stay out until documents show the need.
+
+Every shipped build reads scanned pages: the command-line binary and the
+desktop application, on macOS, Linux and Windows, are built with the `ocr`
+feature, and the release refuses a command-line binary whose `doctor` does not
+report recognition compiled in, and a desktop binary that does not carry the
+engine. The feature is not among the default ones, so an everyday build of the
+workspace compiles none of it.
 
 The cost is named: the C++ toolchain enters the build. Compiling the engine
-needs cmake, a C++ compiler and the network, takes one to two minutes (83
-seconds on macOS Apple Silicon, 133 seconds on Linux x64 under emulation), and
-adds 2.8 MB to the binary on macOS and 4.4 MB on Linux. The build script of
-`tesseract-rs` downloads the sources of Tesseract 5.5.2 and Leptonica 1.87.0
-from GitHub without checking a digest, keeps them with the compiled libraries
-in a folder of the home directory rather than under `target/`, and fetches two
-language files there that the product does not read. Recognition therefore sits
-behind the `ocr` feature, off by default: an everyday build compiles none of
-it, and a build that ships recognition turns it on. `tesseract-rs` is pinned to 0.4.0, since a release changes the
-sources it fetches; three crates enter the lock file, `tesseract-rs` itself and
-`aws-lc-rs` with `aws-lc-sys`, which the HTTP client of its build script brings
-and which run at build time only. `image` was already built for the PDF reader
-and adds none. The static build is measured on macOS and on Linux; it is not
-measured on Windows, where the feature stays off until it is.
+needs cmake, a C++ compiler and the two source archives, takes one to two
+minutes (83 seconds on macOS Apple Silicon, 133 seconds on Linux x64 under
+emulation), and adds about 2.5 MB to the command-line binary on macOS Apple
+Silicon and 4.4 MB on Linux x64. The build script of `tesseract-rs` keeps the
+sources of Tesseract 5.5.2 and Leptonica 1.87.0 with the compiled libraries in
+a folder of the home directory rather than under `target/`, and downloads them
+from GitHub without checking a digest when that folder does not hold them. They
+are therefore put there before the build by
+`packaging/fetch-tesseract-sources.sh`, which checks each archive against a
+pinned SHA-256 and against the upstream commit GitHub writes into it, refuses a
+mismatch, and has no way to turn either check off; the guard on downloads
+refuses a workflow in which a build with `ocr` is not preceded, in its job, by
+a call to that script. On a workstation the order is the same, the script
+first, then the build. The build script also fetches two language files the
+product does not read unless files of those names are present: the script puts
+two empty ones there, so nothing is fetched, and the product never opens them.
+`tesseract-rs` is pinned to 0.4.0, since a release changes the sources it
+expects; three crates enter the lock file, `tesseract-rs` itself and
+`aws-lc-rs` with `aws-lc-sys`, which the HTTP client of its build script
+brings. The lock file also lists `aws-lc-rs` among the dependencies of
+`rustls`, `quinn-proto` and `rustls-webpki`, but only that build script
+compiles the two: they run at build time, and no shipped binary links them.
+`image` was already built for the PDF reader and adds none. On Windows, a
+binary linked with the static C runtime gets an engine compiled against that
+runtime, through the corrected copy described below (see
+[A corrected copy of tesseract-rs](#tesseract-rs-copy)).
 
 The results of a batch are written back to the table it read, by default into
 a copy next to the original, `<name> (results YYYY-MM-DD).xlsx`, named in the

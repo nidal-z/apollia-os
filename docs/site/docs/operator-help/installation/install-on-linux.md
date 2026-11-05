@@ -63,9 +63,10 @@ apollia-os doctor
 ```
 
 `doctor` checks the data directory, the configuration file, the two databases,
-the models directory, Python, the sandbox posture and the runtime socket. It
-does **not** detect your GPU. The command that reports the detected hardware is
-a separate one, and it needs the daemon running:
+the models directory, `recognition` (whether this build reads scanned pages,
+and which reading languages are in place), Python, the sandbox posture and the
+runtime socket. It does **not** detect your GPU. The command that reports the
+detected hardware is a separate one, and it needs the daemon running:
 
 ```sh
 apollia-os model hardware --json

@@ -846,7 +846,12 @@ aucun fichier n'est écrit à côté des documents.
 
 Le moteur lit avec un fichier de données par langue. Le français et l'anglais,
 tirés du jeu `tessdata_fast` (Apache-2.0), sont des entrées du registre des
-modèles, chacune épinglée par son SHA-256. Ils sont obtenus la première fois
+modèles, chacune épinglée par son SHA-256 et par le commit amont auquel elle est
+prise : les fichiers viennent du dépôt `tesseract-ocr/tessdata_fast` lui-même,
+à un commit fixe, et un contrôle hebdomadaire télécharge chaque langue épinglée
+depuis l'adresse que compose l'application et la compare à sa taille et à son
+empreinte épinglées, pour qu'une adresse qui cesse de répondre se voie dans la
+semaine. Ils sont obtenus la première fois
 qu'une source contient une page scannée, une fois par exécution, par le
 téléchargeur qui contrôle chaque modèle contre son empreinte ; un poste sans
 réseau prend les mêmes fichiers sur un disque par l'import de modèle, qui
@@ -858,24 +863,43 @@ arrivent ; une page sans texte qui n'est pas une image unique est listée comme
 non lue. Aucun moteur de rendu n'est livré : `hayro` et PDFium, ceux qui ont
 été pesés, restent dehors tant que les documents n'en montrent pas le besoin.
 
+Toutes les compilations livrées lisent les pages scannées : le binaire en ligne
+de commande et l'application de bureau, sur macOS, Linux et Windows, sont
+compilés avec la fonctionnalité `ocr`, et la release refuse un binaire en ligne
+de commande dont `doctor` ne dit pas la reconnaissance compilée, et un binaire
+de bureau qui ne porte pas le moteur. La fonctionnalité n'est pas parmi celles
+par défaut, si bien qu'une compilation de tous les jours de l'espace de travail
+n'en compile rien.
+
 Le coût est nommé : la chaîne C++ entre dans la compilation. Compiler le moteur
-demande cmake, un compilateur C++ et le réseau, prend une à deux minutes (83
-secondes sur macOS Apple Silicon, 133 secondes sur Linux x64 sous émulation),
-et ajoute 2,8 Mo au binaire sur macOS et 4,4 Mo sur Linux. Le script de
-compilation de `tesseract-rs` télécharge les sources de Tesseract 5.5.2 et de
-Leptonica 1.87.0 depuis GitHub sans en contrôler l'empreinte, les garde avec
+demande cmake, un compilateur C++ et les deux archives de sources, prend une à
+deux minutes (83 secondes sur macOS Apple Silicon, 133 secondes sur Linux x64
+sous émulation), et ajoute environ 2,5 Mo au binaire en ligne de commande sur
+macOS Apple Silicon et 4,4 Mo sur Linux x64. Le script de compilation de
+`tesseract-rs` garde les sources de Tesseract 5.5.2 et de Leptonica 1.87.0 avec
 les bibliothèques compilées dans un dossier du répertoire personnel plutôt que
-sous `target/`, et y pose deux fichiers de langue que le produit ne lit pas. La
-reconnaissance est donc derrière la fonctionnalité `ocr`, désactivée par
-défaut : une compilation de tous les jours n'en compile rien, et une
-compilation qui livre la reconnaissance l'active. `tesseract-rs` est épinglée à 0.4.0, puisqu'une version change les
-sources qu'elle va chercher ; trois crates entrent dans le fichier de
-verrouillage, `tesseract-rs` elle-même et `aws-lc-rs` avec `aws-lc-sys`, que
-le client HTTP de son script de compilation apporte et qui ne s'exécutent qu'à
-la compilation. `image` était déjà compilée pour le lecteur PDF et n'en ajoute
-aucune. La compilation statique est mesurée sur macOS et sur Linux ; elle ne
-l'est pas sur Windows, où la fonctionnalité reste désactivée tant qu'elle ne
-l'est pas.
+sous `target/`, et les télécharge depuis GitHub sans en contrôler l'empreinte
+quand ce dossier ne les contient pas. Elles y sont donc posées avant la
+compilation par `packaging/fetch-tesseract-sources.sh`, qui contrôle chaque
+archive contre un SHA-256 épinglé et contre le commit amont que GitHub y
+inscrit, refuse un écart, et n'offre aucun moyen de couper l'un ou l'autre
+contrôle ; la garde des téléchargements refuse un workflow où une compilation
+avec `ocr` n'est pas précédée, dans son job, d'un appel à ce script. Sur un
+poste, l'ordre est le même, le script d'abord, puis la compilation. Le script
+de compilation va aussi chercher deux fichiers de langue que le produit ne lit
+pas, sauf si des fichiers de ces noms sont présents : le script y pose deux
+fichiers vides, rien n'est donc téléchargé, et le produit ne les ouvre jamais.
+`tesseract-rs` est épinglée à 0.4.0, puisqu'une version change les sources
+qu'elle attend ; trois crates entrent dans le fichier de verrouillage,
+`tesseract-rs` elle-même et `aws-lc-rs` avec `aws-lc-sys`, que le client HTTP
+de son script de compilation apporte. Le fichier de verrouillage compte aussi
+`aws-lc-rs` parmi les dépendances de `rustls`, `quinn-proto` et
+`rustls-webpki`, mais seul ce script de compilation compile les deux : elles
+s'exécutent à la compilation, et aucun binaire livré ne les lie. `image` était
+déjà compilée pour le lecteur PDF et n'en ajoute aucune. Sous Windows, un
+binaire lié au runtime C statique reçoit un moteur compilé contre ce runtime,
+par la copie corrigée décrite plus bas (voir
+[Une copie corrigée de tesseract-rs](#tesseract-rs-copy)).
 
 Les résultats d'un lot sont écrits dans le tableau qu'il a lu, par défaut dans
 une copie posée à côté de l'original, `<nom> (résultats AAAA-MM-JJ).xlsx`,
