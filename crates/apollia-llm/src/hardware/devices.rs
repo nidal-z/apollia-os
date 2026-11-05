@@ -138,8 +138,13 @@ pub fn list_devices(binary: &Path) -> Result<Vec<GpuDevice>, ListDevicesError> {
     list_devices_within(binary, PROBE_LIMIT)
 }
 
-/// [`list_devices`] under a given limit.
-fn list_devices_within(binary: &Path, limit: Duration) -> Result<Vec<GpuDevice>, ListDevicesError> {
+/// [`list_devices`] under a given limit, for a caller that cannot hold to
+/// [`PROBE_LIMIT`], such as a test whose freshly written fake engine macOS
+/// may hold for seconds before its first launch.
+pub fn list_devices_within(
+    binary: &Path,
+    limit: Duration,
+) -> Result<Vec<GpuDevice>, ListDevicesError> {
     let mut cmd = std::process::Command::new(binary);
     cmd.arg("--list-devices");
     apollia_core::subprocess_window::hide_console(&mut cmd);

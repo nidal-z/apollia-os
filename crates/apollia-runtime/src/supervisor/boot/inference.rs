@@ -76,7 +76,7 @@ impl Supervisor {
                 .join(apollia_core::paths::CONFIG_FILE_NAME)
         });
         let (llama_server_supervisor, mlx_engine) =
-            start_local_engines(&system_db_path, guardrails_file, event_sender, org_policy);
+            start_local_engines(&system_db_path, guardrails_file, event_sender, org_policy).await;
         crate::memory_vectors::start(&self.config.data_dir, llama_server_supervisor.clone());
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db

@@ -100,8 +100,9 @@ pub use fetch::{
     refresh_manifest, updates, VariantUpdate, MANIFEST_FILE, SIGNATURE_FILE,
 };
 pub use installed::{
-    find_binary, installed_packages, newest_installed, package_dir, preferred_llama_server,
-    wanted_llama_variant, InstalledPackage, Source, RECORD_FILE,
+    find_binary, installed_llama_variants, installed_packages, newest_installed, package_dir,
+    preferred_llama_server, wanted_llama_variant, InstalledPackage, Source, AUTOMATIC_ORDER,
+    RECORD_FILE,
 };
 pub use manifest::{
     archive_kind, compare_tags, current_platform, verify_manifest, ArchiveKind, Channel, Engine,

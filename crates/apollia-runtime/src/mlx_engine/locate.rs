@@ -153,7 +153,7 @@ fn locate_with_site(
         .map(|dir| dir.join("site-packages"))
         .filter(|dir| dir.is_dir())
         .or_else(|| {
-            let package = match resolve(store_root, Engine::VllmMlx, choice).resolved {
+            let package = match resolve(store_root, Engine::VllmMlx, choice, &[]).resolved {
                 Resolved::Embedded => return None,
                 Resolved::Stored(package) => package,
                 Resolved::Automatic => {

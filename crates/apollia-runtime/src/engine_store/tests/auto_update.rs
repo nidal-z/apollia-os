@@ -84,7 +84,7 @@ async fn test_an_update_of_an_engine_that_is_not_chosen_is_only_announced() {
         gguf: EngineChoice::Embedded,
         ..EngineChoices::default()
     };
-    let chosen = chosen_variants(&s.root, choices, || true);
+    let chosen = chosen_variants(&s.root, choices, nvidia);
 
     // WHEN the channel is checked
     let report = check_and_update(&s, &settings, true, &chosen)
@@ -155,10 +155,10 @@ fn test_the_chosen_engines_are_the_store_builds_the_settings_put_in_service() {
     };
 
     // WHEN the chosen builds are listed under each setting
-    let automatic_with_card = chosen_variants(&s.root, with(EngineChoice::Auto), || true);
-    let automatic_without = chosen_variants(&s.root, with(EngineChoice::Auto), || false);
-    let named = chosen_variants(&s.root, with(EngineChoice::Cuda), || false);
-    let removed = chosen_variants(&s.root, with(EngineChoice::Vulkan), || true);
+    let automatic_with_card = chosen_variants(&s.root, with(EngineChoice::Auto), nvidia);
+    let automatic_without = chosen_variants(&s.root, with(EngineChoice::Auto), no_card);
+    let named = chosen_variants(&s.root, with(EngineChoice::Cuda), no_card);
+    let removed = chosen_variants(&s.root, with(EngineChoice::Vulkan), nvidia);
 
     // THEN the automatic choice follows the card, a named variant is chosen
     // whatever the card, and a variant since removed is the automatic choice

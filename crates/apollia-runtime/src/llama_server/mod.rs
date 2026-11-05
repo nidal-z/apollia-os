@@ -610,7 +610,7 @@ impl LlamaServerSupervisor {
         explicit: bool,
         footprint_gb: Option<f64>,
     ) -> Result<ModelLease, LlamaServerError> {
-        let (bin_path, port) = (self.launch_binary()?, pick_free_port()?);
+        let (bin_path, port) = (self.next_launch_binary().await?, pick_free_port()?);
         let args = build_args(&config, port);
 
         tracing::info!(
