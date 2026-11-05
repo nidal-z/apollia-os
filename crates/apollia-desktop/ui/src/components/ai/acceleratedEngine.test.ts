@@ -20,7 +20,16 @@ import {
   type AcceleratedEngineState,
   type CardView,
 } from "./acceleratedEngine";
-import { checkEngineUpdates, listEngines, type EnginesResponse } from "$lib/ipc/system";
+import {
+  checkEngineUpdates,
+  listEngines,
+  type EngineAvailablePackage,
+  type EngineHardware,
+  type EngineHardwareCard,
+  type EngineRating,
+  type EngineVariant,
+  type EnginesResponse,
+} from "$lib/ipc/system";
 import {
   dismissEngineInstallation,
   getEngineInstallation,
@@ -44,7 +53,55 @@ function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, name: string) => values[name] ?? "");
 }
 
-/** The engines of a computer with an NVIDIA card and without the accelerated engine. */
+/** One graphics card as the hardware probe of the runtime reports it. */
+function gpu(overrides: Partial<EngineHardwareCard> = {}): EngineHardwareCard {
+  return {
+    vendor: "nvidia",
+    name: "NVIDIA GeForce RTX 4070",
+    vram_gb: 12,
+    driver_version: "560.35",
+    compute_capability: "8.9",
+    gfx_target: null,
+    kfd_accessible: null,
+    timed_out: false,
+    ...overrides,
+  };
+}
+
+function hardware(...cards: EngineHardwareCard[]): EngineHardware {
+  return { cards, vulkan_loader: true, rocm_runtime: true };
+}
+
+/** The ratings of the runtime with `recommended` recommended and every other build compatible. */
+function ratingsWith(
+  recommended: EngineVariant,
+  reason: EngineRating["reason"] = null,
+): EngineRating[] {
+  const order: EngineVariant[] = ["cuda-13", "cuda-12", "rocm", "vulkan", "cpu", "metal"];
+  return order.map((variant) =>
+    variant === recommended
+      ? { variant, verdict: "recommended", reason }
+      : { variant, verdict: "compatible", reason: null },
+  );
+}
+
+/** A package of the verified channel for this platform. */
+function offered(variant: EngineVariant, size: number, installed = false): EngineAvailablePackage {
+  return {
+    engine: "llama-server",
+    tag: "b7012",
+    variant,
+    size,
+    released: "2026-09-28",
+    installed,
+  };
+}
+
+/**
+ * The engines of a computer with an NVIDIA card whose driver, R560 under
+ * Linux, gets CUDA 12 recommended (`compat/tests.rs`, "RTX 4090, R560"), and
+ * without the accelerated engine.
+ */
 function proposable(overrides: Partial<EnginesResponse> = {}): EnginesResponse {
   return {
     engines: [],
@@ -62,13 +119,11 @@ function proposable(overrides: Partial<EnginesResponse> = {}): EnginesResponse {
         installed_released: null,
       },
     ],
-    cuda_proposable: true,
     verifiable: true,
-    nvidia_card: "NVIDIA GeForce RTX 4070",
     dictation: null,
-    hardware: null,
-    available: [],
-    ratings: [],
+    hardware: hardware(gpu()),
+    available: [offered("cuda-12", 412 * MB), offered("cuda-13", 520 * MB)],
+    ratings: ratingsWith("cuda-12", { code: "driver_too_old", have: "560.35", need: "570.26" }),
     ...overrides,
   };
 }
@@ -76,8 +131,17 @@ function proposable(overrides: Partial<EnginesResponse> = {}): EnginesResponse {
 /** The same computer once the engine is installed, the channel offering `latest`. */
 function installed(latest: string, released: string | null = "2026-09-28"): EnginesResponse {
   return proposable({
-    cuda_proposable: false,
-    verifiable: true,
+    engines: [
+      {
+        engine: "llama-server",
+        tag: "b6870",
+        variant: "cuda-12",
+        path: "/store/llama-server/b6870/cuda-12/llama-server",
+        source: "downloaded",
+        version: null,
+        in_service: true,
+      },
+    ],
     updates: [
       {
         engine: "llama-server",
@@ -135,6 +199,8 @@ function runtime(options: {
   /** What a start or an import answers, then what each read after it answers, in order. */
   installation?: EngineInstallation[];
   afterInstall?: EnginesResponse;
+  /** What the engine list answers once the channel was checked. */
+  afterCheck?: EnginesResponse;
   loaded?: LoadedModel[];
   folder?: string | null;
 }) {
@@ -152,6 +218,7 @@ function runtime(options: {
       case "list_engines":
         return engines;
       case "check_engine_updates":
+        if (options.afterCheck) engines = options.afterCheck;
         return { channel: engines.channel, manifest_sequence: 12, updates: engines.updates };
       case "get_engine_installation":
         return started ? next() : installation;
@@ -269,7 +336,7 @@ describe("Accelerated engine - the proposal and its installation", () => {
 
     // THEN the card names the card detected, the weight read in the verified
     //      list, and offers the one-click button and the import
-    expect(textOf(html, "ai-engine-title")).toBe(copy.proposal.title);
+    expect(textOf(html, "ai-engine-title")).toBe(fill(copy.proposal.title, { engine: "CUDA 12" }));
     expect(html).toContain("NVIDIA GeForce RTX 4070");
     expect(textOf(html, "ai-engine-weight")).toBe(fill(copy.download_weight, { size: "412 Mo" }));
     expect(textOf(html, "ai-engine-start")).toBe(copy.action.accelerate);
@@ -281,7 +348,9 @@ describe("Accelerated engine - the proposal and its installation", () => {
 
   test("a computer that never verified the list asks for it once to read the weight", async () => {
     // GIVEN a proposable engine and no verified list yet
-    const { engine } = runtime({ engines: proposable({ updates: [], manifest_sequence: null }) });
+    const { engine } = runtime({
+      engines: proposable({ updates: [], available: [], manifest_sequence: null }),
+    });
 
     // WHEN the AI screen reads it twice
     await engine.refresh();
@@ -556,6 +625,7 @@ describe("Accelerated engine - a new version on the followed channel", () => {
     expect(textOf(html, "ai-engine-title")).toBe(copy.update.title);
     expect(textOf(html, "ai-engine-body")).toBe(
       fill(copy.update.body, {
+        engine: "CUDA 12",
         latest: fill(copy.version_day, { day: "28 septembre 2026" }),
         installed: fill(copy.version_day, { day: "12 septembre 2026" }),
       }),
@@ -605,6 +675,7 @@ describe("Accelerated engine - a new version on the followed channel", () => {
     // THEN the tag names both versions
     expect(textOf(html, "ai-engine-body")).toBe(
       fill(copy.update.body, {
+        engine: "CUDA 12",
         latest: fill(copy.version_number, { tag: "b7012" }),
         installed: fill(copy.version_number, { tag: "b6870" }),
       }),
@@ -660,10 +731,15 @@ describe("Accelerated engine - no proposal", () => {
     busy: false,
   });
 
-  test("a computer without an NVIDIA card is offered nothing", async () => {
-    // GIVEN the route says the engine is not proposable and lists no update
+  test("a computer without a card is offered nothing", async () => {
+    // GIVEN no card, so the runtime recommends the processor build
     const { engine } = runtime({
-      engines: proposable({ cuda_proposable: false, nvidia_card: null, updates: [] }),
+      engines: proposable({
+        hardware: hardware(),
+        updates: [],
+        ratings: ratingsWith("cpu"),
+        available: [offered("cpu", 30 * MB), offered("vulkan", 60 * MB)],
+      }),
     });
 
     // WHEN the AI screen reads it
@@ -692,6 +768,156 @@ describe("Accelerated engine - no proposal", () => {
 
     // THEN the card is gone
     expect(cardView(get(engine))).toBeNull();
+  });
+});
+
+describe("Accelerated engine - the variant the runtime recommends", () => {
+  const AMD = gpu({
+    vendor: "amd",
+    name: "AMD Radeon RX 7900 XTX",
+    vram_gb: 24,
+    driver_version: null,
+    compute_capability: null,
+    gfx_target: "gfx1100",
+    kfd_accessible: true,
+  });
+
+  test.each([
+    {
+      machine: "an NVIDIA card on driver R620",
+      engines: proposable({
+        hardware: hardware(gpu({ driver_version: "620.10" })),
+        ratings: ratingsWith("cuda-13"),
+      }),
+      variant: "cuda-13",
+      name: "CUDA 13",
+      card: "NVIDIA GeForce RTX 4070",
+      size: "520 Mo",
+    },
+    {
+      machine: "an NVIDIA card on driver R560",
+      engines: proposable(),
+      variant: "cuda-12",
+      name: "CUDA 12",
+      card: "NVIDIA GeForce RTX 4070",
+      size: "412 Mo",
+    },
+    {
+      machine: "an AMD gfx1100 card",
+      engines: proposable({
+        hardware: hardware(AMD),
+        updates: [],
+        ratings: ratingsWith("rocm"),
+        available: [offered("rocm", 640 * MB), offered("vulkan", 60 * MB)],
+      }),
+      variant: "rocm",
+      name: "ROCm",
+      card: "AMD Radeon RX 7900 XTX",
+      size: "640 Mo",
+    },
+  ])("$machine is offered $name, by name and with its card", async (c) => {
+    // GIVEN the runtime recommends `variant` for this machine and it is not installed
+    const { engine } = runtime({
+      engines: c.engines,
+      installation: [{ state: "installed", kind: "install" }],
+    });
+    await engine.refresh();
+
+    // WHEN the card is shown and the person accepts it
+    const html = card(cardView(get(engine)));
+    await engine.accelerate();
+
+    // THEN the card names the variant and the card it uses, with its weight
+    expect(textOf(html, "ai-engine-title")).toBe(fill(copy.proposal.title, { engine: c.name }));
+    expect(textOf(html, "ai-engine-body")).toBe(
+      fill(copy.proposal.body, { card: c.card, engine: c.name }),
+    );
+    expect(textOf(html, "ai-engine-weight")).toBe(fill(copy.download_weight, { size: c.size }));
+    expect(html).toContain(`data-variant="${c.variant}"`);
+    // AND the installation started is the one of that variant
+    expect(invoked("start_engine_installation")).toEqual([
+      { engine: "llama-server", variant: c.variant },
+    ]);
+  });
+
+  test("no card proposes nothing, and nothing is installed by a click", async () => {
+    // GIVEN no card: the runtime recommends the processor build
+    const { engine } = runtime({
+      engines: proposable({ hardware: hardware(), updates: [], ratings: ratingsWith("cpu") }),
+    });
+    await engine.refresh();
+
+    // WHEN the card is decided and a stale gesture asks to accelerate
+    const view = cardView(get(engine));
+    await engine.accelerate();
+
+    // THEN there is no card and no installation
+    expect(view).toBeNull();
+    expect(invoked("start_engine_installation")).toHaveLength(0);
+  });
+
+  test("a recommended build that the bundle ships proposes nothing", () => {
+    // GIVEN a Mac, where Metal is recommended and the shipped engine is Metal
+    const engines = proposable({
+      hardware: hardware(),
+      updates: [],
+      ratings: ratingsWith("metal"),
+      available: [offered("metal", 30 * MB)],
+      engines: [
+        {
+          engine: "llama-server",
+          tag: null,
+          variant: "metal",
+          path: "/Applications/Apollia.app/Contents/MacOS/llama-server",
+          source: "embedded",
+          version: null,
+          in_service: true,
+        },
+      ],
+    });
+
+    // WHEN the card is decided
+    // THEN there is none
+    expect(
+      cardView({
+        engines,
+        installation: { state: "idle" },
+        later: [],
+        etaSeconds: null,
+        loadedCount: 0,
+        busy: false,
+      }),
+    ).toBeNull();
+  });
+
+  test("a card the runtime has not rated yet gets the list checked once, then the proposal", async () => {
+    // GIVEN an AMD card and no verified list, so no rating yet; the check
+    //       brings the ratings
+    const { engine } = runtime({
+      engines: proposable({
+        hardware: hardware(AMD),
+        manifest_sequence: null,
+        updates: [],
+        available: [],
+        ratings: [],
+      }),
+      afterCheck: proposable({
+        hardware: hardware(AMD),
+        updates: [],
+        ratings: ratingsWith("rocm"),
+        available: [offered("rocm", 640 * MB)],
+      }),
+    });
+
+    // WHEN the AI screen reads it twice
+    await engine.refresh();
+    await engine.refresh();
+
+    // THEN the list is checked once and ROCm is proposed
+    expect(invoked("check_engine_updates")).toHaveLength(1);
+    const view = cardView(get(engine));
+    expect(view?.status).toBe("proposal");
+    expect(view && "variant" in view ? view.variant : null).toBe("rocm");
   });
 });
 

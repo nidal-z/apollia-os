@@ -8516,11 +8516,6 @@ export interface components {
             available: components["schemas"]["AvailablePackage"][];
             /** @description The followed channel. */
             channel: components["schemas"]["EngineChannel"];
-            /**
-             * @description True when an NVIDIA card is detected and no CUDA engine is installed.
-             *     Derived from `hardware`.
-             */
-            cuda_proposable: boolean;
             dictation?: null | components["schemas"]["DictationEngine"];
             /** @description Engines embedded in the bundle, then installed ones. */
             engines: components["schemas"]["EngineEntry"][];
@@ -8530,11 +8525,6 @@ export interface components {
              * @description Sequence of the last verified manifest of that channel, if any.
              */
             manifest_sequence?: number | null;
-            /**
-             * @description Name of the NVIDIA card detected, when there is one. Derived from
-             *     `hardware`.
-             */
-            nvidia_card?: string | null;
             /**
              * @description Per `llama-server` variant, whether it suits this machine and why.
              *     Empty until a manifest verified, or when the hardware is not known.

@@ -3,25 +3,30 @@
  * gesture does, kept out of the components so every state is held by a test
  * that drives the same object with a simulated IPC.
  *
- * A computer with an NVIDIA card is offered the engine that uses it, in one
- * click or from a folder, and later its new versions. The runtime verifies
+ * A computer is offered the build of the engine the runtime recommends for
+ * its card, CUDA, ROCm, Vulkan or another, in one click or from a folder, and
+ * later its new versions. Nothing is offered when the recommended build is the
+ * one the bundle ships or the processor one. The runtime verifies
  * the signature of the published list before it asks for any archive; this
  * module only proposes, starts, follows and reports. The list of the engines,
  * their versions and the channel they follow stay in the settings.
  */
 import { writable, type Readable } from "svelte/store";
 import type { LoadedModelsResponse, ModelLoadRequest } from "$lib/types";
-import type { EngineVariantUpdate, EnginesResponse } from "$lib/ipc/system";
+import type {
+  EngineHardwareCard,
+  EngineVariant,
+  EngineVariantUpdate,
+  EnginesResponse,
+} from "$lib/ipc/system";
 import type {
   EngineInstallation,
   EngineInstallationKind,
   EngineRefusalCode,
 } from "$lib/ipc/engineInstallation";
 
-/** The engine and the variant the card is about. */
+/** The engine the card is about; its variant is the one the runtime recommends. */
 export const ACCELERATED_ENGINE = "llama-server";
-// `cuda-12` is the name the runtime gives the build `cuda` used to name.
-export const ACCELERATED_VARIANT = "cuda-12";
 
 /** How often a running installation is read again, in milliseconds. */
 export const POLL_INTERVAL_MS = 500;
@@ -84,9 +89,15 @@ export const PROGRESS_BODY_KEYS: Record<EngineInstallationKind, string> = {
 
 /** What the card shows, or `null` for no card at all. */
 export type CardView =
-  | { status: "proposal"; card: string | null; sizeBytes: number | null }
+  | {
+      status: "proposal";
+      variant: EngineVariant;
+      card: string | null;
+      sizeBytes: number | null;
+    }
   | {
       status: "update_available";
+      variant: EngineVariant;
       latest: EngineVersion;
       installed: EngineVersion | null;
       sizeBytes: number;
@@ -131,20 +142,98 @@ export interface AcceleratedEngineState {
   busy: boolean;
 }
 
-/** The row of the accelerated engine among the updates of the channel. */
-export function acceleratedUpdate(engines: EnginesResponse | null): EngineVariantUpdate | null {
+/**
+ * The variant the card is about: the one the runtime recommends for this
+ * machine, unless it is the processor build or the build the bundle ships,
+ * which need nothing installed. `null` while the runtime rates nothing.
+ */
+export function acceleratedVariant(engines: EnginesResponse | null): EngineVariant | null {
+  const recommended =
+    (engines?.ratings ?? []).find((r) => r.verdict === "recommended")?.variant ?? null;
+  if (!engines || recommended === null || recommended === "cpu") return null;
+  const shipped = engines.engines.some(
+    (e) => e.engine === ACCELERATED_ENGINE && e.source === "embedded" && e.variant === recommended,
+  );
+  return shipped ? null : recommended;
+}
+
+/** Whether a build of `variant` is installed from the channel or a folder. */
+export function variantInstalled(engines: EnginesResponse, variant: EngineVariant): boolean {
   return (
-    engines?.updates.find(
-      (u) => u.engine === ACCELERATED_ENGINE && u.variant === ACCELERATED_VARIANT,
-    ) ?? null
+    engines.engines.some(
+      (e) => e.engine === ACCELERATED_ENGINE && e.source !== "embedded" && e.variant === variant,
+    ) ||
+    (engines.available ?? []).some(
+      (p) => p.engine === ACCELERATED_ENGINE && p.variant === variant && p.installed,
+    )
   );
 }
 
-/** The key under which a proposal is put off: one per version offered. */
-export function laterKey(engines: EnginesResponse | null): string | null {
+/** The recommended variant when it is not installed yet: the one the card proposes. */
+export function proposedVariant(engines: EnginesResponse | null): EngineVariant | null {
+  const variant = acceleratedVariant(engines);
+  return engines && variant !== null && !variantInstalled(engines, variant) ? variant : null;
+}
+
+/** The row of the accelerated engine among the updates of the channel. */
+export function acceleratedUpdate(engines: EnginesResponse | null): EngineVariantUpdate | null {
+  const variant = acceleratedVariant(engines);
+  if (variant === null) return null;
+  return (
+    engines?.updates.find((u) => u.engine === ACCELERATED_ENGINE && u.variant === variant) ?? null
+  );
+}
+
+/** Bytes installing `variant` downloads, as the verified list states; `null` when unknown. */
+function downloadSize(engines: EnginesResponse, variant: EngineVariant): number | null {
   const row = acceleratedUpdate(engines);
-  if (engines?.cuda_proposable) return "proposal";
-  return row?.update_available ? `update:${row.latest_tag}` : null;
+  if (row) return row.size;
+  return (
+    (engines.available ?? []).find((p) => p.engine === ACCELERATED_ENGINE && p.variant === variant)
+      ?.size ?? null
+  );
+}
+
+/** The maker of the card each accelerated variant is built for. */
+const VARIANT_VENDOR: Partial<Record<EngineVariant, EngineHardwareCard["vendor"]>> = {
+  "cuda-12": "nvidia",
+  "cuda-13": "nvidia",
+  rocm: "amd",
+};
+
+/**
+ * The card `variant` uses, by its name: the first card of its maker for CUDA
+ * and ROCm, the first card that is not NVIDIA for Vulkan. `null` when none is
+ * known.
+ */
+export function cardFor(engines: EnginesResponse, variant: EngineVariant): string | null {
+  const cards = engines.hardware?.cards ?? [];
+  const vendor = VARIANT_VENDOR[variant];
+  const card =
+    vendor !== undefined
+      ? cards.find((c) => c.vendor === vendor)
+      : (cards.find((c) => c.vendor !== "nvidia") ?? cards[0]);
+  return card?.name ?? null;
+}
+
+/** The key under which a proposal is put off: one per variant and version offered. */
+export function laterKey(engines: EnginesResponse | null): string | null {
+  const proposed = proposedVariant(engines);
+  if (proposed !== null) return `proposal:${proposed}`;
+  const row = acceleratedUpdate(engines);
+  return row?.update_available ? `update:${row.variant}:${row.latest_tag}` : null;
+}
+
+/**
+ * Whether the verified list has to be fetched once to know what to propose:
+ * a machine with a card the runtime cannot rate yet, or a proposal whose
+ * weight is not known.
+ */
+function listWanted(engines: EnginesResponse | null): boolean {
+  if (!engines?.verifiable) return false;
+  const proposed = proposedVariant(engines);
+  if (proposed !== null) return downloadSize(engines, proposed) === null;
+  return (engines.ratings ?? []).length === 0 && (engines.hardware?.cards.length ?? 0) > 0;
 }
 
 /** How the card words a refusal of `code` during `flow`. */
@@ -177,9 +266,10 @@ function latestVersion(row: EngineVariantUpdate | null): EngineVersion | null {
 
 /**
  * What the card shows. An installation that runs or just ended comes first;
- * otherwise the proposal on a computer with an NVIDIA card and without the
- * engine, or the new version of an installed engine, unless put off. Nothing
- * without a card, and nothing when the engine is installed and up to date.
+ * otherwise the proposal of the recommended variant when it is not installed,
+ * or the new version of the installed one, unless put off. Nothing without a
+ * card, nothing when the recommended build is the shipped or the processor
+ * one, and nothing when the engine is installed and up to date.
  */
 export function cardView(state: AcceleratedEngineState): CardView | null {
   const { engines, installation } = state;
@@ -219,12 +309,19 @@ export function cardView(state: AcceleratedEngineState): CardView | null {
   if (!engines) return null;
   const key = laterKey(engines);
   if (key === null || state.later.includes(key)) return null;
-  if (engines.cuda_proposable) {
-    return { status: "proposal", card: engines.nvidia_card, sizeBytes: row?.size ?? null };
+  const proposed = proposedVariant(engines);
+  if (proposed !== null) {
+    return {
+      status: "proposal",
+      variant: proposed,
+      card: cardFor(engines, proposed),
+      sizeBytes: downloadSize(engines, proposed),
+    };
   }
   if (row?.update_available) {
     return {
       status: "update_available",
+      variant: row.variant,
       latest: { tag: row.latest_tag, released: row.latest_released },
       installed: row.installed_tag
         ? { tag: row.installed_tag, released: row.installed_released }
@@ -414,7 +511,7 @@ export function createAcceleratedEngine(deps: AcceleratedEngineDeps): Accelerate
       await readEngines();
       // The weight of the download is read in the verified list: a computer
       // that never fetched it asks for it once.
-      if (current.engines?.cuda_proposable && !acceleratedUpdate(current.engines) && !checked) {
+      if (listWanted(current.engines) && !checked) {
         checked = true;
         try {
           await deps.checkUpdates();
@@ -433,7 +530,9 @@ export function createAcceleratedEngine(deps: AcceleratedEngineDeps): Accelerate
     },
 
     async accelerate() {
-      await send(() => deps.start(ACCELERATED_ENGINE, ACCELERATED_VARIANT));
+      const variant = acceleratedVariant(current.engines);
+      if (variant === null) return;
+      await send(() => deps.start(ACCELERATED_ENGINE, variant));
       await follow();
     },
 

@@ -10,7 +10,8 @@
     "The developer fields of the form (ai-server-timeout, ai-server-extra) are asserted present with the developer mode on and gone with it off; llm-advanced-det plays their refusals one by one.",
     "ai-server-error-banner-retry and ai-servers-error-banner-retry are composed by ErrorBanner.svelte off the id it is given; ai-server-delete-dialog-typed-name, -confirm and -cancel by ConfirmDialog.svelte.",
     "The panel of a model is opened three ways: by the gear of a row and by a click on the row (developer mode off, the seeded Phi-3-mini-Q4, a GGUF), and by the name of a loaded card (developer mode on, under the list_loaded_models stub). With the developer mode off the panel offers Infos alone: the Loading and Inference tabs and the preset bar are asserted gone. With it on, before any stub, the gear of the same row opens the three tabs, whose Loading and Inference sections are asserted folded (their fields gone), unfolded, then folded again; the book then leaves the route so the stubbed visit mounts the screen anew. The seeded GGUF files are placeholders, so the quantisation and the architecture of the real detail read 'Not stated'; they are asserted on the MLX model below.",
-    "The MLX model is shown under stubs, the seed holding none: list_installed_models (InstalledModelView of installed_models.rs, type InstalledModel of lib/ipc/modelHub.ts), get_installed_model_detail (ModelDetailView of commands/ai_model_detail.rs, type ModelDetail of lib/ipc/modelDetail.ts, with one author field shaped like LocalizedAuthorField) and list_model_presets (an empty list). The developer sections are walked on the seeded model: the type choice is answered by a once stub of set_installed_model_category_override so the seeded index is left untouched, and the source switch is asserted unavailable, the seed holding no other weights file of that model."
+    "The MLX model is shown under stubs, the seed holding none: list_installed_models (InstalledModelView of installed_models.rs, type InstalledModel of lib/ipc/modelHub.ts), get_installed_model_detail (ModelDetailView of commands/ai_model_detail.rs, type ModelDetail of lib/ipc/modelDetail.ts, with one author field shaped like LocalizedAuthorField) and list_model_presets (an empty list). The developer sections are walked on the seeded model: the type choice is answered by a once stub of set_installed_model_category_override so the seeded index is left untouched, and the source switch is asserted unavailable, the seed holding no other weights file of that model.",
+    "The card of the accelerated engine is played under two list_engines stubs in patch mode (EnginesResponse, HardwareView, AvailablePackage and EngineRating of lib/ipc/system.ts): the real list runs and its hardware, available, ratings and updates are replaced. The first puts an AMD gfx1100 card and a ROCm build the runtime recommends and that is not installed, so the card proposes ROCm by name with the card it uses; the second recommends Metal and lists Metal as the shipped engine, so no card is shown. The engine is read when the AI screen mounts (Ai.svelte onMount -> acceleratedEngine.refresh), so each stub is followed by goto chat, goto llm. The install button is never clicked: no download is started, and no channel is checked, the weight being read in the stubbed available list."
   ],
   "dynamicTestids": [
     "ai-capability-tools",
@@ -2304,6 +2305,177 @@
       "kind": "waitGone",
       "testid": "ai-server-form",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-accelerated-engine-card (the variant the runtime recommends)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "patch": {
+        "updates": [],
+        "hardware": {
+          "cards": [
+            {
+              "vendor": "amd",
+              "name": "AMD Radeon RX 7900 XTX",
+              "vram_gb": 24,
+              "driver_version": null,
+              "compute_capability": null,
+              "gfx_target": "gfx1100",
+              "kfd_accessible": true,
+              "timed_out": false
+            }
+          ],
+          "vulkan_loader": true,
+          "rocm_runtime": true
+        },
+        "available": [
+          {
+            "engine": "llama-server",
+            "tag": "b12064",
+            "variant": "rocm",
+            "size": 640000000,
+            "released": "2026-10-30",
+            "installed": false
+          }
+        ],
+        "ratings": [
+          {
+            "variant": "rocm",
+            "verdict": "recommended",
+            "reason": null
+          },
+          {
+            "variant": "vulkan",
+            "verdict": "compatible",
+            "reason": null
+          },
+          {
+            "variant": "cpu",
+            "verdict": "compatible",
+            "reason": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-engine-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-engine-title",
+      "contains": "ROCm"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-engine-body",
+      "contains": "AMD Radeon RX 7900 XTX"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-engine-start"
+    },
+    {
+      "kind": "screenshot",
+      "label": "17a-accelerated-engine-proposes-rocm"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "patch": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "tag": null,
+            "variant": "metal",
+            "path": "/Applications/Apollia.app/Contents/MacOS/llama-server",
+            "source": "embedded",
+            "version": null,
+            "in_service": true
+          }
+        ],
+        "updates": [],
+        "hardware": {
+          "cards": [],
+          "vulkan_loader": false,
+          "rocm_runtime": false
+        },
+        "available": [],
+        "ratings": [
+          {
+            "variant": "metal",
+            "verdict": "recommended",
+            "reason": null
+          },
+          {
+            "variant": "cpu",
+            "verdict": "compatible",
+            "reason": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-engine-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-accelerated-engine-nothing-when-the-shipped-build-is-recommended"
+    },
+    {
+      "kind": "clearStubs"
     }
   ]
 }

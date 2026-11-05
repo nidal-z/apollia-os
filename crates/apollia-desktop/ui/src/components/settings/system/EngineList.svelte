@@ -1,6 +1,8 @@
 <script lang="ts" module>
   import type { EngineChannel, EngineEntry, EnginesResponse } from "$lib/ipc/system";
-  import { verdictOf } from "$lib/settings/engineVariants";
+  import { variantLabel, verdictOf } from "$lib/settings/engineVariants";
+
+  export { variantLabel };
 
   /** Where an engine stands against the channel it follows. */
   export type EngineUpdate =
@@ -174,26 +176,6 @@
     if (row.source !== "downloaded" && row.source !== "imported") return null;
     if (row.engine === null || row.tag === null || row.variant === null) return null;
     return { engine: row.engine, tag: row.tag, variant: row.variant };
-  }
-
-  /** Display name of a variant: a backend name, or the processor. */
-  export function variantLabel(variant: EngineEntry["variant"], cpuLabel: string): string | null {
-    switch (variant) {
-      case "metal":
-        return "Metal";
-      case "cuda-12":
-        return "CUDA 12";
-      case "cuda-13":
-        return "CUDA 13";
-      case "rocm":
-        return "ROCm";
-      case "vulkan":
-        return "Vulkan";
-      case "cpu":
-        return cpuLabel;
-      case null:
-        return null;
-    }
   }
 
   /** The types `rows` carry, in the order the filter lists them. */

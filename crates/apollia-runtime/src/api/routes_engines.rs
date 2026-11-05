@@ -86,12 +86,6 @@ pub struct EnginesResponse {
     /// Per variant offered by that manifest for this platform, whether a newer
     /// build than the installed one exists. Empty until a manifest verified.
     pub updates: Vec<VariantUpdate>,
-    /// True when an NVIDIA card is detected and no CUDA engine is installed.
-    /// Derived from `hardware`.
-    pub cuda_proposable: bool,
-    /// Name of the NVIDIA card detected, when there is one. Derived from
-    /// `hardware`.
-    pub nvidia_card: Option<String>,
     /// The cards of the machine; `null` when the probe did not answer in time.
     pub hardware: Option<HardwareView>,
     /// The packages the verified manifest offers for this platform, installed
@@ -359,9 +353,6 @@ fn engines_view_with(
     let root = engine_store::store_root(data_dir);
     let settings = EngineStoreSettings::load(&root)?;
     let installed = installed_packages(&root);
-    let has_cuda = installed
-        .iter()
-        .any(|p| p.engine == Engine::LlamaServer && p.variant.is_cuda());
     let manifest = key.and_then(|key| cached_manifest(&root, settings.channel, key));
     let updates = manifest
         .as_ref()
@@ -372,7 +363,6 @@ fn engines_view_with(
         .map(|m| hardware::available(m, platform, &installed))
         .unwrap_or_default();
     let ratings = hardware::ratings(facts, manifest.as_ref(), platform);
-    let nvidia_card = hardware::nvidia_card(facts.profile.as_ref());
     let mut engines = embedded;
     engines.extend(installed.into_iter().map(entry));
     Ok(EnginesResponse {
@@ -380,8 +370,6 @@ fn engines_view_with(
         channel: settings.channel,
         manifest_sequence: manifest.map(|m| m.sequence),
         updates,
-        cuda_proposable: nvidia_card.is_some() && !has_cuda,
-        nvidia_card,
         hardware: facts.profile.as_ref().map(HardwareView::from),
         available,
         ratings,

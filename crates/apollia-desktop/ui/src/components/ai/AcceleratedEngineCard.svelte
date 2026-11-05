@@ -25,6 +25,7 @@
     type EngineVersion,
   } from "./acceleratedEngine";
   import EngineStep from "./EngineStep.svelte";
+  import { variantLabel } from "$lib/settings/engineVariants";
 
   interface Props {
     view: CardView;
@@ -66,6 +67,13 @@
     return $developerMode ? `${dated} (${v.tag})` : dated;
   }
 
+  /** The name of the build the card proposes or updates, CUDA 13, ROCm, Vulkan. */
+  const engineName = $derived(
+    "variant" in view
+      ? (variantLabel(view.variant, $t("settings.engines.variant_cpu")) ?? view.variant)
+      : "",
+  );
+
   function eta(seconds: number | null): string | null {
     if (seconds === null) return null;
     if (seconds < 60) return $t("ai.engine.eta.under_minute");
@@ -75,7 +83,7 @@
   const title = $derived.by(() => {
     switch (view.status) {
       case "proposal":
-        return $t("ai.engine.proposal.title");
+        return $t("ai.engine.proposal.title", { values: { engine: engineName } });
       case "update_available":
         return $t("ai.engine.update.title");
       case "verifying":
@@ -103,14 +111,20 @@
     switch (view.status) {
       case "proposal":
         return view.card
-          ? $t("ai.engine.proposal.body", { values: { card: view.card } })
-          : $t("ai.engine.proposal.body_unnamed");
+          ? $t("ai.engine.proposal.body", { values: { card: view.card, engine: engineName } })
+          : $t("ai.engine.proposal.body_unnamed", { values: { engine: engineName } });
       case "update_available":
         return view.installed
           ? $t("ai.engine.update.body", {
-              values: { latest: version(view.latest), installed: version(view.installed) },
+              values: {
+                engine: engineName,
+                latest: version(view.latest),
+                installed: version(view.installed),
+              },
             })
-          : $t("ai.engine.update.body_latest", { values: { latest: version(view.latest) } });
+          : $t("ai.engine.update.body_latest", {
+              values: { engine: engineName, latest: version(view.latest) },
+            });
       case "verifying":
       case "downloading":
       case "installing":
@@ -157,6 +171,7 @@
   aria-live="polite"
   data-testid="ai-engine-card"
   data-status={view.status}
+  data-variant={"variant" in view ? view.variant : undefined}
   data-flow={"flow" in view ? view.flow : undefined}
   data-reason={view.status === "refused" ? view.reason : undefined}
 >

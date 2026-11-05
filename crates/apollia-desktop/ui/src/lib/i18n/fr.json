@@ -6107,14 +6107,14 @@
       "signature_promise": "Sa signature est vérifiée avant tout téléchargement.",
       "folder_picker_title": "Dossier du moteur à importer",
       "proposal": {
-        "title": "Accélérer avec votre carte NVIDIA",
-        "body": "{card} détectée. Le moteur accéléré l'utilise pour que vos modèles répondent nettement plus vite.",
-        "body_unnamed": "Carte NVIDIA détectée. Le moteur accéléré l'utilise pour que vos modèles répondent nettement plus vite."
+        "title": "Accélérer avec le moteur {engine}",
+        "body": "{card} détectée. Le moteur {engine} l'utilise pour que vos modèles répondent nettement plus vite.",
+        "body_unnamed": "Carte graphique détectée. Le moteur {engine} l'utilise pour que vos modèles répondent nettement plus vite."
       },
       "update": {
         "title": "Nouvelle version du moteur disponible",
-        "body": "Moteur accéléré NVIDIA, {latest}. Vous utilisez la {installed}.",
-        "body_latest": "Moteur accéléré NVIDIA, {latest}."
+        "body": "Moteur accéléré {engine}, {latest}. Vous utilisez la {installed}.",
+        "body_latest": "Moteur accéléré {engine}, {latest}."
       },
       "progress": {
         "install_title": "Installation du moteur accéléré",
@@ -6143,7 +6143,7 @@
       },
       "installed": {
         "title": "Moteur accéléré installé",
-        "body": "Le prochain chargement d'un modèle utilisera votre carte NVIDIA.",
+        "body": "Le prochain chargement d'un modèle utilisera votre carte graphique.",
         "update_title": "Moteur accéléré mis à jour",
         "update_body": "Le prochain chargement d'un modèle utilisera la nouvelle version.",
         "body_loaded": "Le prochain chargement d'un modèle l'utilisera. Les modèles déjà chargés gardent le moteur actuel : rechargez-les pour en profiter.",

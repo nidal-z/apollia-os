@@ -181,9 +181,6 @@ export interface EnginesResponse {
   channel: EngineChannel;
   manifest_sequence: number | null;
   updates: EngineVariantUpdate[];
-  cuda_proposable: boolean;
-  /** Name of the NVIDIA card detected, `null` without one. */
-  nvidia_card: string | null;
   dictation: DictationEngine | null;
   /** The cards of the machine; `null` when the probe did not answer in time. */
   hardware: EngineHardware | null;
