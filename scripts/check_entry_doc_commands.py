@@ -114,6 +114,7 @@ NEVER_RUN = ("start", "stop", "serve", "chat", "shell", "update", "onboard")
 # free-form string, path or integer argument parses.
 TYPED_PLACEHOLDERS = {
     "<SHELL>": "bash",  # completions <SHELL>
+    "<ENGINE>": "llama-server",  # engine install <ENGINE>, engine remove <ENGINE>
     "<TYPE>": "desktop",  # notify create --kind <TYPE>
     "<PROVIDER>": "openai",  # llm backends create --provider <PROVIDER>
     "<p>": "openai",  # the same flag, as the first-agent tutorial spells it
