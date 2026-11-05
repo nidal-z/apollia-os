@@ -35,8 +35,11 @@ Six surfaces are held to the same rule:
      `packaging/fetch-tesseract-sources.sh` reads that table and refuses a
      digest that differs from it; and in every workflow, a step that builds
      with the `ocr` feature (`--features` naming it, or a variable assigned
-     a value that names it, a matrix list included) comes after a step of
-     the same job that runs that script. A matrix read through
+     a value that names it) comes after a step of the same job that runs
+     that script. The values of `env:` (workflow, job, step) and of the
+     matrix (its lists and its `include:` entries) are read by loading the
+     YAML, so a plain scalar such as `local-metal,ocr` is read whole; a shell
+     assignment is read as one word, `F=$BASE,ocr` included. A matrix read through
      `fromJSON(needs.<job>.outputs.<x>)` is resolved in the job that writes
      it; a key nothing readable assigns counts as naming `ocr`.
 
@@ -59,6 +62,15 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - the environment, not the tree
+    print(
+        "check_download_sums: PyYAML is absent, so nothing was measured",
+        file=sys.stderr,
+    )
+    sys.exit(2)
 
 REPO_ROOT = Path(
     subprocess.check_output(
@@ -701,18 +713,28 @@ def _logical_lines(run_block: str) -> list[str]:
     return logical
 
 
-def _assigned_values(name: str, scope: str) -> list[str]:
-    """Every value assigned to `name` in the scope, inline or as a block list.
+def _assigned_values(
+    name: str, scope: str, loaded: dict[str, list[str]] | None = None
+) -> list[str]:
+    """Every value assigned to `name`: by the loaded YAML, or in the text.
 
-    Inline: `name: v`, `name=v`, `"name":"v"`, and a flow list
-    `name: [a, b]` read whole. Block: `name:` alone on its line, then the
-    `- item` lines below it.
+    `loaded` holds the `env:` and matrix values of the job as YAML reads
+    them (`_yaml_assignments`). The text is read for what YAML leaves inside
+    a string: a shell assignment `name=word` (`+=` too), taken as the whole
+    shell word, and a JSON field `"name":"v"` or `name: v` written in a
+    `run:` block, a flow list `name: [a, b]` and a block list under `name:`.
     """
-    key = r"(?<![\w-])[\"']?" + re.escape(name) + r"[\"']?[ \t]*[:=][ \t]*"
+    values = list((loaded or {}).get(name, []))
+    key = r"(?<![\w-])[\"']?" + re.escape(name) + r"[\"']?[ \t]*:[ \t]*"
     inline = re.compile(
         key + r"(\[[^\]]*\]|\"[^\"]*\"|'[^']*'|\$\([^)]*\)|[^\s,}\]]+)"
     )
-    values = [m.group(1) for m in inline.finditer(scope)]
+    values += [m.group(1) for m in inline.finditer(scope)]
+    shell = re.compile(
+        r"(?<![\w-])" + re.escape(name)
+        + r"[ \t]*\+?=[ \t]*((?:\"[^\"]*\"|'[^']*'|\$\([^)]*\)|[^\s;&|\"'])+)"
+    )
+    values += [m.group(1) for m in shell.finditer(scope)]
     head = re.compile(r"^(\s*)[\"']?" + re.escape(name) + r"[\"']?\s*:\s*(#.*)?$")
     lines = scope.splitlines()
     for i, line in enumerate(lines):
@@ -727,7 +749,61 @@ def _assigned_values(name: str, scope: str) -> list[str]:
     return values
 
 
-def _carries_ocr(value: str, scope: str, dynamic: bool = False, depth: int = 0) -> bool:
+def _scalars(value: object) -> list[str]:
+    """Every scalar under a loaded YAML value, as text."""
+    if isinstance(value, dict):
+        return [s for v in value.values() for s in _scalars(v)]
+    if isinstance(value, list):
+        return [s for v in value for s in _scalars(v)]
+    if value is None:
+        return []
+    return [str(value)]
+
+
+def _yaml_assignments(doc: dict, job: object) -> dict[str, list[str]]:
+    """The `env:` and matrix values one job can read, as YAML loads them.
+
+    The workflow `env:`, the job `env:`, the `env:` of each of its steps, and
+    its matrix: every key of `strategy.matrix` with its list, and every key
+    of an `include:` entry. `exclude:` only removes combinations, so it
+    assigns nothing.
+    """
+    found: dict[str, list[str]] = {}
+
+    def add(mapping: object) -> None:
+        if isinstance(mapping, dict):
+            for key, value in mapping.items():
+                found.setdefault(str(key), []).extend(_scalars(value))
+
+    add(doc.get("env"))
+    if not isinstance(job, dict):
+        return found
+    add(job.get("env"))
+    steps = job.get("steps")
+    for step in steps if isinstance(steps, list) else []:
+        if isinstance(step, dict):
+            add(step.get("env"))
+    strategy = job.get("strategy")
+    matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
+    if isinstance(matrix, dict):
+        for key, value in matrix.items():
+            if key == "exclude":
+                continue
+            if key == "include" and isinstance(value, list):
+                for entry in value:
+                    add(entry)
+                continue
+            found.setdefault(str(key), []).extend(_scalars(value))
+    return found
+
+
+def _carries_ocr(
+    value: str,
+    scope: str,
+    dynamic: bool = False,
+    depth: int = 0,
+    loaded: dict[str, list[str]] | None = None,
+) -> bool:
     """A features value names `ocr`, literally or through a variable.
 
     A variable is read as every value assigned to its name in the scope (the
@@ -748,11 +824,15 @@ def _carries_ocr(value: str, scope: str, dynamic: bool = False, depth: int = 0) 
     names |= set(SHELL_REF.findall(EXPR_REF.sub(" ", value)))
     for ref in refs:
         key = ref.rsplit(".", 1)[-1]
-        if dynamic and ref.startswith("matrix.") and not _assigned_values(key, scope):
+        if (
+            dynamic
+            and ref.startswith("matrix.")
+            and not _assigned_values(key, scope, loaded)
+        ):
             return True
     for name in names:
-        for assigned in _assigned_values(name, scope):
-            if _carries_ocr(assigned, scope, dynamic, depth + 1):
+        for assigned in _assigned_values(name, scope, loaded):
+            if _carries_ocr(assigned, scope, dynamic, depth + 1, loaded):
                 return True
     return False
 
@@ -770,16 +850,28 @@ def check_ocr_workflows(workflow_dir: Path) -> int:
         text = _read(path)
         if text is None:
             sys.exit(2)
+        try:
+            doc = yaml.safe_load(text)
+        except yaml.YAMLError as error:
+            print(f"{path}: not valid YAML: {error}", file=sys.stderr)
+            sys.exit(2)
+        doc = doc if isinstance(doc, dict) else {}
+        loaded_jobs = doc.get("jobs") if isinstance(doc.get("jobs"), dict) else {}
         header, jobs = workflow_jobs(text)
         bodies = dict(jobs)
         for job, body in jobs:
             scope = header + "\n" + body
+            loaded = _yaml_assignments(doc, loaded_jobs.get(job))
             dynamic = False
             for source in DYNAMIC_MATRIX.findall(body):
                 dynamic = True
                 producer = NEEDS_OUTPUT.match(source)
                 if producer and producer.group(1) in bodies:
                     scope += "\n" + bodies[producer.group(1)]
+                    for key, values in _yaml_assignments(
+                        doc, loaded_jobs.get(producer.group(1))
+                    ).items():
+                        loaded.setdefault(key, []).extend(values)
             staged = False
             for name, run in workflow_steps(body, fold=True):
                 lines = _logical_lines(run)
@@ -788,7 +880,7 @@ def check_ocr_workflows(workflow_dir: Path) -> int:
                     for line in lines
                     if re.search(r"\bcargo\b", line)
                     and any(
-                        _carries_ocr(v.strip("\"'"), scope, dynamic)
+                        _carries_ocr(v.strip("\"'"), scope, dynamic, 0, loaded)
                         for v in FEATURES_FLAG.findall(line)
                     )
                 ]
@@ -1281,6 +1373,76 @@ def selftest() -> int:
             ocr_variant(
                 "jobs:\n  m:\n    strategy:\n      matrix:\n        features:\n"
                 "          - local-cpu\n          - local-metal\n" + matrix_build
+            )
+            == 0,
+        )
+        control(
+            "an include entry whose plain scalar is local-metal,ocr is a gap",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n        include:\n"
+                "          - preset: mac\n            features: local-metal,ocr\n"
+                + matrix_build
+            )
+            > 0,
+        )
+        control(
+            "a flow mapping that YAML splits at the comma passes",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n        include:\n"
+                "          - {preset: mac, features: local-metal,ocr}\n" + matrix_build
+            )
+            == 0,
+        )
+        control(
+            "a job env plain scalar local-metal,ocr read by $FEATURES is a gap",
+            ocr_variant(
+                "jobs:\n  e:\n    env:\n      FEATURES: local-metal,ocr\n"
+                "    steps:\n      - name: Build\n"
+                "        run: cargo build --features $FEATURES\n"
+            )
+            > 0,
+        )
+        control(
+            "a workflow env plain scalar read by ${{ env.FEATS }} is a gap",
+            ocr_variant(
+                "env:\n  FEATS: local-cpu,ocr\njobs:\n  e:\n    steps:\n"
+                "      - name: Build\n"
+                "        run: cargo build --features \"${{ env.FEATS }}\"\n"
+            )
+            > 0,
+        )
+        control(
+            "a step env plain scalar carrying ocr is a gap",
+            ocr_variant(
+                "jobs:\n  e:\n    steps:\n      - name: Build\n"
+                "        env:\n          FEATS: local-cpu ocr\n"
+                "        run: cargo build --features \"$FEATS\"\n"
+            )
+            > 0,
+        )
+        control(
+            "a shell assignment F=$BASE,ocr is read as one word, a gap",
+            ocr_variant(
+                "jobs:\n  s:\n    steps:\n      - name: Build\n        run: |\n"
+                "          F=$BASE,ocr\n          cargo build --features \"$F\"\n"
+            )
+            > 0,
+        )
+        control(
+            "a shell append F+=,ocr is a gap",
+            ocr_variant(
+                "jobs:\n  s:\n    steps:\n      - name: Build\n        run: |\n"
+                "          F=local-cpu\n          F+=,ocr\n"
+                "          cargo build --features \"$F\"\n"
+            )
+            > 0,
+        )
+        control(
+            "the same env plain scalar after the staging step passes",
+            ocr_variant(
+                "jobs:\n  e:\n    env:\n      FEATURES: local-metal,ocr\n"
+                "    steps:\n" + stage + "      - name: Build\n"
+                "        run: cargo build --features $FEATURES\n"
             )
             == 0,
         )
