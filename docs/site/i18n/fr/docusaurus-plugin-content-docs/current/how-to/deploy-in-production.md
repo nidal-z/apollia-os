@@ -21,8 +21,22 @@ et l'encapsulez dans votre système d'init, ce que fait ce guide.
 ## Compiler un binaire optimisé
 
 ```sh
-cargo build -p apollia-cli --release
+bash packaging/fetch-tesseract-sources.sh
+cargo build -p apollia-cli --release --features ocr
 ```
+
+La feature `ocr`, éteinte par défaut et active dans les archives livrées,
+compile le moteur Tesseract embarqué qui lit les pages scannées et les images
+des sources. Le script pose les sources de Leptonica et de Tesseract que cette
+compilation construit, vérifiées contre
+`packaging/tesseract-sources-checksums.txt`, pour qu'elle ne télécharge rien
+de non vérifié. Les deux étapes demandent `cmake`, un compilateur C et C++,
+`curl`, `shasum` ou `sha256sum`, et `unzip` ou `python3` ; sous Debian ou
+Ubuntu, `sudo apt-get install -y cmake build-essential curl unzip`. Une
+machine de compilation sans réseau pose `TESSERACT_SOURCES_DIR` sur un dossier
+qui contient `leptonica-1.87.0.zip` et `tesseract-5.5.2.zip`, vérifiés de la
+même façon. Sans `--features ocr`, le binaire se compile sans ces outils mais
+ne lit pas les pages scannées.
 
 Le résultat est `target/release/apollia-os`. Installez-le à l'endroit où
 votre service le trouvera :
@@ -58,7 +72,7 @@ WantedBy=multi-user.target
 ```
 
 ```sh
-sudo useradd --system --home /var/lib/apollia --shell /usr/sbin/nologin apollia
+sudo useradd --system --create-home --home /var/lib/apollia --shell /usr/sbin/nologin apollia
 sudo systemctl daemon-reload
 sudo systemctl enable --now apollia
 sudo systemctl status apollia
@@ -207,7 +221,8 @@ intégration côté hôte ; voir la
 
 ```sh
 git pull
-cargo build -p apollia-cli --release
+bash packaging/fetch-tesseract-sources.sh
+cargo build -p apollia-cli --release --features ocr
 sudo systemctl stop apollia
 sudo install -m 755 target/release/apollia-os /usr/local/bin/apollia-os
 sudo systemctl start apollia
@@ -215,19 +230,84 @@ sudo systemctl start apollia
 
 ## Inférence locale sur un serveur
 
-Pour servir des modèles GGUF locaux sur le serveur, rendez `llama-server`
-(le llama.cpp amont) disponible pour le daemon : celui-ci le lance et le
-supervise, et le trouve via le `PATH` de l'utilisateur du service.
-Installez-le une fois, là où le service s'exécute, exactement comme décrit
-dans [Installer et exécuter le runtime](/how-to/install-and-run#local-gguf-inference).
-Le traitement par lots continu et l'appel d'outils natif sont intégrés à ce
-moteur, si bien qu'un seul backend local sert déjà des requêtes concurrentes ;
-voir [Tirer le meilleur parti de l'inférence locale](/how-to/accelerate-local-inference).
+Pour servir des modèles GGUF locaux sur le serveur, le daemon lance et
+supervise `llama-server` (le llama.cpp amont). Il prend le premier binaire
+qu'il trouve, dans cet ordre :
+
+1. le chemin de `APOLLIA_LLAMA_SERVER_BIN`, quand la variable est posée ;
+2. un build du magasin de moteurs, selon le réglage `engines.gguf` : la
+   variante qu'il nomme, ou, sous `auto`, le build installé classé recommandé
+   pour la machine, sinon le meilleur compatible ;
+3. un `llama-server` à côté du binaire `apollia-os`, ou dans le dossier
+   `runners/` d'une disposition empaquetée autour de lui ;
+4. le `PATH` de l'utilisateur du service ;
+5. `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, puis `~/.local/bin` et
+   `~/.cargo/bin` de l'utilisateur du service.
+
+Une compilation depuis les sources ne livre aucun moteur, si bien que sur un
+serveur neuf le magasin de moteurs est le chemin court :
+[Activer CUDA sur un serveur](/how-to/enable-cuda-on-a-server) installe un
+build pour la carte par `apollia-os engine install`, en ligne ou depuis un
+dossier. Un `llama-server` installé à la main, comme décrit dans
+[Installer et exécuter le runtime](/how-to/install-and-run#local-gguf-inference),
+est trouvé sur le `PATH` quand le magasin ne contient rien. Le traitement par
+lots continu et l'appel d'outils natif sont intégrés à ce moteur, si bien
+qu'un seul backend local sert déjà des requêtes concurrentes ; voir
+[Tirer le meilleur parti de l'inférence locale](/how-to/accelerate-local-inference).
 
 Le daemon lance le moteur sans aucune variable `LLAMA_ARG_*` de son propre
 environnement : une variable laissée dans le shell ou l'unité du service ne
 peut activer aucune option du moteur ; passez les options supplémentaires par
 `APOLLIA_LLAMA_EXTRA_ARGS`.
+
+## Lire les pages scannées sans réseau
+
+Une source lit le texte d'une page scannée ou d'une image par reconnaissance
+optique de caractères, qui demande les données de langue du moteur Tesseract
+embarqué : un fichier `<langue>.traineddata` par langue. Le daemon récupère
+les fichiers épinglés la première fois qu'un passage laisse des pages en
+attente de ces données. Un serveur sans réseau prend les mêmes fichiers depuis
+un disque. Tout ceci demande un binaire compilé avec `--features ocr`, comme
+plus haut ; sans elle, le contrôle `recognition` de `doctor` affiche
+`not compiled, <n>/2 languages verified: this build does not read scanned pages`.
+
+| Fichier | Taille en octets | SHA-256 |
+|---|---|---|
+| `fra.traineddata` | 1130365 | `ced037562e8c80c13122dece28dd477d399af80911a28791a66a63ac1e3445ca` |
+| `eng.traineddata` | 4113088 | `7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2` |
+
+Les deux viennent du dépôt amont `tesseract-ocr/tessdata_fast`, au commit
+`923915d4ced2a7235221788285785a29c4a42d4a`. Sur une machine qui a le réseau,
+prenez-les à ce commit et vérifiez-les :
+
+```sh
+for lang in fra eng; do
+  curl -fsSL -o "$lang.traineddata" \
+    "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/923915d4ced2a7235221788285785a29c4a42d4a/$lang.traineddata"
+done
+sha256sum fra.traineddata eng.traineddata
+```
+
+Copiez-les dans le dossier `tessdata/` du dossier des modèles de l'utilisateur
+du service : `<dossier de données>/models/tessdata/`, soit
+`/var/lib/apollia/.apollia/models/tessdata/` pour le service ci-dessus, ou
+`<dossier>/tessdata/` quand `[models] dir` dans `apollia.toml` désigne un
+autre dossier des modèles. Un fichier dont l'empreinte n'est pas celle
+épinglée n'est jamais confié au moteur. Les pages en attente sont relues dans
+un balayage des sources, sans redémarrage.
+
+Vérifiez-le :
+
+```sh
+sudo -u apollia -H apollia-os doctor
+sudo -u apollia -H apollia-os source show <id>
+```
+
+Le contrôle `recognition` de `doctor` affiche
+`compiled, 2/2 languages verified` une fois les deux fichiers en place, et
+avertit, avec le dossier lu, tant qu'aucun ne l'est. `source show` compte les
+pages d'une source encore `awaiting recognition` ; la ligne disparaît une fois
+qu'elles sont lues.
 
 ## Voir aussi
 

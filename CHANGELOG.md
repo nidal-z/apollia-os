@@ -152,6 +152,24 @@ OAuth client is entered has moved, into developer mode.
   `.../choices/{item_id}` read and change the OneDrive choices of an account.
 - A `ConnectionStateChanged` event announces each state found.
 
+#### The engine that suits the card
+
+- The engine channel offers `llama-server` in `cuda-12`, `cuda-13`, `rocm`,
+  `vulkan` and `cpu`. The runtime probes the cards and their driver, rates
+  each variant recommended, compatible or incompatible with its reason, and
+  the AI screen and **Engines** offer the recommended one. A CUDA package
+  carries the CUDA runtime next to the server, on Linux as on Windows, so the
+  NVIDIA driver is all a machine needs.
+- `apollia-os engine list`, `check`, `use`, `channel`, `install`, `import`
+  and `remove --confirm`: the cards, the variants and their verdict, the
+  engine in service, an installation online or from a directory copied from
+  a release, and the choice of `engines.gguf`, which now takes `cuda-12`,
+  `cuda-13` and `rocm` and applies the next time a model is loaded.
+- The runtime reads the engine channel from the registry of Apollia, then
+  from its GitHub Releases mirror when the registry does not answer; the
+  signature of the manifest decides in both cases.
+- A how-to, **Enable CUDA on a server**, online and without a network.
+
 ### Changed
 
 - MCP servers start at the first call of one of their tools and stop after
@@ -234,6 +252,12 @@ OAuth client is entered has moved, into developer mode.
   runs waits for the next start.
 - **Google Workspace is unchanged.** It still needs your own OAuth client;
   its section now shows in developer mode.
+- **0.3.1 is the first version that reads the engine channel.** A 0.3.0
+  copy cannot verify it and keeps its embedded engine; the variants above
+  reach a machine once it runs 0.3.1.
+- **`LLAMA_ARG_*` no longer reaches the engine.** The daemon launches
+  `llama-server` without them; pass extra engine flags through
+  `APOLLIA_LLAMA_EXTRA_ARGS`.
 - **No way back to 0.3.0.** 0.3.1 raises the schema of several databases under
   `~/.apollia` at its first start, and 0.3.0 refuses to open a database whose
   schema is newer than its own. Keep a copy of the folder before upgrading if

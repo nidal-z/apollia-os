@@ -45,11 +45,14 @@ Vulkan in the desktop bundle is a deliberate trade. One 32 MB binary reaches
 all three vendors, where the CUDA engine covers NVIDIA alone, weighs 238 MB
 plus a 373 MB runtime, and falls back to the processor on every other card. So
 the CUDA engine is not in any installer. It is published apart, on the engine
-channel, and the application downloads it on demand: on a machine with an
-NVIDIA card, the AI screen offers it, **Speed up with your NVIDIA card**, and
-one click installs it. The next model load uses it, and the embedded Vulkan
-engine stays in place as the fallback. On Windows the download carries the
-CUDA runtime libraries; on Linux the engine relies on those of the machine.
+channel, in two builds, `cuda-12` and `cuda-13`, beside `rocm`, `vulkan` and
+`cpu`, and the application downloads the one its card needs on demand: the
+runtime rates every variant for the card and its driver, and the AI screen
+offers the one rated recommended, **Speed up with the CUDA 13 engine** for
+instance, and one click installs it. The next model load uses it, and the
+embedded Vulkan engine stays in place as the fallback. On Linux as on Windows,
+a CUDA package carries the CUDA runtime libraries next to the server, so a
+machine with only the NVIDIA driver runs it.
 
 Nothing is run before it is verified. The channel publishes one manifest
 listing each archive with its SHA-256, signed in the minisign format with a
@@ -58,9 +61,12 @@ key, requests no archive before the signature holds, and deletes an archive
 whose digest differs. A machine without network imports the same three kinds of
 file, manifest, signature and archive, from a disk, through the same checks.
 
-The command-line archives have no CUDA preset, on any platform. If you run the
-daemon from the CLI on an NVIDIA card and want CUDA rather than Vulkan, point it
-at a build of your own, below.
+The command-line archives have no CUDA preset, on any platform. A daemon run
+from the command line gets the CUDA engine from the same channel, with
+`apollia-os engine install llama-server`, or from a directory without network,
+with `apollia-os engine import`: see
+[Enable CUDA on a server](/how-to/enable-cuda-on-a-server). A build of your
+own remains possible, below.
 
 ## Configure a local backend
 

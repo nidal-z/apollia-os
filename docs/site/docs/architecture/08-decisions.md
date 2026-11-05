@@ -334,11 +334,32 @@ pinned version. The Windows and Linux bundles do not carry it.
 
 Engines have an update channel of their own and do not follow the version of
 Apollia. The embedded engine serves every machine from the first launch; an
-accelerated build, CUDA on a machine with an NVIDIA card, is downloaded on
-demand, or imported from a disk without network, and the launcher then takes the
-newest installed build of that variant over the embedded one. Which engine
-serves each model format is a setting, automatic by default; a chosen variant
-that is no longer installed falls back to the automatic choice. The followed
+accelerated build is downloaded on demand, or imported from a disk without
+network. The channel offers `llama-server` in five variants, `cuda-12`,
+`cuda-13`, `rocm`, `vulkan` and `cpu`, each for the platforms the channel
+publishes it for; `cuda` remains an earlier name, read as `cuda-12` in an installed record
+and, as a setting, as the best CUDA build installed. The runtime rates every
+variant for the machine, recommended, compatible or incompatible, with a reason
+code, from the cards it probes and their driver: CUDA 13 from compute
+capability 7.5, compatible from driver R580 and recommended from R615; CUDA 12
+recommended from the driver of its toolkit (570.26 under Linux, 551.61 under
+Windows) and the one CUDA build for Maxwell, Pascal and Volta cards; ROCm when
+the gfx target of the card is in the list of the build, and under Linux when
+the host carries the ROCm runtime, which that build loads from the machine;
+Vulkan when a loader is present; the processor build always. An installed GPU
+build whose `--list-devices` lists no device is incompatible whatever the rest
+says. At most one variant is recommended, the most capable one the machine
+runs. Which engine serves each model format is a setting, automatic by default:
+the automatic choice takes the installed build rated recommended, otherwise the
+best compatible one, otherwise the embedded engine, and a chosen variant that
+is no longer installed falls back to it. The choice is read again each time an
+engine is launched. A CUDA package carries the CUDA runtime that upstream
+publishes for its build, next to the server, on Linux as on Windows, so a
+machine with only the NVIDIA driver runs it; the cost is a heavier download than
+a server that relied on a toolkit of the host. The rating is a table of
+thresholds that follows the upstream builds, so it is revised with each build
+the channel pins, and a card it rates wrongly is corrected by the listing of
+the installed build rather than by a guess. The followed
 channel is checked when the runtime starts and when the channel changes, and an
 update it announces for a chosen engine is installed unasked, unless the setting
 that governs it is off, in which case the update is only announced. Every
@@ -348,14 +369,27 @@ stable or preview, publishes one such manifest, listing every engine archive
 with its SHA-256. The public half of that key is compiled into the binary and
 is the only key accepted. No archive is requested before the signature holds,
 an archive whose digest differs from the manifest is deleted, and a manifest
-older than the last one accepted on its channel is refused. A mirror can replace
-the address manifests and archives are fetched from; it cannot replace the key.
+older than the last one accepted on its channel is refused. The runtime reads a channel
+from the registry of Apollia first, under `engines-<channel>/`, and from its
+GitHub Releases mirror when the registry does not answer; neither address is
+trusted, and the signature is the only authority. A mirror can replace
+the address manifests and archives are fetched from, and is then the only one
+read; it cannot replace the key.
 Engine archives are read as zip only, the format already read for agent
 packages, and no other archive format is parsed. Upstream builds published as
 `.tar.gz`, those for macOS and Linux among them, are repackaged as zip by the
 release pipeline that publishes the manifest, and the manifest carries the
-digest of that zip. The MLX engine environment is listed in the same manifest
-and installed through the same verification.
+digest of that zip. The `llama-connect` tool that upstream builds carry, a
+peer-to-peer tunnel, is left out of every package: nothing the distribution key
+signs may open a tunnel. The MLX engine environment is listed in the same
+manifest and installed through the same verification.
+
+A launched engine receives the environment of the daemon minus every
+`LLAMA_ARG_*` variable. llama.cpp reads each of its flags from such a variable
+as well, `--connect` among them, and a variable left in a shell or a service
+unit must not switch on a flag the runtime did not choose. The cost is that an
+engine can no longer be tuned that way: extra flags go through
+`APOLLIA_LLAMA_EXTRA_ARGS`, which the daemon passes as flags.
 
 There is no dedicated cloud provider. A remote model is reached through one
 generic connection to an OpenAI-compatible server, at the address the
@@ -1306,16 +1340,18 @@ empty feed rather than as an error.
 There is one installer per system. No installer exists in a second edition for
 one kind of graphics card: an edition per card made the reader choose a download
 from hardware they may not know, and tied the version of an engine to a release
-of the application. The engines an installer does not embed, the CUDA build of
-`llama-server` and the Node.js that runs tool servers, are published apart, on
+of the application. The engines an installer does not embed, the `llama-server`
+variants of the channel (`cuda-12`, `cuda-13`, `rocm`, `vulkan`, `cpu`) and the Node.js that runs tool servers, are published apart, on
 their own channel, under a manifest signed in the minisign format with a
 dedicated distribution key (see [Local inference](#local-inference)). The
 pipeline that publishes them is separate from the one that publishes the
 application and is started by hand: it takes upstream archives pinned by
 SHA-256, repackages each as zip, and signs the manifest with a key that signs
 nothing else, distinct from the key of the application updates. The registry
-of Apollia serves the manifest and the archives, and GitHub Releases mirrors
-them. An application installed from a former CUDA edition keeps updating: the
+of Apollia serves the manifest and the archives under `engines-<channel>/`,
+and the GitHub release `engines-<channel>` mirrors them under the same names;
+the runtime reads the registry first and the mirror when the registry does not
+answer, and accepts either only under the signature. An application installed from a former CUDA edition keeps updating: the
 update manifest it asks is still published, as a copy of the standard one, so
 it moves to the one installer of its system and gets the CUDA engine from the
 engine channel.

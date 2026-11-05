@@ -19,6 +19,9 @@ Des recettes orientées tâche. Chacune résout un problème unique et concret.
 - [Tirer le meilleur parti de l'inférence locale](/how-to/accelerate-local-inference) :
   comment le moteur `llama-server` embarqué sert des modèles GGUF locaux, et
   comment l'alimenter.
+- [Activer CUDA sur un serveur](/how-to/enable-cuda-on-a-server) : vérifiez la
+  carte et son pilote, installez le moteur CUDA en ligne ou depuis un dossier,
+  et prouvez que la carte est utilisée.
 
 ## Construire des paquets
 

@@ -364,12 +364,33 @@ Linux ne le portent pas.
 
 Les moteurs ont leur propre canal de mise à jour et ne suivent pas la version
 d'Apollia. Le moteur embarqué sert chaque machine dès le premier lancement ; une
-version accélérée, CUDA sur une machine dotée d'une carte NVIDIA, se télécharge
-à la demande, ou s'importe depuis un disque sans réseau, et le lanceur prend
-alors la version installée la plus récente de cette variante plutôt que le
-moteur embarqué. Le moteur qui sert chaque format de modèle est un réglage,
-automatique par défaut ; une variante choisie qui n'est plus installée retombe
-sur le choix automatique. Le canal suivi est vérifié au démarrage du runtime et
+version accélérée se télécharge à la demande, ou s'importe depuis un disque sans
+réseau. Le canal propose `llama-server` en cinq variantes, `cuda-12`, `cuda-13`,
+`rocm`, `vulkan` et `cpu`, chacune pour les plateformes où le canal la publie ;
+`cuda` reste un ancien nom, lu comme `cuda-12` dans un enregistrement installé
+et, comme réglage, comme le meilleur build CUDA installé. Le runtime classe
+chaque variante pour la machine, recommandée, compatible ou incompatible, avec
+un code de raison, d'après les cartes qu'il sonde et leur pilote : CUDA 13 à
+partir de la capacité de calcul 7.5, compatible à partir du pilote R580 et
+recommandé à partir de R615 ; CUDA 12 recommandé à partir du pilote de son
+toolkit (570.26 sous Linux, 551.61 sous Windows) et seul build CUDA des cartes
+Maxwell, Pascal et Volta ; ROCm quand la cible gfx de la carte est dans la liste
+du build, et sous Linux quand l'hôte porte le runtime ROCm, que ce build charge
+depuis la machine ; Vulkan quand un chargeur est présent ; le build processeur
+toujours. Un build GPU installé dont `--list-devices` ne liste aucun
+périphérique est incompatible quoi que dise le reste. Une variante au plus est
+recommandée, la plus capable que la machine fait tourner. Le moteur qui sert
+chaque format de modèle est un réglage, automatique par défaut : le choix
+automatique prend le build installé classé recommandé, sinon le meilleur
+compatible, sinon le moteur embarqué, et une variante choisie qui n'est plus
+installée y retombe. Le choix est relu à chaque lancement d'un moteur. Un paquet
+CUDA porte le runtime CUDA que l'amont publie pour son build, à côté du
+serveur, sous Linux comme sous Windows, si bien qu'une machine qui n'a que le
+pilote NVIDIA le fait tourner ; le coût est un téléchargement plus lourd que
+celui d'un serveur qui s'appuierait sur un toolkit de l'hôte. Le classement est
+une table de seuils qui suit les builds amont : il se révise à chaque build que
+le canal épingle, et une carte qu'il classe à tort est corrigée par la liste du
+build installé plutôt que par une supposition. Le canal suivi est vérifié au démarrage du runtime et
 au changement de canal, et une mise à jour qu'il annonce pour un moteur choisi
 est installée sans qu'on la demande, sauf si le réglage qui la gouverne est
 éteint, auquel cas elle est seulement annoncée. Tout téléchargement ou import
@@ -380,14 +401,27 @@ manifeste, qui liste chaque archive de moteur avec son SHA-256. La moitié
 publique de cette clé est compilée dans le binaire et c'est la seule clé
 acceptée. Aucune archive n'est demandée avant que la signature tienne, une
 archive dont l'empreinte diffère du manifeste est supprimée, et un manifeste
-plus ancien que le dernier accepté sur son canal est refusé. Un miroir peut
-remplacer l'adresse d'où viennent manifestes et archives ; il ne peut pas
-remplacer la clé. Les archives de moteur se lisent au format zip seul, celui déjà
+plus ancien que le dernier accepté sur son canal est refusé. Le runtime lit un
+canal sur le registre d'Apollia d'abord, sous `engines-<canal>/`, et sur son
+miroir GitHub Releases quand le registre ne répond pas ; aucune des deux
+adresses n'est de confiance, et la signature est la seule autorité. Un miroir
+peut remplacer l'adresse d'où viennent manifestes et archives, et il est alors
+le seul lu ; il ne peut pas remplacer la clé. Les archives de moteur se lisent au format zip seul, celui déjà
 lu pour les paquets d'agents, et aucun autre format d'archive n'est analysé. Les
 versions amont publiées en `.tar.gz`, dont celles pour macOS et Linux, sont
 reconditionnées en zip par la chaîne de publication qui produit le manifeste, et
-le manifeste porte l'empreinte de ce zip. L'environnement du moteur MLX figure
-dans le même manifeste et s'installe par la même vérification.
+le manifeste porte l'empreinte de ce zip. L'outil `llama-connect` que portent
+les builds amont, un tunnel pair à pair, est exclu de chaque paquet : rien de ce
+que signe la clé de distribution ne peut ouvrir un tunnel. L'environnement du
+moteur MLX figure dans le même manifeste et s'installe par la même vérification.
+
+Un moteur lancé reçoit l'environnement du daemon privé de toute variable
+`LLAMA_ARG_*`. llama.cpp lit chacune de ses options depuis une telle variable
+aussi, `--connect` comprise, et une variable laissée dans un shell ou une unité
+de service ne doit pas activer une option que le runtime n'a pas choisie. Le
+coût est qu'un moteur ne se règle plus par cette voie : les options
+supplémentaires passent par `APOLLIA_LLAMA_EXTRA_ARGS`, que le daemon transmet
+comme options.
 
 Il n'y a aucun fournisseur cloud dédié. Un modèle distant se joint par une seule
 connexion générique à un serveur compatible OpenAI, à l'adresse que
@@ -1417,15 +1451,19 @@ Il y a un installeur par système. Aucun installeur n'existe en seconde édition
 pour une sorte de carte graphique : une édition par carte faisait choisir un
 téléchargement d'après un matériel que le lecteur ne connaît pas forcément, et
 liait la version d'un moteur à une version de l'application. Les moteurs qu'un
-installeur n'embarque pas, la compilation CUDA de `llama-server` et le Node.js
-qui fait tourner les serveurs d'outils, sont publiés à part, sur leur propre
+installeur n'embarque pas, les variantes de `llama-server` du canal
+(`cuda-12`, `cuda-13`, `rocm`, `vulkan`, `cpu`) et le Node.js qui
+fait tourner les serveurs d'outils, sont publiés à part, sur leur propre
 canal, sous un manifeste signé au format minisign avec une clé de distribution
 dédiée (voir [Inférence locale](#local-inference)). La chaîne qui les publie
 est distincte de celle qui publie l'application et se lance à la main : elle
 prend des archives amont épinglées par SHA-256, reconditionne chacune en zip, et
 signe le manifeste avec une clé qui ne signe rien d'autre, distincte de la clé
 des mises à jour de l'application. Le registre d'Apollia sert le manifeste et
-les archives, et GitHub Releases en est le miroir. Une application installée
+les archives sous `engines-<canal>/`, et la release GitHub `engines-<canal>` en
+est le miroir sous les mêmes noms ; le runtime lit le registre d'abord et le
+miroir quand le registre ne répond pas, et n'accepte l'un ou l'autre que sous
+la signature. Une application installée
 depuis une ancienne édition CUDA continue de se mettre à jour : le manifeste de
 mise à jour qu'elle demande est toujours publié, en copie du manifeste standard,
 si bien qu'elle passe à l'installeur unique de son système et reçoit le moteur

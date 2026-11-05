@@ -16,6 +16,9 @@ Task-oriented recipes. Each one solves a single, concrete problem.
   and get a daemon (and the desktop dev app) running an agent.
 - [Get the most from local inference](/how-to/accelerate-local-inference): how the
   embedded `llama-server` engine serves local GGUF models, and how to feed it.
+- [Enable CUDA on a server](/how-to/enable-cuda-on-a-server): check the card and
+  its driver, install the CUDA engine online or from a directory, and prove the
+  card is used.
 
 ## Build packages
 
