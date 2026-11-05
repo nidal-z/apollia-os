@@ -1,6 +1,7 @@
 //! Tauri IPC commands for the followed installation of an engine: the
-//! accelerated engine the AI screen proposes, its import from a folder, and
-//! its updates.
+//! accelerated engine the AI screen proposes, any variant the Engines page
+//! installs, an import from a folder, the updates, and the removal of an
+//! installed build.
 //!
 //! Each command delegates to the runtime this window drives, embedded or
 //! attached, and each answer is the state of the installation as the runtime
@@ -9,10 +10,11 @@
 //! rejected promise, so the window reads why an installation stopped from the
 //! same place it reads its progress.
 
+use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::State;
 
-use crate::attached::RuntimeLink;
+use crate::attached::{segment, RuntimeLink};
 
 /// Route of the followed installation on the runtime.
 pub(crate) const INSTALLATION_ROUTE: &str = "/api/v1/engines/installation";
@@ -80,10 +82,94 @@ pub async fn dismiss_engine_installation(link: State<'_, RuntimeLink>) -> Result
     link.delete_json(INSTALLATION_ROUTE).await
 }
 
+/// What asking the runtime to remove one installed build came to.
+///
+/// A refusal is an outcome the page words, not a rejected promise: the
+/// runtime refuses the build in service (`in_service`), the engine embedded in
+/// the application (`embedded`), the build `engines.gguf` names until the
+/// removal is confirmed (`chosen`, with `after`), and a build the policy fixes
+/// (`locked`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub(crate) enum EngineRemoval {
+    /// The build is gone.
+    Removed,
+    /// The runtime kept the build.
+    Refused {
+        /// The HTTP status of the refusal.
+        status: u16,
+        /// The stable code of the route, `unknown` when the body named none.
+        code: String,
+        /// The runtime's sentence.
+        error: String,
+        /// With `chosen`: `auto`, or the tag of the build that takes the place.
+        after: Option<String>,
+    },
+}
+
+impl EngineRemoval {
+    fn from_answer(status: u16, body: &Value) -> Self {
+        if (200..300).contains(&status) {
+            return Self::Removed;
+        }
+        let text = |key: &str| body.get(key).and_then(Value::as_str).map(str::to_owned);
+        Self::Refused {
+            status,
+            code: text("code").unwrap_or_else(|| "unknown".to_owned()),
+            error: text("error").unwrap_or_default(),
+            after: text("after"),
+        }
+    }
+}
+
+/// The route that removes the build `tag` of `variant` of `engine`, with the
+/// confirmation a chosen build asks for.
+pub(crate) fn removal_route(engine: &str, tag: &str, variant: &str, confirm: bool) -> String {
+    let route = format!(
+        "/api/v1/engines/{}/{}/{}",
+        segment(engine),
+        segment(tag),
+        segment(variant)
+    );
+    if confirm {
+        format!("{route}?confirm=true")
+    } else {
+        route
+    }
+}
+
+/// Asks the runtime to remove one installed build.
+pub(crate) async fn remove_engine_variant_on(
+    link: &RuntimeLink,
+    engine: &str,
+    tag: &str,
+    variant: &str,
+    confirm: bool,
+) -> Result<EngineRemoval, String> {
+    let (status, body) = link
+        .delete_answer(&removal_route(engine, tag, variant, confirm))
+        .await?;
+    Ok(EngineRemoval::from_answer(status, &body))
+}
+
+/// Removes one installed build of an engine, over `DELETE
+/// /api/v1/engines/{engine}/{tag}/{variant}`; `confirm` lets the build
+/// `engines.gguf` names go. A refusal comes back as an outcome with its code.
+#[tauri::command]
+pub async fn remove_engine_variant(
+    link: State<'_, RuntimeLink>,
+    engine: String,
+    tag: String,
+    variant: String,
+    confirm: bool,
+) -> Result<EngineRemoval, String> {
+    remove_engine_variant_on(link.inner(), &engine, &tag, &variant, confirm).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{body_json, header, method, path};
+    use wiremock::matchers::{body_json, header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     use crate::attached::{gate, AttachedClient, LinkMode};
@@ -166,6 +252,99 @@ mod tests {
         assert_eq!(state["code"], "signature_missing");
     }
 
+    #[tokio::test]
+    async fn test_a_removed_build_answers_removed_and_a_chosen_one_what_the_choice_becomes() {
+        // GIVEN a daemon that removes the build b7100 of cuda-12 once confirmed
+        // and refuses it unconfirmed, as the build engines.gguf names
+        let server = MockServer::start().await;
+        let route = "/api/v1/engines/llama-server/b7100/cuda-12";
+        authorized("DELETE", route)
+            .and(query_param("confirm", "true"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+        authorized("DELETE", route)
+            .respond_with(ResponseTemplate::new(409).set_body_json(json!({
+                "error": "remove it with confirm=true and the choice goes back to auto",
+                "code": "chosen",
+                "after": "auto",
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let link = attached(&server);
+
+        // WHEN the window asks without, then with, the confirmation
+        let unconfirmed =
+            remove_engine_variant_on(&link, "llama-server", "b7100", "cuda-12", false).await;
+        let confirmed =
+            remove_engine_variant_on(&link, "llama-server", "b7100", "cuda-12", true).await;
+
+        // THEN the refusal carries its code and what the choice becomes, and the
+        // confirmed removal is done
+        assert_eq!(
+            unconfirmed.unwrap(),
+            EngineRemoval::Refused {
+                status: 409,
+                code: "chosen".to_owned(),
+                error: "remove it with confirm=true and the choice goes back to auto".to_owned(),
+                after: Some("auto".to_owned()),
+            }
+        );
+        assert_eq!(confirmed.unwrap(), EngineRemoval::Removed);
+    }
+
+    #[tokio::test]
+    async fn test_a_build_in_service_is_refused_as_an_outcome_not_an_error() {
+        // GIVEN a daemon that runs the build b7100 of vulkan
+        let server = MockServer::start().await;
+        authorized("DELETE", "/api/v1/engines/llama-server/b7100/vulkan")
+            .and(query_param("confirm", "true"))
+            .respond_with(ResponseTemplate::new(409).set_body_json(json!({
+                "error": "the build is in service",
+                "code": "in_service",
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the window confirms its removal
+        let outcome =
+            remove_engine_variant_on(&attached(&server), "llama-server", "b7100", "vulkan", true)
+                .await;
+
+        // THEN the refusal is an outcome with its code, its sentence and no `after`
+        let outcome = outcome.unwrap();
+        assert_eq!(
+            outcome,
+            EngineRemoval::Refused {
+                status: 409,
+                code: "in_service".to_owned(),
+                error: "the build is in service".to_owned(),
+                after: None,
+            }
+        );
+        let wire = serde_json::to_value(&outcome).unwrap();
+        assert_eq!(wire["outcome"], "refused");
+        assert_eq!(wire["code"], "in_service");
+    }
+
+    #[test]
+    fn test_the_removal_route_encodes_each_segment_and_carries_the_confirmation() {
+        // GIVEN a tag with a character a path cannot carry as is
+        // WHEN the route is built with and without the confirmation
+        let plain = removal_route("llama-server", "b 1", "cpu", false);
+        let confirmed = removal_route("llama-server", "b7100", "cpu", true);
+
+        // THEN the segment is encoded and only the confirmed route asks for it
+        assert_eq!(plain, "/api/v1/engines/llama-server/b%201/cpu");
+        assert_eq!(
+            confirmed,
+            "/api/v1/engines/llama-server/b7100/cpu?confirm=true"
+        );
+    }
+
     #[test]
     fn test_the_engine_installation_commands_are_routed() {
         // GIVEN the commands of the followed installation
@@ -174,6 +353,7 @@ mod tests {
             "start_engine_installation",
             "import_engine_folder",
             "dismiss_engine_installation",
+            "remove_engine_variant",
         ];
 
         // WHEN each passes the gate of an attached window

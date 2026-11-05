@@ -487,10 +487,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // The followed installation of an engine, over
     // `/api/v1/engines/installation`: its state, the verified download of a
     // variant, the import of a folder of the daemon's machine, and the
-    // cancellation of the download.
+    // cancellation of the download. The removal of one installed build, over
+    // `/api/v1/engines/{engine}/{tag}/{variant}`.
     "dismiss_engine_installation",
     "get_engine_installation",
     "import_engine_folder",
+    "remove_engine_variant",
     "start_engine_installation",
     "get_observability_config",
     "get_python_interpreter",

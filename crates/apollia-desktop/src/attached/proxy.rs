@@ -9,8 +9,9 @@ use serde_json::Value;
 
 use super::{AttachedError, RuntimeLink};
 use crate::commands::{
-    http_delete_json, http_get_for_file, http_get_json, http_open_stream, http_patch_json,
-    http_post_for_file, http_post_json, http_post_json_refusable, http_put_json, HttpFailure,
+    http_delete_answer, http_delete_json, http_get_for_file, http_get_json, http_open_stream,
+    http_patch_json, http_post_for_file, http_post_json, http_post_json_refusable, http_put_json,
+    HttpFailure,
 };
 
 impl RuntimeLink {
@@ -142,6 +143,17 @@ impl RuntimeLink {
         match self {
             Self::Embedded(runtime) => http_delete_json(runtime.api_port, path).await,
             Self::Attached(remote) => Ok(remote.delete(path).await?),
+        }
+    }
+
+    /// `DELETE path` on the runtime this application drives, for a caller
+    /// that reads a refusal as well as a success: the HTTP status and the
+    /// JSON body (`null` when there is none), in both arms. Only a request
+    /// that got no answer is an error.
+    pub(crate) async fn delete_answer(&self, path: &str) -> Result<(u16, Value), String> {
+        match self {
+            Self::Embedded(runtime) => http_delete_answer(runtime.api_port, path).await,
+            Self::Attached(remote) => Ok(remote.delete_answer(path).await?),
         }
     }
 }

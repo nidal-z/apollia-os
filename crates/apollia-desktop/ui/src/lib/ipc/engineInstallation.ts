@@ -1,9 +1,11 @@
 // Typed IPC wrappers for the followed installation of an engine: the
-// accelerated engine the AI screen proposes, its import from a folder, and
-// its updates.
+// accelerated engine the AI screen proposes, any variant the Engines page
+// installs, an import from a folder, the updates, and the removal of an
+// installed build.
 //
-// Every call answers the state of the installation as the runtime reports
-// it. A refusal is a state with its code, never a rejected promise.
+// Every call answers the state of the installation, or the outcome of the
+// removal, as the runtime reports it. A refusal is a state with its code,
+// never a rejected promise.
 
 import { invoke } from "@tauri-apps/api/core";
 
@@ -68,4 +70,42 @@ export async function importEngineFolder(path: string): Promise<EngineInstallati
 /** Cancel the download, or forget the outcome of the last installation. */
 export async function dismissEngineInstallation(): Promise<EngineInstallation> {
   return invoke<EngineInstallation>("dismiss_engine_installation");
+}
+
+/** Why the runtime kept a build it was asked to remove. */
+export type EngineRemovalCode =
+  | "not_found"
+  | "in_service"
+  | "embedded"
+  | "chosen"
+  | "locked"
+  | "config"
+  | "store"
+  | "unknown";
+
+/** What asking the runtime to remove one installed build came to. */
+export type EngineRemoval =
+  | { outcome: "removed" }
+  | {
+      outcome: "refused";
+      status: number;
+      code: EngineRemovalCode;
+      /** The runtime's sentence. */
+      error: string;
+      /** With `chosen`: `auto`, or the tag of the build that takes the place. */
+      after: string | null;
+    };
+
+/**
+ * Remove the build `tag` of `variant` of `engine`. Without `confirm`, the
+ * build `engines.gguf` names is refused with `chosen` and what the choice
+ * becomes; with it, it goes.
+ */
+export async function removeEngineVariant(
+  engine: string,
+  tag: string,
+  variant: string,
+  confirm: boolean,
+): Promise<EngineRemoval> {
+  return invoke<EngineRemoval>("remove_engine_variant", { engine, tag, variant, confirm });
 }

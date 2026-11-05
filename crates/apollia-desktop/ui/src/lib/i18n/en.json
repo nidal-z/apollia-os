@@ -3278,6 +3278,46 @@
         "no_gpu": "No card of the kind this variant drives.",
         "engine_sees_no_device": "The installed build sees no card.",
         "no_rocm_runtime": "The ROCm library (libamdhip64) is not installed on this computer."
+      },
+      "install": "Install",
+      "install_label": "Install {name}",
+      "install_busy": "Another installation is under way",
+      "install_progress": {
+        "verifying": "Verifying the signature, nothing is downloaded yet",
+        "downloading": "Downloading, {percent} %",
+        "downloading_unknown": "Downloading",
+        "installing": "Installing",
+        "installed": "Installed"
+      },
+      "install_refused": "Installation stopped: {reason}",
+      "install_confirm": {
+        "title": "Install {name} anyway?",
+        "body": "This variant does not suit this computer: {reason} It will probably not start. Install it anyway?",
+        "body_no_reason": "This variant does not suit this computer. It will probably not start. Install it anyway?",
+        "confirm": "Install anyway"
+      },
+      "import_folder": "Import a folder",
+      "import_hint": "Install the engines of a folder copied from the release page: the archives, their list and its signature.",
+      "import_picker_title": "Folder of the engines to import",
+      "import_refused": "Import refused: {reason}",
+      "remove": {
+        "label": "Remove {name} {tag}",
+        "in_service_hint": "This build is in service and cannot be removed.",
+        "title": "Remove {name} {tag}?",
+        "body": "The files of this build are deleted from this computer. It can be installed again from the list of variants.",
+        "chosen_auto": "This build is the one chosen for GGUF models. Once it is removed, the choice goes back to automatic.",
+        "chosen_tag": "This build is the one chosen for GGUF models. Once it is removed, the build {tag} of the same variant takes its place.",
+        "confirm": "Remove",
+        "confirm_chosen": "Remove anyway",
+        "close": "Close",
+        "done": "{name} {tag} removed",
+        "refused": {
+          "in_service": "Apollia is using this build. Unload the models that run on it, then try again.",
+          "embedded": "The engine shipped with the application cannot be removed.",
+          "locked": "The policy of your organization imposes this build: it cannot be removed.",
+          "not_found": "This build is no longer installed on this computer.",
+          "other": "The removal failed: {reason}"
+        }
       }
     },
     "resource_monitor": {

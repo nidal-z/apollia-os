@@ -134,6 +134,10 @@
     "engine-format-gguf-fell-back",
     "engine-format-gguf-select",
     "engine-hardware-card-0",
+    "engine-variant-install-progress-vulkan",
+    "engine-variant-install-rocm",
+    "engine-variant-install-vulkan",
+    "engine-variant-remove-llama-server-b7100-cuda-12",
     "engine-variant-row-cuda-12-reason",
     "engine-variant-row-cuda-12-verdict",
     "engine-variant-row-rocm",
@@ -20411,6 +20415,315 @@
     {
       "kind": "screenshot",
       "label": "56l-engines-variants-incompatible-shown"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-variant-install-vulkan"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-install-rocm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-install-dialog",
+      "contains": "No card of the kind",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56o-engines-install-incompatible-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-install-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-install-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_engine_installation",
+      "resolve": {
+        "state": "downloading",
+        "kind": "install",
+        "received": 40,
+        "total": 100
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_engine_installation",
+      "resolve": {
+        "state": "downloading",
+        "kind": "install",
+        "received": 40,
+        "total": 100
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-install-vulkan"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-install-progress-vulkan",
+      "contains": "40 %",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56p-engines-install-progress-on-row"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_engine_installation"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-install-progress-vulkan",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-import"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-import-folder"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/engines-folder",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "import_engine_folder",
+      "resolve": {
+        "state": "failed",
+        "kind": "import",
+        "code": "signature_missing",
+        "error": "no signature beside the engine list",
+        "archive_requested": false
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-import-folder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-import-folder-progress-error",
+      "contains": "signature",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56q-engines-import-refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/engines-folder",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "import_engine_folder",
+      "resolve": {
+        "state": "installing",
+        "kind": "import"
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_engine_installation",
+      "resolve": {
+        "state": "installing",
+        "kind": "import"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "engine-import-folder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-import-folder-progress",
+      "contains": "Installing",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_engine_installation"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-import-folder-progress",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-llama-server-b7100-cuda-12"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog-message",
+      "contains": "deleted from this computer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56r-engines-remove-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_engine_variant",
+      "resolve": {
+        "outcome": "refused",
+        "status": 409,
+        "code": "chosen",
+        "error": "remove it with confirm=true and the choice goes back to auto",
+        "after": "auto"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-llama-server-b7100-cuda-12"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog-message",
+      "contains": "goes back to automatic",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56s-engines-remove-chosen-back-to-auto"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_engine_variant",
+      "resolve": {
+        "outcome": "refused",
+        "status": 409,
+        "code": "in_service",
+        "error": "the build is in service",
+        "after": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-llama-server-b7100-cuda-12"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog-error",
+      "contains": "Apollia is using this build",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56t-engines-remove-in-service-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_engine_variant",
+      "resolve": {
+        "outcome": "removed"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-llama-server-b7100-cuda-12"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-removed",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearToasts"
     },
     {
       "kind": "clearStubs",

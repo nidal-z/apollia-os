@@ -3278,6 +3278,46 @@
         "no_gpu": "Aucune carte du type que cette variante pilote.",
         "engine_sees_no_device": "La version installée ne voit aucune carte.",
         "no_rocm_runtime": "La bibliothèque ROCm (libamdhip64) n'est pas installée sur ce poste."
+      },
+      "install": "Installer",
+      "install_label": "Installer {name}",
+      "install_busy": "Une autre installation est en cours",
+      "install_progress": {
+        "verifying": "Vérification de la signature, rien n'est encore téléchargé",
+        "downloading": "Téléchargement, {percent} %",
+        "downloading_unknown": "Téléchargement",
+        "installing": "Installation",
+        "installed": "Installée"
+      },
+      "install_refused": "Installation arrêtée : {reason}",
+      "install_confirm": {
+        "title": "Installer {name} quand même ?",
+        "body": "Cette variante ne convient pas à ce poste : {reason} Elle ne démarrera probablement pas. L'installer quand même ?",
+        "body_no_reason": "Cette variante ne convient pas à ce poste. Elle ne démarrera probablement pas. L'installer quand même ?",
+        "confirm": "Installer quand même"
+      },
+      "import_folder": "Importer un dossier",
+      "import_hint": "Installer les moteurs d'un dossier copié depuis la page de publication : les archives, leur liste et sa signature.",
+      "import_picker_title": "Dossier des moteurs à importer",
+      "import_refused": "Import refusé : {reason}",
+      "remove": {
+        "label": "Retirer {name} {tag}",
+        "in_service_hint": "Cette version est en service et ne peut pas être retirée.",
+        "title": "Retirer {name} {tag} ?",
+        "body": "Les fichiers de cette version sont supprimés de ce poste. Elle peut être réinstallée depuis la liste des variantes.",
+        "chosen_auto": "Cette version est celle choisie pour les modèles GGUF. Une fois retirée, le choix repasse en automatique.",
+        "chosen_tag": "Cette version est celle choisie pour les modèles GGUF. Une fois retirée, la version {tag} de la même variante prend sa place.",
+        "confirm": "Retirer",
+        "confirm_chosen": "Retirer quand même",
+        "close": "Fermer",
+        "done": "{name} {tag} retiré",
+        "refused": {
+          "in_service": "Apollia utilise cette version. Déchargez les modèles qui tournent dessus, puis réessayez.",
+          "embedded": "Le moteur livré avec l'application ne peut pas être retiré.",
+          "locked": "La politique de votre organisation impose cette version : elle ne peut pas être retirée.",
+          "not_found": "Cette version n'est plus installée sur ce poste.",
+          "other": "Le retrait a échoué : {reason}"
+        }
       }
     },
     "resource_monitor": {

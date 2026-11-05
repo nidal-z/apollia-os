@@ -25,7 +25,8 @@
     "System > Engines opens on the engine per format and filters its table. The table shows by default only the builds the host can run, so each time the page is mounted under the stubbed list the compatibility filter is set to all before a CUDA or Vulkan row is waited for (engines-filter-compat). The engine of the GGUF format is chosen under a set_setting stub (lib/ipc/settings.ts ResolvedSetting), because a real write would stay in the seeded apollia.toml and change which binary the next book starts; the removed variant is played by resolving list_engines without the Vulkan build after it was chosen (engine-format-gguf-fell-back), then the list is put back. The MLX line exists on a Mac with an Apple chip only and is left to Vitest. The automatic update is switched under the same stub, and its policy state under a get_resolved_setting stub in patch mode on engines.auto_update, the page being left and reopened because it reads its settings on mount.",
     "Hardware, the graphics devices: the seeded Apple machine shows its single device, its switch disabled and the note that says why; `open_hardware_window` is stubbed (type HardwareWindowOutcome) so no second window opens under the runner; a three-device profile (type HardwareResponse, with its `devices`) and a policy-fixed `llm.devices.disabled` (type ResolvedSetting) are stubbed to reach the policy mention and the note of a device the engine did not list, then cleared. The diagnostic copy of Engines is gone: its facts are copied by `hardware-copy-info`.",
     "Settings > Developer, mode on: the Engines block carries the engine channel and the automatic update System > Engines shows too (developer-engine-channel-select, developer-engine-auto-update) and the automatic purge; Experimental carries the debugging blocks, the consumption widget and the load settings in presets. Turning developer-resource-widget-switch on writes [desktop] resource_widget of the seeded apollia.toml and mounts sidebar-resource-widget at the foot of the sidebar; a click on it opens System > Hardware on the resource monitor. The book turns the switch back off before it leaves the page, so the later sections render the sidebar without the widget.",
-    "Appearance, the display choices: the navigation position, the view mode and the generation info are native <select> played with selectOption and set back to their default; the two scroll switches and the reasoning vignette are <button role=switch> set off then on with setChecked; the message style is a radiogroup whose two buttons are clicked, blocks then bubbles. Every choice is left on its default, since it is kept in the browser storage of the seeded home and the books that follow read the chat in bubbles with the navigation on the left. What a choice does to the chat (plain text, the line under the last answer, the scroll on send, the fade of a live thought) is held by Vitest; this book only proves each control exists and answers."
+    "Appearance, the display choices: the navigation position, the view mode and the generation info are native <select> played with selectOption and set back to their default; the two scroll switches and the reasoning vignette are <button role=switch> set off then on with setChecked; the message style is a radiogroup whose two buttons are clicked, blocks then bubbles. Every choice is left on its default, since it is kept in the browser storage of the seeded home and the books that follow read the chat in bubbles with the navigation on the left. What a choice does to the chat (plain text, the line under the last answer, the scroll on send, the fade of a live thought) is held by Vitest; this book only proves each control exists and answers.",
+    "The install, import and removal gestures of the Engines page are played without any download or removal: start_engine_installation, get_engine_installation, import_engine_folder and remove_engine_variant are stubbed (EngineInstallation and EngineRemoval of lib/ipc/engineInstallation.ts), the folder picker answers null then a path under ${HOME}, and the stub of the installation is cleared so the real idle state of the seed ends the progress on the row. The confirmation of the removal is opened and cancelled, then confirmed against a stubbed 409 chosen (after auto), a stubbed 409 in_service, and a stubbed removal."
   ],
   "dynamicTestids": [
     "appearance-message-style-block",
@@ -38,6 +39,10 @@
     "engine-format-gguf-fell-back",
     "engine-format-gguf-select",
     "engine-hardware-card-0",
+    "engine-variant-install-progress-vulkan",
+    "engine-variant-install-rocm",
+    "engine-variant-install-vulkan",
+    "engine-variant-remove-llama-server-b7100-cuda-12",
     "engine-variant-row-cuda-12-reason",
     "engine-variant-row-cuda-12-verdict",
     "engine-variant-row-rocm",
@@ -3453,6 +3458,315 @@
     {
       "kind": "screenshot",
       "label": "56l-engines-variants-incompatible-shown"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-variant-install-vulkan"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-install-rocm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-install-dialog",
+      "contains": "No card of the kind",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56o-engines-install-incompatible-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-install-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-install-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_engine_installation",
+      "resolve": {
+        "state": "downloading",
+        "kind": "install",
+        "received": 40,
+        "total": 100
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_engine_installation",
+      "resolve": {
+        "state": "downloading",
+        "kind": "install",
+        "received": 40,
+        "total": 100
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-install-vulkan"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-install-progress-vulkan",
+      "contains": "40 %",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56p-engines-install-progress-on-row"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_engine_installation"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-install-progress-vulkan",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-import"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-import-folder"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/engines-folder",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "import_engine_folder",
+      "resolve": {
+        "state": "failed",
+        "kind": "import",
+        "code": "signature_missing",
+        "error": "no signature beside the engine list",
+        "archive_requested": false
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-import-folder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-import-folder-progress-error",
+      "contains": "signature",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56q-engines-import-refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/engines-folder",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "import_engine_folder",
+      "resolve": {
+        "state": "installing",
+        "kind": "import"
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_engine_installation",
+      "resolve": {
+        "state": "installing",
+        "kind": "import"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "engine-import-folder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-import-folder-progress",
+      "contains": "Installing",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_engine_installation"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-import-folder-progress",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-llama-server-b7100-cuda-12"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog-message",
+      "contains": "deleted from this computer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56r-engines-remove-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_engine_variant",
+      "resolve": {
+        "outcome": "refused",
+        "status": 409,
+        "code": "chosen",
+        "error": "remove it with confirm=true and the choice goes back to auto",
+        "after": "auto"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-llama-server-b7100-cuda-12"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog-message",
+      "contains": "goes back to automatic",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56s-engines-remove-chosen-back-to-auto"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_engine_variant",
+      "resolve": {
+        "outcome": "refused",
+        "status": 409,
+        "code": "in_service",
+        "error": "the build is in service",
+        "after": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-llama-server-b7100-cuda-12"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog-error",
+      "contains": "Apollia is using this build",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56t-engines-remove-in-service-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_engine_variant",
+      "resolve": {
+        "outcome": "removed"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-llama-server-b7100-cuda-12"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-remove-dialog-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-removed",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearToasts"
     },
     {
       "kind": "clearStubs",

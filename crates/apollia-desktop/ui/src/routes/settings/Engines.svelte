@@ -23,12 +23,14 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { changeEngineChannel, verifyEngineUpdates } from "$lib/settings/engineChannel";
   import type { EngineChannel } from "$lib/ipc/system";
+  import { engineManagement } from "$lib/settings/engineManagementLive";
 
   onMount(() => {
     void settingsLoaders.engines();
     void settingsLoaders.hardware();
     void settingsLoaders.systemInfo();
     void hydrateEngineSettings();
+    void engineManagement.refresh();
   });
 
   const acceleratorKind = $derived($hardwareStore.data?.accelerator.kind ?? null);
