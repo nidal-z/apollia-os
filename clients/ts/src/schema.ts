@@ -7022,6 +7022,24 @@ export interface components {
             /** @description Name of the tool. */
             tool_name: string;
         };
+        /** @description One package the channel offers for this platform. */
+        AvailablePackage: {
+            /** @description Engine. */
+            engine: components["schemas"]["EngineName"];
+            /** @description Whether this exact build is installed here. */
+            installed: boolean;
+            /** @description Day the build was published, when the manifest states it. */
+            released?: string | null;
+            /**
+             * Format: int64
+             * @description Archive size in bytes.
+             */
+            size: number;
+            /** @description Upstream tag. */
+            tag: string;
+            /** @description Variant. */
+            variant: components["schemas"]["EngineVariant"];
+        };
         /** @description One sensitive access of the agent a batch runs. */
         BatchAccess: {
             /** @description The access, as the agent names it: a tool, or `mcp:<server>`. */
@@ -8364,6 +8382,51 @@ export interface components {
          * @enum {string}
          */
         EngineName: "llama-server" | "vllm-mlx" | "nodejs";
+        /** @description The verdict on one variant. */
+        EngineRating: {
+            reason?: null | components["schemas"]["EngineRatingReason"];
+            /** @description Variant rated. */
+            variant: components["schemas"]["EngineVariant"];
+            /** @description How well it suits this machine. */
+            verdict: components["schemas"]["EngineVerdict"];
+        };
+        /** @description Why a variant is not recommended, as a code the interface translates. */
+        EngineRatingReason: {
+            /** @enum {string} */
+            code: "driver_too_old";
+            /** @description The driver of the machine, as `nvidia-smi` prints it. */
+            have: string;
+            /** @description The driver the build needs. */
+            need: string;
+        } | {
+            /** @description The compute capability of the card, `6.1`. */
+            cc: string;
+            /** @enum {string} */
+            code: "arch_dropped_in_cuda13";
+        } | {
+            /** @enum {string} */
+            code: "gfx_not_in_build";
+            /** @description The gfx target, `gfx906`. */
+            gfx: string;
+        } | {
+            /** @enum {string} */
+            code: "no_vulkan_loader";
+        } | {
+            /** @enum {string} */
+            code: "no_nvidia_driver";
+        } | {
+            /** @enum {string} */
+            code: "not_built_for_platform";
+        } | {
+            /** @enum {string} */
+            code: "no_gpu";
+        } | {
+            /** @enum {string} */
+            code: "engine_sees_no_device";
+        } | {
+            /** @enum {string} */
+            code: "no_rocm_runtime";
+        };
         /**
          * @description Why the store refused, as a stable word an interface can branch on. The
          *     sentence of the error says the same to a reader.
@@ -8387,22 +8450,44 @@ export interface components {
          * @enum {string}
          */
         EngineVariant: "cuda-12" | "cuda-13" | "rocm" | "vulkan" | "cpu" | "metal";
+        /**
+         * @description How well a variant suits this machine.
+         * @enum {string}
+         */
+        EngineVerdict: "recommended" | "compatible" | "incompatible";
         /** @description Body of `GET /api/v1/engines`. */
         EnginesResponse: {
+            /**
+             * @description The packages the verified manifest offers for this platform, installed
+             *     or not. Empty until a manifest verified.
+             */
+            available: components["schemas"]["AvailablePackage"][];
             /** @description The followed channel. */
             channel: components["schemas"]["EngineChannel"];
-            /** @description True when an NVIDIA card is detected and no CUDA engine is installed. */
+            /**
+             * @description True when an NVIDIA card is detected and no CUDA engine is installed.
+             *     Derived from `hardware`.
+             */
             cuda_proposable: boolean;
             dictation?: null | components["schemas"]["DictationEngine"];
             /** @description Engines embedded in the bundle, then installed ones. */
             engines: components["schemas"]["EngineEntry"][];
+            hardware?: null | components["schemas"]["HardwareView"];
             /**
              * Format: int64
              * @description Sequence of the last verified manifest of that channel, if any.
              */
             manifest_sequence?: number | null;
-            /** @description Name of the NVIDIA card detected, when there is one. */
+            /**
+             * @description Name of the NVIDIA card detected, when there is one. Derived from
+             *     `hardware`.
+             */
             nvidia_card?: string | null;
+            /**
+             * @description Per `llama-server` variant, whether it suits this machine and why.
+             *     Empty until a manifest verified, or when the hardware is not known.
+             */
+            ratings: components["schemas"]["EngineRating"][];
             /**
              * @description Per variant offered by that manifest for this platform, whether a newer
              *     build than the installed one exists. Empty until a manifest verified.
@@ -8573,6 +8658,11 @@ export interface components {
              */
             journal_notices?: components["schemas"]["JournalNotice"][];
         };
+        /**
+         * @description The maker of a card.
+         * @enum {string}
+         */
+        GpuCardVendor: "nvidia" | "amd" | "intel" | "other";
         /** @description Body of `POST /api/v1/connections/{id}/grants`. */
         GrantConnectionBody: {
             /** @description Identifiers of the agents to grant the tools to. */
@@ -8632,6 +8722,28 @@ export interface components {
          * @enum {string}
          */
         GuardrailVerdictDto: "allowed" | "warned" | "refused";
+        /** @description One graphics card of the machine. */
+        HardwareCard: {
+            /** @description The NVIDIA compute capability, `8.9`. */
+            compute_capability?: string | null;
+            /** @description The NVIDIA driver version, `580.65.06`. */
+            driver_version?: string | null;
+            /** @description The gfx target of an AMD card, `gfx1100`. */
+            gfx_target?: string | null;
+            /** @description Whether `/dev/kfd` opens. AMD under Linux only. */
+            kfd_accessible?: boolean | null;
+            /** @description Its name. */
+            name: string;
+            /** @description True when the driver did not answer within the probe limit. */
+            timed_out: boolean;
+            /** @description Its maker. */
+            vendor: components["schemas"]["GpuCardVendor"];
+            /**
+             * Format: double
+             * @description Its dedicated memory in GiB, when known.
+             */
+            vram_gb?: number | null;
+        };
         HardwareResponse: {
             accelerator: Record<string, never>;
             /** Format: double */
@@ -8659,6 +8771,15 @@ export interface components {
             total_capacity_gb: number;
             /** Format: double */
             total_ram_gb: number;
+        };
+        /** @description The cards of the machine and what is installed around them. */
+        HardwareView: {
+            /** @description Every card, NVIDIA ones first. */
+            cards: components["schemas"]["HardwareCard"][];
+            /** @description Whether the host's ROCm runtime is installed. Linux only. */
+            rocm_runtime: boolean;
+            /** @description Whether a Vulkan loader is installed. */
+            vulkan_loader: boolean;
         };
         /** @description Response body for the health endpoint. */
         HealthResponse: {

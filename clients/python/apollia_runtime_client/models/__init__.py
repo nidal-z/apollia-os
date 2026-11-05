@@ -52,6 +52,7 @@ from .audit_journal_page_response_entries_item import AuditJournalPageResponseEn
 from .audit_journal_response import AuditJournalResponse
 from .audit_journal_response_entries_item import AuditJournalResponseEntriesItem
 from .authorize_tool_request import AuthorizeToolRequest
+from .available_package import AvailablePackage
 from .batch_access import BatchAccess
 from .batch_accesses_view import BatchAccessesView
 from .batch_deleted_view import BatchDeletedView
@@ -201,10 +202,30 @@ from .engine_installation_state_type_5 import EngineInstallationStateType5
 from .engine_installation_state_type_5_state import EngineInstallationStateType5State
 from .engine_installed_response import EngineInstalledResponse
 from .engine_name import EngineName
+from .engine_rating import EngineRating
+from .engine_rating_reason_type_0 import EngineRatingReasonType0
+from .engine_rating_reason_type_0_code import EngineRatingReasonType0Code
+from .engine_rating_reason_type_1 import EngineRatingReasonType1
+from .engine_rating_reason_type_1_code import EngineRatingReasonType1Code
+from .engine_rating_reason_type_2 import EngineRatingReasonType2
+from .engine_rating_reason_type_2_code import EngineRatingReasonType2Code
+from .engine_rating_reason_type_3 import EngineRatingReasonType3
+from .engine_rating_reason_type_3_code import EngineRatingReasonType3Code
+from .engine_rating_reason_type_4 import EngineRatingReasonType4
+from .engine_rating_reason_type_4_code import EngineRatingReasonType4Code
+from .engine_rating_reason_type_5 import EngineRatingReasonType5
+from .engine_rating_reason_type_5_code import EngineRatingReasonType5Code
+from .engine_rating_reason_type_6 import EngineRatingReasonType6
+from .engine_rating_reason_type_6_code import EngineRatingReasonType6Code
+from .engine_rating_reason_type_7 import EngineRatingReasonType7
+from .engine_rating_reason_type_7_code import EngineRatingReasonType7Code
+from .engine_rating_reason_type_8 import EngineRatingReasonType8
+from .engine_rating_reason_type_8_code import EngineRatingReasonType8Code
 from .engine_refusal_code import EngineRefusalCode
 from .engine_settings_body import EngineSettingsBody
 from .engine_source import EngineSource
 from .engine_variant import EngineVariant
+from .engine_verdict import EngineVerdict
 from .engines_response import EnginesResponse
 from .events_response import EventsResponse
 from .example_agent import ExampleAgent
@@ -232,14 +253,17 @@ from .gguf_model_info import GgufModelInfo
 from .global_timeline_event import GlobalTimelineEvent
 from .global_timeline_event_detail import GlobalTimelineEventDetail
 from .governance_state_body import GovernanceStateBody
+from .gpu_card_vendor import GpuCardVendor
 from .grant_connection_body import GrantConnectionBody
 from .guardrail_check_dto import GuardrailCheckDto
 from .guardrail_level import GuardrailLevel
 from .guardrail_refused_body import GuardrailRefusedBody
 from .guardrail_verdict_dto import GuardrailVerdictDto
+from .hardware_card import HardwareCard
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .hardware_response_devices_item import HardwareResponseDevicesItem
+from .hardware_view import HardwareView
 from .health_response import HealthResponse
 from .image_attachment import ImageAttachment
 from .imap_account_body import ImapAccountBody
@@ -687,6 +711,7 @@ __all__ = (
     "AuditJournalResponse",
     "AuditJournalResponseEntriesItem",
     "AuthorizeToolRequest",
+    "AvailablePackage",
     "BatchAccess",
     "BatchAccessesView",
     "BatchDeletedView",
@@ -836,11 +861,31 @@ __all__ = (
     "EngineInstalledResponse",
     "EngineInstallRequest",
     "EngineName",
+    "EngineRating",
+    "EngineRatingReasonType0",
+    "EngineRatingReasonType0Code",
+    "EngineRatingReasonType1",
+    "EngineRatingReasonType1Code",
+    "EngineRatingReasonType2",
+    "EngineRatingReasonType2Code",
+    "EngineRatingReasonType3",
+    "EngineRatingReasonType3Code",
+    "EngineRatingReasonType4",
+    "EngineRatingReasonType4Code",
+    "EngineRatingReasonType5",
+    "EngineRatingReasonType5Code",
+    "EngineRatingReasonType6",
+    "EngineRatingReasonType6Code",
+    "EngineRatingReasonType7",
+    "EngineRatingReasonType7Code",
+    "EngineRatingReasonType8",
+    "EngineRatingReasonType8Code",
     "EngineRefusalCode",
     "EngineSettingsBody",
     "EngineSource",
     "EnginesResponse",
     "EngineVariant",
+    "EngineVerdict",
     "EventsResponse",
     "ExampleAgent",
     "ExampleInstallRequest",
@@ -867,14 +912,17 @@ __all__ = (
     "GlobalTimelineEvent",
     "GlobalTimelineEventDetail",
     "GovernanceStateBody",
+    "GpuCardVendor",
     "GrantConnectionBody",
     "GuardrailCheckDto",
     "GuardrailLevel",
     "GuardrailRefusedBody",
     "GuardrailVerdictDto",
+    "HardwareCard",
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HardwareResponseDevicesItem",
+    "HardwareView",
     "HealthResponse",
     "ImageAttachment",
     "ImapAccountBody",

@@ -82,6 +82,7 @@
 
 mod archive;
 pub mod auto_update;
+pub mod compat;
 mod fetch;
 pub mod install_job;
 mod installed;
