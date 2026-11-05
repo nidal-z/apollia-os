@@ -40,17 +40,7 @@ pub(super) async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Err(ClientError::ConnectionRefused) => {
-            let code = crate::output::emit_error(
-                json,
-                exit_codes::RUNTIME_ERROR,
-                "runtime not started (connection refused)",
-            );
-            if !json {
-                eprintln!("Hint: run `apollia-os start` first.");
-            }
-            code
-        }
+        Err(ClientError::ConnectionRefused) => crate::output::emit_runtime_not_started(json),
         Err(ClientError::ServerError { status, body }) => {
             let code = crate::output::emit_error(
                 json,

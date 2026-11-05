@@ -29,6 +29,7 @@ use commands::audit::AuditCommand;
 use commands::chat;
 use commands::config::ConfigCommand;
 use commands::connector::ConnectorCommand;
+use commands::engine::EngineCommand;
 use commands::hooks::HooksCommand;
 use commands::llm::LlmCommand;
 use commands::mcp::McpCommand;
@@ -223,6 +224,13 @@ enum Commands {
         /// LLM subcommand.
         #[command(subcommand)]
         command: LlmCommand,
+    },
+
+    /// The inference engines: the cards detected, the variants installed and offered, the one in service (list, check, use, channel).
+    Engine {
+        /// Engine subcommand.
+        #[command(subcommand)]
+        command: EngineCommand,
     },
 
     /// Local model file management.
@@ -670,6 +678,7 @@ fn main() {
             Commands::Hooks { command } => commands::hooks::run(&command, cli.socket, json).await,
             Commands::Memory { command } => commands::memory::run_and_print(&command, json),
             Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
+            Commands::Engine { command } => commands::engine::run(&command, cli.socket, json).await,
             Commands::Model { command } => commands::model::run(&command, cli.socket, json).await,
             Commands::Source { command } => commands::source::run(&command, cli.socket, json).await,
             Commands::Trigger { command } => {
