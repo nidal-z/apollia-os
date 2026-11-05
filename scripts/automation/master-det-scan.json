@@ -5524,6 +5524,23 @@
             "sizeBytes": 60000000,
             "reason": "too_large"
           }
+        ],
+        "unreadPages": [
+          {
+            "path": "/automation/scanned-fr.pdf",
+            "page": 1,
+            "reason": "ocr_unavailable"
+          },
+          {
+            "path": "/automation/scanned-fr.pdf",
+            "page": 2,
+            "reason": "ocr_unavailable"
+          },
+          {
+            "path": "/automation/plan.pdf",
+            "page": 3,
+            "reason": "not_read"
+          }
         ]
       }
     },
@@ -5598,6 +5615,14 @@
     {
       "kind": "expect",
       "testid": "agent-sheet-source-open-ai"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source-awaiting-ocr"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source-not-read"
     },
     {
       "kind": "screenshot",

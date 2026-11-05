@@ -3,7 +3,8 @@
    * SourceRow - one source of an agent's sheet: its kind and name, where its
    * index stands (waiting, being read with the files read so far, ready,
    * failed, keywords only with a link to the AI screen), and the files left
-   * out, over 50 MB or unreadable. In adjustment the row carries its box and,
+   * out, over 50 MB or unreadable, then the pages without text: waiting for
+   * recognition, or that it cannot read. In adjustment the row carries its box and,
    * for a source of the registry, its removal. A source read through a
    * connection its user paused carries the "Paused" badge.
    */
@@ -89,6 +90,18 @@
           >
             {$t("agent_sources.skipped", { values: { count: skippedCount } })}
           </button>
+        {/if}
+        {#if row.awaitingOcr > 0}
+          ·
+          <span data-testid="agent-sheet-source-awaiting-ocr">
+            {$t("agent_sources.awaiting_ocr", { values: { count: row.awaitingOcr } })}
+          </span>
+        {/if}
+        {#if row.notRead > 0}
+          ·
+          <span data-testid="agent-sheet-source-not-read">
+            {$t("agent_sources.not_read", { values: { count: row.notRead } })}
+          </span>
         {/if}
         {#if row.state === "keywords_only"}
           <button

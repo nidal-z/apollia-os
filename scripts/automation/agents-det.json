@@ -172,6 +172,23 @@
             "sizeBytes": 60000000,
             "reason": "too_large"
           }
+        ],
+        "unreadPages": [
+          {
+            "path": "/automation/scanned-fr.pdf",
+            "page": 1,
+            "reason": "ocr_unavailable"
+          },
+          {
+            "path": "/automation/scanned-fr.pdf",
+            "page": 2,
+            "reason": "ocr_unavailable"
+          },
+          {
+            "path": "/automation/plan.pdf",
+            "page": 3,
+            "reason": "not_read"
+          }
         ]
       }
     },
@@ -245,6 +262,14 @@
     {
       "kind": "expect",
       "testid": "agent-sheet-source-open-ai"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source-awaiting-ocr"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source-not-read"
     },
     {
       "kind": "screenshot",
@@ -1038,7 +1063,7 @@
   "notes": [
     "The screen opens on its list: a row opens a sheet in place of the list, and agent-sheet-back leads back to it before the next row is opened. The package file button (agents-install-apo-button) is played with the chooser answered null, a cancelled chooser, so no preview opens; the preview is held by the Playwright spec tests/agents/package-preview.spec.ts. The workflows column is empty against the seed, which installs no workflow: the sheet of a workflow and its launch are played by workflows-det on stubbed commands.",
     "agent-install-error-details is reached through the sidebar install button (agents-install-button) with the picker answered by a path that does not exist: install_agent validates before any copy, so the banner appears without a write.",
-    "The Sources section of the adjustment is played against a stubbed registry: list_sources is answered with one folder source and get_source_index with an index searched by keywords only that left one file out, both armed before agent-adjust-open because the sheet reads the registry again when the adjustment begins. That makes the state badge, the status line, the skipped files, the link to the AI screen and the removal dialog reachable without writing a source to the seeded registry; the removal is cancelled, never confirmed. The memory box is the one toggled and saved (agent-adjust-source-check, last row), since the first row is the stubbed folder, which the runtime would refuse at save. list_connections is answered first with an empty list, so the folder choice lands on its empty state whatever the seed holds, then with one folder connection carrying a reading tool, so the choice lists a candidate (never chosen: choosing would write a source) and the stubbed folder, once checked, shows the note that offers the reading of its connection; the box is unchecked again before the stubs are cleared, and agent-source-grant-reading is waited for, never clicked. agent-sheet-sources-empty stays unplayed: every seeded agent consults a source.",
+    "The Sources section of the adjustment is played against a stubbed registry: list_sources is answered with one folder source and get_source_index with an index searched by keywords only that left one file out and holds two pages waiting for recognition and one page not read, both armed before agent-adjust-open because the sheet reads the registry again when the adjustment begins. That makes the state badge, the status line, the skipped files, the pages without text, the link to the AI screen and the removal dialog reachable without writing a source to the seeded registry; the removal is cancelled, never confirmed. The memory box is the one toggled and saved (agent-adjust-source-check, last row), since the first row is the stubbed folder, which the runtime would refuse at save. list_connections is answered first with an empty list, so the folder choice lands on its empty state whatever the seed holds, then with one folder connection carrying a reading tool, so the choice lists a candidate (never chosen: choosing would write a source) and the stubbed folder, once checked, shows the note that offers the reading of its connection; the box is unchecked again before the stubs are cleared, and agent-source-grant-reading is waited for, never clicked. agent-sheet-sources-empty stays unplayed: every seeded agent consults a source.",
     "The command palette entry agents.create opens the chooser of a package file, as agents-install-apo-button does: it is played with the chooser answered null, a cancelled chooser, so no preview opens and nothing is installed. An agent arrives with a .apo package or is created in the interface; there is no folder to install and no Python file to update an agent with."
   ]
 }

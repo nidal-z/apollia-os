@@ -36,6 +36,19 @@ export interface SkippedFile {
   reason: "too_large" | "unreadable";
 }
 
+/** A page of an indexed document that holds no text in the index. */
+export interface UnreadPage {
+  /** Path of the document on this machine. */
+  path: string;
+  /** Page number, from 1; a picture file is its page 1. */
+  page: number;
+  /**
+   * `ocr_unavailable`: a scanned page waiting for recognition, read once its
+   * language is on the machine. `not_read`: a page recognition cannot read.
+   */
+  reason: "ocr_unavailable" | "not_read";
+}
+
 /** Where the index of a source stands, as `GET /api/v1/sources/{id}/index` answers it. */
 export interface SourceIndex {
   id: string;
@@ -44,6 +57,8 @@ export interface SourceIndex {
   documents: number;
   chunks: number;
   skipped: SkippedFile[];
+  /** Pages of indexed documents that hold no text. */
+  unreadPages: UnreadPage[];
 }
 
 /** A source to add. */

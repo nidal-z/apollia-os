@@ -7086,6 +7086,8 @@
     "skipped": "{count, plural, one {# fichier ignoré} other {# fichiers ignorés}} (plus de 50 Mo ou illisibles)",
     "skipped_too_large": "plus de 50 Mo",
     "skipped_unreadable": "illisible",
+    "awaiting_ocr": "{count, plural, one {# page en attente de reconnaissance} other {# pages en attente de reconnaissance}}",
+    "not_read": "{count, plural, one {# page non lue} other {# pages non lues}}",
     "open_ai": "Installer un modèle dans IA",
     "reading_note": "L'agent peut chercher dans ce dossier, pas en ouvrir les fichiers.",
     "grant_reading": "Lui permettre d'en ouvrir les fichiers",

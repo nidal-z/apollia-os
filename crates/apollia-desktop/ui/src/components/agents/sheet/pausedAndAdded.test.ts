@@ -74,6 +74,8 @@ function row(over: Partial<SourceRow>): SourceRow {
     documents: 3,
     tooLarge: 0,
     unreadable: 0,
+    awaitingOcr: 0,
+    notRead: 0,
     skipped: [],
     reference: "folder:invoices",
     registered: true,
