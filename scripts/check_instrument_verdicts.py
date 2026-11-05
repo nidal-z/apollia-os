@@ -541,6 +541,12 @@ def fmt_check_without_all(line: str) -> bool:
     return "--all" not in line
 
 
+# The published crate copied under `third_party/tesseract-rs/` keeps the hooks
+# and workflows of its authors, byte for byte; none of them is run by this
+# tree, so their spelling of the format check judges nothing here.
+COPIED_CRATE = "third_party/tesseract-rs/"
+
+
 def _tracked_files() -> list[str]:
     out = subprocess.run(
         ["git", "ls-files", "-z"],
@@ -613,7 +619,7 @@ def check_format_guard(pair: Pair) -> None:
 
     declarations: list[str] = []
     for relative in _tracked_files():
-        if relative == SELF:
+        if relative == SELF or relative.startswith(COPIED_CRATE):
             continue
         path = REPO_ROOT / relative
         try:
@@ -625,7 +631,7 @@ def check_format_guard(pair: Pair) -> None:
                 declarations.append(f"{relative}:{number}: {line.strip()}")
     pair.case(
         "green",
-        f"no tracked file declares the check without --all (this file excepted, {SELF})",
+        f"no tracked file declares the check without --all (this file and {COPIED_CRATE} excepted, {SELF})",
         not declarations,
         "these declarations answer 1 from any directory holding no manifest:\n  "
         + "\n  ".join(declarations),
