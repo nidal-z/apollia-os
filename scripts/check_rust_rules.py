@@ -350,7 +350,6 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # The clock is the subject: the engine list must answer within its
     # deadline while the hardware probe hangs, so the stand-in probe sleeps
     # past that deadline and the test observes that the route does not wait.
-    "crates/apollia-runtime/src/api/routes_engines/tests_hardware.rs": 1,
     # The same fake registry and deadline, behind the registry route.
     "crates/apollia-runtime/src/api/routes_mcp_registry.rs": 2,
     "crates/apollia-runtime/src/api/server.rs": 13,

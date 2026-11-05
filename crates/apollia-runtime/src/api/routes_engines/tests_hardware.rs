@@ -1,7 +1,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use apollia_llm::hardware::GpuProfile;
@@ -137,37 +138,85 @@ fn test_without_a_profile_the_list_gives_no_rating() {
     assert!(view.ratings.is_empty());
 }
 
-fn slow_profile() -> GpuProfile {
-    std::thread::sleep(ROUTE_DEADLINE + Duration::from_secs(2));
+/// Held by the hanging probe until the test that started it lets it go.
+static HUNG: (Mutex<bool>, Condvar) = (Mutex::new(false), Condvar::new());
+
+/// Set when the hanging probe has returned.
+static PROBE_RETURNED: AtomicBool = AtomicBool::new(false);
+
+/// A probe that hangs until [`release_the_probe`], and at most a minute so a
+/// failing test never leaves it behind for good.
+fn hung_profile() -> GpuProfile {
+    let (released, wake) = &HUNG;
+    let guard = released.lock().unwrap();
+    let _released = wake
+        .wait_timeout_while(guard, Duration::from_secs(60), |released| !*released)
+        .unwrap();
+    PROBE_RETURNED.store(true, Ordering::SeqCst);
     GpuProfile::default()
 }
+
+fn release_the_probe() {
+    let (released, wake) = &HUNG;
+    *released.lock().unwrap() = true;
+    wake.notify_all();
+}
+
+const HUNG_SOURCE: HardwareSource = HardwareSource {
+    profile: hung_profile,
+    refresh: hung_profile,
+    sees_a_device: no_device,
+};
+
+/// Serialises the two tests that share the hanging probe.
+static HUNG_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn no_device(_: &Path) -> Option<bool> {
     None
 }
 
 #[tokio::test]
-async fn test_the_list_route_answers_within_the_deadline_when_the_probe_hangs() {
-    // GIVEN a hardware probe that takes two seconds past the route deadline
-    let dir = tempfile::tempdir().unwrap();
-    let mut state = test_app_state_no_llm();
-    state.data_dir = dir.path().to_path_buf();
-    let slow = HardwareSource {
-        profile: slow_profile,
-        refresh: slow_profile,
-        sees_a_device: no_device,
-    };
+async fn test_the_hardware_wait_ends_at_the_deadline_when_the_probe_hangs() {
+    // GIVEN a hardware probe that does not answer
+    let _hung = HUNG_LOCK.lock().await;
+    *HUNG.0.lock().unwrap() = false;
     let started = Instant::now();
 
-    // WHEN the engines are listed
-    let Json(view) = list_engines_with::<MockBackend>(state, slow).await.unwrap();
+    // WHEN the facts of the machine are gathered
+    let facts = hardware::host_facts(HUNG_SOURCE, false, &[]).await;
 
-    // THEN the route answers by the deadline, without the hardware
+    // THEN the wait ends by the deadline, without the profile; nothing but
+    //      that wait is timed, so the rest of the route, slower under load,
+    //      plays no part in the measure
     let elapsed = started.elapsed();
+    release_the_probe();
     assert!(
         elapsed < ROUTE_DEADLINE + Duration::from_secs(1),
         "took {elapsed:?}"
     );
+    assert!(facts.profile.is_none());
+}
+
+#[tokio::test]
+async fn test_the_list_route_answers_without_waiting_for_a_hung_probe() {
+    // GIVEN a hardware probe that does not answer until the test lets it go
+    let _hung = HUNG_LOCK.lock().await;
+    *HUNG.0.lock().unwrap() = false;
+    PROBE_RETURNED.store(false, Ordering::SeqCst);
+    let dir = tempfile::tempdir().unwrap();
+    let mut state = test_app_state_no_llm();
+    state.data_dir = dir.path().to_path_buf();
+
+    // WHEN the engines are listed
+    let Json(view) = list_engines_with::<MockBackend>(state, HUNG_SOURCE)
+        .await
+        .unwrap();
+
+    // THEN the route has answered while the probe still hangs, however long
+    //      the machine took, without the hardware
+    let answered_first = !PROBE_RETURNED.load(Ordering::SeqCst);
+    release_the_probe();
+    assert!(answered_first, "the route waited for the probe");
     assert!(view.hardware.is_none());
     assert!(view.ratings.is_empty());
 }
