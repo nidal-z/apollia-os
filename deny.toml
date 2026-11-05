@@ -68,6 +68,11 @@ ignore = [
     # retry. Lift condition: async-openai migrates off backoff upstream.
     "RUSTSEC-2025-0012", # backoff: unmaintained
     "RUSTSEC-2024-0384", # instant: unmaintained, via backoff
+    # In apollia-connectors through async-imap (the IMAP connector). pin-utils
+    # carries no known flaw: it is a single macro that std::pin::pin! now
+    # covers, and async-imap 0.12.0, its latest release, still depends on it.
+    # Lift condition: async-imap drops pin-utils.
+    "RUSTSEC-2026-0441", # pin-utils: unmaintained, via async-imap
     # Transitive via urlpattern, pulled by tauri. The unic project is
     # unmaintained; urlpattern has not moved off it. Lift condition:
     # urlpattern or tauri drops the unic crates.
