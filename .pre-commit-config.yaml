@@ -9,25 +9,25 @@
 #
 # Never bypass with --no-verify. Fix the underlying issue.
 
-# `third_party/tesseract-rs/` is the published crate copied byte for byte, and
-# the one change it carries is reviewed as its own commit against that copy.
-# A hook that rewrites whitespace or line endings there would edit code this
-# tree did not write, and the comparison with the published crate would show
-# differences nobody made on purpose.
-exclude: '^third_party/tesseract-rs/'
-
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
+      # `third_party/tesseract-rs/` is the published crate copied byte for
+      # byte, and the one change it carries is reviewed as its own commit
+      # against that copy. These two hooks are the ones that rewrite it (a
+      # trailing space in one file, a missing final newline in twelve): left
+      # to them, the comparison with the published crate would show
+      # differences nobody made on purpose. Every other hook reads the copy.
       - id: trailing-whitespace
         # `docs/site/src/theme/` mirrors four files of a third-party plugin,
         # byte for byte apart from two declared deviations, and
         # scripts/check_swizzled_theme.py holds it there. Stripping whitespace
         # this tree did not write turns that comparison red for a reason no
         # reader can see: the diff shows two identical-looking lines.
-        exclude: '(\.md$|^docs/site/src/theme/)'
+        exclude: '(\.md$|^docs/site/src/theme/|^third_party/tesseract-rs/)'
       - id: end-of-file-fixer
+        exclude: '^third_party/tesseract-rs/'
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-toml
