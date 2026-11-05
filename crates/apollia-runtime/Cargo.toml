@@ -81,9 +81,6 @@ rust_xlsxwriter    = { workspace = true }
 # Engine store archives are zip, the format already read for agent packages.
 zip                = { workspace = true }
 
-[target.'cfg(target_os = "windows")'.dependencies]
-wmi = { workspace = true }
-
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tempfile = { workspace = true }
