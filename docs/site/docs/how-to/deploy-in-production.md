@@ -201,17 +201,78 @@ sudo systemctl start apollia
 
 ## Local inference on a server
 
-To serve local GGUF models on the server, make `llama-server` (upstream llama.cpp)
-available to the daemon: the daemon spawns and supervises it, and finds it on the
-service user's `PATH`. Install it once where the service runs, exactly as described
-in [Install and run the runtime](/how-to/install-and-run#local-gguf-inference).
-Continuous batching and native tool calling are built into that engine, so a
-single local backend already serves concurrent requests; see
+To serve local GGUF models on the server, the daemon spawns and supervises
+`llama-server` (upstream llama.cpp). It takes the first binary it finds, in this
+order:
+
+1. the path in `APOLLIA_LLAMA_SERVER_BIN`, when the variable is set;
+2. a build of the engine store, as the `engines.gguf` setting chooses: the
+   variant it names, or, under `auto`, the installed build rated recommended
+   for the machine, otherwise the best compatible one;
+3. a `llama-server` next to the `apollia-os` binary, or in the `runners/`
+   directory of a packaged layout around it;
+4. the service user's `PATH`;
+5. `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, then `~/.local/bin` and
+   `~/.cargo/bin` of the service user.
+
+A source build ships no engine of its own, so on a fresh server the engine
+store is the short way: [Enable CUDA on a server](/how-to/enable-cuda-on-a-server)
+installs a build for the card with `apollia-os engine install`, online or from
+a directory. A `llama-server` installed by hand, as described in
+[Install and run the runtime](/how-to/install-and-run#local-gguf-inference),
+is found on the `PATH` when the store holds nothing. Continuous batching and
+native tool calling are built into that engine, so a single local backend
+already serves concurrent requests; see
 [Get the most from local inference](/how-to/accelerate-local-inference).
 
 The daemon launches the engine without any `LLAMA_ARG_*` variable from its own
 environment, so a variable left in the shell or the service unit cannot switch
 an engine flag on; pass extra engine flags through `APOLLIA_LLAMA_EXTRA_ARGS`.
+
+## Read scanned pages without a network
+
+A source reads the text of a scanned page or a picture by optical character
+recognition, which needs the language data of the embedded Tesseract engine:
+one `<language>.traineddata` file per language. The daemon fetches the pinned
+files the first time a pass leaves pages waiting for them. A server without a
+network takes the same files from a disk:
+
+| File | Size in bytes | SHA-256 |
+|---|---|---|
+| `fra.traineddata` | 1130365 | `ced037562e8c80c13122dece28dd477d399af80911a28791a66a63ac1e3445ca` |
+| `eng.traineddata` | 4113088 | `7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2` |
+
+Both come from the upstream repository `tesseract-ocr/tessdata_fast` at commit
+`923915d4ced2a7235221788285785a29c4a42d4a`. On a machine with a network, take
+them from that commit and check them:
+
+```sh
+for lang in fra eng; do
+  curl -fsSL -o "$lang.traineddata" \
+    "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/923915d4ced2a7235221788285785a29c4a42d4a/$lang.traineddata"
+done
+sha256sum fra.traineddata eng.traineddata
+```
+
+Copy them into the `tessdata/` directory of the models folder of the service
+user: `<data directory>/models/tessdata/`, that is
+`/var/lib/apollia/.apollia/models/tessdata/` for the service above, or
+`<dir>/tessdata/` when `[models] dir` in `apollia.toml` names another models
+folder. A file whose digest is not the pinned one is never handed to the
+engine. The pages that waited are read again within one sweep of the sources,
+without a restart.
+
+Check it:
+
+```sh
+sudo -u apollia -H apollia-os doctor
+sudo -u apollia -H apollia-os source show <id>
+```
+
+The `recognition` check of `doctor` reads `compiled, 2/2 languages verified`
+once both files are in place, and warns, with the folder it read, while none
+is. `source show` counts the pages of a source still `awaiting recognition`;
+the line goes away once they are read.
 
 ## Related
 

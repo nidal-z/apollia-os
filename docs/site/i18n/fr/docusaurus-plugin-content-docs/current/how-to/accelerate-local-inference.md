@@ -49,12 +49,15 @@ Vulkan dans le paquet de bureau est un arbitrage assumé. Un binaire de 32 Mo
 atteint les trois fabricants, là où le moteur CUDA ne couvre que NVIDIA, pèse
 238 Mo plus 373 Mo de runtime, et retombe sur le processeur avec toute autre
 carte. Le moteur CUDA n'est donc dans aucun installeur. Il est publié à part,
-sur le canal des moteurs, et l'application le télécharge à la demande : sur une
-machine dotée d'une carte NVIDIA, l'écran IA le propose, **Accélérer avec votre
-carte NVIDIA**, et un clic l'installe. Le prochain chargement d'un modèle
-l'utilise, et le moteur Vulkan embarqué reste en place comme repli. Sous
-Windows, le téléchargement porte les bibliothèques d'exécution CUDA ; sous
-Linux, le moteur s'appuie sur celles de la machine.
+sur le canal des moteurs, en deux builds, `cuda-12` et `cuda-13`, à côté de
+`rocm`, `vulkan` et `cpu`, et l'application télécharge à la demande celui dont
+sa carte a besoin : le runtime classe chaque variante selon la carte et son
+pilote, et l'écran IA propose celle classée recommandée, **Accélérer avec le
+moteur CUDA 13** par exemple, et un clic l'installe. Le prochain chargement
+d'un modèle l'utilise, et le moteur Vulkan embarqué reste en place comme
+repli. Sous Linux comme sous Windows, un paquet CUDA porte les bibliothèques
+d'exécution CUDA à côté du serveur : une machine qui n'a que le pilote NVIDIA
+le fait tourner.
 
 Rien n'est exécuté avant d'être vérifié. Le canal publie un manifeste qui liste
 chaque archive avec son SHA-256, signé au format minisign avec une clé de
@@ -65,9 +68,11 @@ de fichier, manifeste, signature et archive, depuis un disque, par les mêmes
 contrôles.
 
 Les archives de ligne de commande n'ont aucun preset CUDA, sur aucune
-plateforme. Si vous exécutez le daemon depuis la ligne de commande sur une carte
-NVIDIA et que vous voulez CUDA plutôt que Vulkan, désignez une compilation à
-vous, plus bas.
+plateforme. Un daemon lancé en ligne de commande obtient le moteur CUDA du même
+canal, par `apollia-os engine install llama-server`, ou depuis un dossier sans
+réseau, par `apollia-os engine import` : voir
+[Activer CUDA sur un serveur](/how-to/enable-cuda-on-a-server). Une compilation
+à vous reste possible, plus bas.
 
 ## Configurer un backend local
 
