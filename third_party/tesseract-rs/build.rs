@@ -174,9 +174,10 @@ mod build_tesseract {
 
                 // Windows-specific defines
                 if cfg!(target_os = "windows") {
+                    let (release, debug) = msvc_runtime_flags();
                     leptonica_config
-                        .define("CMAKE_C_FLAGS_RELEASE", "/MD /O2")
-                        .define("CMAKE_C_FLAGS_DEBUG", "/MDd /Od");
+                        .define("CMAKE_C_FLAGS_RELEASE", format!("{} /O2", release))
+                        .define("CMAKE_C_FLAGS_DEBUG", format!("{} /Od", debug));
                 }
 
                 for (key, value) in &additional_defines {
@@ -347,15 +348,27 @@ mod build_tesseract {
         } else if cfg!(target_os = "windows") {
             // Windows-specific MSVC flags
             cmake_cxx_flags.push_str("/EHsc /MP /std:c++17 ");
-            additional_defines.push(("CMAKE_CXX_FLAGS_RELEASE".to_string(), "/MD /O2".to_string()));
-            additional_defines.push(("CMAKE_CXX_FLAGS_DEBUG".to_string(), "/MDd /Od".to_string()));
+            let (release, debug) = msvc_runtime_flags();
+            additional_defines.push((
+                "CMAKE_CXX_FLAGS_RELEASE".to_string(),
+                format!("{} /O2", release),
+            ));
+            additional_defines.push((
+                "CMAKE_CXX_FLAGS_DEBUG".to_string(),
+                format!("{} /Od", debug),
+            ));
             additional_defines.push((
                 "CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS".to_string(),
                 "ON".to_string(),
             ));
+            let runtime = if target_crt_static() {
+                "MultiThreaded"
+            } else {
+                "MultiThreadedDLL"
+            };
             additional_defines.push((
                 "CMAKE_MSVC_RUNTIME_LIBRARY".to_string(),
-                "MultiThreadedDLL".to_string(),
+                runtime.to_string(),
             ));
         }
 
@@ -367,6 +380,28 @@ mod build_tesseract {
         ));
 
         (cmake_cxx_flags, additional_defines)
+    }
+
+    /// Whether the Rust target links the C runtime statically
+    /// (`-C target-feature=+crt-static`). Rust then links the static release
+    /// CRT (libcmt) in every profile, so Leptonica and Tesseract must be
+    /// compiled with `/MT`: objects built with `/MD` reference `__imp_*`
+    /// symbols that only the DLL runtime provides, and the link fails.
+    fn target_crt_static() -> bool {
+        env::var("CARGO_CFG_TARGET_FEATURE")
+            .map(|features| features.split(',').any(|f| f == "crt-static"))
+            .unwrap_or(false)
+    }
+
+    /// The MSVC runtime flag for the release and the debug configurations:
+    /// `/MT` for both under `crt-static`, the upstream `/MD` and `/MDd`
+    /// otherwise.
+    fn msvc_runtime_flags() -> (&'static str, &'static str) {
+        if target_crt_static() {
+            ("/MT", "/MT")
+        } else {
+            ("/MD", "/MDd")
+        }
     }
 
     fn set_os_specific_link_flags() {
