@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Every download the tree performs is verified against a pinned sha256 sum.
 
-Five surfaces are held to the same rule:
+Six surfaces are held to the same rule:
 
   1. The llama-server assets: every asset `packaging/fetch-llama-server.sh`
      can select carries a 64-hex sum in `packaging/llama-server-checksums.txt`
@@ -27,11 +27,28 @@ Five surfaces are held to the same rule:
   5. The workflow `run:` blocks: a step that downloads with wget, curl or
      Invoke-WebRequest either verifies a sha256 in the same step or sits on
      the named exemption list below, which only ever shrinks.
+  6. The Tesseract and Leptonica sources: the build script of `tesseract-rs`
+     downloads them itself, unchecked, unless they are already staged.
+     `packaging/tesseract-sources-checksums.txt` opens with the `tesseract-rs`
+     version `Cargo.toml` pins, then gives each archive an https address, a
+     64-hex sum and the 40-hex commit of its tag;
+     `packaging/fetch-tesseract-sources.sh` reads that table and refuses a
+     digest that differs from it; and in every workflow, a step that builds
+     with the `ocr` feature (`--features` naming it, or a variable assigned
+     a value that names it) comes after a step of the same job that runs
+     that script. The values of `env:` (workflow, job, step) and of the
+     matrix (its lists and its `include:` entries) are read by loading the
+     YAML, so a plain scalar such as `local-metal,ocr` is read whole; a shell
+     assignment is read as one word, `F=$BASE,ocr` included. A matrix read through
+     `fromJSON(needs.<job>.outputs.<x>)` is resolved in the job that writes
+     it; a key nothing readable assigns counts as naming `ocr`.
 
 Options:
   --github    also compare each pinned sum with the digest GitHub reports for
-              the release asset (one `gh api` call per release, no download).
-              CI only: it needs the network and a token.
+              the release asset (one `gh api` call per release, no download),
+              and each pinned Tesseract source commit with the commit its
+              upstream tag points to. CI only: it needs the network and a
+              token.
   --selftest  run the checks against altered copies of their subjects and
               fail unless every alteration is caught.
 
@@ -45,6 +62,15 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - the environment, not the tree
+    print(
+        "check_download_sums: PyYAML is absent, so nothing was measured",
+        file=sys.stderr,
+    )
+    sys.exit(2)
 
 REPO_ROOT = Path(
     subprocess.check_output(
@@ -66,6 +92,9 @@ MLX_BUILD = "packaging/build-mlx-engine.sh"
 MLX_EXCLUDED = ("mlx-embeddings",)
 ENGINE_SOURCES = "packaging/engine-sources.json"
 ENGINE_BUILD = "packaging/build-engine-manifest.py"
+TESS_SUMS = "packaging/tesseract-sources-checksums.txt"
+TESS_FETCH = "packaging/fetch-tesseract-sources.sh"
+CARGO_TOML = "Cargo.toml"
 WORKFLOW_DIR = ".github/workflows"
 SCRIPT_DIRS = ("packaging", "crates/apollia-desktop/scripts")
 
@@ -88,6 +117,30 @@ PUBLISHED_VARIANTS = re.compile(r"^VARIANTS = \(([^)]*)\)", re.MULTILINE)
 VERIFY_TOKEN = re.compile(
     r"sha256sum|shasum\s+-a\s*256|sha256_of|Get-FileHash|--require-hashes"
 )
+COMMIT_HEX = re.compile(r"^[0-9a-f]{40}$")
+TESS_CRATE_PIN = re.compile(
+    r'^tesseract-rs\s*=\s*(?:"=?([^"]+)"|\{[^}]*\bversion\s*=\s*"=?([^"]+)")',
+    re.MULTILINE,
+)
+TESS_TAG_URL = re.compile(
+    r"^https://github\.com/([^/]+)/([^/]+)/archive/refs/tags/([^/]+)\.zip$"
+)
+# The `ocr` feature as cargo reads it: alone or behind a crate path
+# (`apollia-sources/ocr`), never a longer name that merely contains it.
+OCR_FEATURE = re.compile(r"(?<![\w-])ocr(?![\w-])")
+FEATURES_FLAG = re.compile(
+    r"(?:--features(?:=|\s+)|(?<!\S)-F\s*)"
+    r"(\"[^\"]*\"|'[^']*'|(?:\$\{\{[^}]*\}\}|[^\s\"'])+)"
+)
+EXPR_REF = re.compile(r"\$\{\{\s*([\w.-]+)\s*\}\}")
+SHELL_REF = re.compile(r"\$\{?([A-Za-z_]\w*)\}?")
+TESS_FETCH_CALL = re.compile(r"(?:^|[\s;&|(/])packaging/fetch-tesseract-sources\.sh\b")
+# A matrix computed at run time (`matrix: ${{ fromJSON(needs.setup.outputs.m) }}`):
+# its values are written by another job, or by nothing the guard can read.
+DYNAMIC_MATRIX = re.compile(
+    r"^\s*(?:matrix|include):\s*\$\{\{\s*fromJSON\(\s*([^)]*?)\s*\)", re.MULTILINE
+)
+NEEDS_OUTPUT = re.compile(r"^needs\.([\w-]+)\.outputs\.")
 
 
 def _read(path: Path) -> str | None:
@@ -312,11 +365,36 @@ def check_requirements(
     return problems
 
 
-def workflow_steps(text: str) -> list[tuple[str, str]]:
+def _folded(block: list[str]) -> str:
+    """A `>` block as YAML reads it: lines at the base indent join with a space.
+
+    A blank line, or a line indented deeper than the base, keeps its newline.
+    """
+    content = [line for line in block if line.strip()]
+    if not content:
+        return ""
+    base = min(len(line) - len(line.lstrip()) for line in content)
+    out = ""
+    joins = False
+    for line in block:
+        if not line.strip():
+            out += "\n"
+            joins = False
+            continue
+        deeper = len(line) - len(line.lstrip()) > base
+        if out and not out.endswith("\n"):
+            out += " " if joins and not deeper else "\n"
+        out += line.strip()
+        joins = not deeper
+    return out
+
+
+def workflow_steps(text: str, fold: bool = False) -> list[tuple[str, str]]:
     """(step name, run block) pairs of one workflow, without a yaml library.
 
     Good enough for the workflows of this tree: steps open with `- name:` or
-    `- uses:`, and `run:` values are inline or literal blocks.
+    `- uses:`, and `run:` values are inline or literal blocks. With `fold`, a
+    folded block (`run: >`) is returned as YAML hands it to the shell.
     """
     steps: list[tuple[str, str]] = []
     name = ""
@@ -345,7 +423,10 @@ def workflow_steps(text: str) -> list[tuple[str, str]]:
                 break
             block.append(nxt)
             i += 1
-        steps.append((name, "\n".join(block)))
+        if fold and value.startswith(">"):
+            steps.append((name, _folded(block)))
+        else:
+            steps.append((name, "\n".join(block)))
     return steps
 
 
@@ -357,18 +438,7 @@ def download_lines(run_block: str) -> list[str]:
     `curl "$URL"`). A line whose only URL is local (127.0.0.1, localhost) is
     not a download of interest.
     """
-    logical: list[str] = []
-    buffer = ""
-    for raw in run_block.splitlines():
-        line = raw.strip()
-        if line.startswith("#"):
-            continue
-        buffer += " " + line.rstrip("\\") if buffer else line.rstrip("\\")
-        if not line.endswith("\\"):
-            logical.append(buffer)
-            buffer = ""
-    if buffer:
-        logical.append(buffer)
+    logical = _logical_lines(run_block)
     block_has_remote = REMOTE_URL.search(run_block) is not None
     return [
         line
@@ -515,6 +585,322 @@ def check_fetch_scripts(root: Path, dirs: tuple[str, ...]) -> int:
     return problems
 
 
+def parse_tesseract_sums(
+    text: str,
+) -> tuple[str | None, list[tuple[str, str, str]], list[str]]:
+    """Header version, (sum, url, commit) lines, and malformed lines."""
+    version: str | None = None
+    entries: list[tuple[str, str, str]] = []
+    malformed: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if version is None and not entries and parts[0] == "tesseract-rs":
+            version = parts[1] if len(parts) == 2 else ""
+            continue
+        if len(parts) != 3:
+            malformed.append(line)
+            continue
+        entries.append((parts[0], parts[1], parts[2]))
+    return version, entries, malformed
+
+
+def check_tesseract_sources(
+    sums_path: Path, fetch_path: Path, cargo_path: Path
+) -> int:
+    """Rules (a), (b) and (c) of the sixth surface."""
+    print("tesseract sources: pinned archives for the tesseract-rs build script")
+    sums = _read(sums_path)
+    fetch = _read(fetch_path)
+    cargo = _read(cargo_path)
+    if sums is None or fetch is None or cargo is None:
+        sys.exit(2)
+    problems = 0
+    pin_m = TESS_CRATE_PIN.search(cargo)
+    crate_version = (pin_m.group(1) or pin_m.group(2)) if pin_m else None
+    version, entries, malformed = parse_tesseract_sums(sums)
+    print(f"  Cargo.toml tesseract-rs={crate_version or 'absent'} table={version or 'absent'}")
+    if crate_version is None:
+        print(f"  GAP    {cargo_path.name}: no tesseract-rs pin to compare with")
+        problems += 1
+    elif version != crate_version:
+        print(
+            f"  GAP    {sums_path.name}: serves tesseract-rs {version or '(no header)'}, "
+            f"{cargo_path.name} pins {crate_version}"
+        )
+        problems += 1
+    for line in malformed:
+        print(f"  GAP    {sums_path.name}: malformed line: {line[:90]!r}")
+        problems += 1
+    if not entries and not malformed:
+        print(f"  GAP    {sums_path.name}: no archive pinned")
+        problems += 1
+    for s, url, commit in entries:
+        label = url.rsplit("/", 1)[-1]
+        if not url.startswith("https://"):
+            print(f"  GAP    {url}: not https")
+            problems += 1
+        elif not SHA256_HEX.fullmatch(s):
+            print(f"  GAP    {url}: no 64-hex sum")
+            problems += 1
+        elif not COMMIT_HEX.fullmatch(commit):
+            print(f"  GAP    {url}: no 40-hex commit")
+            problems += 1
+        else:
+            print(f"  ok     {label}  {commit[:12]}")
+    body = "\n".join(
+        line for line in fetch.splitlines() if not line.lstrip().startswith("#")
+    )
+    if (
+        sums_path.name not in body
+        or not VERIFY_TOKEN.search(body)
+        or "differs from the pinned" not in body
+    ):
+        print(
+            f"  GAP    {fetch_path.name} does not read {sums_path.name} and "
+            "refuse a digest that differs from its pin"
+        )
+        problems += 1
+    return problems
+
+
+def workflow_jobs(text: str) -> tuple[str, list[tuple[str, str]]]:
+    """Text before `jobs:`, and (job id, job text) pairs, without a yaml library."""
+    lines = text.splitlines()
+    start = next(
+        (i for i, line in enumerate(lines) if re.match(r"^jobs:\s*(#.*)?$", line)),
+        None,
+    )
+    if start is None:
+        return text, []
+    header = "\n".join(lines[:start])
+    jobs: list[tuple[str, list[str]]] = []
+    job_indent: int | None = None
+    for line in lines[start + 1 :]:
+        if line.strip() and not line.startswith((" ", "#")):
+            break
+        head = re.match(r"^( +)([A-Za-z0-9_-]+):\s*(#.*)?$", line)
+        if head and (job_indent is None or len(head.group(1)) == job_indent):
+            job_indent = len(head.group(1))
+            jobs.append((head.group(2), []))
+            continue
+        if jobs:
+            jobs[-1][1].append(line)
+    return header, [(job, "\n".join(body)) for job, body in jobs]
+
+
+def _logical_lines(run_block: str) -> list[str]:
+    """Non-comment lines of a run block, continuations joined.
+
+    A line continues on the next when it ends with a backslash (sh, bash) or
+    a backtick (PowerShell).
+    """
+    logical: list[str] = []
+    buffer = ""
+    for raw in run_block.splitlines():
+        line = raw.strip()
+        if line.startswith("#"):
+            continue
+        part = line.rstrip("\\`")
+        buffer += " " + part if buffer else part
+        if not line.endswith(("\\", "`")):
+            logical.append(buffer)
+            buffer = ""
+    if buffer:
+        logical.append(buffer)
+    return logical
+
+
+def _assigned_values(
+    name: str, scope: str, loaded: dict[str, list[str]] | None = None
+) -> list[str]:
+    """Every value assigned to `name`: by the loaded YAML, or in the text.
+
+    `loaded` holds the `env:` and matrix values of the job as YAML reads
+    them (`_yaml_assignments`). The text is read for what YAML leaves inside
+    a string: a shell assignment `name=word` (`+=` too), taken as the whole
+    shell word, and a JSON field `"name":"v"` or `name: v` written in a
+    `run:` block, a flow list `name: [a, b]` and a block list under `name:`.
+    """
+    values = list((loaded or {}).get(name, []))
+    key = r"(?<![\w-])[\"']?" + re.escape(name) + r"[\"']?[ \t]*:[ \t]*"
+    inline = re.compile(
+        key + r"(\[[^\]]*\]|\"[^\"]*\"|'[^']*'|\$\([^)]*\)|[^\s,}\]]+)"
+    )
+    values += [m.group(1) for m in inline.finditer(scope)]
+    shell = re.compile(
+        r"(?<![\w-])" + re.escape(name)
+        + r"[ \t]*\+?=[ \t]*((?:\"[^\"]*\"|'[^']*'|\$\([^)]*\)|[^\s;&|\"'])+)"
+    )
+    values += [m.group(1) for m in shell.finditer(scope)]
+    head = re.compile(r"^(\s*)[\"']?" + re.escape(name) + r"[\"']?\s*:\s*(#.*)?$")
+    lines = scope.splitlines()
+    for i, line in enumerate(lines):
+        m = head.match(line)
+        if m is None:
+            continue
+        for item in lines[i + 1 :]:
+            item_m = re.match(r"^(\s*)-\s*(.*)$", item)
+            if item_m is None or len(item_m.group(1)) < len(m.group(1)):
+                break
+            values.append(item_m.group(2))
+    return values
+
+
+def _scalars(value: object) -> list[str]:
+    """Every scalar under a loaded YAML value, as text."""
+    if isinstance(value, dict):
+        return [s for v in value.values() for s in _scalars(v)]
+    if isinstance(value, list):
+        return [s for v in value for s in _scalars(v)]
+    if value is None:
+        return []
+    return [str(value)]
+
+
+def _yaml_assignments(doc: dict, job: object) -> dict[str, list[str]]:
+    """The `env:` and matrix values one job can read, as YAML loads them.
+
+    The workflow `env:`, the job `env:`, the `env:` of each of its steps, and
+    its matrix: every key of `strategy.matrix` with its list, and every key
+    of an `include:` entry. `exclude:` only removes combinations, so it
+    assigns nothing.
+    """
+    found: dict[str, list[str]] = {}
+
+    def add(mapping: object) -> None:
+        if isinstance(mapping, dict):
+            for key, value in mapping.items():
+                found.setdefault(str(key), []).extend(_scalars(value))
+
+    add(doc.get("env"))
+    if not isinstance(job, dict):
+        return found
+    add(job.get("env"))
+    steps = job.get("steps")
+    for step in steps if isinstance(steps, list) else []:
+        if isinstance(step, dict):
+            add(step.get("env"))
+    strategy = job.get("strategy")
+    matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
+    if isinstance(matrix, dict):
+        for key, value in matrix.items():
+            if key == "exclude":
+                continue
+            if key == "include" and isinstance(value, list):
+                for entry in value:
+                    add(entry)
+                continue
+            found.setdefault(str(key), []).extend(_scalars(value))
+    return found
+
+
+def _carries_ocr(
+    value: str,
+    scope: str,
+    dynamic: bool = False,
+    depth: int = 0,
+    loaded: dict[str, list[str]] | None = None,
+) -> bool:
+    """A features value names `ocr`, literally or through a variable.
+
+    A variable is read as every value assigned to its name in the scope (the
+    job, the workflow header, and the job that writes a matrix read through
+    `fromJSON(needs.<job>.outputs.<x>)`): a matrix entry or list, an `env:`
+    key, a shell assignment, a JSON field. Reading every assignment errs on
+    the side of a red, which is the side this surface must err on. For the
+    same reason, in a job whose matrix is computed at run time (`dynamic`), a
+    `matrix.<key>` the scope assigns nowhere is a value the guard cannot
+    read, and counts as one that may name `ocr`.
+    """
+    if OCR_FEATURE.search(SHELL_REF.sub(" ", EXPR_REF.sub(" ", value))):
+        return True
+    if depth >= 4:
+        return False
+    refs = EXPR_REF.findall(value)
+    names = {ref.rsplit(".", 1)[-1] for ref in refs}
+    names |= set(SHELL_REF.findall(EXPR_REF.sub(" ", value)))
+    for ref in refs:
+        key = ref.rsplit(".", 1)[-1]
+        if (
+            dynamic
+            and ref.startswith("matrix.")
+            and not _assigned_values(key, scope, loaded)
+        ):
+            return True
+    for name in names:
+        for assigned in _assigned_values(name, scope, loaded):
+            if _carries_ocr(assigned, scope, dynamic, depth + 1, loaded):
+                return True
+    return False
+
+
+def check_ocr_workflows(workflow_dir: Path) -> int:
+    """Rule (d): an `ocr` build comes after the staging script, in its job."""
+    print("workflows: every ocr build stages the verified Tesseract sources first")
+    files = sorted(workflow_dir.glob("*.yml")) + sorted(workflow_dir.glob("*.yaml"))
+    if not files:
+        print(f"no workflow under {workflow_dir}", file=sys.stderr)
+        sys.exit(2)
+    problems = 0
+    builds = 0
+    for path in files:
+        text = _read(path)
+        if text is None:
+            sys.exit(2)
+        try:
+            doc = yaml.safe_load(text)
+        except yaml.YAMLError as error:
+            print(f"{path}: not valid YAML: {error}", file=sys.stderr)
+            sys.exit(2)
+        doc = doc if isinstance(doc, dict) else {}
+        loaded_jobs = doc.get("jobs") if isinstance(doc.get("jobs"), dict) else {}
+        header, jobs = workflow_jobs(text)
+        bodies = dict(jobs)
+        for job, body in jobs:
+            scope = header + "\n" + body
+            loaded = _yaml_assignments(doc, loaded_jobs.get(job))
+            dynamic = False
+            for source in DYNAMIC_MATRIX.findall(body):
+                dynamic = True
+                producer = NEEDS_OUTPUT.match(source)
+                if producer and producer.group(1) in bodies:
+                    scope += "\n" + bodies[producer.group(1)]
+                    for key, values in _yaml_assignments(
+                        doc, loaded_jobs.get(producer.group(1))
+                    ).items():
+                        loaded.setdefault(key, []).extend(values)
+            staged = False
+            for name, run in workflow_steps(body, fold=True):
+                lines = _logical_lines(run)
+                ocr_lines = [
+                    line
+                    for line in lines
+                    if re.search(r"\bcargo\b", line)
+                    and any(
+                        _carries_ocr(v.strip("\"'"), scope, dynamic, 0, loaded)
+                        for v in FEATURES_FLAG.findall(line)
+                    )
+                ]
+                if ocr_lines:
+                    builds += 1
+                    label = f"{path.name}: job {job}: step {name or '(unnamed)'!r}"
+                    if staged:
+                        print(f"  ok     {label}")
+                    else:
+                        print(
+                            f"  GAP    {label} builds with ocr before any step of "
+                            f"its job runs {TESS_FETCH}: {ocr_lines[0][:80]}"
+                        )
+                        problems += 1
+                if any(TESS_FETCH_CALL.search(line) for line in lines):
+                    staged = True
+    print(f"  ocr builds found: {builds}")
+    return problems
+
+
 def github_digests(repo: str, tag: str, pinned: dict[str, str]) -> int:
     out = subprocess.run(
         [
@@ -567,6 +953,55 @@ def check_github() -> int:
         problems += github_digests(
             "astral-sh/python-build-standalone", parsed[0], pinned
         )
+    tess_sums = _read(REPO_ROOT / TESS_SUMS)
+    if tess_sums is None:
+        sys.exit(2)
+    _, entries, _ = parse_tesseract_sums(tess_sums)
+    problems += github_tag_commits(entries)
+    return problems
+
+
+def _gh_object(path: str) -> tuple[str, str]:
+    """(type, sha) of the object a git ref or tag of the GitHub API points to."""
+    out = subprocess.run(
+        ["gh", "api", path, "--jq", '.object.type + " " + .object.sha'],
+        capture_output=True,
+        text=True,
+    )
+    parts = out.stdout.split()
+    if out.returncode != 0 or len(parts) != 2:
+        print(f"gh api unavailable for {path}: {out.stderr.strip()}")
+        sys.exit(2)
+    return parts[0], parts[1]
+
+
+def github_tag_commits(entries: list[tuple[str, str, str]]) -> int:
+    """Each pinned Tesseract source commit is the one its upstream tag names.
+
+    The tag ref points to a commit, or for an annotated tag to a tag object
+    whose own object is the commit. Nothing is downloaded.
+    """
+    problems = 0
+    for _, url, commit in entries:
+        m = TESS_TAG_URL.match(url)
+        if m is None:
+            print(f"  GAP    {url}: not a GitHub tag archive")
+            problems += 1
+            continue
+        owner, repo, tag = m.groups()
+        kind, sha = _gh_object(f"repos/{owner}/{repo}/git/ref/tags/{tag}")
+        hops = 0
+        while kind == "tag" and hops < 3:
+            kind, sha = _gh_object(f"repos/{owner}/{repo}/git/tags/{sha}")
+            hops += 1
+        if kind != "commit":
+            print(f"  GAP    {owner}/{repo}@{tag}: tag resolves to a {kind}, not a commit")
+            problems += 1
+        elif sha != commit:
+            print(f"  GAP    {owner}/{repo}@{tag}: GitHub {sha} != pinned {commit}")
+            problems += 1
+        else:
+            print(f"  ok     {owner}/{repo}@{tag}: pinned commit == upstream tag")
     return problems
 
 
@@ -783,6 +1218,300 @@ def selftest() -> int:
             check_workflows(wf, {("fixture.yml", "Fetch tool")}) > 0,
         )
 
+        tess_real = _read(REPO_ROOT / TESS_SUMS) or ""
+        tess_fetch = REPO_ROOT / TESS_FETCH
+        cargo = REPO_ROOT / CARGO_TOML
+        control(
+            "the pinned Tesseract sources of the tree pass",
+            check_tesseract_sources(REPO_ROOT / TESS_SUMS, tess_fetch, cargo) == 0,
+        )
+        tess_alt = tmp / "tesseract-sources-checksums.txt"
+
+        def tess_variant(label: str, text: str) -> None:
+            tess_alt.write_text(text, encoding="utf-8")
+            control(label, check_tesseract_sources(tess_alt, tess_fetch, cargo) > 0)
+
+        tess_variant(
+            "a table serving another tesseract-rs than Cargo.toml pins is a gap",
+            re.sub(r"^tesseract-rs \S+", "tesseract-rs 9.9.9", tess_real, flags=re.M),
+        )
+        tess_variant(
+            "a Tesseract source sum of 63 hex is a gap",
+            re.sub(r"^([0-9a-f]{63})[0-9a-f]", r"\1", tess_real, count=1, flags=re.M),
+        )
+        tess_variant(
+            "a Tesseract source line without its commit is a gap",
+            re.sub(r"^(\S+\s+\S+)\s+[0-9a-f]{40}$", r"\1", tess_real, count=1, flags=re.M),
+        )
+        tess_variant(
+            "a Tesseract source over plain http is a gap",
+            tess_real.replace("https://github.com/", "http://github.com/", 1),
+        )
+        cargo_alt = tmp / "Cargo.toml"
+        cargo_alt.write_text(
+            (_read(cargo) or "").replace('tesseract-rs = "=0.4.0"', 'tesseract-rs = "=0.5.0"'),
+            encoding="utf-8",
+        )
+        control(
+            "a Cargo.toml bump of tesseract-rs without a new table is a gap",
+            check_tesseract_sources(REPO_ROOT / TESS_SUMS, tess_fetch, cargo_alt) > 0,
+        )
+        fetch_alt = tmp / "fetch-tesseract-sources.sh"
+        fetch_alt.write_text(
+            "\n".join(
+                line
+                for line in (_read(tess_fetch) or "").splitlines()
+                if "CHECKSUMS=" not in line
+            ).replace("tesseract-sources-checksums.txt", "other.txt"),
+            encoding="utf-8",
+        )
+        control(
+            "a staging script that does not read the table is a gap",
+            check_tesseract_sources(REPO_ROOT / TESS_SUMS, fetch_alt, cargo) > 0,
+        )
+
+        owf = tmp / "ocr-workflows"
+        owf.mkdir()
+        stage = (
+            "      - name: Stage the verified Tesseract and Leptonica sources\n"
+            "        run: bash packaging/fetch-tesseract-sources.sh\n"
+        )
+        build = (
+            "      - name: cargo test (apollia-sources, ocr)\n"
+            "        run: cargo test -p apollia-sources --features ocr\n"
+        )
+
+        def ocr_variant(text: str) -> int:
+            (owf / "fixture.yml").write_text(text, encoding="utf-8")
+            return check_ocr_workflows(owf)
+
+        control(
+            "an ocr build after the staging step of its job passes",
+            ocr_variant("jobs:\n  ocr:\n    steps:\n" + stage + build) == 0,
+        )
+        control(
+            "an ocr build with no staging step in its job is a gap",
+            ocr_variant("jobs:\n  ocr:\n    steps:\n" + build) > 0,
+        )
+        control(
+            "an ocr build staged only by another job is a gap",
+            ocr_variant(
+                "jobs:\n  stage:\n    steps:\n" + stage
+                + "  ocr:\n    needs: stage\n    steps:\n" + build
+            )
+            > 0,
+        )
+        control(
+            "an ocr build that runs before its staging step is a gap",
+            ocr_variant("jobs:\n  ocr:\n    steps:\n" + build + stage) > 0,
+        )
+        control(
+            "a staging call left in a comment stages nothing",
+            ocr_variant(
+                "jobs:\n  ocr:\n    steps:\n"
+                "      - name: Stage\n        run: |\n"
+                "          # bash packaging/fetch-tesseract-sources.sh\n"
+                "          true\n" + build
+            )
+            > 0,
+        )
+        control(
+            "a features variable of the matrix carrying ocr is a gap",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n        include:\n"
+                "          - feature: local-cpu\n"
+                "          - feature: apollia-sources/ocr\n"
+                "    steps:\n"
+                "      - name: cargo check\n"
+                "        run: cargo check -p x --features ${{ matrix.feature }}\n"
+            )
+            > 0,
+        )
+        control(
+            "a shell variable carrying ocr, on a continued line, is a gap",
+            ocr_variant(
+                "env:\n  FEATS: \"local-cpu,ocr\"\n"
+                "jobs:\n  b:\n    steps:\n"
+                "      - name: Build\n        run: |\n"
+                "          cargo build --release \\\n"
+                "            --features \"$FEATS\"\n"
+            )
+            > 0,
+        )
+        control(
+            "a features value that only contains the letters ocr passes",
+            ocr_variant(
+                "jobs:\n  b:\n    steps:\n"
+                "      - name: Build\n"
+                "        run: cargo build --features local-cpu,ocr-extra\n"
+            )
+            == 0,
+        )
+        matrix_build = (
+            "    steps:\n"
+            "      - name: cargo build\n"
+            "        run: cargo build -p x --features ${{ matrix.features }}\n"
+        )
+        control(
+            "a flow list of the matrix naming ocr is a gap",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n"
+                "        features: [local-cpu, ocr]\n" + matrix_build
+            )
+            > 0,
+        )
+        control(
+            "a block list of the matrix naming ocr is a gap",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n        features:\n"
+                "          - local-cpu\n          - ocr\n" + matrix_build
+            )
+            > 0,
+        )
+        control(
+            "a matrix list without ocr passes",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n        features:\n"
+                "          - local-cpu\n          - local-metal\n" + matrix_build
+            )
+            == 0,
+        )
+        control(
+            "an include entry whose plain scalar is local-metal,ocr is a gap",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n        include:\n"
+                "          - preset: mac\n            features: local-metal,ocr\n"
+                + matrix_build
+            )
+            > 0,
+        )
+        control(
+            "a flow mapping that YAML splits at the comma passes",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n        include:\n"
+                "          - {preset: mac, features: local-metal,ocr}\n" + matrix_build
+            )
+            == 0,
+        )
+        control(
+            "a job env plain scalar local-metal,ocr read by $FEATURES is a gap",
+            ocr_variant(
+                "jobs:\n  e:\n    env:\n      FEATURES: local-metal,ocr\n"
+                "    steps:\n      - name: Build\n"
+                "        run: cargo build --features $FEATURES\n"
+            )
+            > 0,
+        )
+        control(
+            "a workflow env plain scalar read by ${{ env.FEATS }} is a gap",
+            ocr_variant(
+                "env:\n  FEATS: local-cpu,ocr\njobs:\n  e:\n    steps:\n"
+                "      - name: Build\n"
+                "        run: cargo build --features \"${{ env.FEATS }}\"\n"
+            )
+            > 0,
+        )
+        control(
+            "a step env plain scalar carrying ocr is a gap",
+            ocr_variant(
+                "jobs:\n  e:\n    steps:\n      - name: Build\n"
+                "        env:\n          FEATS: local-cpu ocr\n"
+                "        run: cargo build --features \"$FEATS\"\n"
+            )
+            > 0,
+        )
+        control(
+            "a shell assignment F=$BASE,ocr is read as one word, a gap",
+            ocr_variant(
+                "jobs:\n  s:\n    steps:\n      - name: Build\n        run: |\n"
+                "          F=$BASE,ocr\n          cargo build --features \"$F\"\n"
+            )
+            > 0,
+        )
+        control(
+            "a shell append F+=,ocr is a gap",
+            ocr_variant(
+                "jobs:\n  s:\n    steps:\n      - name: Build\n        run: |\n"
+                "          F=local-cpu\n          F+=,ocr\n"
+                "          cargo build --features \"$F\"\n"
+            )
+            > 0,
+        )
+        control(
+            "the same env plain scalar after the staging step passes",
+            ocr_variant(
+                "jobs:\n  e:\n    env:\n      FEATURES: local-metal,ocr\n"
+                "    steps:\n" + stage + "      - name: Build\n"
+                "        run: cargo build --features $FEATURES\n"
+            )
+            == 0,
+        )
+        producer = (
+            "jobs:\n  setup:\n    outputs:\n"
+            "      matrix: ${{ steps.c.outputs.matrix }}\n"
+            "    steps:\n      - id: c\n        run: |\n"
+        )
+        consumer = (
+            "  b:\n    needs: setup\n    strategy:\n"
+            "      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}\n"
+        )
+        control(
+            "a matrix read from a job whose JSON is not literal is a gap",
+            ocr_variant(
+                producer
+                + "          echo \"matrix=$(cat m.json)\" >> \"$GITHUB_OUTPUT\"\n"
+                + consumer + matrix_build
+            )
+            > 0,
+        )
+        control(
+            "the same unreadable matrix after the staging step passes",
+            ocr_variant(
+                producer
+                + "          echo \"matrix=$(cat m.json)\" >> \"$GITHUB_OUTPUT\"\n"
+                + consumer + "    steps:\n" + stage + matrix_build[len("    steps:\n"):]
+            )
+            == 0,
+        )
+        control(
+            "a folded run block whose next line carries --features ocr is a gap",
+            ocr_variant(
+                "jobs:\n  f:\n    steps:\n      - name: Build\n        run: >\n"
+                "          cargo build -p x\n          --features ocr\n"
+            )
+            > 0,
+        )
+        control(
+            "a PowerShell line continued by a backtick onto --features ocr is a gap",
+            ocr_variant(
+                "jobs:\n  w:\n    steps:\n      - name: Build\n        shell: pwsh\n"
+                "        run: |\n          cargo build -p x `\n            --features ocr\n"
+            )
+            > 0,
+        )
+
+        (owf / "fixture.yml").unlink()
+        release = _read(REPO_ROOT / ".github/workflows/release.yml") or ""
+        with_ocr = release.replace(
+            '"features":"local-metal"}', '"features":"local-metal,ocr"}', 1
+        )
+        control(
+            "release.yml with an ocr preset in the matrix of its setup job is a gap",
+            with_ocr != release and ocr_variant(with_ocr) > 0,
+        )
+        anchor = "      - name: Build CLI\n"
+        staged_release = with_ocr.replace(
+            anchor,
+            "      - name: Stage the verified Tesseract sources\n"
+            "        shell: bash\n"
+            "        run: bash packaging/fetch-tesseract-sources.sh\n\n" + anchor,
+            1,
+        )
+        control(
+            "the same release.yml staging the sources before its builds passes",
+            anchor in with_ocr and ocr_variant(staged_release) == 0,
+        )
+
     print(f"\nselftest: {failures} control(s) failed")
     return 1 if failures else 0
 
@@ -819,6 +1548,10 @@ def main() -> int:
     )
     problems += check_workflows(REPO_ROOT / WORKFLOW_DIR, EXEMPT_WORKFLOW_STEPS)
     problems += check_fetch_scripts(REPO_ROOT, SCRIPT_DIRS)
+    problems += check_tesseract_sources(
+        REPO_ROOT / TESS_SUMS, REPO_ROOT / TESS_FETCH, REPO_ROOT / CARGO_TOML
+    )
+    problems += check_ocr_workflows(REPO_ROOT / WORKFLOW_DIR)
     if args.github:
         problems += check_github()
     print(f"\ngaps={problems}")
