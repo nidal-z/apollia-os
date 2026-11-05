@@ -283,6 +283,7 @@ guards:
       "scripts/check_python_rules.py"
       "scripts/check_swizzled_theme.py"
       "scripts/check_release_artifacts.py"
+      "scripts/release_ocr_e2e.py --selftest"
       "scripts/check_generated_clients.py"
       "scripts/check_connector_fixtures.py"
       "scripts/check_rust_rules.py"
