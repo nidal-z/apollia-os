@@ -5457,6 +5457,78 @@
         }
       }
     },
+    "/api/v1/engines/{engine}/{tag}/{variant}": {
+      "delete": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "remove_engine",
+        "parameters": [
+          {
+            "name": "engine",
+            "in": "path",
+            "description": "Engine, as the list names it: `llama-server`, `vllm-mlx`, `nodejs`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "path",
+            "description": "Upstream tag of the build; `embedded` names the engine shipped with the application",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "variant",
+            "in": "path",
+            "description": "Variant, as the list names it: `cuda-12`, `vulkan`, `cpu`...",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The build and its directory are gone"
+          },
+          "404": {
+            "description": "No such build installed (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineRemovalErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The build in service (`in_service`) or the embedded engine (`embedded`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineRemovalErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The build could not be deleted (`store`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineRemovalErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/events": {
       "get": {
         "tags": [
@@ -24485,6 +24557,24 @@
           "network",
           "storage"
         ]
+      },
+      "EngineRemovalErrorBody": {
+        "type": "object",
+        "description": "A refused removal: the message and its stable code.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable code: `not_found`, `in_service`, `embedded`, `store`."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, for a person."
+          }
+        }
       },
       "EngineSettingsBody": {
         "type": "object",

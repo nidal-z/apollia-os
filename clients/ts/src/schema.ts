@@ -1652,6 +1652,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/engines/{engine}/{tag}/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["remove_engine"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events": {
         parameters: {
             query?: never;
@@ -8433,6 +8449,13 @@ export interface components {
          * @enum {string}
          */
         EngineRefusalCode: "no_trusted_key" | "signature_invalid" | "signature_unknown_key" | "signature_missing" | "manifest_invalid" | "rollback" | "package_not_found" | "digest_mismatch" | "archive_invalid" | "network" | "storage";
+        /** @description A refused removal: the message and its stable code. */
+        EngineRemovalErrorBody: {
+            /** @description Stable code: `not_found`, `in_service`, `embedded`, `store`. */
+            code: string;
+            /** @description What went wrong, for a person. */
+            error: string;
+        };
         /** @description Body of the settings routes. */
         EngineSettingsBody: {
             /** @description Base address manifests and archives are fetched from. */
@@ -17098,6 +17121,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    remove_engine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Engine, as the list names it: `llama-server`, `vllm-mlx`, `nodejs` */
+                engine: string;
+                /** @description Upstream tag of the build; `embedded` names the engine shipped with the application */
+                tag: string;
+                /** @description Variant, as the list names it: `cuda-12`, `vulkan`, `cpu`... */
+                variant: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The build and its directory are gone */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such build installed (`not_found`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRemovalErrorBody"];
+                };
+            };
+            /** @description The build in service (`in_service`) or the embedded engine (`embedded`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRemovalErrorBody"];
+                };
+            };
+            /** @description The build could not be deleted (`store`) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRemovalErrorBody"];
                 };
             };
         };

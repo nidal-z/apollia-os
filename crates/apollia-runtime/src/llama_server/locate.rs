@@ -113,6 +113,11 @@ pub(crate) fn in_service_binary(choice: EngineChoice) -> Option<PathBuf> {
     locate_llama_server_binary(choice).ok()
 }
 
+/// [`in_service_binary`] against the engine store under `store_root`.
+pub(crate) fn in_service_binary_in(store_root: &Path, choice: EngineChoice) -> Option<PathBuf> {
+    locate_in(Some(store_root), choice).ok()
+}
+
 /// The two sources that come before the embedded engine.
 ///
 /// An explicit override wins: `APOLLIA_LLAMA_SERVER_BIN=/path/to/llama-server`.

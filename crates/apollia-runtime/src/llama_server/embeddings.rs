@@ -151,13 +151,14 @@ impl LlamaServerSupervisor {
             n_parallel: Some(1),
             ..LlamaServerConfig::default()
         };
-        let instance = Instance::new(
+        let mut instance = Instance::new(
             config,
             LoadSettings::default(),
             port,
             child,
             self.next_tick(),
         );
+        instance.binary = Some(bin);
         let lease = ModelLease::new(
             instance.base_url(),
             instance.n_ctx,
