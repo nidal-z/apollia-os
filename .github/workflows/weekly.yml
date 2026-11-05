@@ -7,11 +7,13 @@
 #   - cron: every Monday at 06:00 UTC (once a week, which is enough)
 #   - workflow_dispatch: manual trigger, to validate on demand
 #
-# Jobs (13 of them, each one launchable alone through workflow_dispatch.inputs.job):
+# Jobs (14 of them, each one launchable alone through workflow_dispatch.inputs.job):
 #   - e2e-desktop         : Tauri E2E tests (slow, sometimes flaky)
 #   - python-tests        : PyO3-gated AIP suite (Python agents through the bridge)
 #   - cli-e2e-runtime     : CLI suite Tracks 1 and 2, daemon on a seeded throwaway HOME
 #   - multirunner-cpu-e2e : daemon plus CPU sidecar runner on the 3 OSes
+#   - ocr-windows         : the ocr feature built and tested on Windows MSVC, linked
+#                           like the shipped desktop (+crt-static) and like the CLI
 #   - feature-matrix      : sanity check of the GPU features on apollia-llm/stt
 #   - coverage            : HTML/LCOV coverage report (heavy)
 #   - mutants             : cargo-mutants on permissions plus core (advisory)
@@ -42,6 +44,7 @@ on:
           - "python-tests"
           - "cli-e2e-runtime"
           - "multirunner-cpu-e2e"
+          - "ocr-windows"
           - "feature-matrix"
           - "coverage"
           - "mutants"
@@ -294,6 +297,181 @@ jobs:
           cargo test -p apollia-runtime --release \
             --target ${{ matrix.triple }} \
             runner_supervisor::
+
+  # ── OCR on Windows MSVC ────────────────────────────────────────────────────
+  # The build script of tesseract-rs forces the dynamic C runtime (/MD,
+  # MultiThreadedDLL) through cmake -D flags, while the Windows desktop links
+  # with +crt-static (.cargo/config.toml) and builds its C++ with /MT. This job
+  # links the ocr feature under the two conditions the shipped binaries are
+  # built in, and writes one verdict line per condition to the run summary:
+  #   - desktop: no RUSTFLAGS, so the +crt-static of .cargo/config.toml applies,
+  #     with the C/C++ environment of the desktop-windows job of release.yml;
+  #   - CLI: RUSTFLAGS=-L <Python libraries>, as the CLI matrix of release.yml
+  #     sets it, which makes cargo ignore target.<triple>.rustflags.
+  # Weekly afterwards, it keeps the ocr feature alive on Windows.
+  #
+  # Not run under `check_test_home_isolation.py --wrap`: the build script of
+  # tesseract-rs writes under %APPDATA% by construction, the runner is
+  # throwaway. No rust-cache either: a cached build-script output of
+  # tesseract-rs would skip the compile and link against a directory this run
+  # never filled, and the measurement is a cold build from verified sources.
+  ocr-windows:
+    name: OCR on Windows MSVC
+    if: |
+      github.event_name == 'schedule' ||
+      github.event.inputs.job == 'all' ||
+      github.event.inputs.job == 'ocr-windows'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+
+      # The archives are checked against packaging/tesseract-sources-checksums.txt
+      # (sha256 and tag commit) and staged under %APPDATA%\tesseract-rs, where
+      # the build script finds them and downloads nothing.
+      - name: Stage verified Tesseract and Leptonica sources
+        shell: bash
+        run: bash packaging/fetch-tesseract-sources.sh
+
+      # The French data the registry pins (pinned_models.toml), from the
+      # upstream repository at a fixed commit, for the five engine tests.
+      - name: Fetch the French language data
+        shell: bash
+        run: |
+          DIR="$(cygpath -u "$RUNNER_TEMP")/tessdata"
+          mkdir -p "$DIR"
+          curl --http1.1 -fsSL --retry 3 -o "$DIR/fra.traineddata" \
+            "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/923915d4ced2a7235221788285785a29c4a42d4a/fra.traineddata"
+          echo "ced037562e8c80c13122dece28dd477d399af80911a28791a66a63ac1e3445ca  $DIR/fra.traineddata" | sha256sum -c -
+          echo "APOLLIA_TEST_TESSDATA=$(cygpath -w "$DIR")" >> "$GITHUB_ENV"
+
+      # The desktop condition. RUSTFLAGS stays unset on purpose: it would
+      # override target.<triple>.rustflags and drop +crt-static.
+      - name: Desktop link (+crt-static), test apollia-sources with ocr
+        id: desktop
+        shell: bash
+        env:
+          CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
+        run: |
+          if [ -n "${RUSTFLAGS:-}${CARGO_ENCODED_RUSTFLAGS:-}" ]; then
+            echo "::error::RUSTFLAGS is set, +crt-static would not apply"
+            exit 1
+          fi
+          # Link first, keeping the path of every test binary for the verdict.
+          mkdir -p target/ocr-measure
+          cargo test -p apollia-sources --release --features ocr \
+            --target x86_64-pc-windows-msvc --no-run \
+            --message-format=json-render-diagnostics > target/ocr-measure/test-build.json
+          cargo test -p apollia-sources --release --features ocr \
+            --target x86_64-pc-windows-msvc -- --include-ignored
+
+      # The CLI condition, measured twice: without ocr for the size it adds,
+      # then with it. The interpreter of setup-python provides the import
+      # library the link needs, through the same -L flag release.yml passes.
+      - name: CLI link (RUSTFLAGS), build apollia-cli without ocr
+        id: cli-base
+        if: success() || failure()
+        shell: bash
+        env:
+          CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
+          PYO3_PYTHON: ${{ env.pythonLocation }}\python.exe
+          RUSTFLAGS: -L ${{ env.pythonLocation }}\libs
+        run: |
+          cargo build --release -p apollia-cli --target x86_64-pc-windows-msvc
+          mkdir -p target/ocr-measure
+          EXE=target/x86_64-pc-windows-msvc/release/apollia-os.exe
+          wc -c < "$EXE" | tr -d '[:space:]' > target/ocr-measure/cli-base-size
+
+      - name: CLI link (RUSTFLAGS), build apollia-cli with ocr
+        id: cli
+        if: success() || failure()
+        shell: bash
+        env:
+          CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
+          PYO3_PYTHON: ${{ env.pythonLocation }}\python.exe
+          RUSTFLAGS: -L ${{ env.pythonLocation }}\libs
+        run: |
+          cargo build --release -p apollia-cli --features ocr --target x86_64-pc-windows-msvc
+          mkdir -p target/ocr-measure
+          EXE=target/x86_64-pc-windows-msvc/release/apollia-os.exe
+          SIZE=$(wc -c < "$EXE" | tr -d '[:space:]')
+          echo "$SIZE" > target/ocr-measure/cli-size
+          {
+            echo "### apollia-os.exe with ocr (RUSTFLAGS set)"
+            echo ""
+            echo "Size: $SIZE bytes"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # dumpbin is not on the PATH outside a developer prompt: vswhere finds it.
+      - name: CLI dependents (dumpbin)
+        if: steps.cli.outcome == 'success'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -find "VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          if (-not $dumpbin) { throw "dumpbin.exe not found" }
+          $deps = & $dumpbin /dependents target\x86_64-pc-windows-msvc\release\apollia-os.exe | Out-String
+          Write-Output $deps
+          "### dumpbin /dependents apollia-os.exe (with ocr)`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          $deps.Trim() | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: OCR Windows verdict
+        if: always()
+        shell: bash
+        env:
+          DESKTOP_OUTCOME: ${{ steps.desktop.outcome }}
+          CLI_BASE_OUTCOME: ${{ steps.cli-base.outcome }}
+          CLI_OUTCOME: ${{ steps.cli.outcome }}
+        run: |
+          verdict() { if [ "$1" = success ]; then echo "link passed"; else echo "link failed ($1)"; fi; }
+          read_size() { if [ -s "target/ocr-measure/$1" ]; then cat "target/ocr-measure/$1"; else echo "not measured"; fi; }
+          BASE=$(read_size cli-base-size)
+          WITH=$(read_size cli-size)
+          {
+            echo "### OCR on Windows MSVC: verdict"
+            echo ""
+            echo "- D3 desktop (+crt-static): $(verdict "$DESKTOP_OUTCOME")"
+            echo "- D3 CLI (RUSTFLAGS): $(verdict "$CLI_OUTCOME")"
+            echo "- apollia-os.exe without ocr: $BASE bytes ($(verdict "$CLI_BASE_OUTCOME"))"
+            echo "- apollia-os.exe with ocr: $WITH bytes"
+            case "$BASE$WITH" in
+              *[!0-9]*) ;;
+              *) echo "- added by ocr: $((WITH - BASE)) bytes" ;;
+            esac
+            echo ""
+            echo "Test binaries (desktop condition):"
+            echo ""
+            python -I -c '
+          import json, os, sys
+          found = 0
+          try:
+              lines = open(sys.argv[1], encoding="utf-8").read().splitlines()
+          except OSError:
+              lines = []
+          for line in lines:
+              try:
+                  msg = json.loads(line)
+              except ValueError:
+                  continue
+              exe = msg.get("executable") if msg.get("reason") == "compiler-artifact" else None
+              if exe and os.path.isfile(exe):
+                  found += 1
+                  print(f"- {os.path.basename(exe)}: {os.path.getsize(exe)} bytes")
+          if not found:
+              print("- none linked")
+          ' target/ocr-measure/test-build.json
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ── Feature matrix sanity (apollia-runner backends) ────────────────────────
   feature-matrix:
