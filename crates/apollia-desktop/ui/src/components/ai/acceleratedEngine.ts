@@ -20,7 +20,8 @@ import type {
 
 /** The engine and the variant the card is about. */
 export const ACCELERATED_ENGINE = "llama-server";
-export const ACCELERATED_VARIANT = "cuda";
+// `cuda-12` is the name the runtime gives the build `cuda` used to name.
+export const ACCELERATED_VARIANT = "cuda-12";
 
 /** How often a running installation is read again, in milliseconds. */
 export const POLL_INTERVAL_MS = 500;

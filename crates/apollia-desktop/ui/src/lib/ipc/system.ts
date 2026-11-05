@@ -65,12 +65,15 @@ export async function setPythonInterpreter(path: string | null): Promise<void> {
   return invoke<void>("set_python_interpreter", { path });
 }
 
+/** A build of an engine for one kind of hardware, by its wire name. */
+export type EngineVariant = "cuda-12" | "cuda-13" | "rocm" | "vulkan" | "cpu" | "metal";
+
 /** An engine of this machine, as `GET /api/v1/engines` lists it. */
 export interface EngineEntry {
   engine: "llama-server" | "vllm-mlx" | "nodejs";
   /** Upstream tag of a store package; `null` for an embedded engine. */
   tag: string | null;
-  variant: "cuda" | "vulkan" | "cpu" | "metal" | null;
+  variant: EngineVariant | null;
   path: string;
   source: "embedded" | "downloaded" | "imported";
   /** What the engine states at its source (banner, package metadata); `null` when it says nothing. */
@@ -106,6 +109,72 @@ export interface DictationEngine {
   version: string | null;
 }
 
+/** The maker of a graphics card. */
+export type EngineCardVendor = "nvidia" | "amd" | "intel" | "other";
+
+/** One graphics card of the machine, as the engine list sees it. */
+export interface EngineHardwareCard {
+  vendor: EngineCardVendor;
+  name: string;
+  /** Dedicated memory in GiB, `null` when unknown. */
+  vram_gb: number | null;
+  /** The NVIDIA driver version, `580.65.06`; `null` otherwise. */
+  driver_version: string | null;
+  /** The NVIDIA compute capability, `8.9`. */
+  compute_capability: string | null;
+  /** The gfx target of an AMD card, `gfx1100`. */
+  gfx_target: string | null;
+  /** Whether `/dev/kfd` opens; AMD under Linux only. */
+  kfd_accessible: boolean | null;
+  /** True when the driver did not answer within the probe limit. */
+  timed_out: boolean;
+}
+
+/** The cards of the machine and what is installed around them. */
+export interface EngineHardware {
+  /** Every card, NVIDIA ones first. */
+  cards: EngineHardwareCard[];
+  vulkan_loader: boolean;
+  /** Whether the host's ROCm runtime is installed; Linux only. */
+  rocm_runtime: boolean;
+}
+
+/** One package the verified channel offers for this platform, installed or not. */
+export interface EngineAvailablePackage {
+  engine: EngineEntry["engine"];
+  tag: string;
+  variant: EngineVariant;
+  /** Archive size in bytes. */
+  size: number;
+  /** Day the build was published, `YYYY-MM-DD`; `null` when the channel does not say. */
+  released: string | null;
+  /** Whether this exact build is installed here. */
+  installed: boolean;
+}
+
+/** How well a variant suits this machine, as the runtime rates it. */
+export type EngineVerdict = "recommended" | "compatible" | "incompatible";
+
+/** Why a variant is not recommended, as a code the interface translates. */
+export type EngineRatingReason =
+  | { code: "driver_too_old"; have: string; need: string }
+  | { code: "arch_dropped_in_cuda13"; cc: string }
+  | { code: "gfx_not_in_build"; gfx: string }
+  | { code: "no_vulkan_loader" }
+  | { code: "no_nvidia_driver" }
+  | { code: "not_built_for_platform" }
+  | { code: "no_gpu" }
+  | { code: "engine_sees_no_device" }
+  | { code: "no_rocm_runtime" };
+
+/** The verdict of the runtime on one `llama-server` variant. */
+export interface EngineRating {
+  variant: EngineVariant;
+  verdict: EngineVerdict;
+  /** Why it is not recommended, or the caveat of a recommendation; `null` when nothing is to say. */
+  reason: EngineRatingReason | null;
+}
+
 /** The engine list, with the store's channel and pending updates. */
 export interface EnginesResponse {
   engines: EngineEntry[];
@@ -116,6 +185,12 @@ export interface EnginesResponse {
   /** Name of the NVIDIA card detected, `null` without one. */
   nvidia_card: string | null;
   dictation: DictationEngine | null;
+  /** The cards of the machine; `null` when the probe did not answer in time. */
+  hardware: EngineHardware | null;
+  /** The packages the verified channel offers for this platform; empty until a manifest verified. */
+  available: EngineAvailablePackage[];
+  /** Per `llama-server` variant, whether it suits this machine and why; empty when unknown. */
+  ratings: EngineRating[];
   /** Whether this build can verify the engine channel; false for a build without the distribution key. */
   verifiable: boolean;
 }
