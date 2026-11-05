@@ -52,6 +52,17 @@ Deux cartes ouvrent l'étape : **Sur ce poste** et **Utiliser un serveur**. Quat
 
 **Continuer** devient actif dès qu'un modèle est configuré (badge vert **Configuré**), qu'un modèle d'un serveur est choisi, ou qu'un téléchargement est lancé. Vous n'avez pas à attendre la fin du téléchargement : poursuivez les étapes suivantes pendant que le fichier arrive. Sa progression reste affichée en haut de la fenêtre à chaque étape, et le modèle s'installe de lui-même quand le fichier est là.
 
+#### La langue de lecture des pages scannées
+
+Vos sources peuvent contenir des pages scannées et des images : Apollia en lit le texte sur ce poste, avec une langue de lecture (français ou anglais). Avec une connexion, il n'y a rien à faire : la langue se télécharge d'elle-même la première fois qu'une source contient une page scannée.
+
+Sur un poste sans connexion, importez-la depuis un fichier apporté sur un disque ou une clé (`fra.traineddata` ou `eng.traineddata`, le fichier de votre version) :
+
+- pendant cette étape, **Charger un modèle** accepte aussi ce fichier : choisissez **Données de langue pour les documents scannés** dans le type de fichier de la fenêtre. la fenêtre dit alors que le fichier est en place et que les pages scannées et les images sont lues avec ;
+- plus tard, depuis l'écran **IA**, avec **Importer une langue de lecture**.
+
+Un fichier qu'Apollia ne connaît pas est refusé, avec le message **Ce fichier n'est pas une langue de lecture qu'Apollia connaît.** : seuls les fichiers de langue de votre version sont acceptés, reconnus à leur contenu et non à leur nom.
+
 #### Boutons disponibles en pied de page
 
 - **← Retour** - revient à l'étape Langue.
