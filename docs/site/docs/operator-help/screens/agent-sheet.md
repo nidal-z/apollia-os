@@ -23,6 +23,15 @@ A file or a folder among the sources of the agent is searched, not opened: the a
 
 To add a folder, click **Add a source**, then **A folder**. The window lists your folder connections and offers **Choose a folder on this computer…**: the folder you choose is connected directly, without going through **Connections**.
 
+## Scanned pages in a source
+
+A source reads the text of its documents, and also the scanned pages and the pictures it holds: Apollia recognises the text on them, on this computer. The row of each source says how far its reading went, and two mentions can follow the count of its files:
+
+- **N pages awaiting recognition**: pages that are scanned or are pictures, which Apollia cannot read yet because the reading language is not on this computer. The language downloads by itself the first time a source holds a scanned page; without a network connection, it stays missing. Next to the mention, **Import the language** opens the AI screen, where **Import a reading language** takes the language file from a disk or a key. The waiting pages are read within the minute that follows, without restarting Apollia, and the mention goes away.
+- **N pages not read**: pages with no text that recognition cannot read either, for instance a page made of several pictures, or one the engine failed on. Importing a language does not change them.
+
+Neither mention appears when every page was read.
+
 ## What you can do
 
 - Adjust the agent: its mission, its model, its accesses and its sources.
