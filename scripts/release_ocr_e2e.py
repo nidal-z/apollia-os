@@ -411,21 +411,23 @@ def run_case(name: str, launcher: Path, root: Path, language: bytes | None,
 
 
 def run(args: argparse.Namespace) -> int:
-    launcher = Path(args.launcher)
+    # Each daemon starts with its own HOME as working directory: a launcher
+    # named relative to the checkout would not be found from there.
+    launcher = Path(args.launcher).resolve()
     if not launcher.is_file():
         raise NotMeasured(f"no launcher at {launcher}")
     for fixture in FIXTURE_NAMES:
         if not (FIXTURES / fixture).is_file():
             raise NotMeasured(f"no fixture at {FIXTURES / fixture}")
     pinned = pinned_sha256()
-    root = Path(args.home)
+    root = Path(args.home).resolve()
     root.mkdir(parents=True, exist_ok=True)
     if not args.offline:
         run_case("online", launcher, root, None, False, pinned)
         return 0
     if not args.language_file:
         raise NotMeasured("--offline needs --language-file")
-    source = Path(args.language_file)
+    source = Path(args.language_file).resolve()
     if not source.is_file() or sha256_of(source) != pinned:
         raise NotMeasured(f"{source} is not the `{LANGUAGE}` language file the registry pins")
     good = source.read_bytes()
