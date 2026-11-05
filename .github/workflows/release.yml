@@ -508,6 +508,54 @@ jobs:
           python3 -c "import json,sys; r=[c for c in json.load(open('doctor.json'))['checks'] if c.get('id')=='recognition']; ok=bool(r) and (r[0].get('detail') or {}).get('compiled') is True; print('recognition: ' + (r[0].get('message','') if r else 'absent')); ok or print('::error::the recognition engine is not compiled into this bundle'); sys.exit(0 if ok else 1)"
           rm -rf "$HOME_DIR" doctor.json
 
+      # The smoke says the recognition engine is compiled in; this says the
+      # bundle reads with it. Through the same launcher and under a throwaway
+      # home, the daemon indexes a scanned PDF and a picture and the word is
+      # found in its full-text index: once fetching the language itself, once
+      # with the network made unreachable and the language copied in first,
+      # then refusing a copy altered by one byte. The three blocking presets
+      # (macos-silicon, linux-x86-cpu, windows-x86-cpu) gate the release here;
+      # the other presets run it too and inherit their allow_fail.
+      # The address and the digest are read from the registry the product
+      # pins, so this step cannot drift from what the application downloads.
+      - name: Read a scanned page and a picture with the bundle, online and offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}"
+          WORK="$(mktemp -d)"
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            LAUNCHER="$(cygpath -w "$STAGE/apollia-os.bat")"
+            NATIVE="$(cygpath -w "$WORK")"
+          else
+            LAUNCHER="$STAGE/apollia-os.sh"
+            NATIVE="$WORK"
+          fi
+          # The script gives each daemon its own HOME under --home; this one
+          # keeps the step itself off the runner's profile, as the smoke does.
+          mkdir -p "$WORK/home"
+          export HOME="$WORK/home" USERPROFILE="$WORK/home"
+          read -r commit sum < <(python3 -I -c '
+          import sys, tomllib
+          with open(sys.argv[1], "rb") as f:
+              entry = next(e for e in tomllib.load(f)["ocr"] if e["language"] == "fra")
+          print(entry["commit"], entry["sha256"])
+          ' crates/apollia-llm/src/recommend/pinned_models.toml)
+          curl --http1.1 -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+            -o "$WORK/fra.traineddata" \
+            "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/${commit}/fra.traineddata"
+          if command -v sha256sum > /dev/null; then
+            echo "${sum}  $WORK/fra.traineddata" | sha256sum -c -
+          else
+            echo "${sum}  $WORK/fra.traineddata" | shasum -a 256 -c -
+          fi
+          echo "== online: the bundle fetches the language"
+          python3 scripts/release_ocr_e2e.py --launcher "$LAUNCHER" --home "$NATIVE/online"
+          echo "== offline: the language copied in, the network unreachable"
+          python3 scripts/release_ocr_e2e.py --launcher "$LAUNCHER" --home "$NATIVE/offline" \
+            --offline --language-file "$NATIVE/fra.traineddata"
+          rm -rf "$WORK"
+
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
