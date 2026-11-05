@@ -29,20 +29,34 @@ Three modes:
     python3 scripts/gen_llama_support.py --check    fail if it is out of date
     python3 scripts/gen_llama_support.py --selftest run its own cases, offline
 
-`--check` runs in the hook. It needs the network only when the cache under
-`.cache/llama-support/` has no copy of the pinned tag, and it skips rather than
-failing when upstream is unreachable and uncached, so an offline commit is not
-blocked. CI runs it with the network, which is where the guard bites.
+`--check` needs the network only when the cache under `.cache/llama-support/`
+has no copy of the pinned tag. It runs in two places:
 
-Exit codes: 0 in step, 1 out of step, 2 on a usage error.
+- the pre-commit hook, plain `--check`: when upstream is unreachable and
+  uncached it says so and exits 0, so an offline commit is not blocked;
+- the `deny` job of `.github/workflows/ci.yml`, as
+  `--check --require-upstream`, on a runner with the network and no cache.
+  There, the same unreachable upstream exits 2, because a check that read
+  nothing has measured nothing, and that is never a pass. This run is where
+  the guard bites.
+
+Requests to the GitHub API carry `Authorization` when `GH_TOKEN` is set, so the
+CI run is not throttled by the anonymous rate limit; without it they go out
+anonymous, as before.
+
+Exit codes: 0 in step, 1 out of step, 2 on a usage error or, under
+`--require-upstream`, when nothing could be read.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -121,6 +135,20 @@ def read_pinned_tag() -> str:
     return match.group(1)
 
 
+def request_for(url: str) -> urllib.request.Request:
+    """A request to upstream, authenticated to the GitHub API when it can be.
+
+    The CI runner shares its address with every other job on the pool, so the
+    anonymous API limit is spent before this script runs often enough to turn
+    the check red for a reason that has nothing to do with the tables.
+    """
+    headers = {"User-Agent": "apollia-gen"}
+    token = os.environ.get("GH_TOKEN", "")
+    if token and url.startswith(API_BASE + "/"):
+        headers["Authorization"] = f"Bearer {token}"
+    return urllib.request.Request(url, headers=headers)
+
+
 def fetch(tag: str, path: str) -> str:
     """Read an upstream source file, from the cache when it is already there."""
     cached = CACHE_DIR / tag / path.replace("/", "_")
@@ -129,7 +157,7 @@ def fetch(tag: str, path: str) -> str:
 
     url = f"{RAW_BASE}/{tag}/{path}"
     try:
-        with urllib.request.urlopen(url, timeout=60) as response:  # noqa: S310
+        with urllib.request.urlopen(request_for(url), timeout=60) as response:  # noqa: S310
             body = response.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, TimeoutError) as exc:
         raise SystemExit(f"could not fetch {url}: {exc}") from exc
@@ -147,8 +175,7 @@ def list_model_files(tag: str) -> list[str]:
 
     url = f"{API_BASE}/contents/{MODELS_DIR}?ref={tag}"
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "apollia-gen"})
-        with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310
+        with urllib.request.urlopen(request_for(url), timeout=60) as response:  # noqa: S310
             entries = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise SystemExit(f"could not fetch {url}: {exc}") from exc
@@ -499,6 +526,165 @@ def splice(current: str, tag: str, block: str) -> str:
     )
 
 
+# ── The check's own exit codes, driven against a simulated upstream ───────────
+
+FAKE_TAG = "b0"
+FAKE_ARCH = (
+    "static const std::map<llm_arch, const char *> LLM_ARCH_NAMES = {\n"
+    '    { LLM_ARCH_QWEN3, "qwen3" },\n'
+    '    { LLM_ARCH_MAMBA, "mamba" },\n'
+    "};\n"
+    "bool llm_arch_is_recurrent(const llm_arch & arch) {\n"
+    "    switch (arch) { case LLM_ARCH_MAMBA: return true; }\n"
+    "}\n"
+)
+FAKE_VOCAB = 'if (tokenizer_pre == "qwen2") {}\n'
+FAKE_MODEL = (
+    "hparams.swa_type = LLAMA_SWA_TYPE_STANDARD;\nhparams.set_swa_pattern(4);\n"
+)
+FAKE_TARGET = (
+    "//! fixture\n"
+    'pub const LLAMA_CPP_TAG: &str = "";\n\n'
+    + BEGIN_ARCH
+    + "\n"
+    + END
+    + "\n"
+)
+
+
+class _FakeResponse:
+    def __init__(self, body: str) -> None:
+        self._body = body.encode("utf-8")
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._body
+
+
+def selftest_modes() -> list[str]:
+    """Hook and CI modes, stale and fresh tables, and the API token, offline.
+
+    Upstream is a dictionary, the cache and the tables live in a temporary
+    directory, and the module's paths are swapped for the duration, so nothing
+    under the repository is read or written.
+    """
+    global CACHE_DIR, TARGET, PIN_FILE
+    failures: list[str] = []
+    saved = (CACHE_DIR, TARGET, PIN_FILE, urllib.request.urlopen)
+    saved_token = os.environ.pop("GH_TOKEN", None)
+    upstream = {
+        f"{RAW_BASE}/{FAKE_TAG}/{ARCH_SOURCE}": FAKE_ARCH,
+        f"{RAW_BASE}/{FAKE_TAG}/{VOCAB_SOURCE}": FAKE_VOCAB,
+        f"{RAW_BASE}/{FAKE_TAG}/{MODELS_DIR}/gemma3.cpp": FAKE_MODEL,
+        f"{API_BASE}/contents/{MODELS_DIR}?ref={FAKE_TAG}": json.dumps(
+            [{"name": "gemma3.cpp"}, {"name": "README.md"}]
+        ),
+    }
+    online = {"up": False}
+    seen: list[urllib.request.Request] = []
+
+    def fake_urlopen(request, timeout=None):  # noqa: ARG001
+        seen.append(request)
+        url = request.full_url if hasattr(request, "full_url") else str(request)
+        if not online["up"] or url not in upstream:
+            raise urllib.error.URLError("simulated: no network")
+        return _FakeResponse(upstream[url])
+
+    def quiet(check: bool, require: bool) -> int:
+        """`run`, its output kept off the selftest's own report."""
+        stdout, stderr = sys.stdout, sys.stderr
+        sink = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+        sys.stdout = sys.stderr = sink
+        try:
+            return run(check, require)
+        except SystemExit as exc:
+            return 1 if exc.code is None or isinstance(exc.code, str) else exc.code
+        finally:
+            sys.stdout, sys.stderr = stdout, stderr
+            sink.close()
+
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            CACHE_DIR = root / "cache"
+            TARGET = root / "llama_support.rs"
+            PIN_FILE = root / "fetch-llama-server.sh"
+            PIN_FILE.write_text(
+                f'LLAMA_CPP_TAG="${{LLAMA_CPP_TAG:-{FAKE_TAG}}}"\n', encoding="utf-8"
+            )
+            TARGET.write_text(FAKE_TARGET, encoding="utf-8")
+            urllib.request.urlopen = fake_urlopen
+
+            # GIVEN upstream unreachable and an empty cache
+            # WHEN the hook runs the check
+            code = quiet(check=True, require=False)
+            # THEN an offline commit is not blocked
+            if code != 0:
+                failures.append(f"hook mode offline and uncached exited {code}, not 0")
+
+            # GIVEN the same unreachable upstream and empty cache
+            # WHEN CI runs the check with --require-upstream
+            code = quiet(check=True, require=True)
+            # THEN nothing measured is a 2, never a pass
+            if code != 2:
+                failures.append(f"CI mode offline and uncached exited {code}, not 2")
+
+            # GIVEN upstream reachable and checked-in tables that lag it
+            online["up"] = True
+            # WHEN CI runs the check
+            code = quiet(check=True, require=True)
+            # THEN the lag is a 1, and the tables are left untouched
+            if code != 1:
+                failures.append(f"stale tables exited {code}, not 1")
+            if TARGET.read_text(encoding="utf-8") != FAKE_TARGET:
+                failures.append("--check wrote the tables it was only asked to compare")
+
+            # GIVEN the tables rewritten from that same upstream
+            quiet(check=False, require=False)
+            # WHEN CI runs the check again
+            code = quiet(check=True, require=True)
+            # THEN tables in step are a 0
+            if code != 0:
+                failures.append(f"tables in step exited {code}, not 0")
+
+            # GIVEN a token in GH_TOKEN and nothing cached
+            shutil.rmtree(CACHE_DIR)
+            seen.clear()
+            os.environ["GH_TOKEN"] = "selftest-token"
+            # WHEN the check reads upstream
+            quiet(check=True, require=True)
+            # THEN the API request carries it, and the raw downloads do not
+            api = [r for r in seen if r.full_url.startswith(API_BASE)]
+            raw = [r for r in seen if r.full_url.startswith(RAW_BASE)]
+            if not api or any(
+                r.get_header("Authorization") != "Bearer selftest-token" for r in api
+            ):
+                failures.append("the GitHub API request did not carry GH_TOKEN")
+            if any(r.get_header("Authorization") for r in raw):
+                failures.append("a raw download carried the API token")
+
+            # GIVEN no token
+            shutil.rmtree(CACHE_DIR)
+            seen.clear()
+            del os.environ["GH_TOKEN"]
+            # WHEN the check reads upstream
+            quiet(check=True, require=True)
+            # THEN every request goes out anonymous, as before
+            if not seen or any(r.get_header("Authorization") for r in seen):
+                failures.append("a request carried Authorization without GH_TOKEN")
+    finally:
+        CACHE_DIR, TARGET, PIN_FILE, urllib.request.urlopen = saved
+        os.environ.pop("GH_TOKEN", None)
+        if saved_token is not None:
+            os.environ["GH_TOKEN"] = saved_token
+    return failures
+
+
 def selftest() -> int:
     """Pin the two ways the generator has drifted from the sources it reads."""
     failures: list[str] = []
@@ -532,6 +718,8 @@ def selftest() -> int:
     if tables["generative"] != ["qwen3"]:
         failures.append(f"generative table was {tables['generative']}")
 
+    failures.extend(selftest_modes())
+
     for failure in failures:
         fail(f"selftest: {failure}")
     if failures:
@@ -540,22 +728,16 @@ def selftest() -> int:
     return 0
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="fail instead of writing when the tables are out of date",
-    )
-    parser.add_argument(
-        "--selftest",
-        action="store_true",
-        help="run the generator's own cases against synthetic sources",
-    )
-    args = parser.parse_args()
-    if args.selftest:
-        return selftest()
+def _shown(path: Path) -> Path:
+    """A path relative to the repository when it sits inside it."""
+    try:
+        return path.relative_to(REPO_ROOT)
+    except ValueError:
+        return path
 
+
+def run(check: bool, require_upstream: bool) -> int:
+    """Derive the tables and compare, or rewrite; the exit code of the script."""
     tag = read_pinned_tag()
     try:
         arch_source = fetch(tag, ARCH_SOURCE)
@@ -563,10 +745,17 @@ def main() -> int:
         pre_tokenizers = extract_pre_tokenizers(fetch(tag, VOCAB_SOURCE))
         swa, recurrent, hybrid = extract_attention(tag, arch_source)
     except SystemExit as exc:
-        if args.check and "could not fetch" in str(exc):
+        if check and "could not fetch" in str(exc):
+            if require_upstream:
+                fail(
+                    f"{exc}\n  upstream sources unreachable and not cached under "
+                    f"{CACHE_DIR}: nothing was measured, which is not a pass"
+                )
+                return 2
             print(
                 "gen_llama_support: upstream sources unreachable and not cached, "
-                "skipping the check (CI runs it with the network)"
+                "skipping the check; the deny job of ci.yml runs it with "
+                "--require-upstream, where this case is a red"
             )
             return 0
         raise
@@ -581,7 +770,7 @@ def main() -> int:
     block = build_block(architectures, pre_tokenizers, swa, recurrent, hybrid)
     updated = splice(current, tag, block)
 
-    if args.check:
+    if check:
         fail(
             f"the support tables do not match llama.cpp {tag}.\n"
             f"  Run: python3 scripts/gen_llama_support.py\n"
@@ -592,12 +781,40 @@ def main() -> int:
 
     TARGET.write_text(updated, encoding="utf-8")
     print(
-        f"gen_llama_support: rewrote {TARGET.relative_to(REPO_ROOT)} "
+        f"gen_llama_support: rewrote {_shown(TARGET)} "
         f"for llama.cpp {tag} ({len(architectures)} architectures, "
         f"{len(pre_tokenizers)} pre-tokenizers, {len(swa)} sliding-window, "
         f"{len(hybrid)} hybrid, {len(recurrent)} recurrent)"
     )
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="fail instead of writing when the tables are out of date",
+    )
+    parser.add_argument(
+        "--require-upstream",
+        action="store_true",
+        help="with --check: exit 2 instead of 0 when upstream is unreachable "
+        "and uncached (the CI mode; the hook leaves it off)",
+    )
+    parser.add_argument(
+        "--selftest",
+        action="store_true",
+        help="run the generator's own cases against synthetic sources",
+    )
+    args = parser.parse_args()
+    if args.selftest:
+        return selftest()
+    if args.require_upstream and not args.check:
+        parser.error("--require-upstream only applies to --check")
+    return run(args.check, args.require_upstream)
 
 
 if __name__ == "__main__":

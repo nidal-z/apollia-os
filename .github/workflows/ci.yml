@@ -438,6 +438,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/check_download_sums.py --github
+      # The pre-commit hook fires only on a commit touching the pin, the tables
+      # or the generator, and it passes when upstream is unreachable and
+      # uncached, so a pin moved offline reached the tree with tables nobody
+      # compared. This runner starts with no cache: --require-upstream turns
+      # that same unreachable upstream into a red (exit 2, nothing measured),
+      # and every change runs the comparison, whatever files it touches.
+      - name: llama.cpp support tables match the pinned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/gen_llama_support.py --selftest
+          python3 scripts/gen_llama_support.py --check --require-upstream
 
   # ── macOS Silicon : core test run backing the "Tested" platform claim ──────
   test-macos:
@@ -1077,11 +1089,19 @@ jobs:
             libayatana-appindicator3-dev librsvg2-dev \
             libssl-dev libxdo-dev \
             libasound2-dev libpulse-dev libjack-jackd2-dev \
-            cmake clang pkg-config
+            cmake clang pkg-config build-essential
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: taiki-e/install-action@c7eb1735f09259a5035e8e5d44b1406b1cddc0fb # v2.83.0
         with:
           tool: cargo-llvm-cov
+      # The per-crate gate below builds apollia-runtime with --all-features,
+      # which turns on `ocr` and with it the tesseract-rs build script. That
+      # script downloads Leptonica and Tesseract unchecked whenever its source
+      # directory is missing, so the verified copies are staged first, as in
+      # the ocr job. Their directory under HOME is in no cache, for the same
+      # reason as there: this script clears it.
+      - name: Stage the verified Tesseract and Leptonica sources
+        run: bash packaging/fetch-tesseract-sources.sh
       # The floor is set just below the measured baseline so the gate is green
       # from day one, then ratcheted up. Full HTML report stays in weekly.yml.
       # apollia-desktop and apollia-e2e-tests are excluded because neither builds

@@ -192,7 +192,8 @@ repos:
       # architectures, every one a model that would have been refused. This
       # entry fires when the pin moves or the tables are edited by hand. It is
       # a no-op when upstream is unreachable and uncached, so an offline commit
-      # is not blocked; CI runs it with the network.
+      # is not blocked; the deny job of ci.yml runs it on every change with
+      # --require-upstream, where that same case is a red.
       - id: check-llama-support
         name: the llama.cpp support tables match the pinned build
         entry: python3 scripts/gen_llama_support.py --check
