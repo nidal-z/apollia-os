@@ -498,6 +498,15 @@ check_content "audit export without --output: usage error" 'required arguments w
 check_content "audit export --format pdf: usage error naming the formats" 'possible values: csv, json' bash -c "'$BIN' --socket '$OFFSOCK' audit export --format pdf --output '$RUN_TMP/journal-off.pdf' 2>&1; true"
 check_exit   "llm status (off) → 2"    2  "$BIN" --socket "$OFFSOCK" llm status
 check_exit   "llm backends list (off) → 2" 2 "$BIN" --socket "$OFFSOCK" llm backends list
+# The engine leaves read and write through the runtime alone: off, each is
+# exit 2 and gives the one hint the CLI writes for a runtime not started.
+check_exit   "engine list (off) → 2"   2  "$BIN" --socket "$OFFSOCK" engine list
+check_exit   "engine check (off) → 2"  2  "$BIN" --socket "$OFFSOCK" engine check
+check_exit   "engine use auto (off) → 2" 2 "$BIN" --socket "$OFFSOCK" engine use auto
+check_exit   "engine channel (off) → 2" 2 "$BIN" --socket "$OFFSOCK" engine channel
+check_content "engine list (off): the shared hint" 'Start it with `apollia-os start`' bash -c "'$BIN' --socket '$OFFSOCK' engine list 2>&1; true"
+check_json_field "engine channel --json (off): runtime_error envelope" "d['error']['code']" "runtime_error" bash -c "'$BIN' --socket '$OFFSOCK' engine channel --json; true"
+check_exit   "engine channel nightly: usage error → 1" 1 "$BIN" --socket "$OFFSOCK" engine channel nightly
 check_exit   "task list (off) → 2"     2  "$BIN" --socket "$OFFSOCK" task list
 check_exit   "trigger list (off) → 2"  2  "$BIN" --socket "$OFFSOCK" trigger list
 check_exit   "notify list (off) → 2"   2  "$BIN" --socket "$OFFSOCK" notify list

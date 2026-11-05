@@ -93,6 +93,11 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os llm backends set-default`↴](#apollia-os-llm-backends-set-default)
 * [`apollia-os llm reload`↴](#apollia-os-llm-reload)
 * [`apollia-os llm setup`↴](#apollia-os-llm-setup)
+* [`apollia-os engine`↴](#apollia-os-engine)
+* [`apollia-os engine list`↴](#apollia-os-engine-list)
+* [`apollia-os engine check`↴](#apollia-os-engine-check)
+* [`apollia-os engine use`↴](#apollia-os-engine-use)
+* [`apollia-os engine channel`↴](#apollia-os-engine-channel)
 * [`apollia-os model`↴](#apollia-os-model)
 * [`apollia-os model list`↴](#apollia-os-model-list)
 * [`apollia-os model search`↴](#apollia-os-model-search)
@@ -321,6 +326,7 @@ Apollia OS CLI binary (apollia-os)
 * `hooks` - Lifecycle hooks (list)
 * `memory` - Memory management
 * `llm` - LLM backend diagnostics (status, ping, chat, costs, backends, reload)
+* `engine` - The inference engines: the cards detected, the variants installed and offered, the one in service (list, check, use, channel)
 * `model` - Local model file management
 * `source` - The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, show, create, delete, inspect)
 * `trigger` - Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete)
@@ -1679,6 +1685,75 @@ First-run helper: configure a local LLM in one step.
    It selects nothing today. The local engine offloads according to the llama-server build it ships with and to `APOLLIA_LLAMA_N_GPU_LAYERS`, and reads no device field.
 * `--system-db <PATH>` - Override the system database path (default: `~/.apollia/system.db`)
 * `--models-dir <DIR>` - Override the models directory. Without it, `[models] dir` of `apollia.toml`, else `~/.apollia/models/`
+
+
+
+## `apollia-os engine`
+
+The inference engines: the cards detected, the variants installed and offered, the one in service (list, check, use, channel)
+
+**Usage:** `apollia-os engine <COMMAND>`
+
+###### **Subcommands:**
+
+* `list` - The cards, the engines installed and in service, the variants the channel offers, Node.js
+* `check` - Probe the cards again and verify the followed channel
+* `use` - Choose the engine that serves GGUF models: a variant installed, `auto` or `embedded`
+* `channel` - Show the followed channel, or follow another one
+
+
+
+## `apollia-os engine list`
+
+The cards, the engines installed and in service, the variants the channel offers, Node.js
+
+**Usage:** `apollia-os engine list [OPTIONS]`
+
+###### **Options:**
+
+* `--all` - Also list the variants that do not run on this machine
+
+
+
+## `apollia-os engine check`
+
+Probe the cards again and verify the followed channel
+
+**Usage:** `apollia-os engine check`
+
+
+
+## `apollia-os engine use`
+
+Choose the engine that serves GGUF models: a variant installed, `auto` or `embedded`
+
+**Usage:** `apollia-os engine use <CHOICE>`
+
+###### **Arguments:**
+
+* `<CHOICE>` - `auto`, `embedded`, or an installed variant (`cuda`, `cuda-12`, `cuda-13`, `rocm`, `vulkan`, `cpu`, `metal`)
+
+  Possible values: `auto`, `embedded`, `cuda`, `cuda-12`, `cuda-13`, `rocm`, `vulkan`, `cpu`, `metal`
+
+
+
+
+## `apollia-os engine channel`
+
+Show the followed channel, or follow another one
+
+**Usage:** `apollia-os engine channel [CHANNEL]`
+
+###### **Arguments:**
+
+* `<CHANNEL>` - The channel to follow; without it, the followed one is shown
+
+  Possible values:
+  - `stable`:
+    The builds the project vouches for
+  - `preview`:
+    The builds being tried before they reach stable
+
 
 
 

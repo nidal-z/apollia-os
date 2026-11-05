@@ -126,6 +126,23 @@ pub fn emit_error(json: bool, exit_code: i32, message: &str) -> i32 {
     exit_code
 }
 
+/// What an operator reads when the runtime does not answer, after the error.
+pub const START_HINT: &str = "Start it with `apollia-os start`.";
+
+/// The runtime does not answer: exit 2 with `runtime not started`, and in
+/// human mode the one hint every leaf gives, on stderr.
+pub fn emit_runtime_not_started(json: bool) -> i32 {
+    let code = emit_error(
+        json,
+        exit_codes::RUNTIME_ERROR,
+        "runtime not started (connection refused)",
+    );
+    if !json {
+        eprintln!("{START_HINT}");
+    }
+    code
+}
+
 /// Map a runtime-client error onto the contract: an unreachable runtime is
 /// exit 2 (`runtime_error`), anything else exit 1 (`general_error`).
 pub fn emit_client_error(json: bool, err: &crate::client::ClientError) -> i32 {

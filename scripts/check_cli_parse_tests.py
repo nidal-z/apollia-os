@@ -77,6 +77,7 @@ MODULE_NODE = {
     "commands/chat_stream.rs": "chat",
     "commands/connector/imap.rs": "connector imap",
     "commands/do_cmd.rs": "do",
+    "commands/engine/tests.rs": "engine",
     "commands/mcp_oauth.rs": "mcp oauth",
     "commands/mcp_server.rs": "mcp server",
     "commands/plan_cache.rs": "plan cache",

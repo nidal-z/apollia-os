@@ -25,12 +25,12 @@ the same commit as the command.
 | Category | Verbs |
 |---|---|
 | entity | `show`, `create`, `delete`, `list`, `rename`, `edit` |
-| config | `get`, `set`, `raw-config`, `set-default` |
+| config | `get`, `set`, `raw-config`, `set-default`, `use`, `channel` |
 | relationship | `add`, `remove` |
 | lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel`, `pause` |
 | maintenance | `clear`, `evict`, `purge`, `forget` |
 | report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `pending`, `approvals`, `messages`, `skills`, `accounts`, `accesses`, `capabilities`, `template`, `hardware`, `recommend`, `schema`, `keys`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
-| action | `run`, `build`, `new`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `decide`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
+| action | `run`, `build`, `check`, `new`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `decide`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
 **One verb per intent.** `show` is the only entity-detail read (it absorbed
@@ -146,6 +146,17 @@ removed, exit 2; Apollia is refused before the runtime is reached, exit 1.
 `init`, `sign`, `verify`, `show`) and never reaches the runtime: the policy is
 read by the runtime at startup, not served by it. No leaf writes into the
 system policy folder; IT deploys the prepared folder with its own tools.
+
+**`engine`** (`list`, `check`, `use`, `channel`) reads and sets the inference
+engines of the machine the runtime serves on, through the runtime. `list`
+shows the cards, the engines installed and the one in service, the variants
+the channel offers with their verdict (`--all` adds those that do not run
+here), and Node.js. `check` probes again and verifies the channel; a channel
+out of reach or a refused signature is exit 2. `use` writes `engines.gguf`
+through `PUT /api/v1/config`, refuses a variant not installed with exit 1 and
+warns about one rated incompatible. `channel` reads the followed channel, or
+follows `stable` or `preview`. Daemon off, each exits 2 with the hint of
+`output::emit_runtime_not_started`.
 
 ---
 

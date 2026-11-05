@@ -119,6 +119,7 @@ TYPED_PLACEHOLDERS = {
     "<p>": "openai",  # the same flag, as the first-agent tutorial spells it
     "<FORMAT>": "json",  # batch export --format <FORMAT>
     "<ANSWER>": "refuse",  # approvals decide <ID> <ANSWER>
+    "<CHOICE>": "auto",  # engine use <CHOICE>
 }
 
 # The Python SDK installs its own `apollia` console script
