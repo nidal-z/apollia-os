@@ -407,6 +407,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # can show. The site is the shell script of the fake engine, one helper
     # shared by the reload tests.
     "crates/apollia-runtime/src/llama_server/reload/tests.rs": 1,
+    # The process is the subject: an engine chosen after start has to serve
+    # the next launch, which only a launched process can show. The site is
+    # the shell script of the fake engine.
+    "crates/apollia-runtime/src/llama_server/binary/tests.rs": 1,
     # The process and the clock are the subject: the MLX supervisor has to
     # respawn an engine that dies, with backoff, and stop it for good on
     # shutdown. Two `kill` spawns make the engine die, one sleep polls for the
