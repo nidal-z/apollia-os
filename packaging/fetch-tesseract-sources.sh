@@ -175,8 +175,13 @@ while read -r sum url commit extra <&3; do
     else
         echo "==> downloading ${url}"
         # HTTP/1.1: over HTTP/2 a slow codeload stream can be cancelled
-        # mid-transfer (curl error 92), which --retry does not retry.
-        if ! curl --http1.1 -fsSL --retry 3 -o "$archive" "$url"; then
+        # mid-transfer (curl error 92). --retry alone replays only what curl
+        # deems transient, never a connection cut mid-body (error 56) nor that
+        # cancellation, so --retry-all-errors replays any failure, and each
+        # attempt rewrites the archive from its first byte. The checks below
+        # read the file only once curl has exited 0, on a complete archive.
+        if ! curl --http1.1 -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+            -o "$archive" "$url"; then
             echo "==> download failed: ${url}" >&2
             exit 1
         fi
