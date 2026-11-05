@@ -535,12 +535,14 @@ jobs:
           # keeps the step itself off the runner's profile, as the smoke does.
           mkdir -p "$WORK/home"
           export HOME="$WORK/home" USERPROFILE="$WORK/home"
+          # Python ends its line with CRLF on Windows; the stray CR would
+          # make the sum line unreadable to sha256sum.
           read -r commit sum < <(python3 -I -c '
           import sys, tomllib
           with open(sys.argv[1], "rb") as f:
               entry = next(e for e in tomllib.load(f)["ocr"] if e["language"] == "fra")
           print(entry["commit"], entry["sha256"])
-          ' crates/apollia-llm/src/recommend/pinned_models.toml)
+          ' crates/apollia-llm/src/recommend/pinned_models.toml | tr -d '\r')
           curl --http1.1 -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
             -o "$WORK/fra.traineddata" \
             "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/${commit}/fra.traineddata"
