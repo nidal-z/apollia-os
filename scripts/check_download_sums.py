@@ -35,8 +35,11 @@ Six surfaces are held to the same rule:
      `packaging/fetch-tesseract-sources.sh` reads that table and refuses a
      digest that differs from it; and in every workflow, a step that builds
      with the `ocr` feature (`--features` naming it, or a variable assigned
-     a value that names it) comes after a step of the same job that runs
-     that script. The values of `env:` (workflow, job, step) and of the
+     a value that names it, or `--all-features` on a crate whose manifest
+     declares `ocr`) comes after a step of the same job that runs that
+     script. `--all-features` counts with a `-p` naming such a crate, with
+     `--workspace`, with no `-p` at all, and with a `-p` given through a
+     variable, which the guard does not resolve. The values of `env:` (workflow, job, step) and of the
      matrix (its lists and its `include:` entries) are read by loading the
      YAML, so a plain scalar such as `local-metal,ocr` is read whole; a shell
      assignment is read as one word, `F=$BASE,ocr` included. A matrix read through
@@ -61,6 +64,7 @@ import json
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 try:
@@ -132,6 +136,13 @@ FEATURES_FLAG = re.compile(
     r"(?:--features(?:=|\s+)|(?<!\S)-F\s*)"
     r"(\"[^\"]*\"|'[^']*'|(?:\$\{\{[^}]*\}\}|[^\s\"'])+)"
 )
+# `--all-features` turns on every feature of each package it builds, `ocr`
+# among them wherever a manifest declares it, without the word in the line.
+ALL_FEATURES = re.compile(r"(?<![\w-])--all-features\b")
+PACKAGE_FLAG = re.compile(
+    r"(?:--package(?:=|\s+)|(?<!\S)-p\s*)(\"[^\"]*\"|'[^']*'|[^\s\"']+)"
+)
+WORKSPACE_FLAG = re.compile(r"(?<![\w-])--(?:workspace|all)(?![\w-])")
 EXPR_REF = re.compile(r"\$\{\{\s*([\w.-]+)\s*\}\}")
 SHELL_REF = re.compile(r"\$\{?([A-Za-z_]\w*)\}?")
 TESS_FETCH_CALL = re.compile(r"(?:^|[\s;&|(/])packaging/fetch-tesseract-sources\.sh\b")
@@ -837,8 +848,47 @@ def _carries_ocr(
     return False
 
 
-def check_ocr_workflows(workflow_dir: Path) -> int:
+def ocr_feature_crates(root: Path) -> frozenset[str]:
+    """Packages of the workspace whose manifest declares an `ocr` feature."""
+    names: set[str] = set()
+    for manifest in [root / CARGO_TOML, *sorted(root.glob("crates/*/Cargo.toml"))]:
+        text = _read(manifest)
+        if text is None:
+            continue
+        try:
+            data = tomllib.loads(text)
+        except tomllib.TOMLDecodeError as error:
+            print(f"{manifest}: not valid TOML: {error}", file=sys.stderr)
+            sys.exit(2)
+        package = data.get("package")
+        features = data.get("features")
+        if (
+            isinstance(package, dict)
+            and isinstance(features, dict)
+            and "ocr" in features
+        ):
+            names.add(str(package.get("name", "")))
+    return frozenset(names)
+
+
+def _all_features_on_ocr(line: str, ocr_crates: frozenset[str]) -> bool:
+    """A cargo line whose `--all-features` reaches a crate declaring `ocr`."""
+    if not ALL_FEATURES.search(line):
+        return False
+    if WORKSPACE_FLAG.search(line):
+        return True
+    packages = [v.strip("\"'") for v in PACKAGE_FLAG.findall(line)]
+    if not packages:
+        return True
+    return any("$" in v or v in ocr_crates for v in packages)
+
+
+def check_ocr_workflows(
+    workflow_dir: Path, ocr_crates: frozenset[str] | None = None
+) -> int:
     """Rule (d): an `ocr` build comes after the staging script, in its job."""
+    if ocr_crates is None:
+        ocr_crates = ocr_feature_crates(REPO_ROOT)
     print("workflows: every ocr build stages the verified Tesseract sources first")
     files = sorted(workflow_dir.glob("*.yml")) + sorted(workflow_dir.glob("*.yaml"))
     if not files:
@@ -879,9 +929,12 @@ def check_ocr_workflows(workflow_dir: Path) -> int:
                     line
                     for line in lines
                     if re.search(r"\bcargo\b", line)
-                    and any(
-                        _carries_ocr(v.strip("\"'"), scope, dynamic, 0, loaded)
-                        for v in FEATURES_FLAG.findall(line)
+                    and (
+                        any(
+                            _carries_ocr(v.strip("\"'"), scope, dynamic, 0, loaded)
+                            for v in FEATURES_FLAG.findall(line)
+                        )
+                        or _all_features_on_ocr(line, ocr_crates)
                     )
                 ]
                 if ocr_lines:
@@ -1488,6 +1541,71 @@ def selftest() -> int:
                 "        run: |\n          cargo build -p x `\n            --features ocr\n"
             )
             > 0,
+        )
+
+        control(
+            "the crates declaring ocr are read from their manifests",
+            {"apollia-sources", "apollia-runtime"} <= ocr_feature_crates(REPO_ROOT)
+            and "apollia-core" not in ocr_feature_crates(REPO_ROOT),
+        )
+        all_features = (
+            "      - name: Coverage\n"
+            "        run: cargo llvm-cov -p apollia-runtime --all-features\n"
+        )
+        control(
+            "--all-features on a crate declaring ocr, unstaged, is a gap",
+            ocr_variant("jobs:\n  cov:\n    steps:\n" + all_features) > 0,
+        )
+        control(
+            "--all-features on a crate declaring ocr after the staging step passes",
+            ocr_variant("jobs:\n  cov:\n    steps:\n" + stage + all_features) == 0,
+        )
+        control(
+            "--all-features on a crate without ocr is no ocr build",
+            ocr_variant(
+                "jobs:\n  cov:\n    steps:\n"
+                + all_features.replace("apollia-runtime", "apollia-core")
+            )
+            == 0,
+        )
+        control(
+            "--all-features with --workspace, unstaged, is a gap",
+            ocr_variant(
+                "jobs:\n  cov:\n    steps:\n"
+                "      - run: cargo test --workspace --all-features\n"
+            )
+            > 0,
+        )
+        control(
+            "--all-features on a -p given through a variable, unstaged, is a gap",
+            ocr_variant(
+                "jobs:\n  cov:\n    steps:\n"
+                "      - run: |\n          for crate in a b; do\n"
+                '            cargo llvm-cov -p "${crate}" --all-features\n'
+                "          done\n"
+            )
+            > 0,
+        )
+        # The last staging step of ci.yml is the coverage job's, which sits
+        # after the ocr job; without it the per-crate gate builds ocr unstaged.
+        ci = _read(REPO_ROOT / ".github/workflows/ci.yml") or ""
+        cov_stage = ci.rfind(
+            "      - name: Stage the verified Tesseract and Leptonica sources\n"
+        )
+        unstaged_cov = (
+            ci[:cov_stage]
+            + ci[cov_stage:].replace(
+                "      - name: Stage the verified Tesseract and Leptonica sources\n"
+                "        run: bash packaging/fetch-tesseract-sources.sh\n",
+                "",
+                1,
+            )
+            if cov_stage > ci.find("\n  coverage:")
+            else ci
+        )
+        control(
+            "ci.yml whose coverage job lost its staging step is a gap",
+            unstaged_cov != ci and ocr_variant(unstaged_cov) > 0,
         )
 
         (owf / "fixture.yml").unlink()

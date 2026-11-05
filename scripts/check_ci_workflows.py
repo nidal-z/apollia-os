@@ -57,6 +57,15 @@ level, with no environment to fence them, so the fence is the trigger:
                     never by `pull_request` or `pull_request_target`, so no
                     code from a pull request ever runs beside them
 
+One rule holds a guard to the boundary its comments promised. The llama.cpp
+support tables were checked by a pre-commit hook that passes when upstream is
+unreachable and uncached, and the hook, the generator and its message all said
+"CI runs it with the network" while no workflow launched it:
+
+  llama-support     `ci.yml` exists and one of its `run:` lines launches
+                    `scripts/gen_llama_support.py --check --require-upstream`,
+                    the mode where an upstream it could not read is a red
+
 Exit codes, distinct on purpose so a run that measured nothing cannot pass for
 a run that found nothing:
 
@@ -99,6 +108,15 @@ REQUIRED_BOT_EXCLUSIONS = ("dependabot[bot]", "github-actions[bot]")
 
 RELEASE_FILE = "release.yml"
 DESKTOP_JOB_PREFIX = "desktop-"
+
+CI_FILE = "ci.yml"
+# An invocation on its own line, comments excluded, in the mode that turns an
+# unreadable upstream into a red. Plain `--check` is the hook's mode and passes
+# offline, so it does not count.
+LLAMA_SUPPORT_CALL = re.compile(
+    r"^\s*python3?\s+(?:-\S+\s+)*scripts/gen_llama_support\.py\b"
+    r"(?=.*\s--check\b)(?=.*\s--require-upstream\b)"
+)
 
 
 SOURCE_ONLY_EXTRACTORS = frozenset({"rust"})
@@ -147,6 +165,18 @@ def _tag_or_dispatch_only(doc: dict) -> bool:
         if not spec.get("tags") or "branches" in spec or "branches-ignore" in spec:
             return False
     return True
+
+
+def _launches_llama_support(jobs: dict) -> bool:
+    """True when one `run:` line launches the tables check in its CI mode."""
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            continue
+        for step in _steps(job):
+            for line in str(step.get("run", "")).splitlines():
+                if LLAMA_SUPPORT_CALL.match(line):
+                    return True
+    return False
 
 
 def _jobs(doc: dict) -> dict:
@@ -490,6 +520,14 @@ def audit_file(path: Path) -> tuple[list[str], int]:
                     f"nothing publishes nothing and says so to no one"
                 )
 
+    if path.name == CI_FILE and not _launches_llama_support(jobs):
+        defects.append(
+            f"{path.name}: [llama-support] no `run:` launches "
+            f"scripts/gen_llama_support.py --check --require-upstream, so the "
+            f"llama.cpp support tables are compared only by a hook that passes "
+            f"offline"
+        )
+
     return defects, uses_seen
 
 
@@ -502,6 +540,11 @@ def audit(workflows_dir: Path) -> tuple[list[str], int, int]:
         file_defects, uses_seen = audit_file(path)
         defects.extend(file_defects)
         uses_total += uses_seen
+    if paths and not any(path.name == CI_FILE for path in paths):
+        defects.append(
+            f"{workflows_dir.name}: [llama-support] no {CI_FILE}, so nothing "
+            f"launches the llama.cpp support tables check with the network"
+        )
     return defects, len(paths), uses_total
 
 
@@ -636,6 +679,32 @@ jobs:
       - run: echo close
 """
 
+FAULTY_CI = """\
+name: Fixture CI
+on: [pull_request]
+jobs:
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      # The hook's mode, which passes offline, and a mention in a comment:
+      # python3 scripts/gen_llama_support.py --check --require-upstream
+      - run: python3 scripts/gen_llama_support.py --check
+"""
+
+CLEAN_CI = """\
+name: Fixture CI
+on: [pull_request]
+jobs:
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          python3 scripts/gen_llama_support.py --selftest
+          python3 scripts/gen_llama_support.py --check --require-upstream
+"""
+
+LLAMA_SUPPORT_STEP = "python3 scripts/gen_llama_support.py --check --require-upstream"
+
 EXPECTED_RULES = (
     "[uses-sha]",
     "[needs-resolved]",
@@ -648,6 +717,7 @@ EXPECTED_RULES = (
     "[runner-deprecated]",
     "[updater-guard]",
     "[dist-secrets]",
+    "[llama-support]",
 )
 
 
@@ -667,11 +737,12 @@ def selftest() -> int:
         (faulty / "nightly.yml").write_text(FAULTY_NIGHTLY, encoding="utf-8")
         (faulty / "auto-close-prs.yml").write_text(FAULTY_AUTOCLOSE, encoding="utf-8")
         (faulty / "release.yml").write_text(FAULTY_RELEASE, encoding="utf-8")
+        (faulty / "ci.yml").write_text(FAULTY_CI, encoding="utf-8")
         defects, files, uses = audit(faulty)
         case(
             "the faulty tree was measured",
-            files == 3 and uses == 3,
-            f"measured {files} file(s) and {uses} uses, expected 3 and 3",
+            files == 4 and uses == 3,
+            f"measured {files} file(s) and {uses} uses, expected 4 and 3",
         )
         for rule in EXPECTED_RULES:
             case(
@@ -686,11 +757,50 @@ def selftest() -> int:
         (clean / "nightly.yml").write_text(CLEAN_NIGHTLY, encoding="utf-8")
         (clean / "auto-close-prs.yml").write_text(CLEAN_AUTOCLOSE, encoding="utf-8")
         (clean / "release.yml").write_text(CLEAN_RELEASE, encoding="utf-8")
+        (clean / "ci.yml").write_text(CLEAN_CI, encoding="utf-8")
         defects, files, _ = audit(clean)
         case(
             "positive control: a conforming tree yields no defect",
-            files == 3 and not defects,
-            f"expected 3 files and no defect, got {files} file(s) and {defects!r}",
+            files == 4 and not defects,
+            f"expected 4 files and no defect, got {files} file(s) and {defects!r}",
+        )
+
+        # The real ci.yml, then the same file without the tables step: the
+        # rule holds on the tree and fires on the copy that lost the step.
+        real = (WORKFLOWS / CI_FILE).read_text(encoding="utf-8")
+        copy = Path(tmp) / "real-ci"
+        copy.mkdir()
+        (copy / CI_FILE).write_text(real, encoding="utf-8")
+        defects, _, _ = audit(copy)
+        case(
+            "the tracked ci.yml satisfies [llama-support]",
+            not any("[llama-support]" in d for d in defects),
+            f"the tracked ci.yml trips the rule: {defects!r}",
+        )
+        stripped = "\n".join(
+            line for line in real.splitlines() if LLAMA_SUPPORT_STEP not in line
+        )
+        case(
+            "the copy of ci.yml under test carried the tables step",
+            stripped != real.rstrip("\n") and LLAMA_SUPPORT_STEP in real,
+            f"{LLAMA_SUPPORT_STEP!r} is absent from the tracked ci.yml",
+        )
+        (copy / CI_FILE).write_text(stripped + "\n", encoding="utf-8")
+        defects, _, _ = audit(copy)
+        case(
+            "ci.yml without the tables step trips [llama-support]",
+            any("[llama-support]" in d for d in defects),
+            f"no [llama-support] defect once the step is removed: {defects!r}",
+        )
+
+        missing = Path(tmp) / "no-ci"
+        missing.mkdir()
+        (missing / "nightly.yml").write_text(CLEAN_NIGHTLY, encoding="utf-8")
+        defects, _, _ = audit(missing)
+        case(
+            "a workflow set without ci.yml trips [llama-support]",
+            any("[llama-support]" in d for d in defects),
+            f"no [llama-support] defect without ci.yml: {defects!r}",
         )
 
         empty = Path(tmp) / "empty"
