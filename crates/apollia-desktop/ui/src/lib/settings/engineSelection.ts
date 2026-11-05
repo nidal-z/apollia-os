@@ -6,7 +6,8 @@
 // engine list of the runtime, never from a list written here.
 
 import { get, writable } from "svelte/store";
-import type { EngineEntry, EnginesResponse } from "$lib/ipc/system";
+import type { EngineEntry, EngineVariant, EnginesResponse } from "$lib/ipc/system";
+import { verdictOf } from "$lib/settings/engineVariants";
 import {
   getResolvedSetting,
   setSetting,
@@ -21,7 +22,7 @@ export type EngineFormat = "gguf" | "mlx";
 export const ENGINE_FORMATS: readonly EngineFormat[] = ["gguf", "mlx"];
 
 /** What a format can be served by: the automatic choice, the shipped engine, a store variant. */
-export type EngineChoice = "auto" | "embedded" | NonNullable<EngineEntry["variant"]>;
+export type EngineChoice = "auto" | "embedded" | EngineVariant;
 
 /** The setting each format is written under. */
 export const ENGINE_FORMAT_KEYS: Record<EngineFormat, string> = {
@@ -37,10 +38,14 @@ const FORMAT_ENGINES: Record<EngineFormat, EngineEntry["engine"]> = {
   mlx: "vllm-mlx",
 };
 
-const CHOICES: readonly EngineChoice[] = ["auto", "embedded", "cuda", "vulkan", "cpu", "metal"];
-
-export function isEngineChoice(value: unknown): value is EngineChoice {
-  return (CHOICES as readonly unknown[]).includes(value);
+/**
+ * The choice `value` names among `options`, read from the list of a format:
+ * the automatic choice, or one of the engines the engine list offers. Any
+ * other value is not a choice of this machine.
+ */
+export function choiceAmong(value: string, options: EngineOption[]): EngineChoice | null {
+  if (value === "auto") return "auto";
+  return options.find((o) => o.value === value)?.value ?? null;
 }
 
 /** One engine a format can be served by. */
@@ -53,6 +58,8 @@ export interface EngineOption {
   version: string | null;
   /** True for the engine shipped with the application. */
   embedded: boolean;
+  /** True for an installed build the runtime rates as unable to run on this machine. */
+  incompatible: boolean;
 }
 
 /**
@@ -77,6 +84,7 @@ export function engineOptions(
       variant: shipped.variant,
       version: shipped.version,
       embedded: true,
+      incompatible: false,
     });
   }
   const stored = new Map<NonNullable<EngineEntry["variant"]>, EngineEntry>();
@@ -84,7 +92,14 @@ export function engineOptions(
     if (entry.source !== "embedded" && entry.variant !== null) stored.set(entry.variant, entry);
   }
   for (const [variant, entry] of stored) {
-    options.push({ value: variant, engine, variant, version: entry.version, embedded: false });
+    options.push({
+      value: variant,
+      engine,
+      variant,
+      version: entry.version,
+      embedded: false,
+      incompatible: engine === "llama-server" && verdictOf(response, variant) === "incompatible",
+    });
   }
   return options;
 }
@@ -92,7 +107,7 @@ export function engineOptions(
 /** What the list of a format shows for the choice the settings hold. */
 export interface EngineSelection {
   /** The choice in force: the one written, or the automatic one it fell back to. */
-  value: EngineChoice;
+  value: string;
   /** True when a variant was chosen and this machine no longer holds it. */
   fellBack: boolean;
 }
@@ -102,7 +117,7 @@ export interface EngineSelection {
  * carries has been removed: the automatic choice applies, as it does in the
  * runtime, and the page warns.
  */
-export function engineSelection(chosen: EngineChoice, options: EngineOption[]): EngineSelection {
+export function engineSelection(chosen: string, options: EngineOption[]): EngineSelection {
   if (chosen === "auto" || options.some((o) => o.value === chosen)) {
     return { value: chosen, fellBack: false };
   }
@@ -125,10 +140,14 @@ export interface Held<T> {
   source: SettingSource;
 }
 
-/** The three engine settings in force. */
+/**
+ * The three engine settings in force. A format holds the value written, as
+ * it reads: whether this machine still offers it is decided against the
+ * engine list, by {@link engineSelection}.
+ */
 export interface EngineSettingsState {
-  gguf: Held<EngineChoice>;
-  mlx: Held<EngineChoice>;
+  gguf: Held<string>;
+  mlx: Held<string>;
   autoUpdate: Held<boolean>;
 }
 
@@ -163,6 +182,7 @@ function held<T>(
 }
 
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+const isText = (value: unknown): value is string => typeof value === "string" && value !== "";
 
 /** Seeds the store from the values in force. A value that cannot be read keeps its default. */
 export async function hydrateEngineSettings(ipc: EngineSettingsIpc = shellIpc): Promise<void> {
@@ -177,8 +197,8 @@ export async function hydrateEngineSettings(ipc: EngineSettingsIpc = shellIpc): 
   const mlx = await read(ENGINE_FORMAT_KEYS.mlx);
   const autoUpdate = await read(ENGINE_AUTO_UPDATE_KEY);
   engineSettings.set({
-    gguf: held(gguf, isEngineChoice, DEFAULT_ENGINE_SETTINGS.gguf),
-    mlx: held(mlx, isEngineChoice, DEFAULT_ENGINE_SETTINGS.mlx),
+    gguf: held(gguf, isText, DEFAULT_ENGINE_SETTINGS.gguf),
+    mlx: held(mlx, isText, DEFAULT_ENGINE_SETTINGS.mlx),
     autoUpdate: held(autoUpdate, isBoolean, DEFAULT_ENGINE_SETTINGS.autoUpdate),
   });
 }
@@ -198,7 +218,7 @@ export async function chooseEngine(
   try {
     const written = held(
       await ipc.write(ENGINE_FORMAT_KEYS[format], choice),
-      isEngineChoice,
+      isText,
       { value: choice, source: "user" },
     );
     engineSettings.update((state) => ({ ...state, [format]: written }));

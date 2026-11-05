@@ -53,7 +53,7 @@ function proposable(overrides: Partial<EnginesResponse> = {}): EnginesResponse {
     updates: [
       {
         engine: "llama-server",
-        variant: "cuda",
+        variant: "cuda-12",
         installed_tag: null,
         latest_tag: "b7012",
         update_available: false,
@@ -66,6 +66,9 @@ function proposable(overrides: Partial<EnginesResponse> = {}): EnginesResponse {
     verifiable: true,
     nvidia_card: "NVIDIA GeForce RTX 4070",
     dictation: null,
+    hardware: null,
+    available: [],
+    ratings: [],
     ...overrides,
   };
 }
@@ -78,7 +81,7 @@ function installed(latest: string, released: string | null = "2026-09-28"): Engi
     updates: [
       {
         engine: "llama-server",
-        variant: "cuda",
+        variant: "cuda-12",
         installed_tag: "b6870",
         latest_tag: latest,
         update_available: latest !== "b6870",
@@ -309,7 +312,7 @@ describe("Accelerated engine - the proposal and its installation", () => {
 
     // THEN the verified path was asked for the accelerated engine
     expect(invoked("start_engine_installation")).toEqual([
-      { engine: "llama-server", variant: "cuda" },
+      { engine: "llama-server", variant: "cuda-12" },
     ]);
     expect(errors).toEqual([]);
     const statuses = views.map((view) => view.status);
@@ -572,7 +575,7 @@ describe("Accelerated engine - a new version on the followed channel", () => {
 
     // THEN the same verified path is started, and it reads as an update
     expect(invoked("start_engine_installation")).toEqual([
-      { engine: "llama-server", variant: "cuda" },
+      { engine: "llama-server", variant: "cuda-12" },
     ]);
     const verifying = card(views.find((v) => v.status === "verifying") ?? null);
     expect(textOf(verifying, "ai-engine-title")).toBe(

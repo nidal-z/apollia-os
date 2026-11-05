@@ -1,5 +1,6 @@
 <script lang="ts" module>
   import type { EngineChannel, EngineEntry, EnginesResponse } from "$lib/ipc/system";
+  import { verdictOf } from "$lib/settings/engineVariants";
 
   /** Where an engine stands against the channel it follows. */
   export type EngineUpdate =
@@ -43,7 +44,7 @@
     compatible: boolean;
     /** Upstream project name, a proper noun, never translated. */
     name: string;
-    /** `metal`, `cuda`, `vulkan`, `cpu`, or `null` when the build does not say. */
+    /** The variant the build is made for, or `null` when the build does not say. */
     variant: EngineEntry["variant"];
     /** What the engine is for, as an i18n key. */
     roleKey: string;
@@ -106,25 +107,13 @@
   };
 
   /**
-   * Whether this machine can run the build `e`, given the `accelerator.kind`
-   * of the hardware probe. The engine shipped with the application is made
-   * for this machine. A build of the store needs what its variant names: an
-   * NVIDIA card for CUDA, an Apple chip for Metal and for the MLX engine, a
-   * graphics card for Vulkan. An unknown machine excludes nothing.
+   * Whether this machine can run the build `e`, as the runtime rated its
+   * variant. The engine shipped with the application is made for this
+   * machine, and a build the runtime did not rate excludes nothing.
    */
-  export function engineCompatible(e: EngineEntry, acceleratorKind: string | null): boolean {
-    if (acceleratorKind === null || e.source === "embedded") return true;
-    if (e.engine === "vllm-mlx") return acceleratorKind === "apple_silicon";
-    switch (e.variant) {
-      case "cuda":
-        return acceleratorKind === "cuda";
-      case "metal":
-        return acceleratorKind === "apple_silicon";
-      case "vulkan":
-        return acceleratorKind === "cuda" || acceleratorKind === "generic";
-      default:
-        return true;
-    }
+  export function engineCompatible(e: EngineEntry, response: EnginesResponse): boolean {
+    if (e.source === "embedded" || e.engine !== "llama-server") return true;
+    return verdictOf(response, e.variant) !== "incompatible";
   }
 
   const ENGINE_ROLES: Record<EngineEntry["engine"], string> = {
@@ -138,15 +127,12 @@
    * The version is the one the runtime read from the engine itself; nothing
    * here supplies one.
    */
-  export function engineRows(
-    response: EnginesResponse | null,
-    acceleratorKind: string | null = null,
-  ): EngineRow[] {
+  export function engineRows(response: EnginesResponse | null): EngineRow[] {
     if (!response) return [];
     const rows: EngineRow[] = response.engines.map((e, i) => ({
       id: `${e.engine}-${e.variant ?? "any"}-${e.tag ?? e.source}-${i}`,
       type: ENGINE_TYPES[e.engine],
-      compatible: engineCompatible(e, acceleratorKind),
+      compatible: engineCompatible(e, response),
       name: ENGINE_NAMES[e.engine],
       variant: e.variant,
       roleKey: ENGINE_ROLES[e.engine],
@@ -182,13 +168,17 @@
     switch (variant) {
       case "metal":
         return "Metal";
-      case "cuda":
-        return "CUDA";
+      case "cuda-12":
+        return "CUDA 12";
+      case "cuda-13":
+        return "CUDA 13";
+      case "rocm":
+        return "ROCm";
       case "vulkan":
         return "Vulkan";
       case "cpu":
         return cpuLabel;
-      default:
+      case null:
         return null;
     }
   }
@@ -245,13 +235,14 @@
   import { Spinner } from "$lib/components/ui/progress";
   import { ErrorBanner } from "$lib/components/operator";
   import SettingsSection from "../SettingsSection.svelte";
+  import EngineVariants from "./EngineVariants.svelte";
 
   interface Props {
     response: EnginesResponse | null;
     loading: boolean;
     error: string | null;
-    /** `accelerator.kind` of the hardware probe; `null` until it answers. */
-    acceleratorKind?: string | null;
+    /** The system the application runs on, as `get_system_info` states it; `null` until read. */
+    os?: string | null;
     /** The filters the list opens on. */
     initialFilters?: EngineFilters;
     /** Developer mode: the channel, the sources and the channel tags are shown. */
@@ -268,7 +259,7 @@
     response,
     loading,
     error,
-    acceleratorKind = null,
+    os = null,
     initialFilters = DEFAULT_ENGINE_FILTERS,
     developer,
     checking,
@@ -277,7 +268,7 @@
     oncheck,
   }: Props = $props();
 
-  const rows = $derived(engineRows(response, acceleratorKind));
+  const rows = $derived(engineRows(response));
 
   // The filters belong to this visit of the page: they are not a setting.
   // svelte-ignore state_referenced_locally
@@ -473,3 +464,7 @@
     </ul>
   {/if}
 </SettingsSection>
+
+{#if response}
+  <EngineVariants {response} {os} {checking} {oncheck} />
+{/if}

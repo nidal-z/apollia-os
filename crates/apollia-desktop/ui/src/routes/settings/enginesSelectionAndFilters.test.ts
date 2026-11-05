@@ -113,8 +113,8 @@ const ENGINES: EnginesResponse = {
   engines: [
     engine({ in_service: true }),
     engine({ engine: "vllm-mlx", version: "0.9.1" }),
-    engine({ variant: "cuda", tag: "b7001", source: "downloaded", version: "7001 (0ff1ce0)" }),
-    engine({ variant: "cuda", tag: "b7100", source: "downloaded", version: "7100 (c0ffee0)" }),
+    engine({ variant: "cuda-12", tag: "b7001", source: "downloaded", version: "7001 (0ff1ce0)" }),
+    engine({ variant: "cuda-12", tag: "b7100", source: "downloaded", version: "7100 (c0ffee0)" }),
     engine({ variant: "vulkan", tag: "b6900", source: "imported", version: "6900 (deadbee)" }),
     engine({
       engine: "vllm-mlx",
@@ -132,6 +132,27 @@ const ENGINES: EnginesResponse = {
   verifiable: true,
   nvidia_card: null,
   dictation: { path: "/x/runner", version: "1.7.6" },
+  hardware: { cards: [], vulkan_loader: false, rocm_runtime: false },
+  available: [],
+  ratings: [],
+};
+
+/** The same engines, rated by the runtime of a Mac: the CUDA and Vulkan builds cannot run. */
+const ON_MAC: EnginesResponse = {
+  ...ENGINES,
+  ratings: [
+    { variant: "cuda-12", verdict: "incompatible", reason: { code: "no_gpu" } },
+    { variant: "vulkan", verdict: "incompatible", reason: { code: "no_vulkan_loader" } },
+  ],
+};
+
+/** The same engines, rated by the runtime of a computer with an NVIDIA card. */
+const ON_NVIDIA: EnginesResponse = {
+  ...ENGINES,
+  ratings: [
+    { variant: "cuda-12", verdict: "recommended", reason: null },
+    { variant: "vulkan", verdict: "compatible", reason: null },
+  ],
 };
 
 beforeAll(async () => {
@@ -180,7 +201,7 @@ describe("Engines - one engine per format", () => {
     expect(labels).toEqual([
       copy.option_auto,
       fill(copy.option_embedded, { name: "llama.cpp · Metal", version: "7001 (0ff1ce0)" }),
-      "llama.cpp · CUDA · 7100 (c0ffee0)",
+      "llama.cpp · CUDA 12 · 7100 (c0ffee0)",
       "llama.cpp · Vulkan · 6900 (deadbee)",
     ]);
     expect(gguf).toMatch(/<option value="auto" selected[^>]*>/);
@@ -218,7 +239,7 @@ describe("Engines - one engine per format", () => {
     // THEN GGUF offers the shipped engine, CUDA at its newest build and Vulkan
     expect(gguf.map((o) => [o.value, o.version])).toEqual([
       ["embedded", "7001 (0ff1ce0)"],
-      ["cuda", "7100 (c0ffee0)"],
+      ["cuda-12", "7100 (c0ffee0)"],
       ["vulkan", "6900 (deadbee)"],
     ]);
     // AND MLX offers the shipped engine and the one of the store
@@ -234,7 +255,7 @@ describe("Engines - one engine per format", () => {
     // GIVEN CUDA chosen for GGUF, then a processor build this Mac does not hold
     engineSettings.set({
       ...DEFAULT_ENGINE_SETTINGS,
-      gguf: { value: "cuda", source: "user" },
+      gguf: { value: "cuda-12", source: "user" },
     });
     const kept = renderToString(Engines).body;
     engineSettings.set({
@@ -246,7 +267,7 @@ describe("Engines - one engine per format", () => {
     const removed = renderToString(Engines).body;
 
     // THEN the held variant is chosen and nothing warns
-    expect(selectOf(kept, "engine-format-gguf-select")).toMatch(/<option value="cuda" selected/);
+    expect(selectOf(kept, "engine-format-gguf-select")).toMatch(/<option value="cuda-12" selected/);
     expect(tagOf(kept, "engine-format-gguf-fell-back")).toBeNull();
     // AND the removed one falls back to Automatic, with the warning
     expect(selectOf(removed, "engine-format-gguf-select")).toMatch(/<option value="auto" selected/);
@@ -308,7 +329,7 @@ describe("Engines - one engine per format", () => {
     });
 
     // WHEN a choice and the automatic update are written
-    const chosen = await chooseEngine("gguf", "cuda", refusing);
+    const chosen = await chooseEngine("gguf", "cuda-12", refusing);
     const toggled = await setEngineAutoUpdate(false, refusing);
     const html = renderToString(Engines).body;
 
@@ -360,7 +381,7 @@ describe("Engines - check for updates", () => {
       updates: [
         {
           engine: "llama-server",
-          variant: "cuda",
+          variant: "cuda-12",
           installed_tag: "b7100",
           latest_tag: "b7200",
           update_available: true,
@@ -382,7 +403,6 @@ describe("Engines - check for updates", () => {
         response: get(enginesStore).data,
         loading: false,
         error: null,
-        acceleratorKind: "cuda",
         developer: false,
         checking: false,
         checkError: null,
@@ -405,12 +425,12 @@ describe("Engines - check for updates", () => {
 });
 
 describe("Engines - the list is filtered three ways", () => {
-  const rows = () => engineRows(ENGINES, "apple_silicon");
+  const rows = () => engineRows(ON_MAC);
   const names = (list: ReturnType<typeof rows>) =>
     list.map((row) => `${row.name}/${row.variant ?? "-"}/${row.tag ?? "-"}`);
 
-  test("compatible only, the default, hides the builds this machine cannot run; All shows them", () => {
-    // GIVEN the engines of a Mac, some built for an NVIDIA or a Vulkan card
+  test("compatible only, the default, hides the builds the runtime rates unable to run; All shows them", () => {
+    // GIVEN the engines of a Mac, whose runtime rates the CUDA and Vulkan builds incompatible
     // WHEN the list is filtered with the defaults, then with All
     const compatible = filterEngineRows(rows(), DEFAULT_ENGINE_FILTERS);
     const all = filterEngineRows(rows(), { ...DEFAULT_ENGINE_FILTERS, compatibleOnly: false });
@@ -426,14 +446,12 @@ describe("Engines - the list is filtered three ways", () => {
     ]);
     // AND All shows every engine of the list
     expect(all.length).toBe(rows().length);
-    expect(names(all)).toContain("llama.cpp/cuda/b7100");
-    // AND on a computer with an NVIDIA card the CUDA and Vulkan builds are
-    //     compatible and the MLX build of the store is not
-    const onNvidia = filterEngineRows(engineRows(ENGINES, "cuda"), DEFAULT_ENGINE_FILTERS);
-    expect(names(onNvidia)).toContain("llama.cpp/cuda/b7100");
+    expect(names(all)).toContain("llama.cpp/cuda-12/b7100");
+    // AND where the runtime rates the CUDA and Vulkan builds runnable they are kept
+    const onNvidia = filterEngineRows(engineRows(ON_NVIDIA), DEFAULT_ENGINE_FILTERS);
+    expect(names(onNvidia)).toContain("llama.cpp/cuda-12/b7100");
     expect(names(onNvidia)).toContain("llama.cpp/vulkan/b6900");
-    expect(names(onNvidia)).not.toContain("vllm-mlx/metal/v0.9.2");
-    // AND a machine nothing is known of excludes nothing
+    // AND a machine the runtime rated nothing on excludes nothing
     expect(filterEngineRows(engineRows(ENGINES), DEFAULT_ENGINE_FILTERS).length).toBe(8);
   });
 
@@ -449,7 +467,7 @@ describe("Engines - the list is filtered three ways", () => {
 
     // THEN each finds its engines, case and spaces ignored
     expect(names(byName)).toEqual(["whisper.cpp/-/-"]);
-    expect(names(byVariant)).toEqual(["llama.cpp/cuda/b7001", "llama.cpp/cuda/b7100"]);
+    expect(names(byVariant)).toEqual(["llama.cpp/cuda-12/b7001", "llama.cpp/cuda-12/b7100"]);
     expect(names(byVersion)).toEqual(["vllm-mlx/metal/v0.9.2"]);
     expect(nothing).toEqual([]);
   });
@@ -476,11 +494,11 @@ describe("Engines - the list is filtered three ways", () => {
 
   test("the page shows the three filters, compatible only chosen, and says when nothing matches", () => {
     // GIVEN the engines of a Mac
+    enginesStore.set(loaded(ON_MAC));
     const props = {
-      response: ENGINES,
+      response: ON_MAC,
       loading: false,
       error: null,
-      acceleratorKind: "apple_silicon",
       developer: false,
       checking: false,
       checkError: null,
@@ -509,7 +527,7 @@ describe("Engines - the list is filtered three ways", () => {
     expect(type).toContain(`>${copy.type_dictation}</option>`);
     // AND the rows are the compatible ones, then all of them
     expect(html.match(/data-testid="engine-row"/g)?.length).toBe(5);
-    expect(html).not.toContain("llama.cpp · CUDA</span>");
+    expect(html).not.toContain("llama.cpp · CUDA 12</span>");
     expect(every.match(/data-testid="engine-row"/g)?.length).toBe(8);
     // AND a search nothing matches says so, with no row
     expect(tagOf(empty, "engines-list-no-match")).not.toBeNull();

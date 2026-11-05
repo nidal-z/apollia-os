@@ -133,6 +133,10 @@
     "engine-format-gguf",
     "engine-format-gguf-fell-back",
     "engine-format-gguf-select",
+    "engine-hardware-card-0",
+    "engine-variant-row-cuda-12-reason",
+    "engine-variant-row-cuda-12-verdict",
+    "engine-variant-row-rocm",
     "env-input-BRAVE_API_KEY",
     "env-toggle-BRAVE_API_KEY",
     "global-event-agent.degraded",
@@ -19378,7 +19382,7 @@
           },
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "source": "downloaded",
             "tag": "b7001",
             "version": "7001 (0ff1ce0)",
@@ -19398,7 +19402,7 @@
         "updates": [
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "installed_tag": "b7001",
             "latest_tag": "b7100",
             "update_available": true
@@ -19434,7 +19438,7 @@
         "updates": [
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "installed_tag": "b7001",
             "latest_tag": "b7100",
             "update_available": true
@@ -19544,7 +19548,7 @@
         "updates": [
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "installed_tag": "b7001",
             "latest_tag": "b7100",
             "update_available": true
@@ -19666,7 +19670,7 @@
           },
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "source": "downloaded",
             "tag": "b7001",
             "version": "7001 (0ff1ce0)",
@@ -19678,7 +19682,7 @@
         "updates": [
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "installed_tag": "b7001",
             "latest_tag": "b7100",
             "update_available": true
@@ -19698,7 +19702,7 @@
         "updates": [
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "installed_tag": "b7001",
             "latest_tag": "b7100",
             "update_available": true
@@ -19762,7 +19766,7 @@
           },
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "source": "downloaded",
             "tag": "b7001",
             "version": "7001 (0ff1ce0)",
@@ -19782,7 +19786,7 @@
         "updates": [
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "installed_tag": "b7001",
             "latest_tag": "b7100",
             "update_available": true
@@ -19809,7 +19813,7 @@
         "updates": [
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "installed_tag": "b7001",
             "latest_tag": "b7100",
             "update_available": true
@@ -20059,7 +20063,7 @@
           },
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "source": "downloaded",
             "tag": "b7001",
             "version": "7001 (0ff1ce0)",
@@ -20079,7 +20083,7 @@
         "updates": [
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "installed_tag": "b7001",
             "latest_tag": "b7200",
             "update_available": true
@@ -20115,7 +20119,7 @@
         "updates": [
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "installed_tag": "b7001",
             "latest_tag": "b7200",
             "update_available": true
@@ -20163,7 +20167,7 @@
         "updates": [
           {
             "engine": "llama-server",
-            "variant": "cuda",
+            "variant": "cuda-12",
             "installed_tag": "b7001",
             "latest_tag": "b7100",
             "update_available": true
@@ -20208,6 +20212,350 @@
     {
       "kind": "sleep",
       "ms": 800
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "cpu",
+            "source": "embedded",
+            "tag": null,
+            "version": "7100 (c0ffee0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda-12",
+            "source": "downloaded",
+            "tag": "b7100",
+            "version": "7100 (c0ffee0)",
+            "in_service": false
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [],
+        "cuda_proposable": false,
+        "nvidia_card": "NVIDIA GeForce RTX 4090",
+        "verifiable": true,
+        "dictation": null,
+        "hardware": {
+          "cards": [
+            {
+              "vendor": "nvidia",
+              "name": "NVIDIA GeForce RTX 4090",
+              "vram_gb": 24,
+              "driver_version": "560.35.03",
+              "compute_capability": "8.9",
+              "gfx_target": null,
+              "kfd_accessible": null,
+              "timed_out": false
+            }
+          ],
+          "vulkan_loader": true,
+          "rocm_runtime": false
+        },
+        "available": [
+          {
+            "engine": "llama-server",
+            "tag": "b7100",
+            "variant": "cuda-13",
+            "size": 1,
+            "released": null,
+            "installed": false
+          },
+          {
+            "engine": "llama-server",
+            "tag": "b7100",
+            "variant": "cuda-12",
+            "size": 1,
+            "released": null,
+            "installed": true
+          },
+          {
+            "engine": "llama-server",
+            "tag": "b7100",
+            "variant": "rocm",
+            "size": 1,
+            "released": null,
+            "installed": false
+          },
+          {
+            "engine": "llama-server",
+            "tag": "b7100",
+            "variant": "vulkan",
+            "size": 1,
+            "released": null,
+            "installed": false
+          },
+          {
+            "engine": "llama-server",
+            "tag": "b7100",
+            "variant": "cpu",
+            "size": 1,
+            "released": null,
+            "installed": false
+          }
+        ],
+        "ratings": [
+          {
+            "variant": "cuda-12",
+            "verdict": "recommended",
+            "reason": {
+              "code": "driver_too_old",
+              "have": "560.35.03",
+              "need": "570.26"
+            }
+          },
+          {
+            "variant": "cuda-13",
+            "verdict": "incompatible",
+            "reason": {
+              "code": "driver_too_old",
+              "have": "560.35.03",
+              "need": "580"
+            }
+          },
+          {
+            "variant": "rocm",
+            "verdict": "incompatible",
+            "reason": {
+              "code": "no_gpu"
+            }
+          },
+          {
+            "variant": "vulkan",
+            "verdict": "compatible",
+            "reason": null
+          },
+          {
+            "variant": "cpu",
+            "verdict": "compatible",
+            "reason": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": []
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-hardware-card-0",
+      "contains": "RTX 4090",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-hardware"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-hardware-vulkan"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-variant-list"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-row-cuda-12-reason",
+      "contains": "570.26",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-variant-row-cuda-12-verdict"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-variant-row-rocm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56k-engines-hardware-and-variants"
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-toggle-incompatible"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-row-rocm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56l-engines-variants-incompatible-shown"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "cpu",
+            "source": "embedded",
+            "tag": null,
+            "version": "7100 (c0ffee0)",
+            "in_service": true
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": null,
+        "updates": [],
+        "cuda_proposable": false,
+        "nvidia_card": null,
+        "verifiable": true,
+        "dictation": null,
+        "hardware": {
+          "cards": [],
+          "vulkan_loader": false,
+          "rocm_runtime": false
+        },
+        "available": [],
+        "ratings": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": []
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-unread",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-hardware-no-card"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56m-engines-catalogue-unread"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "cpu",
+            "source": "embedded",
+            "tag": null,
+            "version": "7100 (c0ffee0)",
+            "in_service": true
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [],
+        "cuda_proposable": false,
+        "nvidia_card": null,
+        "verifiable": true,
+        "dictation": null,
+        "hardware": null,
+        "available": [],
+        "ratings": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": []
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engine-variant-check"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-variant-none",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-hardware-unknown"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56n-engines-no-variant-hardware-late"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": []
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-list",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "check_engine_updates"
     },
     {
       "kind": "click",

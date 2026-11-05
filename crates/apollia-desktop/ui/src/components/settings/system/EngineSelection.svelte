@@ -38,8 +38,8 @@
   import {
     engineInService,
     engineOptions,
+    choiceAmong,
     engineSelection,
-    isEngineChoice,
     type EngineChoice,
     type EngineOption,
     type EngineSettingsState,
@@ -75,9 +75,11 @@
   function optionLabel(option: EngineOption): string {
     const name = buildName(option.engine, option.variant);
     const version = option.version ?? $t("settings.engines.version_unknown");
-    return option.embedded
-      ? $t("settings.engines.option_embedded", { values: { name, version } })
-      : `${name} · ${version}`;
+    if (option.embedded) return $t("settings.engines.option_embedded", { values: { name, version } });
+    const label = `${name} · ${version}`;
+    return option.incompatible
+      ? $t("settings.engines.option_incompatible", { values: { name: label } })
+      : label;
   }
 
   const lines = $derived(
@@ -137,8 +139,8 @@
             value={line.selection.value}
             disabled={line.locked || !response}
             onchange={(e) => {
-              const chosen = e.currentTarget.value;
-              if (isEngineChoice(chosen)) onchoose(line.format, chosen);
+              const chosen = choiceAmong(e.currentTarget.value, line.options);
+              if (chosen) onchoose(line.format, chosen);
             }}
             aria-label={$t("settings.engines.format_label", {
               values: { format: ENGINE_FORMAT_NAMES[line.format] },
