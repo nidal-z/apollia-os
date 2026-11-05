@@ -7,13 +7,15 @@
 #   - cron: every Monday at 06:00 UTC (once a week, which is enough)
 #   - workflow_dispatch: manual trigger, to validate on demand
 #
-# Jobs (14 of them, each one launchable alone through workflow_dispatch.inputs.job):
+# Jobs (15 of them, each one launchable alone through workflow_dispatch.inputs.job):
 #   - e2e-desktop         : Tauri E2E tests (slow, sometimes flaky)
 #   - python-tests        : PyO3-gated AIP suite (Python agents through the bridge)
 #   - cli-e2e-runtime     : CLI suite Tracks 1 and 2, daemon on a seeded throwaway HOME
 #   - multirunner-cpu-e2e : daemon plus CPU sidecar runner on the 3 OSes
 #   - ocr-windows         : the ocr feature built and tested on Windows MSVC, linked
 #                           like the shipped desktop (+crt-static) and like the CLI
+#   - ocr-languages       : every pinned language of reading downloaded and compared
+#                           to its size and SHA-256 (about 5 MB)
 #   - feature-matrix      : sanity check of the GPU features on apollia-llm/stt
 #   - coverage            : HTML/LCOV coverage report (heavy)
 #   - mutants             : cargo-mutants on permissions plus core (advisory)
@@ -45,6 +47,7 @@ on:
           - "cli-e2e-runtime"
           - "multirunner-cpu-e2e"
           - "ocr-windows"
+          - "ocr-languages"
           - "feature-matrix"
           - "coverage"
           - "mutants"
@@ -297,6 +300,29 @@ jobs:
           cargo test -p apollia-runtime --release \
             --target ${{ matrix.triple }} \
             runner_supervisor::
+
+  # ── OCR languages ──────────────────────────────────────────────────────────
+  # The language data the registry pins ([[ocr]] of pinned_models.toml) is
+  # downloaded from the address the application composes, and each file is
+  # compared to its pinned size and SHA-256 by the script itself. The first
+  # address the registry pinned died upstream in silence; this job is what
+  # makes the next one fail loudly. Exit 2 (network absent) is a red too.
+  ocr-languages:
+    name: OCR languages still download
+    if: |
+      github.event_name == 'schedule' ||
+      github.event.inputs.job == 'all' ||
+      github.event.inputs.job == 'ocr-languages'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - name: Download and compare every pinned language
+        run: python3 -I scripts/check_ocr_languages.py
 
   # ── OCR on Windows MSVC ────────────────────────────────────────────────────
   # The build script of tesseract-rs forces the dynamic C runtime (/MD,
