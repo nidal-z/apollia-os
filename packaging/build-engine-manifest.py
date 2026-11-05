@@ -27,6 +27,10 @@ becomes one zip. A symbolic link that climbs out of its own directory is left
 out and named in the output: the store refuses such a link, and the three that
 a Node.js release carries (`bin/npm`, `bin/npx`, `bin/corepack`) are
 conveniences the application does not use, since it runs `npx-cli.js` by path.
+The `llama-connect` tool that upstream llama.cpp builds carry (a peer-to-peer
+tunnel, fetched unpinned when upstream builds it) is left out and named in the
+output as well: the application never runs it, and nothing the distribution
+key signs may open a tunnel.
 
 Signing is `cargo tauri signer sign`, the tool that already signs the
 application updates, with another key: the distribution key, read from
@@ -37,7 +41,7 @@ here: a run where the two hold the same value is refused.
 
 Usage:
     build-engine-manifest.py --channel stable --sequence 1760000000 \\
-        --llama-tag b11541 --out dist/engines-stable
+        --llama-tag b12064 --out dist/engines-stable
     build-engine-manifest.py ... --require llama-server/cuda-12/windows-x64
     build-engine-manifest.py ... --offline-dir downloads --no-sign
 
@@ -95,6 +99,9 @@ CALENDAR_DAY = re.compile(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
 MAX_ENTRIES = 20_000
 # What each engine's archive must hold for the application to run it. An
 # archive without it would pass every digest check and serve no one.
+# Upstream files no package carries, matched on the file name: the tunnel tool
+# of llama.cpp, `llama-connect` and `llama-connect.exe`.
+LEFT_OUT_PREFIXES = ("llama-connect",)
 MUST_HOLD = {
     "llama-server": [("llama-server", "llama-server.exe")],
     "nodejs": [("node", "node.exe"), ("npx-cli.js",)],
@@ -353,6 +360,7 @@ def repackage(package: dict, files: list[Path], dest: Path) -> None:
     """Write the one zip of a package from its verified upstream archives."""
     written: dict[str, str] = {}  # name -> kind
     dropped: list[str] = []
+    left_out: list[str] = []
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as out:
         for source, path in zip(package["sources"], files):
             beside = source.get("beside")
@@ -373,6 +381,9 @@ def repackage(package: dict, files: list[Path], dest: Path) -> None:
                             continue
                         leaf = PurePosixPath(name).name
                         name = leaf if anchor == "." else f"{anchor}/{leaf}"
+                    if entry.kind != "dir" and PurePosixPath(name).name.startswith(LEFT_OUT_PREFIXES):
+                        left_out.append(name)
+                        continue
                     if entry.kind == "link" and not link_stays_inside(entry.link):
                         dropped.append(f"{name} -> {entry.link}")
                         continue
@@ -384,6 +395,8 @@ def repackage(package: dict, files: list[Path], dest: Path) -> None:
                     written[name] = entry.kind
     for line in dropped:
         say(f"   left out a link that climbs out of its directory: {line}")
+    for name in left_out:
+        say(f"   left out a file no package carries: {name}")
     if len(written) > MAX_ENTRIES:
         raise Refused(f"{dest.name}: {len(written)} entries, the store accepts {MAX_ENTRIES}")
     leaves = {PurePosixPath(n).name for n, k in written.items() if k == "file"}
