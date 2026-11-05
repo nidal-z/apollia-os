@@ -70,6 +70,11 @@ pub fn dist_info_version(site_packages: &Path, name: &str) -> Option<String> {
 /// stderr. `None` when it cannot run, fails, says nothing usable, or has not
 /// answered within [`BANNER_TIMEOUT`].
 pub async fn probe_banner(binary: &Path) -> Option<String> {
+    probe_banner_within(binary, BANNER_TIMEOUT).await
+}
+
+/// [`probe_banner`], waiting at most `limit` for the banner.
+pub(crate) async fn probe_banner_within(binary: &Path, limit: Duration) -> Option<String> {
     let mut command = tokio::process::Command::new(binary);
     apollia_core::subprocess_window::hide_console_async(&mut command);
     // An inherited `LLAMA_ARG_*` the build refuses would fail the banner and
@@ -83,7 +88,7 @@ pub async fn probe_banner(binary: &Path) -> Option<String> {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
-    let output = match tokio::time::timeout(BANNER_TIMEOUT, command.output()).await {
+    let output = match tokio::time::timeout(limit, command.output()).await {
         Ok(Ok(output)) if output.status.success() => output,
         Ok(Ok(output)) => {
             tracing::event!(

@@ -14,6 +14,12 @@ use super::engine_command;
 use crate::llama_server::test_support::supervisor_with_ceiling;
 use apollia_llm::engine_env::engine_flag_names;
 
+/// The wait for the banner of a stand-in engine this test has just written.
+/// macOS can hold the first launch of a freshly written executable for
+/// seconds while it assesses it, longer than the five seconds the runtime
+/// gives a real engine; the subject here is the environment, not the wait.
+const ANSWER_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Serialises the tests that write the environment of this process.
 static LOCK: Mutex<()> = Mutex::new(());
 
@@ -226,7 +232,10 @@ fn test_an_inherited_engine_flag_does_not_reach_the_version_banner() {
         .enable_all()
         .build()
         .unwrap();
-    let version = runtime.block_on(crate::engine_store::version::probe_banner(&engine));
+    let version = runtime.block_on(crate::engine_store::version::probe_banner_within(
+        &engine,
+        ANSWER_LIMIT,
+    ));
 
     // THEN the variables did not reach it, and its version is read rather
     //      than the banner coming back empty
