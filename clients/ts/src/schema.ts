@@ -1667,13 +1667,16 @@ export interface paths {
          *     build of the engine store.
          * @description The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
          *     with `tag` null, and this route addresses it by the reserved tag
-         *     `embedded`, always to refuse it (`embedded`), confirmation or not.
+         *     `embedded`, always to refuse it (`embedded`), confirmation or not. An
+         *     engine or a variant this build does not know answers `not_found` first.
          *
          *     The build `engines.gguf` names, which no process runs, is refused without
-         *     `confirm=true` (`chosen`). With it the build goes; when no other build of
-         *     the chosen variant is left, `engines.gguf` is first written back to
-         *     `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
-         *     process runs stays refused (`in_service`) whatever the confirmation.
+         *     `confirm=true` (`chosen`), and `after` says what the setting comes down to
+         *     once it is gone: `auto`, or the tag of the build of the chosen variant
+         *     that takes its place. With it the build goes; when no other build of the
+         *     chosen variant is left, `engines.gguf` is first written back to `auto`,
+         *     and the `engine.removed` event says so (`choice_reset`, `after`). A build
+         *     a process runs stays refused (`in_service`) whatever the confirmation.
          */
         delete: operations["remove_engine"];
         options?: never;
@@ -8464,6 +8467,12 @@ export interface components {
         EngineRefusalCode: "no_trusted_key" | "signature_invalid" | "signature_unknown_key" | "signature_missing" | "manifest_invalid" | "rollback" | "package_not_found" | "digest_mismatch" | "archive_invalid" | "network" | "storage";
         /** @description A refused removal: the message and its stable code. */
         EngineRemovalErrorBody: {
+            /**
+             * @description With `chosen`, what `engines.gguf` comes down to once the build is
+             *     gone: `auto`, or the tag of the build of the chosen variant that
+             *     takes its place.
+             */
+            after?: string | null;
             /**
              * @description Stable code: `not_found`, `in_service`, `embedded`, `chosen`,
              *     `locked`, `config`, `store`.

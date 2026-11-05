@@ -94,13 +94,16 @@ def sync_detailed(
 
      The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
     with `tag` null, and this route addresses it by the reserved tag
-    `embedded`, always to refuse it (`embedded`), confirmation or not.
+    `embedded`, always to refuse it (`embedded`), confirmation or not. An
+    engine or a variant this build does not know answers `not_found` first.
 
     The build `engines.gguf` names, which no process runs, is refused without
-    `confirm=true` (`chosen`). With it the build goes; when no other build of
-    the chosen variant is left, `engines.gguf` is first written back to
-    `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
-    process runs stays refused (`in_service`) whatever the confirmation.
+    `confirm=true` (`chosen`), and `after` says what the setting comes down to
+    once it is gone: `auto`, or the tag of the build of the chosen variant
+    that takes its place. With it the build goes; when no other build of the
+    chosen variant is left, `engines.gguf` is first written back to `auto`,
+    and the `engine.removed` event says so (`choice_reset`, `after`). A build
+    a process runs stays refused (`in_service`) whatever the confirmation.
 
     Args:
         engine (str):
@@ -143,13 +146,16 @@ def sync(
 
      The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
     with `tag` null, and this route addresses it by the reserved tag
-    `embedded`, always to refuse it (`embedded`), confirmation or not.
+    `embedded`, always to refuse it (`embedded`), confirmation or not. An
+    engine or a variant this build does not know answers `not_found` first.
 
     The build `engines.gguf` names, which no process runs, is refused without
-    `confirm=true` (`chosen`). With it the build goes; when no other build of
-    the chosen variant is left, `engines.gguf` is first written back to
-    `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
-    process runs stays refused (`in_service`) whatever the confirmation.
+    `confirm=true` (`chosen`), and `after` says what the setting comes down to
+    once it is gone: `auto`, or the tag of the build of the chosen variant
+    that takes its place. With it the build goes; when no other build of the
+    chosen variant is left, `engines.gguf` is first written back to `auto`,
+    and the `engine.removed` event says so (`choice_reset`, `after`). A build
+    a process runs stays refused (`in_service`) whatever the confirmation.
 
     Args:
         engine (str):
@@ -187,13 +193,16 @@ async def asyncio_detailed(
 
      The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
     with `tag` null, and this route addresses it by the reserved tag
-    `embedded`, always to refuse it (`embedded`), confirmation or not.
+    `embedded`, always to refuse it (`embedded`), confirmation or not. An
+    engine or a variant this build does not know answers `not_found` first.
 
     The build `engines.gguf` names, which no process runs, is refused without
-    `confirm=true` (`chosen`). With it the build goes; when no other build of
-    the chosen variant is left, `engines.gguf` is first written back to
-    `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
-    process runs stays refused (`in_service`) whatever the confirmation.
+    `confirm=true` (`chosen`), and `after` says what the setting comes down to
+    once it is gone: `auto`, or the tag of the build of the chosen variant
+    that takes its place. With it the build goes; when no other build of the
+    chosen variant is left, `engines.gguf` is first written back to `auto`,
+    and the `engine.removed` event says so (`choice_reset`, `after`). A build
+    a process runs stays refused (`in_service`) whatever the confirmation.
 
     Args:
         engine (str):
@@ -234,13 +243,16 @@ async def asyncio(
 
      The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
     with `tag` null, and this route addresses it by the reserved tag
-    `embedded`, always to refuse it (`embedded`), confirmation or not.
+    `embedded`, always to refuse it (`embedded`), confirmation or not. An
+    engine or a variant this build does not know answers `not_found` first.
 
     The build `engines.gguf` names, which no process runs, is refused without
-    `confirm=true` (`chosen`). With it the build goes; when no other build of
-    the chosen variant is left, `engines.gguf` is first written back to
-    `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
-    process runs stays refused (`in_service`) whatever the confirmation.
+    `confirm=true` (`chosen`), and `after` says what the setting comes down to
+    once it is gone: `auto`, or the tag of the build of the chosen variant
+    that takes its place. With it the build goes; when no other build of the
+    chosen variant is left, `engines.gguf` is first written back to `auto`,
+    and the `engine.removed` event says so (`choice_reset`, `after`). A build
+    a process runs stays refused (`in_service`) whatever the confirmation.
 
     Args:
         engine (str):

@@ -26,8 +26,8 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::engine_store::selection::{named_variants, resolve, GGUF_ENGINE_SETTING};
 use crate::engine_store::{
-    self, installed_packages, purge, Engine, EngineChoices, InstalledPackage, Resolved, Source,
-    Variant,
+    self, compare_tags, installed_packages, purge, Engine, EngineChoices, InstalledPackage,
+    Resolved, Source, Variant,
 };
 
 /// The tag that names the engine embedded in the bundle, which has none of
@@ -43,6 +43,11 @@ pub struct EngineRemovalErrorBody {
     /// Stable code: `not_found`, `in_service`, `embedded`, `chosen`,
     /// `locked`, `config`, `store`.
     pub code: String,
+    /// With `chosen`, what `engines.gguf` comes down to once the build is
+    /// gone: `auto`, or the tag of the build of the chosen variant that
+    /// takes its place.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after: Option<String>,
 }
 
 type RemovalError = (StatusCode, Json<EngineRemovalErrorBody>);
@@ -60,6 +65,7 @@ fn refused(status: StatusCode, code: &str, error: impl std::fmt::Display) -> Rem
         Json(EngineRemovalErrorBody {
             error,
             code: code.to_owned(),
+            after: None,
         }),
     )
 }
@@ -93,24 +99,37 @@ pub struct RemovalQuery {
 }
 
 /// What `engines.gguf` says of the build to remove.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Chosen {
     /// The setting does not name this build.
     No,
-    /// The setting names this build, and another build of the chosen
-    /// variant takes its place once it is gone.
-    Replaced,
+    /// The setting names this build, and the build `tag` of the chosen
+    /// variant `variant` takes its place once it is gone.
+    Replaced { tag: String, variant: Variant },
     /// The setting names this build and nothing would be left to take its
     /// place: the setting goes back to `auto`.
     Last,
 }
 
+impl Chosen {
+    /// What the setting comes down to once the build is gone: `auto`, the
+    /// tag that takes its place, or nothing when the setting does not name
+    /// the build.
+    pub(super) fn after(&self) -> Option<String> {
+        match self {
+            Self::No => None,
+            Self::Replaced { tag, .. } => Some(tag.clone()),
+            Self::Last => Some(EngineChoice::Auto.as_str().to_owned()),
+        }
+    }
+}
+
 /// The fate of a removal request.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Verdict {
-    /// Delete the build; `reset_choice` writes `engines.gguf` back to `auto`
-    /// first.
-    Remove { reset_choice: bool },
+    /// Delete the build; [`Chosen::Last`] writes `engines.gguf` back to
+    /// `auto` first.
+    Remove(Chosen),
     /// A process runs the build, or the automatic choice takes it next.
     InService,
     /// The build `engines.gguf` names, asked for without confirmation.
@@ -135,14 +154,9 @@ pub(super) fn weigh(
     }
     match chosen {
         Chosen::No if is_in_service(package, &[], next_llama, next_mlx) => Verdict::InService,
-        Chosen::No => Verdict::Remove {
-            reset_choice: false,
-        },
+        Chosen::No => Verdict::Remove(Chosen::No),
         _ if !confirm => Verdict::Chosen(chosen),
-        Chosen::Replaced => Verdict::Remove {
-            reset_choice: false,
-        },
-        Chosen::Last => Verdict::Remove { reset_choice: true },
+        named => Verdict::Remove(named),
     }
 }
 
@@ -157,15 +171,57 @@ pub(super) fn chosen_in(root: &Path, choice: EngineChoice, package: &InstalledPa
         Resolved::Stored(named) if same(&named) => {}
         _ => return Chosen::No,
     }
-    let variants = named_variants(choice);
-    let replaced = installed_packages(root)
-        .iter()
-        .any(|p| p.engine == Engine::LlamaServer && variants.contains(&p.variant) && !same(p));
-    if replaced {
-        Chosen::Replaced
-    } else {
-        Chosen::Last
+    let others: Vec<InstalledPackage> = installed_packages(root)
+        .into_iter()
+        .filter(|p| p.engine == Engine::LlamaServer && !same(p))
+        .collect();
+    let replacement = named_variants(choice).iter().find_map(|variant| {
+        others
+            .iter()
+            .filter(|p| p.variant == *variant)
+            .max_by(|a, b| compare_tags(&a.tag, &b.tag))
+    });
+    match replacement {
+        Some(next) => Chosen::Replaced {
+            tag: next.tag.clone(),
+            variant: next.variant,
+        },
+        None => Chosen::Last,
     }
+}
+
+/// The refusal of a build `engines.gguf` names, asked for without
+/// confirmation: the message says what the setting comes down to, and
+/// `after` carries it for a client.
+pub(super) fn chosen_refusal(package: &InstalledPackage, chosen: &Chosen) -> RemovalError {
+    let after = match chosen {
+        Chosen::Replaced { tag, variant } => format!(
+            "the build {tag} {} of the chosen variant takes its place",
+            variant.as_str()
+        ),
+        Chosen::No | Chosen::Last => "the choice goes back to auto".to_owned(),
+    };
+    let (status, Json(mut body)) = refused(
+        StatusCode::CONFLICT,
+        "chosen",
+        format!(
+            "{} is the build engines.gguf chooses; remove it with confirm=true and {after}",
+            name(package)
+        ),
+    );
+    body.after = chosen.after();
+    (status, Json(body))
+}
+
+/// The refusal of a deletion that failed; when `engines.gguf` was written
+/// back to `auto` before it, the message says so.
+pub(super) fn store_failure(reset: bool, error: impl std::fmt::Display) -> RemovalError {
+    let error = if reset {
+        format!("{error}; engines.gguf was set back to auto and the build is still installed")
+    } else {
+        error.to_string()
+    };
+    refused(StatusCode::INTERNAL_SERVER_ERROR, "store", error)
 }
 
 fn name(package: &InstalledPackage) -> String {
@@ -225,13 +281,16 @@ async fn reset_choice<B: ExecutionBackend + Clone>(
 ///
 /// The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
 /// with `tag` null, and this route addresses it by the reserved tag
-/// `embedded`, always to refuse it (`embedded`), confirmation or not.
+/// `embedded`, always to refuse it (`embedded`), confirmation or not. An
+/// engine or a variant this build does not know answers `not_found` first.
 ///
 /// The build `engines.gguf` names, which no process runs, is refused without
-/// `confirm=true` (`chosen`). With it the build goes; when no other build of
-/// the chosen variant is left, `engines.gguf` is first written back to
-/// `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
-/// process runs stays refused (`in_service`) whatever the confirmation.
+/// `confirm=true` (`chosen`), and `after` says what the setting comes down to
+/// once it is gone: `auto`, or the tag of the build of the chosen variant
+/// that takes its place. With it the build goes; when no other build of the
+/// chosen variant is left, `engines.gguf` is first written back to `auto`,
+/// and the `engine.removed` event says so (`choice_reset`, `after`). A build
+/// a process runs stays refused (`in_service`) whatever the confirmation.
 #[utoipa::path(
     delete,
     path = "/api/v1/engines/{engine}/{tag}/{variant}",
@@ -255,16 +314,6 @@ pub async fn remove_engine<B: ExecutionBackend + Clone>(
     UrlPath((engine, tag, variant)): UrlPath<(String, String, String)>,
     Query(query): Query<RemovalQuery>,
 ) -> Result<StatusCode, RemovalError> {
-    let embedded = || {
-        refused(
-            StatusCode::CONFLICT,
-            "embedded",
-            "the engine embedded in the application cannot be removed",
-        )
-    };
-    if tag == EMBEDDED_TAG {
-        return Err(embedded());
-    }
     let not_found = || {
         refused(
             StatusCode::NOT_FOUND,
@@ -277,6 +326,16 @@ pub async fn remove_engine<B: ExecutionBackend + Clone>(
     else {
         return Err(not_found());
     };
+    let embedded = || {
+        refused(
+            StatusCode::CONFLICT,
+            "embedded",
+            "the engine embedded in the application cannot be removed",
+        )
+    };
+    if tag == EMBEDDED_TAG {
+        return Err(embedded());
+    }
     let root = engine_store::store_root(&state.data_dir);
     let (lookup_root, wanted_tag) = (root.clone(), tag.clone());
     let package = tokio::task::spawn_blocking(move || {
@@ -314,8 +373,8 @@ pub async fn remove_engine<B: ExecutionBackend + Clone>(
         chosen,
         query.confirm,
     );
-    let reset = match verdict {
-        Verdict::Remove { reset_choice } => reset_choice,
+    let chosen = match verdict {
+        Verdict::Remove(chosen) => chosen,
         Verdict::InService => {
             return Err(refused(
                 StatusCode::CONFLICT,
@@ -326,22 +385,9 @@ pub async fn remove_engine<B: ExecutionBackend + Clone>(
                 ),
             ))
         }
-        Verdict::Chosen(chosen) => {
-            let after = if chosen == Chosen::Last {
-                "the choice goes back to auto"
-            } else {
-                "the newest other build of the chosen variant takes its place"
-            };
-            return Err(refused(
-                StatusCode::CONFLICT,
-                "chosen",
-                format!(
-                    "{} is the build engines.gguf chooses; remove it with confirm=true and {after}",
-                    name(&package)
-                ),
-            ));
-        }
+        Verdict::Chosen(chosen) => return Err(chosen_refusal(&package, &chosen)),
     };
+    let reset = chosen == Chosen::Last;
     if reset {
         reset_choice(&state, &package).await?;
     }
@@ -349,14 +395,16 @@ pub async fn remove_engine<B: ExecutionBackend + Clone>(
     let removed = package.clone();
     tokio::task::spawn_blocking(move || purge::remove_build(&removed))
         .await
-        .map_err(|e| refused(StatusCode::INTERNAL_SERVER_ERROR, "store", e))?
-        .map_err(|e| refused(StatusCode::INTERNAL_SERVER_ERROR, "store", e))?;
+        .map_err(|e| store_failure(reset, e))?
+        .map_err(|e| store_failure(reset, e))?;
+    let after = chosen.after();
     tracing::event!(
         tracing::Level::INFO,
         engine = package.engine.as_str(),
         tag = %package.tag,
         variant = package.variant.as_str(),
         choice_reset = reset,
+        after = after.as_deref(),
         "engine.removed"
     );
     Ok(StatusCode::NO_CONTENT)

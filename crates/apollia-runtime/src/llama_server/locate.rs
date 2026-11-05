@@ -8,6 +8,11 @@ use super::LlamaServerError;
 use crate::engine_store::selection::{resolve, Resolved};
 use crate::engine_store::Engine;
 
+/// Serialises the tests that pose `APOLLIA_LLAMA_SERVER_BIN` with those that
+/// resolve a binary through it: the variable is global to the test process.
+#[cfg(test)]
+pub(crate) static BIN_OVERRIDE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// Locate the bundled `llama-server` binary, falling back to `PATH` in dev.
 ///
 /// Resolution order: the `APOLLIA_LLAMA_SERVER_BIN` override, then the engine

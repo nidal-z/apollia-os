@@ -9,7 +9,7 @@ use axum::http::{Request, StatusCode};
 use serde_json::Value;
 use tower::ServiceExt;
 
-use super::removal::{is_in_service, weigh, Chosen, Verdict};
+use super::removal::{is_in_service, store_failure, weigh, Chosen, Verdict};
 use super::*;
 use crate::api::routes_llm::{test_app_state_no_llm, MockBackend};
 use crate::engine_store::selection::resolve;
@@ -103,6 +103,8 @@ async fn test_the_chosen_build_goes_on_confirmation_only_and_an_older_tag_freely
     let newest = file(dir.path(), "b7000", Variant::Vulkan);
     let config = choosing(dir.path(), "vulkan");
     let uri = "/api/v1/engines/llama-server/b7000/vulkan";
+    let recorder = Recorder::default();
+    let _guard = tracing::dispatcher::set_default(&tracing::Dispatch::new(recorder.clone()));
 
     // WHEN the newest is removed without confirmation, then with it, and the
     // older one is removed without confirmation
@@ -121,15 +123,28 @@ async fn test_the_chosen_build_goes_on_confirmation_only_and_an_older_tag_freely
     )
     .await;
 
-    // THEN the chosen build is refused in 409 `chosen` and stays until the
-    // confirmation, which removes it; the older tag, which the choice then
-    // names, is refused in its turn, and the setting is left as it was
+    // THEN the chosen build is refused in 409 `chosen`, the answer naming
+    // the older tag as the one that takes its place, and stays until the
+    // confirmation, which removes it and says so in `engine.removed`; the
+    // older tag, which the choice then names, is refused in its turn, and
+    // the setting is left as it was
     assert_eq!(refused, StatusCode::CONFLICT);
     assert_eq!(body["code"], "chosen");
+    assert_eq!(body["after"], "b6000");
     let message = body["error"].as_str().unwrap();
-    assert!(message.contains("b7000") && message.contains("confirm=true"));
+    assert!(
+        message.contains("b7000")
+            && message.contains("confirm=true")
+            && message.contains("the build b6000 vulkan of the chosen variant takes its place"),
+        "{message}"
+    );
     assert!(kept);
     assert_eq!(confirmed, StatusCode::NO_CONTENT);
+    assert_eq!(removed_field(&recorder, "after").as_deref(), Some("b6000"));
+    assert_eq!(
+        removed_field(&recorder, "choice_reset").as_deref(),
+        Some("false")
+    );
     assert!(!newest.exists());
     assert_eq!(freed, StatusCode::CONFLICT);
     assert!(older.join("llama-server").is_file());
@@ -191,9 +206,19 @@ async fn test_the_embedded_engine_is_refused_and_an_unknown_build_is_not_found()
     let (unknown_variant, _) =
         delete(dir.path(), None, "/api/v1/engines/llama-server/b7000/turbo").await;
     let (unknown_engine, _) = delete(dir.path(), None, "/api/v1/engines/ollama/b7000/vulkan").await;
+    let (embedded_unknown_engine, engine_body) =
+        delete(dir.path(), None, "/api/v1/engines/ollama/embedded/cpu").await;
+    let (embedded_unknown_variant, variant_body) = delete(
+        dir.path(),
+        None,
+        "/api/v1/engines/llama-server/embedded/turbo",
+    )
+    .await;
 
     // THEN the embedded engine is refused in 409, confirmation or not, the
-    // three others answer 404, and the store is untouched
+    // three others answer 404, an unknown engine or variant under the
+    // embedded tag answers 404 before the tag is weighed, and the store is
+    // untouched
     assert_eq!(embedded, StatusCode::CONFLICT);
     assert_eq!(embedded_body["code"], "embedded");
     assert_eq!(confirmed, StatusCode::CONFLICT);
@@ -202,6 +227,10 @@ async fn test_the_embedded_engine_is_refused_and_an_unknown_build_is_not_found()
     assert_eq!(absent_body["code"], "not_found");
     assert_eq!(unknown_variant, StatusCode::NOT_FOUND);
     assert_eq!(unknown_engine, StatusCode::NOT_FOUND);
+    assert_eq!(embedded_unknown_engine, StatusCode::NOT_FOUND);
+    assert_eq!(engine_body["code"], "not_found");
+    assert_eq!(embedded_unknown_variant, StatusCode::NOT_FOUND);
+    assert_eq!(variant_body["code"], "not_found");
     assert!(vulkan.join("llama-server").is_file());
 }
 
@@ -269,6 +298,20 @@ impl tracing::Subscriber for Recorder {
     fn exit(&self, _: &tracing::span::Id) {}
 }
 
+/// The field `name` of the first `engine.removed` event `recorder` holds.
+fn removed_field(recorder: &Recorder, name: &str) -> Option<String> {
+    let events = recorder.0.lock().unwrap();
+    let removed = events.iter().find(|fields| {
+        fields
+            .iter()
+            .any(|(field, value)| field == "message" && value == "engine.removed")
+    })?;
+    removed
+        .iter()
+        .find(|(field, _)| field == name)
+        .map(|(_, value)| value.clone())
+}
+
 #[tokio::test]
 async fn test_a_removal_is_logged_with_engine_tag_and_variant() {
     // GIVEN a CPU build out of service and a recorder of the events
@@ -325,7 +368,11 @@ fn test_a_build_a_process_runs_stays_in_service_even_confirmed() {
     let chosen_running = weigh(&package, running, (None, None), Chosen::Last, true);
     let chosen_alone = weigh(&package, &[], (Some(&binary), None), Chosen::Last, false);
     let chosen_confirmed = weigh(&package, &[], (Some(&binary), None), Chosen::Last, true);
-    let replaced_confirmed = weigh(&package, &[], (Some(&binary), None), Chosen::Replaced, true);
+    let replaced = Chosen::Replaced {
+        tag: "b6000".to_owned(),
+        variant: Variant::Cpu,
+    };
+    let replaced_confirmed = weigh(&package, &[], (Some(&binary), None), replaced.clone(), true);
     let automatic_next = weigh(&package, &[], (Some(&binary), None), Chosen::No, true);
 
     // THEN a process running it refuses it whatever the confirmation; the
@@ -334,13 +381,8 @@ fn test_a_build_a_process_runs_stays_in_service_even_confirmed() {
     // next stays in service
     assert_eq!(chosen_running, Verdict::InService);
     assert_eq!(chosen_alone, Verdict::Chosen(Chosen::Last));
-    assert_eq!(chosen_confirmed, Verdict::Remove { reset_choice: true });
-    assert_eq!(
-        replaced_confirmed,
-        Verdict::Remove {
-            reset_choice: false
-        }
-    );
+    assert_eq!(chosen_confirmed, Verdict::Remove(Chosen::Last));
+    assert_eq!(replaced_confirmed, Verdict::Remove(replaced));
     assert_eq!(automatic_next, Verdict::InService);
 }
 
@@ -378,7 +420,11 @@ async fn test_the_last_chosen_build_removed_on_confirmation_resets_the_choice_to
     // `choice_reset`
     assert_eq!(refused, StatusCode::CONFLICT);
     assert_eq!(body["code"], "chosen");
-    assert!(body["error"].as_str().unwrap().contains("back to auto"));
+    assert_eq!(body["after"], "auto");
+    assert!(body["error"]
+        .as_str()
+        .unwrap()
+        .contains("remove it with confirm=true and the choice goes back to auto"));
     assert_eq!(before, "[engines]\ngguf = \"vulkan\"\n");
     assert_eq!(removed, StatusCode::NO_CONTENT);
     assert!(!vulkan.exists());
@@ -387,18 +433,129 @@ async fn test_the_last_chosen_build_removed_on_confirmation_resets_the_choice_to
     assert!(!next.fell_back);
     assert_eq!(former.resolved, Resolved::Automatic);
     assert!(former.fell_back);
-    let events = recorder.0.lock().unwrap();
-    let removed_event = events
-        .iter()
-        .find(|fields| {
-            fields
-                .iter()
-                .any(|(name, value)| name == "message" && value == "engine.removed")
-        })
+    assert_eq!(
+        removed_field(&recorder, "choice_reset").as_deref(),
+        Some("true")
+    );
+    assert_eq!(removed_field(&recorder, "after").as_deref(), Some("auto"));
+}
+
+/// Poses `APOLLIA_LLAMA_SERVER_BIN` for the life of the value, and removes it
+/// on drop.
+struct BinOverride;
+
+impl BinOverride {
+    fn pose(binary: &Path) -> Self {
+        std::env::set_var("APOLLIA_LLAMA_SERVER_BIN", binary);
+        Self
+    }
+}
+
+impl Drop for BinOverride {
+    fn drop(&mut self) {
+        std::env::remove_var("APOLLIA_LLAMA_SERVER_BIN");
+    }
+}
+
+#[tokio::test]
+async fn test_the_build_the_next_launch_takes_stays_in_service_even_confirmed() {
+    // GIVEN a CPU build, the automatic choice in the settings, and the binary
+    // override pointing at that build, so the next launch takes it
+    let _lock = crate::llama_server::locate::BIN_OVERRIDE_LOCK.lock().await;
+    let dir = tempfile::tempdir().unwrap();
+    let cpu = file(dir.path(), "b7000", Variant::Cpu);
+    let config = choosing(dir.path(), "auto");
+    let _override = BinOverride::pose(&cpu.join("llama-server"));
+    let uri = "/api/v1/engines/llama-server/b7000/cpu";
+
+    // WHEN it is removed without confirmation, then with it
+    let (plain, plain_body) = delete(dir.path(), Some(config.clone()), uri).await;
+    let (confirmed, confirmed_body) = delete(
+        dir.path(),
+        Some(config.clone()),
+        &format!("{uri}?confirm=true"),
+    )
+    .await;
+
+    // THEN both are refused in 409 `in_service`, with no `after`, and the
+    // build and the settings are left as they were
+    assert_eq!(plain, StatusCode::CONFLICT);
+    assert_eq!(plain_body["code"], "in_service");
+    assert_eq!(confirmed, StatusCode::CONFLICT);
+    assert_eq!(confirmed_body["code"], "in_service");
+    assert!(confirmed_body.get("after").is_none());
+    assert!(cpu.join("llama-server").is_file());
+    assert_eq!(
+        std::fs::read_to_string(&config).unwrap(),
+        "[engines]\ngguf = \"auto\"\n"
+    );
+}
+
+#[tokio::test]
+async fn test_the_build_the_policy_chooses_is_locked_even_confirmed() {
+    // GIVEN one Vulkan build, the settings on the automatic choice, and an
+    // organisation policy fixing `engines.gguf` to the Vulkan variant
+    let dir = tempfile::tempdir().unwrap();
+    let vulkan = file(dir.path(), "b7000", Variant::Vulkan);
+    let config = choosing(dir.path(), "auto");
+    let text = "schema_version = 1\nsigned_at = 2026-10-01T09:00:00Z\n\
+                [settings]\n\"engines.gguf\" = \"vulkan\"\n";
+    let policy = apollia_permissions::parse_policy(text).unwrap();
+    let mut state = test_app_state_no_llm();
+    state.data_dir = dir.path().to_path_buf();
+    state.config_path = Some(config.clone());
+    state.inference_governance = crate::governance::InferenceGovernance::new(Arc::new(
+        apollia_permissions::PolicyVerdict::Valid(Box::new(apollia_permissions::ValidPolicy {
+            signed_at: policy.signed_at,
+            policy,
+            key_fingerprint: "00".into(),
+            policy_digest: "00".into(),
+            publisher: "it".into(),
+        })),
+    ));
+    let app = engines_router::<MockBackend>().with_state(state);
+
+    // WHEN the build is removed with confirmation
+    let req = Request::builder()
+        .method("DELETE")
+        .uri("/api/v1/engines/llama-server/b7000/vulkan?confirm=true")
+        .body(Body::empty())
         .unwrap();
-    let reset = removed_event
-        .iter()
-        .find(|(name, _)| name == "choice_reset")
-        .map(|(_, value)| value.as_str());
-    assert_eq!(reset, Some("true"));
+    let resp = app.oneshot(req).await.unwrap();
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+
+    // THEN it is refused in 403 `locked`, and neither the build nor the
+    // settings change
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(body["code"], "locked");
+    assert!(vulkan.join("llama-server").is_file());
+    assert_eq!(
+        std::fs::read_to_string(&config).unwrap(),
+        "[engines]\ngguf = \"auto\"\n"
+    );
+}
+
+#[test]
+fn test_a_failed_deletion_after_the_reset_says_the_choice_is_auto() {
+    // GIVEN the error a deletion meets
+    let error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+
+    // WHEN it is reported after the setting was written back, and without
+    let (after_reset, Json(after_reset_body)) = store_failure(true, &error);
+    let (alone, Json(alone_body)) = store_failure(false, &error);
+
+    // THEN both answer 500 `store`, and only the first says the choice is
+    // back to auto
+    assert_eq!(after_reset, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(after_reset_body.code, "store");
+    assert_eq!(
+        after_reset_body.error,
+        "denied; engines.gguf was set back to auto and the build is still installed"
+    );
+    assert_eq!(alone, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(alone_body.error, "denied");
 }

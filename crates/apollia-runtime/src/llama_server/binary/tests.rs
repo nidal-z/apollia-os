@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use super::LaunchBinary;
 use crate::engine_store::selection::resolve;
 use crate::engine_store::{package_dir, Engine, InstalledPackage, Source, Variant, RECORD_FILE};
+use crate::llama_server::locate::BIN_OVERRIDE_LOCK;
 use crate::llama_server::test_support::supervisor_with_ceiling;
 use crate::local_engine::LoadConsent;
 use apollia_core::config::EngineChoice;
@@ -87,7 +88,9 @@ fn window_of(line: &str) -> Option<u32> {
 #[tokio::test]
 async fn test_a_changed_engine_serves_the_next_launch_without_a_new_supervisor() {
     // GIVEN a CPU and a Vulkan build in the store, settings choosing the CPU
-    //       build, and one supervisor reading those settings
+    //       build, and one supervisor reading those settings, no binary
+    //       override posed by another test
+    let _override = BIN_OVERRIDE_LOCK.lock().await;
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("engines");
     let cpu = install_stand_in(&root, Variant::Cpu);
@@ -138,7 +141,9 @@ async fn test_a_changed_engine_serves_the_next_launch_without_a_new_supervisor()
 
 #[test]
 fn test_a_chosen_variant_since_removed_launches_the_automatic_choice_and_says_so() {
-    // GIVEN settings choosing the Vulkan build, which the store holds
+    // GIVEN settings choosing the Vulkan build, which the store holds, and no
+    //       binary override posed by another test
+    let _override = BIN_OVERRIDE_LOCK.blocking_lock();
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("engines");
     let vulkan = install_stand_in(&root, Variant::Vulkan);

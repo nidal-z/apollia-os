@@ -5463,7 +5463,7 @@
           "engines"
         ],
         "summary": "`DELETE /api/v1/engines/{engine}/{tag}/{variant}`: removes one installed\nbuild of the engine store.",
-        "description": "The embedded engine has no tag of its own: `GET /api/v1/engines` lists it\nwith `tag` null, and this route addresses it by the reserved tag\n`embedded`, always to refuse it (`embedded`), confirmation or not.\n\nThe build `engines.gguf` names, which no process runs, is refused without\n`confirm=true` (`chosen`). With it the build goes; when no other build of\nthe chosen variant is left, `engines.gguf` is first written back to\n`auto`, and the `engine.removed` event says so (`choice_reset`). A build a\nprocess runs stays refused (`in_service`) whatever the confirmation.",
+        "description": "The embedded engine has no tag of its own: `GET /api/v1/engines` lists it\nwith `tag` null, and this route addresses it by the reserved tag\n`embedded`, always to refuse it (`embedded`), confirmation or not. An\nengine or a variant this build does not know answers `not_found` first.\n\nThe build `engines.gguf` names, which no process runs, is refused without\n`confirm=true` (`chosen`), and `after` says what the setting comes down to\nonce it is gone: `auto`, or the tag of the build of the chosen variant\nthat takes its place. With it the build goes; when no other build of the\nchosen variant is left, `engines.gguf` is first written back to `auto`,\nand the `engine.removed` event says so (`choice_reset`, `after`). A build\na process runs stays refused (`in_service`) whatever the confirmation.",
         "operationId": "remove_engine",
         "parameters": [
           {
@@ -24587,6 +24587,13 @@
           "code"
         ],
         "properties": {
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "With `chosen`, what `engines.gguf` comes down to once the build is\ngone: `auto`, or the tag of the build of the chosen variant that\ntakes its place."
+          },
           "code": {
             "type": "string",
             "description": "Stable code: `not_found`, `in_service`, `embedded`, `chosen`,\n`locked`, `config`, `store`."
