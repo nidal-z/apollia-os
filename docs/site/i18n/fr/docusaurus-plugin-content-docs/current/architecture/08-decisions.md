@@ -895,6 +895,36 @@ Le coût est nommé : deux crates et leurs petits arbres (`imap-proto`, `hashify
 protocole dont les serveurs varient dans leur rigueur. Un serveur qui comprend
 mal une commande donne une erreur de protocole typée, pas un plantage.
 
+### Une copie corrigée de tesseract-rs {#tesseract-rs-copy}
+
+Les binaires Windows lient le runtime C de façon statique
+(`-C target-feature=+crt-static`), pour qu'une machine sans le Redistributable
+Visual C++ les exécute, et chaque bibliothèque C ou C++ liée dedans doit être
+compilée contre ce même runtime statique, avec `/MT`. Le script de compilation
+de `tesseract-rs` 0.4.0 compile Leptonica et Tesseract avec `/MD`, quoi que
+demande la cible Rust : il écrit lui-même `/MD` dans les options de la
+configuration de production et fixe `CMAKE_MSVC_RUNTIME_LIBRARY` à
+`MultiThreadedDLL`, ce qui écrase la valeur que donne l'environnement de
+compilation. L'édition des liens d'un binaire Windows avec la fonctionnalité
+`ocr` échoue alors sur des symboles du runtime qu'aucun objet ne fournit.
+
+La crate est donc compilée depuis une copie gardée dans l'arbre, sous
+`third_party/tesseract-rs/`, par `[patch.crates-io]` dans le manifeste de
+l'espace de travail. La copie est la 0.4.0 publiée, octet pour octet, à un
+changement près dans son script de compilation : quand la cible a
+`crt-static`, il passe `/MT` dans les options de production et de mise au
+point et `MultiThreaded` comme bibliothèque de runtime ; sans elle, chaque
+valeur est celle de l'amont, si bien que macOS et Linux compilent exactement ce
+que compile la crate publiée. Rien d'autre de la copie ne diffère, ses autres
+défauts compris : ses sources sont toujours posées à l'avance par
+`packaging/fetch-tesseract-sources.sh`. Les gardes qui jugent le code écrit ici
+laissent la copie de côté, puisque son code et sa prose sont ceux de ses
+auteurs. L'installeur ne change pas.
+
+La copie est retirée, avec l'entrée `[patch]`, dès qu'une version publiée de
+`tesseract-rs` suit `crt-static` sous Windows, et l'épinglage passe à cette
+version.
+
 ## Export d'un lot {#batch-export}
 
 Le résultat d'un lot s'exporte en classeur Excel, en CSV ou en JSON, une ligne

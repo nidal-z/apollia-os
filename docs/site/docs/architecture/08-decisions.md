@@ -824,6 +824,34 @@ The cost is named: two crates and their small trees (`imap-proto`, `hashify`,
 servers vary in how strictly they follow it. A server that misreads a command
 answers a typed protocol error rather than a crash.
 
+### A corrected copy of tesseract-rs {#tesseract-rs-copy}
+
+The Windows binaries link the C runtime statically
+(`-C target-feature=+crt-static`), so that a machine without the Visual C++
+Redistributable runs them, and every C or C++ library linked into them has to
+be compiled against that same static runtime, with `/MT`. The build script of
+`tesseract-rs` 0.4.0 compiles Leptonica and Tesseract with `/MD` whatever the
+Rust target asks: it writes `/MD` into the release flags itself and sets
+`CMAKE_MSVC_RUNTIME_LIBRARY` to `MultiThreadedDLL`, which overrides the value
+the build environment gives. The link of a Windows build with the `ocr`
+feature then fails on runtime symbols no object provides.
+
+The crate is therefore built from a copy kept in the tree, under
+`third_party/tesseract-rs/`, through `[patch.crates-io]` in the workspace
+manifest. The copy is the published 0.4.0 byte for byte except for one change
+to its build script: when the target has `crt-static`, it passes `/MT` in the
+release and debug flags and `MultiThreaded` as the runtime library; without
+it, every value is the upstream one, so macOS and Linux build exactly what the
+published crate builds. Nothing else of the copy differs, its other defects
+included: its sources are still staged beforehand by
+`packaging/fetch-tesseract-sources.sh`. The guards that judge the code written
+here leave the copy out, since its code and prose are its authors'. The
+installer does not change.
+
+The copy is removed, with the `[patch]` entry, as soon as a published release
+of `tesseract-rs` follows `crt-static` on Windows, and the pin moves to that
+release.
+
 ## Batch export {#batch-export}
 
 The result of a batch is exported as an Excel workbook, as CSV or as JSON, one
