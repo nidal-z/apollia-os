@@ -34,7 +34,7 @@ function source(over: Partial<Source>): Source {
 }
 
 function index(over: Partial<SourceIndex>): SourceIndex {
-  return { id: "src-1", indexState: "ready", documents: 0, chunks: 0, skipped: [], ...over };
+  return { id: "src-1", indexState: "ready", documents: 0, chunks: 0, skipped: [], unreadPages: [], ...over };
 }
 
 function connection(over: Partial<Connection>): Connection {
@@ -155,6 +155,32 @@ describe("agent sources - the state of the index", () => {
     // THEN both counts and the paths are carried
     expect([row.documents, row.tooLarge, row.unreadable]).toEqual([214, 2, 1]);
     expect(row.skipped.map((file) => file.path)).toEqual(["/r/video.mov", "/r/scan.pdf", "/r/dump.csv"]);
+  });
+
+  test("the pages without text are counted by reason", () => {
+    // GIVEN an index holding two scanned pages waiting for recognition and one page it cannot read
+    const unreadPages = [
+      { path: "/r/scanned-fr.pdf", page: 1, reason: "ocr_unavailable" as const },
+      { path: "/r/scanned-fr.pdf", page: 2, reason: "ocr_unavailable" as const },
+      { path: "/r/plan.pdf", page: 4, reason: "not_read" as const },
+    ];
+
+    // WHEN the row is built
+    const [row] = sourceRows([source({})], { "src-1": index({ documents: 3, unreadPages }) }, ["src-1"], false);
+
+    // THEN two pages await recognition and one was not read
+    expect([row.awaitingOcr, row.notRead]).toEqual([2, 1]);
+  });
+
+  test("an index answer without unread pages counts none", () => {
+    // GIVEN an index answer that carries no `unreadPages` field at all
+    const bare = { id: "src-1", indexState: "ready", documents: 3, chunks: 9, skipped: [] } as unknown as SourceIndex;
+
+    // WHEN the row is built
+    const [row] = sourceRows([source({})], { "src-1": bare }, ["src-1"], false);
+
+    // THEN both counts are zero
+    expect([row.awaitingOcr, row.notRead]).toEqual([0, 0]);
   });
 
   test("without an index answer the row shows the state the registry records", () => {

@@ -7086,6 +7086,8 @@
     "skipped": "{count, plural, one {# file skipped} other {# files skipped}} (over 50 MB or unreadable)",
     "skipped_too_large": "over 50 MB",
     "skipped_unreadable": "unreadable",
+    "awaiting_ocr": "{count, plural, one {# page awaiting recognition} other {# pages awaiting recognition}}",
+    "not_read": "{count, plural, one {# page not read} other {# pages not read}}",
     "open_ai": "Install a model in AI",
     "reading_note": "The agent can search this folder, not open its files.",
     "grant_reading": "Let it open its files",
