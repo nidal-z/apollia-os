@@ -509,16 +509,17 @@ repos:
         files: '^(clients/openapi\.json|clients/python/apollia_runtime_client/api/.*\.py|scripts/check_generated_clients\.py)$'
         pass_filenames: false
 
-      # The four roots the guard declares: the packaging scripts and their
-      # sums files, the desktop bundling scripts, and the workflow run blocks.
-      # A download without a pinned sum is born in a commit touching one of
-      # them. The upstream-digest comparison (--github) stays in CI: it needs
+      # The roots the guard declares: the packaging scripts and their sums
+      # files, the desktop bundling scripts, the workflow run blocks, and the
+      # root Cargo.toml, whose tesseract-rs pin the Tesseract sources table
+      # must serve. A download without a pinned sum is born in a commit
+      # touching one of them. The upstream-digest comparison (--github) stays in CI: it needs
       # the network and a token a commit cannot assume.
       - id: check-download-sums
         name: every download is verified against a pinned sha256 sum
         entry: python3 scripts/check_download_sums.py
         language: system
-        files: '^(packaging/.+|crates/apollia-desktop/scripts/.+|\.github/workflows/.+|scripts/check_download_sums\.py)$'
+        files: '^(Cargo\.toml|packaging/.+|crates/apollia-desktop/scripts/.+|\.github/workflows/.+|scripts/check_download_sums\.py)$'
         pass_filenames: false
 
       # Blocks a commit that breaks the documentation build. The second branch
