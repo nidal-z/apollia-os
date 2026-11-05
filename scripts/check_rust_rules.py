@@ -348,6 +348,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # test releases one to obtain a port nothing listens on.
     "crates/apollia-runtime/src/api/routes_chat/prompt_template/tests.rs": 2,
     # The same fake registry and deadline, behind the registry route.
+    # The clock is the subject: the engine list must answer within its
+    # deadline while the hardware probe hangs, so the stand-in probe sleeps
+    # past that deadline and the test observes that the route does not wait.
+    "crates/apollia-runtime/src/api/routes_engines/tests_hardware.rs": 1,
     "crates/apollia-runtime/src/api/routes_mcp_registry.rs": 2,
     "crates/apollia-runtime/src/api/server.rs": 13,
     # The mailbox and the whole-bus event streams never end: each probe reads
@@ -363,6 +367,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # Same helper and same reason for Node.js, published in the same signed
     # manifest: the fake server counts the archive requests.
     "crates/apollia-runtime/src/engine_store/node/tests.rs": 1,
+    # The process is the subject: an installed build is rated by the devices
+    # it lists, so one helper writes fake engines as shell scripts that list a
+    # device or none, and the test reads what spawning each one answered.
+    "crates/apollia-runtime/src/engine_store/compat/tests.rs": 1,
     # The listener is the subject: the compatible server is a second TCP
     # listener, and "nothing listens", "the port is taken" and "the port
     # refuses after a stop" are only observable on a real port. One helper,

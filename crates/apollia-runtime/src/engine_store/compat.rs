@@ -376,19 +376,21 @@ fn rocm_fit(profile: &GpuProfile, os: Os) -> Fit {
     } else {
         ROCM_LINUX_GFX
     };
-    let Some(gfx) = card.gfx_target.as_deref() else {
-        return Fit::Runs(None);
-    };
-    if !build.contains(&gfx) {
-        return Fit::Fails(Reason::GfxNotInBuild {
-            gfx: gfx.to_owned(),
-        });
+    if let Some(gfx) = card.gfx_target.as_deref() {
+        if !build.contains(&gfx) {
+            return Fit::Fails(Reason::GfxNotInBuild {
+                gfx: gfx.to_owned(),
+            });
+        }
     }
     if os == Os::Windows {
         return Fit::Runs(None);
     }
     if !profile.rocm_runtime {
         return Fit::Fails(Reason::NoRocmRuntime);
+    }
+    if card.gfx_target.is_none() {
+        return Fit::Runs(None);
     }
     if card.kfd_accessible == Some(true) {
         Fit::Best

@@ -281,6 +281,22 @@ fn amd_intel_and_cardless_machines_are_rated() {
             ),
         ),
         (
+            "AMD gfx unknown without the ROCm runtime",
+            amd(None, Some(true), false, true),
+            "linux-x64",
+            Variant::Vulkan,
+            Variant::Rocm,
+            (Incompatible, Some(Reason::NoRocmRuntime)),
+        ),
+        (
+            "AMD gfx unknown with the ROCm runtime",
+            amd(None, Some(true), true, true),
+            "linux-x64",
+            Variant::Vulkan,
+            Variant::Rocm,
+            (Compatible, None),
+        ),
+        (
             "AMD under Windows",
             amd(None, None, false, true),
             "windows-x64",
