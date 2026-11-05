@@ -8435,7 +8435,11 @@ export interface components {
         EngineRefusalCode: "no_trusted_key" | "signature_invalid" | "signature_unknown_key" | "signature_missing" | "manifest_invalid" | "rollback" | "package_not_found" | "digest_mismatch" | "archive_invalid" | "network" | "storage";
         /** @description Body of the settings routes. */
         EngineSettingsBody: {
-            /** @description Base address manifests and archives are fetched from. */
+            /**
+             * @description The mirror manifests and archives are fetched from, the only one read
+             *     when set. Empty when none is set: the registry of Apollia is read
+             *     first, then its GitHub mirror.
+             */
             base_url: string;
             /** @description The followed channel. */
             channel: components["schemas"]["EngineChannel"];

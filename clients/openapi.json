@@ -24496,7 +24496,7 @@
         "properties": {
           "base_url": {
             "type": "string",
-            "description": "Base address manifests and archives are fetched from."
+            "description": "The mirror manifests and archives are fetched from, the only one read\nwhen set. Empty when none is set: the registry of Apollia is read\nfirst, then its GitHub mirror."
           },
           "channel": {
             "$ref": "#/components/schemas/EngineChannel",

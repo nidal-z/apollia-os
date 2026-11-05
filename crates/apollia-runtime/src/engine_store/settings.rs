@@ -9,29 +9,64 @@ use serde::{Deserialize, Serialize};
 use crate::engine_store::manifest::{verify_manifest, Channel, Manifest};
 use crate::engine_store::EngineStoreError;
 
-/// Where manifests are published when no mirror is set.
-pub const DEFAULT_BASE_URL: &str = "https://github.com/Apollia-OS/apollia-os/releases/download";
+/// The registry of Apollia: the first address a channel is read from.
+pub const REGISTRY_BASE_URL: &str = "https://registry.apollia.fr";
+
+/// The GitHub Releases of Apollia, which mirror the registry: read when the
+/// registry does not answer.
+pub const GITHUB_BASE_URL: &str = "https://github.com/Apollia-OS/apollia-os/releases/download";
+
+/// The bases read in order when no mirror is set. Each one serves a channel
+/// under `engines-<channel>/`; none is trusted, the signature decides.
+pub const DEFAULT_BASE_URLS: [&str; 2] = [REGISTRY_BASE_URL, GITHUB_BASE_URL];
 
 /// The settings of the store.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct EngineStoreSettings {
     /// The channel followed.
     #[serde(default)]
     pub channel: Channel,
-    /// The base address manifests and archives are fetched from.
-    #[serde(default = "default_base_url")]
-    pub base_url: String,
+    /// A mirror set by the user or a policy. When present it is the only base
+    /// read, with no fallback; when absent, [`DEFAULT_BASE_URLS`] are read in
+    /// order.
+    #[serde(
+        default,
+        deserialize_with = "read_mirror",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub base_url: Option<String>,
 }
 
-fn default_base_url() -> String {
-    DEFAULT_BASE_URL.to_owned()
+/// The mirror an address stands for: none for an empty one, and none for
+/// [`GITHUB_BASE_URL`], the single default earlier versions wrote into every
+/// settings file they saved, so that such a file reads the registry first.
+#[must_use]
+pub fn mirror_of(address: &str) -> Option<String> {
+    let address = address.trim();
+    if address.is_empty() || address.trim_end_matches('/') == GITHUB_BASE_URL {
+        return None;
+    }
+    Some(address.to_owned())
 }
 
-impl Default for EngineStoreSettings {
-    fn default() -> Self {
-        Self {
-            channel: Channel::Stable,
-            base_url: default_base_url(),
+fn read_mirror<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Option<String>, D::Error> {
+    let raw: Option<String> = Option::deserialize(de)?;
+    Ok(raw.as_deref().and_then(mirror_of))
+}
+
+impl EngineStoreSettings {
+    /// The bases a channel is read from, in order: the mirror alone when one
+    /// is set, the registry then its GitHub mirror otherwise.
+    #[must_use]
+    pub fn bases(&self) -> Vec<String> {
+        self.bases_or(&DEFAULT_BASE_URLS)
+    }
+
+    /// The mirror alone when one is set, `defaults` in order otherwise.
+    pub(crate) fn bases_or(&self, defaults: &[&str]) -> Vec<String> {
+        match &self.base_url {
+            Some(mirror) => vec![mirror.clone()],
+            None => defaults.iter().map(|b| (*b).to_owned()).collect(),
         }
     }
 }
@@ -85,14 +120,16 @@ impl EngineStoreSettings {
         read_json(&Self::path(root))
     }
 
-    /// Save the settings after checking the base address.
+    /// Save the settings after checking the mirror address, when one is set.
     ///
     /// # Errors
     ///
     /// [`EngineStoreError::InvalidUrl`] for an address that is not `http` or
     /// `https`, [`EngineStoreError::Io`] when the file cannot be written.
     pub fn save(&self, root: &Path) -> Result<(), EngineStoreError> {
-        check_base_url(&self.base_url)?;
+        if let Some(mirror) = &self.base_url {
+            check_base_url(mirror)?;
+        }
         write_json(&Self::path(root), self)
     }
 }

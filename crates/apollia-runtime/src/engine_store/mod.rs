@@ -67,7 +67,7 @@
 //!
 //! Under `<data_dir>/engines/`:
 //!
-//! - `settings.json`: the followed channel and the base address;
+//! - `settings.json`: the followed channel and the mirror, when one is set;
 //! - `sequences.json`: the highest sequence accepted per channel;
 //! - `manifests/<channel>.json` and `.minisig`: the last verified manifest,
 //!   verified again whenever it is read;
@@ -77,8 +77,13 @@
 //!   12 build an earlier version filed under `cuda/` is read where it is.
 //!
 //! The manifest of a channel is fetched from
-//! `<base_url>/engines-<channel>/engines.json`, and each archive from its
-//! `url` relative to that manifest.
+//! `<base>/engines-<channel>/engines.json`, its signature beside it, and each
+//! archive from its `url` relative to that manifest, on the base that served
+//! it. The bases are the registry of Apollia, then its mirror on GitHub
+//! Releases when the registry cannot be reached or answers an error status;
+//! a mirror set in the settings replaces both, with no fallback. No base is
+//! trusted: a manifest whose signature, channel or sequence is refused stops
+//! the fetch, and the next base is not asked.
 
 mod archive;
 pub mod auto_update;
@@ -108,7 +113,10 @@ pub use manifest::{
     Manifest, Package, Variant, MANIFEST_FORMAT,
 };
 pub use selection::{EngineChoices, Resolved};
-pub use settings::{cached_manifest, EngineStoreSettings, DEFAULT_BASE_URL};
+pub use settings::{
+    cached_manifest, mirror_of, EngineStoreSettings, DEFAULT_BASE_URLS, GITHUB_BASE_URL,
+    REGISTRY_BASE_URL,
+};
 
 /// Errors raised by the engine store. Each message is meant to be shown.
 #[derive(Debug, thiserror::Error)]

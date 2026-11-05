@@ -124,7 +124,7 @@ pub fn ensure(store: &EngineStore, settings: &EngineStoreSettings) -> NodeState 
     tokio::spawn(async move {
         tracing::event!(
             tracing::Level::INFO,
-            base_url = %settings.base_url,
+            bases = ?settings.bases(),
             "engine_store.node.download.started"
         );
         let progress = |received, total| {

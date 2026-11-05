@@ -197,7 +197,7 @@ async fn test_the_check_route_probes_the_hardware_again() {
     };
     EngineStoreSettings {
         channel: Channel::Stable,
-        base_url: "http://127.0.0.1:9".to_owned(),
+        base_url: Some("http://127.0.0.1:9".to_owned()),
     }
     .save(&engine_store::store_root(dir.path()))
     .unwrap();

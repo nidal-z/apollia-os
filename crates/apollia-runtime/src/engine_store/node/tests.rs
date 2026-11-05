@@ -82,7 +82,7 @@ async fn start(fake: &Fake) -> EngineStoreSettings {
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
     EngineStoreSettings {
         channel: Channel::Stable,
-        base_url: format!("http://{addr}"),
+        base_url: Some(format!("http://{addr}")),
     }
 }
 
