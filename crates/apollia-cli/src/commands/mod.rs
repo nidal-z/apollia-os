@@ -81,6 +81,7 @@ pub mod connector;
 pub mod digest;
 pub mod do_cmd;
 pub mod doctor;
+pub mod engine;
 pub mod eval;
 pub mod explain;
 pub mod fuzzy;

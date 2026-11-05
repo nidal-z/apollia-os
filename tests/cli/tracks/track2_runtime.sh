@@ -178,6 +178,21 @@ check_json    "llm status --json"                  "${Q[@]}" llm status --json
 check         "llm costs"                           "${Q[@]}" llm costs
 check         "llm reload"                          "${Q[@]}" llm reload
 
+# ── engines ─────────────────────────────────────────────────────────────
+section "engines"
+# The seed installs no engine in the store and sets no channel, so the store
+# follows stable and only `auto` and `embedded` can be chosen. Whether a
+# manifest is cached depends on the build's distribution key and the network,
+# so the catalogue lines are not asserted; the sections are.
+check_content "engine list: hardware section"   "^Hardware$"   "${Q[@]}" engine list
+check         "engine list --all"                "${Q[@]}" engine list --all
+check_json_field "engine list --json: stable channel" "d['channel']" "stable" "${Q[@]}" engine list --json
+check_content "engine channel: stable"          "^stable$"     "${Q[@]}" engine channel
+check_content "engine channel preview"          "^preview$"    "${Q[@]}" engine channel preview
+check_content "engine channel stable (restore)" "^stable$"     "${Q[@]}" engine channel stable
+check_content "engine use auto: applies at the next load" "applies the next time a model is loaded" "${Q[@]}" engine use auto
+check_exit    "engine use vulkan (not installed) → 1" 1 "${Q[@]}" engine use vulkan
+
 # ── stt / resilience / plan cache / chat --list ─────────────────────────
 section "stt / resilience / plan cache"
 # The seed writes a configured stt_config row (fragments/system.sql:82-93) and a
