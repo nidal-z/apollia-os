@@ -98,7 +98,11 @@ fn upstream(root: &Path) -> Upstream {
     let win = format!("llama-{LLAMA_TAG}-bin-win-cuda-x64.zip");
     make_zip(
         &dir.join(&win),
-        &[("llama-server.exe", "server"), ("ggml-cuda.dll", "kernels")],
+        &[
+            ("llama-server.exe", "server"),
+            ("ggml-cuda.dll", "kernels"),
+            ("llama-connect.exe", "tunnel"),
+        ],
     );
     let cudart = "cudart-llama-bin-win-cuda-x64.zip";
     make_zip(&dir.join(cudart), &[("cudart64_12.dll", "runtime")]);
@@ -113,6 +117,13 @@ fn upstream(root: &Path) -> Upstream {
         0o755,
     );
     write_file(&linux_dir.join("libllama.so.0"), "library", 0o644);
+    // The peer-to-peer tunnel tool upstream builds since b12064, which no
+    // published package may carry.
+    write_file(
+        &linux_dir.join("llama-connect"),
+        "#!/bin/sh\necho tunnel\n",
+        0o755,
+    );
     std::os::unix::fs::symlink("libllama.so.0", linux_dir.join("libllama.so")).unwrap();
     let linux = format!("llama-{LLAMA_TAG}-bin-ubuntu-cuda-x64.tar.gz");
     make_tar_gz(&dir.join(&linux), &staging, &linux_top);
@@ -277,6 +288,42 @@ fn test_unsigned_manifest_is_one_the_store_parses_and_lists_only_zips() {
         .unwrap();
     assert_eq!(windows.released.as_deref(), Some("2026-10-01"));
     assert!(!out.join(SIGNATURE_FILE).exists());
+}
+
+#[test]
+fn test_upstream_llama_connect_is_left_out_of_every_published_zip() {
+    // GIVEN upstream llama-server archives, a zip and a tar.gz, that both
+    // carry the llama-connect tunnel tool
+    let tmp = tempfile::tempdir().unwrap();
+    let upstream = upstream(tmp.path());
+    let out = tmp.path().join("out");
+
+    // WHEN the script builds the channel without signing
+    let mut command = script(&upstream, &out, 3);
+    command.arg("--no-sign");
+    let (ok, text) = run(command);
+    assert!(ok, "the script refused: {text}");
+
+    // THEN no published zip holds a llama-connect entry, and the server of
+    // each package is still there
+    let manifest = Manifest::parse(&std::fs::read(out.join(MANIFEST_FILE)).unwrap()).unwrap();
+    let mut servers = 0;
+    for package in &manifest.packages {
+        let file = std::fs::File::open(out.join(&package.url)).unwrap();
+        let archive = zip::ZipArchive::new(file).unwrap();
+        for name in archive.file_names() {
+            let leaf = name.rsplit('/').next().unwrap_or(name);
+            assert!(
+                !leaf.starts_with("llama-connect"),
+                "{} carries {name}",
+                package.url
+            );
+            if leaf == "llama-server" || leaf == "llama-server.exe" {
+                servers += 1;
+            }
+        }
+    }
+    assert_eq!(servers, 2);
 }
 
 #[test]

@@ -176,7 +176,18 @@ jobs:
             --llama-tag "$LLAMA_TAG" \
             --out "$OUT" \
             --require llama-server/cuda-12/windows-x64 \
+            --require llama-server/cuda-13/windows-x64 \
             --require llama-server/cuda-12/linux-x64 \
+            --require llama-server/cuda-13/linux-x64 \
+            --require llama-server/cuda-13/linux-arm64 \
+            --require llama-server/vulkan/windows-x64 \
+            --require llama-server/vulkan/linux-x64 \
+            --require llama-server/vulkan/linux-arm64 \
+            --require llama-server/rocm/windows-x64 \
+            --require llama-server/rocm/linux-x64 \
+            --require llama-server/cpu/windows-x64 \
+            --require llama-server/cpu/linux-x64 \
+            --require llama-server/cpu/linux-arm64 \
             --require nodejs/cpu/macos-arm64 \
             --require nodejs/cpu/linux-x64 \
             --require nodejs/cpu/linux-arm64 \
