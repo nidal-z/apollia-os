@@ -52,6 +52,17 @@ Two cards open the step: **On this computer** and **Use a server**. Four possibl
 
 **Continue** becomes active as soon as a model is configured (green **Configured** badge), a model of a server is chosen, or a download is started. You do not have to wait for the download: go on with the next steps while the file arrives. Its progress stays shown at the top of the window on every step, and the model is set up by itself when the file lands.
 
+#### The reading language of scanned pages
+
+Your sources can hold scanned pages and pictures: Apollia reads their text on this computer, with a reading language (French or English). With a connection there is nothing to do: the language downloads by itself the first time a source contains a scanned page.
+
+On a machine without a connection, import it from a file brought on a disk or a key (`fra.traineddata` or `eng.traineddata`, the file of your version):
+
+- during this step, **Load a model** also accepts the file: choose **Language data for scanned documents** in the file type of the window. the window then says the file is in place and that scanned pages and pictures are read with it;
+- later, from the **AI** screen, with **Import a reading language**.
+
+A file Apollia does not know is refused, with the message **This file is not a reading language Apollia knows.**: only the language files of your version are accepted, recognised by their content and not by their name.
+
 #### Buttons available in the footer
 
 - **← Back** - returns to the Language step.

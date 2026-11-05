@@ -85,7 +85,14 @@ of action.
 
 An agent can consult sources: folders and documents of this computer,
 searched by meaning and by keyword, on the machine. Office documents, PDF
-files and mail are read. An agent only reads the sources checked on its sheet.
+files and mail are read, and so are scanned pages and pictures: their text is
+recognised on the machine, with a reading language (French or English) that
+downloads the first time a source holds a scanned page. Until that language
+is there, such pages wait: the row of the source on the agent sheet counts
+the pages awaiting recognition, and Import the language opens the AI screen,
+where Import a reading language takes the file from a disk or a key, without
+a connection. The waiting pages are then read within a minute, without a
+restart. An agent only reads the sources checked on its sheet.
 
 ## What an agent is allowed to do
 

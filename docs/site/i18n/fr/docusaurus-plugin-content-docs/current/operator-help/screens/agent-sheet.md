@@ -23,6 +23,15 @@ Un fichier ou un dossier parmi les sources de l'agent est fouillé, pas ouvert :
 
 Pour ajouter un dossier, cliquez sur **Ajouter une source**, puis sur **Un dossier**. La fenêtre liste vos connexions dossier et propose **Choisir un dossier sur ce poste…** : le dossier choisi est connecté directement, sans passer par **Connexions**.
 
+## Les pages scannées d'une source
+
+Une source lit le texte de ses documents, et aussi les pages scannées et les images qu'elle contient : Apollia en reconnaît le texte, sur ce poste. La ligne de chaque source dit où en est sa lecture, et deux mentions peuvent suivre le compte de ses fichiers :
+
+- **N pages en attente de reconnaissance** : des pages scannées ou des images, qu'Apollia ne peut pas encore lire parce que la langue de lecture n'est pas sur ce poste. La langue se télécharge d'elle-même la première fois qu'une source contient une page scannée ; sans connexion au réseau, elle reste absente. À côté de la mention, **Importer la langue** ouvre l'écran IA, où **Importer une langue de lecture** prend le fichier de langue sur un disque ou une clé. Les pages en attente sont lues dans la minute qui suit, sans redémarrer Apollia, et la mention disparaît.
+- **N pages non lues** : des pages sans texte que la reconnaissance ne sait pas lire non plus, par exemple une page faite de plusieurs images, ou une page sur laquelle le moteur a échoué. Importer une langue n'y change rien.
+
+Aucune des deux mentions n'apparaît quand toutes les pages ont été lues.
+
 ## Ce que vous pouvez faire
 
 - Ajuster l'agent : sa mission, son modèle, ses accès et ses sources.
