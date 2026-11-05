@@ -174,7 +174,7 @@ async fn test_a_load_by_hand_launches_with_the_window_and_offload_asked() {
         )
         .unwrap();
     let mut sup = supervisor_with_ceiling(1);
-    sup.bin_path = fake_engine(dir.path());
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir.path()));
     sup.system_db = Some(db.clone());
 
     // WHEN it is loaded by hand at 16 384 tokens with twelve layers offloaded
@@ -215,7 +215,7 @@ async fn test_a_request_without_a_window_is_served_by_the_model_loaded_by_hand()
     // GIVEN a model loaded by hand at 16 384 tokens, the default being 32 768
     let dir = tempfile::tempdir().unwrap();
     let mut sup = supervisor_with_ceiling(1);
-    sup.bin_path = fake_engine(dir.path());
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir.path()));
     let load = sup
         .explicit_settings("qwen", json!({ "n_ctx": 16_384 }).as_object().unwrap())
         .await;
@@ -267,7 +267,7 @@ async fn test_a_load_by_hand_replaces_the_lazy_instance_of_the_model() {
     // GIVEN a model loaded lazily under the default window
     let dir = tempfile::tempdir().unwrap();
     let mut sup = supervisor_with_ceiling(2);
-    sup.bin_path = fake_engine(dir.path());
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir.path()));
     drop(
         sup.ensure_model(
             "qwen",

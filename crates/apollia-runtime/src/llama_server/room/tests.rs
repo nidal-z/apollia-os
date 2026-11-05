@@ -33,7 +33,7 @@ async fn engine_room_for_two(
 ) {
     let mut sup = supervisor_with_ceiling(1);
     sup.max_loaded = None;
-    sup.bin_path = fake_engine(dir);
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir));
     let config: PathBuf = dir.join("apollia.toml");
     sup.config_file = Some(config.clone());
     let models = [model_in(dir, "a"), model_in(dir, "b"), model_in(dir, "c")];
