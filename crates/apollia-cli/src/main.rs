@@ -226,7 +226,7 @@ enum Commands {
         command: LlmCommand,
     },
 
-    /// The inference engines: the cards detected, the variants installed and offered, the one in service (list, check, use, channel).
+    /// The inference engines: the cards detected, the variants installed and offered, the one in service (list, check, use, channel, install, import, remove).
     Engine {
         /// Engine subcommand.
         #[command(subcommand)]

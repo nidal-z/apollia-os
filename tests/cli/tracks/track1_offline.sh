@@ -507,6 +507,15 @@ check_exit   "engine channel (off) → 2" 2 "$BIN" --socket "$OFFSOCK" engine ch
 check_content "engine list (off): the shared hint" 'Start it with `apollia-os start`' bash -c "'$BIN' --socket '$OFFSOCK' engine list 2>&1; true"
 check_json_field "engine channel --json (off): runtime_error envelope" "d['error']['code']" "runtime_error" bash -c "'$BIN' --socket '$OFFSOCK' engine channel --json; true"
 check_exit   "engine channel nightly: usage error → 1" 1 "$BIN" --socket "$OFFSOCK" engine channel nightly
+check_exit   "engine install (off) → 2" 2 "$BIN" --socket "$OFFSOCK" engine install llama-server
+check_exit   "engine install nodejs --detach (off) → 2" 2 "$BIN" --socket "$OFFSOCK" engine install nodejs --detach
+check_exit   "engine import (off) → 2" 2 "$BIN" --socket "$OFFSOCK" engine import "$RUN_TMP"
+check_exit   "engine remove --confirm (off) → 2" 2 "$BIN" --socket "$OFFSOCK" engine remove llama-server b12064 cpu --confirm
+# Without --confirm and with no terminal, the removal is refused before the
+# runtime is asked: exit 1, whether a runtime answers or not.
+check_exit   "engine remove without --confirm → 1" 1 "$BIN" --socket "$OFFSOCK" engine remove llama-server b12064 cpu
+check_content "engine remove without --confirm: says --confirm" "use --confirm" bash -c "'$BIN' --socket '$OFFSOCK' engine remove llama-server b12064 cpu 2>&1 </dev/null; true"
+check_exit   "engine install llama-server opencl: usage error → 1" 1 "$BIN" --socket "$OFFSOCK" engine install llama-server opencl
 check_exit   "task list (off) → 2"     2  "$BIN" --socket "$OFFSOCK" task list
 check_exit   "trigger list (off) → 2"  2  "$BIN" --socket "$OFFSOCK" trigger list
 check_exit   "notify list (off) → 2"   2  "$BIN" --socket "$OFFSOCK" notify list

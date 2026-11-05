@@ -192,6 +192,20 @@ check_content "engine channel preview"          "^preview$"    "${Q[@]}" engine 
 check_content "engine channel stable (restore)" "^stable$"     "${Q[@]}" engine channel stable
 check_content "engine use auto: applies at the next load" "applies the next time a model is loaded" "${Q[@]}" engine use auto
 check_exit    "engine use vulkan (not installed) → 1" 1 "${Q[@]}" engine use vulkan
+# `engine import` hands the runtime a directory: one signed by a throwaway
+# key (tests/cli/fixtures/engine-import-unknown-key) and an empty one are both
+# refused by the runtime, exit 2 with its message; `--detach` returns once the
+# import is accepted, before the refusal. Nothing is downloaded.
+ENGINE_FIXTURE="$REPO_ROOT/tests/cli/fixtures/engine-import-unknown-key"
+mkdir -p "$RUN_TMP/engine-import-empty"
+check_exit    "engine import (signed by another key) → 2" 2 "${Q[@]}" engine import "$ENGINE_FIXTURE"
+check_content "engine import: the refusal of the runtime" "key" bash -c "'$BIN' --socket '$SOCK' engine import '$ENGINE_FIXTURE' 2>&1; true"
+check_exit    "engine import (no manifest) → 2" 2 "${Q[@]}" engine import "$RUN_TMP/engine-import-empty"
+check_content "engine import --detach: accepted, follow with engine list" "engine list" "${Q[@]}" engine import "$ENGINE_FIXTURE" --detach
+# `engine remove` goes through the removal route: a build the store does not
+# hold and the embedded engine are refused by the runtime, exit 1.
+check_exit    "engine remove (not installed) → 1" 1 "${Q[@]}" engine remove llama-server b1 cpu --confirm
+check_content "engine remove embedded: refused" "embedded" bash -c "'$BIN' --socket '$SOCK' engine remove llama-server embedded cpu --confirm 2>&1; true"
 
 # ── stt / resilience / plan cache / chat --list ─────────────────────────
 section "stt / resilience / plan cache"

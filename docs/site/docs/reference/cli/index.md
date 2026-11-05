@@ -98,6 +98,9 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os engine check`↴](#apollia-os-engine-check)
 * [`apollia-os engine use`↴](#apollia-os-engine-use)
 * [`apollia-os engine channel`↴](#apollia-os-engine-channel)
+* [`apollia-os engine install`↴](#apollia-os-engine-install)
+* [`apollia-os engine import`↴](#apollia-os-engine-import)
+* [`apollia-os engine remove`↴](#apollia-os-engine-remove)
 * [`apollia-os model`↴](#apollia-os-model)
 * [`apollia-os model list`↴](#apollia-os-model-list)
 * [`apollia-os model search`↴](#apollia-os-model-search)
@@ -326,7 +329,7 @@ Apollia OS CLI binary (apollia-os)
 * `hooks` - Lifecycle hooks (list)
 * `memory` - Memory management
 * `llm` - LLM backend diagnostics (status, ping, chat, costs, backends, reload)
-* `engine` - The inference engines: the cards detected, the variants installed and offered, the one in service (list, check, use, channel)
+* `engine` - The inference engines: the cards detected, the variants installed and offered, the one in service (list, check, use, channel, install, import, remove)
 * `model` - Local model file management
 * `source` - The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, show, create, delete, inspect)
 * `trigger` - Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete)
@@ -1690,7 +1693,7 @@ First-run helper: configure a local LLM in one step.
 
 ## `apollia-os engine`
 
-The inference engines: the cards detected, the variants installed and offered, the one in service (list, check, use, channel)
+The inference engines: the cards detected, the variants installed and offered, the one in service (list, check, use, channel, install, import, remove)
 
 **Usage:** `apollia-os engine <COMMAND>`
 
@@ -1700,6 +1703,9 @@ The inference engines: the cards detected, the variants installed and offered, t
 * `check` - Probe the cards again and verify the followed channel
 * `use` - Choose the engine that serves GGUF models: a variant installed, `auto` or `embedded`
 * `channel` - Show the followed channel, or follow another one
+* `install` - Install a variant of llama-server (the recommended one when none is named) or Node.js
+* `import` - Install the engines of a directory copied from a release: manifest, signature and archives
+* `remove` - Remove one installed build, as `engine list` names it
 
 
 
@@ -1754,6 +1760,68 @@ Show the followed channel, or follow another one
   - `preview`:
     The builds being tried before they reach stable
 
+
+
+
+## `apollia-os engine install`
+
+Install a variant of llama-server (the recommended one when none is named) or Node.js
+
+**Usage:** `apollia-os engine install [OPTIONS] <ENGINE> [VARIANT]`
+
+###### **Arguments:**
+
+* `<ENGINE>` - The engine to install
+
+  Possible values:
+  - `llama-server`:
+    The llama.cpp server, which serves GGUF models
+  - `nodejs`:
+    The Node.js runtime of the tool servers that run on it
+
+* `<VARIANT>` - The llama-server variant; without it, the one rated recommended for this machine
+
+  Possible values: `cuda-12`, `cuda-13`, `rocm`, `vulkan`, `cpu`, `metal`
+
+
+###### **Options:**
+
+* `--detach` - Return once the runtime accepted the installation; `engine list` follows it
+* `--force` - Install a variant rated incompatible with this machine
+
+
+
+## `apollia-os engine import`
+
+Install the engines of a directory copied from a release: manifest, signature and archives
+
+**Usage:** `apollia-os engine import [OPTIONS] <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - The directory holding `engines.json`, `engines.json.minisig` and the archives
+
+###### **Options:**
+
+* `--detach` - Return once the runtime accepted the import; `engine list` follows it
+
+
+
+## `apollia-os engine remove`
+
+Remove one installed build, as `engine list` names it
+
+**Usage:** `apollia-os engine remove [OPTIONS] <ENGINE> <TAG> <VARIANT>`
+
+###### **Arguments:**
+
+* `<ENGINE>` - The engine: `llama-server`, `vllm-mlx` or `nodejs`
+* `<TAG>` - The upstream tag of the build
+* `<VARIANT>` - The variant of the build
+
+###### **Options:**
+
+* `--confirm` - Remove without asking, also the build `engines.gguf` chooses
 
 
 
