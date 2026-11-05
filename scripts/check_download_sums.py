@@ -1609,26 +1609,28 @@ def selftest() -> int:
         )
 
         (owf / "fixture.yml").unlink()
+        # release.yml builds every shipped binary with ocr and stages the
+        # sources first in each of its four jobs: it passes as it stands, and
+        # each job that loses its staging step is a gap of its own.
         release = _read(REPO_ROOT / ".github/workflows/release.yml") or ""
-        with_ocr = release.replace(
-            '"features":"local-metal"}', '"features":"local-metal,ocr"}', 1
-        )
-        control(
-            "release.yml with an ocr preset in the matrix of its setup job is a gap",
-            with_ocr != release and ocr_variant(with_ocr) > 0,
-        )
-        anchor = "      - name: Build CLI\n"
-        staged_release = with_ocr.replace(
-            anchor,
-            "      - name: Stage the verified Tesseract sources\n"
+        stage = (
+            "      - name: Stage the verified Tesseract and Leptonica sources\n"
             "        shell: bash\n"
-            "        run: bash packaging/fetch-tesseract-sources.sh\n\n" + anchor,
-            1,
+            "        run: bash packaging/fetch-tesseract-sources.sh\n"
         )
         control(
-            "the same release.yml staging the sources before its builds passes",
-            anchor in with_ocr and ocr_variant(staged_release) == 0,
+            "release.yml staging the sources before each of its ocr builds passes",
+            release.count(stage) == 4 and ocr_variant(release) == 0,
         )
+        for nth, job in enumerate(("cli", "desktop-macos", "desktop-linux", "desktop-windows")):
+            at = -1
+            for _ in range(nth + 1):
+                at = release.find(stage, at + 1)
+            unstaged = release[:at] + release[at + len(stage) :] if at >= 0 else release
+            control(
+                f"release.yml whose {job} job lost its staging step is a gap",
+                unstaged != release and ocr_variant(unstaged) > 0,
+            )
 
     print(f"\nselftest: {failures} control(s) failed")
     return 1 if failures else 0
