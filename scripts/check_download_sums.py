@@ -35,8 +35,10 @@ Six surfaces are held to the same rule:
      `packaging/fetch-tesseract-sources.sh` reads that table and refuses a
      digest that differs from it; and in every workflow, a step that builds
      with the `ocr` feature (`--features` naming it, or a variable assigned
-     a value that names it) comes after a step of the same job that runs
-     that script.
+     a value that names it, a matrix list included) comes after a step of
+     the same job that runs that script. A matrix read through
+     `fromJSON(needs.<job>.outputs.<x>)` is resolved in the job that writes
+     it; a key nothing readable assigns counts as naming `ocr`.
 
 Options:
   --github    also compare each pinned sum with the digest GitHub reports for
@@ -121,6 +123,12 @@ FEATURES_FLAG = re.compile(
 EXPR_REF = re.compile(r"\$\{\{\s*([\w.-]+)\s*\}\}")
 SHELL_REF = re.compile(r"\$\{?([A-Za-z_]\w*)\}?")
 TESS_FETCH_CALL = re.compile(r"(?:^|[\s;&|(/])packaging/fetch-tesseract-sources\.sh\b")
+# A matrix computed at run time (`matrix: ${{ fromJSON(needs.setup.outputs.m) }}`):
+# its values are written by another job, or by nothing the guard can read.
+DYNAMIC_MATRIX = re.compile(
+    r"^\s*(?:matrix|include):\s*\$\{\{\s*fromJSON\(\s*([^)]*?)\s*\)", re.MULTILINE
+)
+NEEDS_OUTPUT = re.compile(r"^needs\.([\w-]+)\.outputs\.")
 
 
 def _read(path: Path) -> str | None:
@@ -345,11 +353,36 @@ def check_requirements(
     return problems
 
 
-def workflow_steps(text: str) -> list[tuple[str, str]]:
+def _folded(block: list[str]) -> str:
+    """A `>` block as YAML reads it: lines at the base indent join with a space.
+
+    A blank line, or a line indented deeper than the base, keeps its newline.
+    """
+    content = [line for line in block if line.strip()]
+    if not content:
+        return ""
+    base = min(len(line) - len(line.lstrip()) for line in content)
+    out = ""
+    joins = False
+    for line in block:
+        if not line.strip():
+            out += "\n"
+            joins = False
+            continue
+        deeper = len(line) - len(line.lstrip()) > base
+        if out and not out.endswith("\n"):
+            out += " " if joins and not deeper else "\n"
+        out += line.strip()
+        joins = not deeper
+    return out
+
+
+def workflow_steps(text: str, fold: bool = False) -> list[tuple[str, str]]:
     """(step name, run block) pairs of one workflow, without a yaml library.
 
     Good enough for the workflows of this tree: steps open with `- name:` or
-    `- uses:`, and `run:` values are inline or literal blocks.
+    `- uses:`, and `run:` values are inline or literal blocks. With `fold`, a
+    folded block (`run: >`) is returned as YAML hands it to the shell.
     """
     steps: list[tuple[str, str]] = []
     name = ""
@@ -378,7 +411,10 @@ def workflow_steps(text: str) -> list[tuple[str, str]]:
                 break
             block.append(nxt)
             i += 1
-        steps.append((name, "\n".join(block)))
+        if fold and value.startswith(">"):
+            steps.append((name, _folded(block)))
+        else:
+            steps.append((name, "\n".join(block)))
     return steps
 
 
@@ -644,15 +680,20 @@ def workflow_jobs(text: str) -> tuple[str, list[tuple[str, str]]]:
 
 
 def _logical_lines(run_block: str) -> list[str]:
-    """Non-comment, backslash-joined lines of a run block."""
+    """Non-comment lines of a run block, continuations joined.
+
+    A line continues on the next when it ends with a backslash (sh, bash) or
+    a backtick (PowerShell).
+    """
     logical: list[str] = []
     buffer = ""
     for raw in run_block.splitlines():
         line = raw.strip()
         if line.startswith("#"):
             continue
-        buffer += " " + line.rstrip("\\") if buffer else line.rstrip("\\")
-        if not line.endswith("\\"):
+        part = line.rstrip("\\`")
+        buffer += " " + part if buffer else part
+        if not line.endswith(("\\", "`")):
             logical.append(buffer)
             buffer = ""
     if buffer:
@@ -660,27 +701,58 @@ def _logical_lines(run_block: str) -> list[str]:
     return logical
 
 
-def _carries_ocr(value: str, scope: str, depth: int = 0) -> bool:
+def _assigned_values(name: str, scope: str) -> list[str]:
+    """Every value assigned to `name` in the scope, inline or as a block list.
+
+    Inline: `name: v`, `name=v`, `"name":"v"`, and a flow list
+    `name: [a, b]` read whole. Block: `name:` alone on its line, then the
+    `- item` lines below it.
+    """
+    key = r"(?<![\w-])[\"']?" + re.escape(name) + r"[\"']?[ \t]*[:=][ \t]*"
+    inline = re.compile(
+        key + r"(\[[^\]]*\]|\"[^\"]*\"|'[^']*'|\$\([^)]*\)|[^\s,}\]]+)"
+    )
+    values = [m.group(1) for m in inline.finditer(scope)]
+    head = re.compile(r"^(\s*)[\"']?" + re.escape(name) + r"[\"']?\s*:\s*(#.*)?$")
+    lines = scope.splitlines()
+    for i, line in enumerate(lines):
+        m = head.match(line)
+        if m is None:
+            continue
+        for item in lines[i + 1 :]:
+            item_m = re.match(r"^(\s*)-\s*(.*)$", item)
+            if item_m is None or len(item_m.group(1)) < len(m.group(1)):
+                break
+            values.append(item_m.group(2))
+    return values
+
+
+def _carries_ocr(value: str, scope: str, dynamic: bool = False, depth: int = 0) -> bool:
     """A features value names `ocr`, literally or through a variable.
 
     A variable is read as every value assigned to its name in the scope (the
-    job and the workflow header): a matrix entry, an `env:` key, a shell
-    assignment, a JSON field of an included matrix. Reading every assignment
-    errs on the side of a red, which is the side this surface must err on.
+    job, the workflow header, and the job that writes a matrix read through
+    `fromJSON(needs.<job>.outputs.<x>)`): a matrix entry or list, an `env:`
+    key, a shell assignment, a JSON field. Reading every assignment errs on
+    the side of a red, which is the side this surface must err on. For the
+    same reason, in a job whose matrix is computed at run time (`dynamic`), a
+    `matrix.<key>` the scope assigns nowhere is a value the guard cannot
+    read, and counts as one that may name `ocr`.
     """
     if OCR_FEATURE.search(SHELL_REF.sub(" ", EXPR_REF.sub(" ", value))):
         return True
     if depth >= 4:
         return False
-    names = {ref.rsplit(".", 1)[-1] for ref in EXPR_REF.findall(value)}
+    refs = EXPR_REF.findall(value)
+    names = {ref.rsplit(".", 1)[-1] for ref in refs}
     names |= set(SHELL_REF.findall(EXPR_REF.sub(" ", value)))
+    for ref in refs:
+        key = ref.rsplit(".", 1)[-1]
+        if dynamic and ref.startswith("matrix.") and not _assigned_values(key, scope):
+            return True
     for name in names:
-        assigned = re.compile(
-            r"(?<![\w-])[\"']?" + re.escape(name) + r"[\"']?\s*[:=]\s*"
-            r"(\"[^\"]*\"|'[^']*'|\$\([^)]*\)|[^\s,}]+)"
-        )
-        for m in assigned.finditer(scope):
-            if _carries_ocr(m.group(1), scope, depth + 1):
+        for assigned in _assigned_values(name, scope):
+            if _carries_ocr(assigned, scope, dynamic, depth + 1):
                 return True
     return False
 
@@ -699,17 +771,24 @@ def check_ocr_workflows(workflow_dir: Path) -> int:
         if text is None:
             sys.exit(2)
         header, jobs = workflow_jobs(text)
+        bodies = dict(jobs)
         for job, body in jobs:
             scope = header + "\n" + body
+            dynamic = False
+            for source in DYNAMIC_MATRIX.findall(body):
+                dynamic = True
+                producer = NEEDS_OUTPUT.match(source)
+                if producer and producer.group(1) in bodies:
+                    scope += "\n" + bodies[producer.group(1)]
             staged = False
-            for name, run in workflow_steps(body):
+            for name, run in workflow_steps(body, fold=True):
                 lines = _logical_lines(run)
                 ocr_lines = [
                     line
                     for line in lines
                     if re.search(r"\bcargo\b", line)
                     and any(
-                        _carries_ocr(v.strip("\"'"), scope)
+                        _carries_ocr(v.strip("\"'"), scope, dynamic)
                         for v in FEATURES_FLAG.findall(line)
                     )
                 ]
@@ -1175,6 +1254,100 @@ def selftest() -> int:
                 "        run: cargo build --features local-cpu,ocr-extra\n"
             )
             == 0,
+        )
+        matrix_build = (
+            "    steps:\n"
+            "      - name: cargo build\n"
+            "        run: cargo build -p x --features ${{ matrix.features }}\n"
+        )
+        control(
+            "a flow list of the matrix naming ocr is a gap",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n"
+                "        features: [local-cpu, ocr]\n" + matrix_build
+            )
+            > 0,
+        )
+        control(
+            "a block list of the matrix naming ocr is a gap",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n        features:\n"
+                "          - local-cpu\n          - ocr\n" + matrix_build
+            )
+            > 0,
+        )
+        control(
+            "a matrix list without ocr passes",
+            ocr_variant(
+                "jobs:\n  m:\n    strategy:\n      matrix:\n        features:\n"
+                "          - local-cpu\n          - local-metal\n" + matrix_build
+            )
+            == 0,
+        )
+        producer = (
+            "jobs:\n  setup:\n    outputs:\n"
+            "      matrix: ${{ steps.c.outputs.matrix }}\n"
+            "    steps:\n      - id: c\n        run: |\n"
+        )
+        consumer = (
+            "  b:\n    needs: setup\n    strategy:\n"
+            "      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}\n"
+        )
+        control(
+            "a matrix read from a job whose JSON is not literal is a gap",
+            ocr_variant(
+                producer
+                + "          echo \"matrix=$(cat m.json)\" >> \"$GITHUB_OUTPUT\"\n"
+                + consumer + matrix_build
+            )
+            > 0,
+        )
+        control(
+            "the same unreadable matrix after the staging step passes",
+            ocr_variant(
+                producer
+                + "          echo \"matrix=$(cat m.json)\" >> \"$GITHUB_OUTPUT\"\n"
+                + consumer + "    steps:\n" + stage + matrix_build[len("    steps:\n"):]
+            )
+            == 0,
+        )
+        control(
+            "a folded run block whose next line carries --features ocr is a gap",
+            ocr_variant(
+                "jobs:\n  f:\n    steps:\n      - name: Build\n        run: >\n"
+                "          cargo build -p x\n          --features ocr\n"
+            )
+            > 0,
+        )
+        control(
+            "a PowerShell line continued by a backtick onto --features ocr is a gap",
+            ocr_variant(
+                "jobs:\n  w:\n    steps:\n      - name: Build\n        shell: pwsh\n"
+                "        run: |\n          cargo build -p x `\n            --features ocr\n"
+            )
+            > 0,
+        )
+
+        (owf / "fixture.yml").unlink()
+        release = _read(REPO_ROOT / ".github/workflows/release.yml") or ""
+        with_ocr = release.replace(
+            '"features":"local-metal"}', '"features":"local-metal,ocr"}', 1
+        )
+        control(
+            "release.yml with an ocr preset in the matrix of its setup job is a gap",
+            with_ocr != release and ocr_variant(with_ocr) > 0,
+        )
+        anchor = "      - name: Build CLI\n"
+        staged_release = with_ocr.replace(
+            anchor,
+            "      - name: Stage the verified Tesseract sources\n"
+            "        shell: bash\n"
+            "        run: bash packaging/fetch-tesseract-sources.sh\n\n" + anchor,
+            1,
+        )
+        control(
+            "the same release.yml staging the sources before its builds passes",
+            anchor in with_ocr and ocr_variant(staged_release) == 0,
         )
 
     print(f"\nselftest: {failures} control(s) failed")
