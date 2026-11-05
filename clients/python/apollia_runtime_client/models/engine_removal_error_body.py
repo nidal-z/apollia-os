@@ -14,7 +14,8 @@ class EngineRemovalErrorBody:
     """A refused removal: the message and its stable code.
 
     Attributes:
-        code (str): Stable code: `not_found`, `in_service`, `embedded`, `store`.
+        code (str): Stable code: `not_found`, `in_service`, `embedded`, `chosen`,
+            `locked`, `config`, `store`.
         error (str): What went wrong, for a person.
     """
 

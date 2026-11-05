@@ -7,14 +7,22 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.engine_removal_error_body import EngineRemovalErrorBody
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     engine: str,
     tag: str,
     variant: str,
+    *,
+    confirm: bool | Unset = UNSET,
 ) -> dict[str, Any]:
+
+    params: dict[str, Any] = {}
+
+    params["confirm"] = confirm
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
     _kwargs: dict[str, Any] = {
         "method": "delete",
@@ -23,6 +31,7 @@ def _get_kwargs(
             tag=quote(str(tag), safe=""),
             variant=quote(str(variant), safe=""),
         ),
+        "params": params,
     }
 
     return _kwargs
@@ -34,6 +43,11 @@ def _parse_response(
     if response.status_code == 204:
         response_204 = cast(Any, None)
         return response_204
+
+    if response.status_code == 403:
+        response_403 = EngineRemovalErrorBody.from_dict(response.json())
+
+        return response_403
 
     if response.status_code == 404:
         response_404 = EngineRemovalErrorBody.from_dict(response.json())
@@ -73,12 +87,26 @@ def sync_detailed(
     variant: str,
     *,
     client: AuthenticatedClient | Client,
+    confirm: bool | Unset = UNSET,
 ) -> Response[Any | EngineRemovalErrorBody]:
-    """
+    """`DELETE /api/v1/engines/{engine}/{tag}/{variant}`: removes one installed
+    build of the engine store.
+
+     The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
+    with `tag` null, and this route addresses it by the reserved tag
+    `embedded`, always to refuse it (`embedded`), confirmation or not.
+
+    The build `engines.gguf` names, which no process runs, is refused without
+    `confirm=true` (`chosen`). With it the build goes; when no other build of
+    the chosen variant is left, `engines.gguf` is first written back to
+    `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
+    process runs stays refused (`in_service`) whatever the confirmation.
+
     Args:
         engine (str):
         tag (str):
         variant (str):
+        confirm (bool | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -92,6 +120,7 @@ def sync_detailed(
         engine=engine,
         tag=tag,
         variant=variant,
+        confirm=confirm,
     )
 
     response = client.get_httpx_client().request(
@@ -107,12 +136,26 @@ def sync(
     variant: str,
     *,
     client: AuthenticatedClient | Client,
+    confirm: bool | Unset = UNSET,
 ) -> Any | EngineRemovalErrorBody | None:
-    """
+    """`DELETE /api/v1/engines/{engine}/{tag}/{variant}`: removes one installed
+    build of the engine store.
+
+     The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
+    with `tag` null, and this route addresses it by the reserved tag
+    `embedded`, always to refuse it (`embedded`), confirmation or not.
+
+    The build `engines.gguf` names, which no process runs, is refused without
+    `confirm=true` (`chosen`). With it the build goes; when no other build of
+    the chosen variant is left, `engines.gguf` is first written back to
+    `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
+    process runs stays refused (`in_service`) whatever the confirmation.
+
     Args:
         engine (str):
         tag (str):
         variant (str):
+        confirm (bool | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -127,6 +170,7 @@ def sync(
         tag=tag,
         variant=variant,
         client=client,
+        confirm=confirm,
     ).parsed
 
 
@@ -136,12 +180,26 @@ async def asyncio_detailed(
     variant: str,
     *,
     client: AuthenticatedClient | Client,
+    confirm: bool | Unset = UNSET,
 ) -> Response[Any | EngineRemovalErrorBody]:
-    """
+    """`DELETE /api/v1/engines/{engine}/{tag}/{variant}`: removes one installed
+    build of the engine store.
+
+     The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
+    with `tag` null, and this route addresses it by the reserved tag
+    `embedded`, always to refuse it (`embedded`), confirmation or not.
+
+    The build `engines.gguf` names, which no process runs, is refused without
+    `confirm=true` (`chosen`). With it the build goes; when no other build of
+    the chosen variant is left, `engines.gguf` is first written back to
+    `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
+    process runs stays refused (`in_service`) whatever the confirmation.
+
     Args:
         engine (str):
         tag (str):
         variant (str):
+        confirm (bool | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -155,6 +213,7 @@ async def asyncio_detailed(
         engine=engine,
         tag=tag,
         variant=variant,
+        confirm=confirm,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -168,12 +227,26 @@ async def asyncio(
     variant: str,
     *,
     client: AuthenticatedClient | Client,
+    confirm: bool | Unset = UNSET,
 ) -> Any | EngineRemovalErrorBody | None:
-    """
+    """`DELETE /api/v1/engines/{engine}/{tag}/{variant}`: removes one installed
+    build of the engine store.
+
+     The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
+    with `tag` null, and this route addresses it by the reserved tag
+    `embedded`, always to refuse it (`embedded`), confirmation or not.
+
+    The build `engines.gguf` names, which no process runs, is refused without
+    `confirm=true` (`chosen`). With it the build goes; when no other build of
+    the chosen variant is left, `engines.gguf` is first written back to
+    `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
+    process runs stays refused (`in_service`) whatever the confirmation.
+
     Args:
         engine (str):
         tag (str):
         variant (str):
+        confirm (bool | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -189,5 +262,6 @@ async def asyncio(
             tag=tag,
             variant=variant,
             client=client,
+            confirm=confirm,
         )
     ).parsed

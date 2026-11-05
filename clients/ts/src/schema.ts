@@ -1662,6 +1662,19 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * `DELETE /api/v1/engines/{engine}/{tag}/{variant}`: removes one installed
+         *     build of the engine store.
+         * @description The embedded engine has no tag of its own: `GET /api/v1/engines` lists it
+         *     with `tag` null, and this route addresses it by the reserved tag
+         *     `embedded`, always to refuse it (`embedded`), confirmation or not.
+         *
+         *     The build `engines.gguf` names, which no process runs, is refused without
+         *     `confirm=true` (`chosen`). With it the build goes; when no other build of
+         *     the chosen variant is left, `engines.gguf` is first written back to
+         *     `auto`, and the `engine.removed` event says so (`choice_reset`). A build a
+         *     process runs stays refused (`in_service`) whatever the confirmation.
+         */
         delete: operations["remove_engine"];
         options?: never;
         head?: never;
@@ -8451,7 +8464,10 @@ export interface components {
         EngineRefusalCode: "no_trusted_key" | "signature_invalid" | "signature_unknown_key" | "signature_missing" | "manifest_invalid" | "rollback" | "package_not_found" | "digest_mismatch" | "archive_invalid" | "network" | "storage";
         /** @description A refused removal: the message and its stable code. */
         EngineRemovalErrorBody: {
-            /** @description Stable code: `not_found`, `in_service`, `embedded`, `store`. */
+            /**
+             * @description Stable code: `not_found`, `in_service`, `embedded`, `chosen`,
+             *     `locked`, `config`, `store`.
+             */
             code: string;
             /** @description What went wrong, for a person. */
             error: string;
@@ -17127,12 +17143,15 @@ export interface operations {
     };
     remove_engine: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Remove the build `engines.gguf` names; `false` when absent */
+                confirm?: boolean;
+            };
             header?: never;
             path: {
                 /** @description Engine, as the list names it: `llama-server`, `vllm-mlx`, `nodejs` */
                 engine: string;
-                /** @description Upstream tag of the build; `embedded` names the engine shipped with the application */
+                /** @description Upstream tag of the build; the reserved tag `embedded` names the engine shipped with the application, which is never removed */
                 tag: string;
                 /** @description Variant, as the list names it: `cuda-12`, `vulkan`, `cpu`... */
                 variant: string;
@@ -17148,6 +17167,15 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description The organisation policy fixes `engines.gguf` to this build (`locked`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRemovalErrorBody"];
+                };
+            };
             /** @description No such build installed (`not_found`) */
             404: {
                 headers: {
@@ -17157,7 +17185,7 @@ export interface operations {
                     "application/json": components["schemas"]["EngineRemovalErrorBody"];
                 };
             };
-            /** @description The build in service (`in_service`) or the embedded engine (`embedded`) */
+            /** @description The build in service (`in_service`), the embedded engine (`embedded`), or the build `engines.gguf` names without `confirm=true` (`chosen`) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17166,7 +17194,7 @@ export interface operations {
                     "application/json": components["schemas"]["EngineRemovalErrorBody"];
                 };
             };
-            /** @description The build could not be deleted (`store`) */
+            /** @description The build could not be deleted (`store`) or the setting written back (`config`) */
             500: {
                 headers: {
                     [name: string]: unknown;

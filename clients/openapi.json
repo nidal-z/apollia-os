@@ -5462,6 +5462,8 @@
         "tags": [
           "engines"
         ],
+        "summary": "`DELETE /api/v1/engines/{engine}/{tag}/{variant}`: removes one installed\nbuild of the engine store.",
+        "description": "The embedded engine has no tag of its own: `GET /api/v1/engines` lists it\nwith `tag` null, and this route addresses it by the reserved tag\n`embedded`, always to refuse it (`embedded`), confirmation or not.\n\nThe build `engines.gguf` names, which no process runs, is refused without\n`confirm=true` (`chosen`). With it the build goes; when no other build of\nthe chosen variant is left, `engines.gguf` is first written back to\n`auto`, and the `engine.removed` event says so (`choice_reset`). A build a\nprocess runs stays refused (`in_service`) whatever the confirmation.",
         "operationId": "remove_engine",
         "parameters": [
           {
@@ -5476,7 +5478,7 @@
           {
             "name": "tag",
             "in": "path",
-            "description": "Upstream tag of the build; `embedded` names the engine shipped with the application",
+            "description": "Upstream tag of the build; the reserved tag `embedded` names the engine shipped with the application, which is never removed",
             "required": true,
             "schema": {
               "type": "string"
@@ -5490,11 +5492,30 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "confirm",
+            "in": "query",
+            "description": "Remove the build `engines.gguf` names; `false` when absent",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
           "204": {
             "description": "The build and its directory are gone"
+          },
+          "403": {
+            "description": "The organisation policy fixes `engines.gguf` to this build (`locked`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineRemovalErrorBody"
+                }
+              }
+            }
           },
           "404": {
             "description": "No such build installed (`not_found`)",
@@ -5507,7 +5528,7 @@
             }
           },
           "409": {
-            "description": "The build in service (`in_service`) or the embedded engine (`embedded`)",
+            "description": "The build in service (`in_service`), the embedded engine (`embedded`), or the build `engines.gguf` names without `confirm=true` (`chosen`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5517,7 +5538,7 @@
             }
           },
           "500": {
-            "description": "The build could not be deleted (`store`)",
+            "description": "The build could not be deleted (`store`) or the setting written back (`config`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -24568,7 +24589,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Stable code: `not_found`, `in_service`, `embedded`, `store`."
+            "description": "Stable code: `not_found`, `in_service`, `embedded`, `chosen`,\n`locked`, `config`, `store`."
           },
           "error": {
             "type": "string",
