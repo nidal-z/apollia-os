@@ -261,7 +261,7 @@ fn parse_apple_silicon_generation(chip: &str) -> u8 {
     }
 }
 
-// ── Linux / Windows NVIDIA CUDA detection ────────────────────────────────
+// ── Linux / Windows detection ────────────────────────────────────────────
 
 /// The devices the bundled engine actually offers, as it prints them.
 ///
@@ -291,162 +291,60 @@ fn detect_engine_gpu() -> Option<AcceleratorProfile> {
 
 #[cfg(not(target_os = "macos"))]
 fn detect_gpu_non_macos() -> AcceleratorProfile {
-    // NVIDIA first, because `nvidia-smi` gives the compute capability nothing
-    // else does. Every other card then gets a `Generic` profile rather than
-    // the `None` it used to receive by omission: an AMD or Intel machine was
-    // told it had no accelerator at all, so the memory budget was computed on
-    // system RAM and the model recommendation was sized for it. Measured on
-    // 2026-09-08: a 16 GB Radeon under Windows was offered models built for
-    // 38 GB, and the settings page read "hardware acceleration: none" while
-    // the runtime had detected the very same card and started its Vulkan
-    // engine.
-    // NVIDIA stays first: its profile carries the compute capability, which no
-    // device listing exposes. Everyone else is asked of the engine before the
-    // operating system, and the OS probes remain as the last resort for a
-    // bundle whose engine is absent or refuses to run.
-    detect_nvidia_cuda()
-        .or_else(detect_engine_gpu)
-        .or_else(detect_generic_gpu)
+    accelerator_from(&gpu_profile(), detect_engine_gpu)
+}
+
+/// The accelerator of a machine whose cards are `profile`, the engine's own
+/// listing asked through `engine` only when no NVIDIA card is described.
+///
+/// The cards are those of the one probe of the process ([`gpu_profile`]),
+/// which the speech-to-text runner reads as well, so the two never name a
+/// different card. NVIDIA first: its compute capability is what the profile
+/// of the choice carries and no device listing exposes. The best card is the
+/// one with the most memory. Every other card is asked of the engine before
+/// the operating system, because a card the operating system reports is not a
+/// card the engine can use; the profile's cards remain the last resort for a
+/// bundle whose engine is absent or refuses to run. An AMD or Intel card gets
+/// a `Generic` profile rather than `None`: told it had no accelerator, a 16 GB
+/// Radeon under Windows was offered models built for 38 GB (2026-09-08).
+#[cfg(any(not(target_os = "macos"), test))]
+fn accelerator_from(
+    profile: &GpuProfile,
+    engine: impl FnOnce() -> Option<AcceleratorProfile>,
+) -> AcceleratorProfile {
+    best_cuda_card(profile)
+        .or_else(engine)
+        .or_else(|| {
+            profile
+                .cards
+                .first()
+                .map(|card| AcceleratorProfile::Generic {
+                    device_name: card.name.clone(),
+                    vram_gb: card.vram_gb.unwrap_or(0.0),
+                })
+        })
         .unwrap_or(AcceleratorProfile::None)
 }
 
-/// Bytes reported for a GPU by the Windows registry, parsed to gibibytes.
-///
-/// `Win32_VideoController.AdapterRAM`, the obvious WMI source, is a 32-bit
-/// field Microsoft never widened: every card of 4 GB or more reports 4095 MiB.
-/// The registry keeps the real size in `HardwareInformation.qwMemorySize`, a
-/// 64-bit value. Measured on 2026-09-08 on a 16 GB Radeon that WMI called 4 GB.
-#[cfg(not(target_os = "macos"))]
-pub(super) fn vram_gb_from_bytes(raw: &str) -> Option<f64> {
-    let bytes: f64 = raw.trim().parse().ok()?;
-    if bytes <= 0.0 {
-        return None;
-    }
-    Some(bytes / 1024.0 / 1024.0 / 1024.0)
-}
-
-/// Parse the `name<tab>bytes` line the platform probes emit.
-#[cfg(not(target_os = "macos"))]
-pub(super) fn parse_generic_gpu(line: &str) -> Option<(String, f64)> {
-    let (name, bytes) = line.split_once('\t')?;
-    let name = name.trim();
-    if name.is_empty() {
-        return None;
-    }
-    Some((name.to_string(), vram_gb_from_bytes(bytes).unwrap_or(0.0)))
-}
-
-/// A non-NVIDIA GPU and its memory, asked of the platform.
-///
-/// Windows answers from the registry, Linux from sysfs; both are read through
-/// a short probe rather than a new dependency, which is how this module
-/// already reaches `nvidia-smi` and `system_profiler`.
-#[cfg(not(target_os = "macos"))]
-fn detect_generic_gpu() -> Option<AcceleratorProfile> {
-    let line = probe_generic_gpu()?;
-    let (device_name, vram_gb) = parse_generic_gpu(&line)?;
-    Some(AcceleratorProfile::Generic {
-        device_name,
-        vram_gb,
-    })
-}
-
-#[cfg(target_os = "windows")]
-fn probe_generic_gpu() -> Option<String> {
-    // The class key of display adapters. `qwMemorySize` is the 64-bit size the
-    // driver writes; `AdapterRAM` from WMI saturates at 4095 MiB. The largest
-    // adapter wins, which on a laptop is the discrete card rather than the
-    // integrated one.
-    const SCRIPT: &str = concat!(
-        r"$k = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\",
-        r"{4d36e968-e325-11ce-bfc1-08002be10318}\*'; ",
-        "Get-ItemProperty $k -ErrorAction SilentlyContinue | ",
-        "Where-Object { $_.'HardwareInformation.qwMemorySize' -gt 0 } | ",
-        "Sort-Object -Property 'HardwareInformation.qwMemorySize' -Descending | ",
-        "Select-Object -First 1 | ",
-        "ForEach-Object { $_.DriverDesc + [char]9 + $_.'HardwareInformation.qwMemorySize' }",
-    );
-    let mut cmd = std::process::Command::new("powershell");
-    cmd.args(["-NoProfile", "-NonInteractive", "-Command", SCRIPT]);
-    apollia_core::subprocess_window::hide_console(&mut cmd);
-    let out = bounded::output_within(&mut cmd, bounded::PROBE_LIMIT).ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let line = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    (!line.is_empty()).then_some(line)
-}
-
-#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-fn probe_generic_gpu() -> Option<String> {
-    // amdgpu and i915 both publish the card's name and its VRAM under
-    // /sys/class/drm. Nothing is spawned: this is two file reads.
-    let cards = std::fs::read_dir("/sys/class/drm").ok()?;
-    for entry in cards.flatten() {
-        let device = entry.path().join("device");
-        let Ok(bytes) = std::fs::read_to_string(device.join("mem_info_vram_total")) else {
-            continue;
-        };
-        let name = std::fs::read_to_string(device.join("product_name"))
-            .ok()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "GPU".to_string());
-        return Some(format!("{name}\t{}", bytes.trim()));
-    }
-    None
-}
-
-#[cfg(not(target_os = "macos"))]
-fn detect_nvidia_cuda() -> Option<AcceleratorProfile> {
-    detect_nvidia_cuda_with(std::ffi::OsStr::new("nvidia-smi"), bounded::PROBE_LIMIT)
-}
-
-/// [`detect_nvidia_cuda`] on a given program and limit, so a test can hand it
-/// a `nvidia-smi` that hangs.
+/// The NVIDIA card of `profile` with the most memory among those whose
+/// compute capability is known.
 #[cfg(any(not(target_os = "macos"), test))]
-fn detect_nvidia_cuda_with(
-    program: &std::ffi::OsStr,
-    limit: std::time::Duration,
-) -> Option<AcceleratorProfile> {
-    let mut cmd = std::process::Command::new(program);
-    cmd.args([
-        "--query-gpu=name,memory.total,compute_cap",
-        "--format=csv,noheader,nounits",
-    ]);
-    // The desktop binary owns no console, so Windows allocates a fresh one for
-    // every console-subsystem child and shows it. This spawn had no such call
-    // and `detect` runs on several API routes, so a console flashed each time a
-    // hardware panel was read. It went unnoticed because the guard that holds
-    // this rule did not scan this crate; it does now.
-    apollia_core::subprocess_window::hide_console(&mut cmd);
-    let output = bounded::output_within(&mut cmd, limit).ok()?;
-
-    if !output.status.success() {
-        return None;
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let line = stdout.lines().next()?;
-    let parts: Vec<&str> = line.splitn(3, ',').map(str::trim).collect();
-    if parts.len() < 3 {
-        return None;
-    }
-
-    let device_name = parts[0].to_string();
-    let vram_mb: f64 = parts[1].parse().ok()?;
-    let vram_gb = vram_mb / 1024.0;
-
-    // compute_cap format: "8.9"
-    let cc_parts: Vec<&str> = parts[2].split('.').collect();
-    let major: u8 = cc_parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
-    let minor: u8 = cc_parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
-
-    Some(AcceleratorProfile::Cuda {
-        device_name,
-        vram_gb,
-        compute_capability: (major, minor),
-    })
+fn best_cuda_card(profile: &GpuProfile) -> Option<AcceleratorProfile> {
+    profile
+        .cards
+        .iter()
+        .filter(|card| card.vendor == GpuVendor::Nvidia)
+        .filter_map(|card| Some((card, card.compute_capability?)))
+        .max_by(|(a, _), (b, _)| {
+            a.vram_gb
+                .unwrap_or(0.0)
+                .total_cmp(&b.vram_gb.unwrap_or(0.0))
+        })
+        .map(|(card, compute_capability)| AcceleratorProfile::Cuda {
+            device_name: card.name.clone(),
+            vram_gb: card.vram_gb.unwrap_or(0.0),
+            compute_capability,
+        })
 }
 
 #[cfg(test)]
@@ -498,15 +396,20 @@ mod tests {
         // GIVEN a `nvidia-smi` that sleeps thirty seconds
         let dir = tempfile::tempdir().expect("tempdir");
         let tool = super::bounded::tests::fake_tool(dir.path(), "nvidia-smi", "exec sleep 30");
+        let sources = gpu_probe::ProbeSources {
+            nvidia_smi: Some(tool),
+            limit: std::time::Duration::from_millis(300),
+            ..profile_tests::no_machine()
+        };
         let started = std::time::Instant::now();
 
-        // WHEN the NVIDIA detection runs on it with a short limit
-        let detected =
-            detect_nvidia_cuda_with(tool.as_os_str(), std::time::Duration::from_millis(300));
+        // WHEN the accelerator is built from the profile probed with a short
+        //      limit
+        let detected = accelerator_from(&gpu_probe::probe_with(&sources), || None);
 
-        // THEN it gives up quickly and reports no NVIDIA card, where it used
-        //      to wait the thirty seconds out
-        assert!(detected.is_none());
+        // THEN it gives up quickly and reports no CUDA card, where it used to
+        //      wait the thirty seconds out
+        assert!(!matches!(detected, AcceleratorProfile::Cuda { .. }));
         assert!(
             started.elapsed() < std::time::Duration::from_secs(3),
             "took {:?}",
@@ -579,51 +482,8 @@ mod engine_device_tests {
     }
 }
 
-#[cfg(all(test, not(target_os = "macos")))]
-mod generic_gpu_tests {
-    use super::{parse_generic_gpu, vram_gb_from_bytes};
-
-    #[test]
-    fn a_sixteen_gigabyte_card_reads_as_sixteen_not_four() {
-        // GIVEN the byte count a 16 GB Radeon writes to the registry, the
-        // value WMI would have saturated at 4095 MiB
-        let raw = "17163091968";
-
-        // WHEN it is converted
-        let gb = vram_gb_from_bytes(raw).expect("a positive size parses");
-
-        // THEN the card is sized as itself, within a tenth of a gibibyte
-        assert!((gb - 15.98).abs() < 0.1, "got {gb}");
-    }
-
-    #[test]
-    fn a_probe_line_yields_the_card_and_its_memory() {
-        // GIVEN the line the platform probes emit, name then size
-        let line = "AMD Radeon RX 6900 XT\t17163091968";
-
-        // WHEN it is parsed
-        let (name, gb) = parse_generic_gpu(line).expect("a well-formed line parses");
-
-        // THEN both halves come back
-        assert_eq!(name, "AMD Radeon RX 6900 XT");
-        assert!(gb > 15.0, "got {gb}");
-    }
-
-    #[test]
-    fn a_card_whose_size_is_unknown_still_names_itself() {
-        // GIVEN a probe that found the adapter but no usable size, which is
-        // what an integrated GPU with shared memory reports
-        let line = "Intel(R) UHD Graphics\t0";
-
-        // WHEN it is parsed
-        let (name, gb) = parse_generic_gpu(line).expect("the name alone is enough");
-
-        // THEN the accelerator is still named, with a size of zero rather than
-        // the machine being called CPU-only
-        assert_eq!(name, "Intel(R) UHD Graphics");
-        assert_eq!(gb, 0.0);
-    }
-}
+#[cfg(test)]
+mod profile_tests;
 
 #[cfg(test)]
 mod generic_budget_tests {

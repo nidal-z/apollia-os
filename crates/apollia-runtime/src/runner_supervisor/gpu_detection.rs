@@ -5,13 +5,18 @@
 //! `RunnerBackend`, degraded onto a runner this build ships. No setting
 //! overrides the choice.
 //!
-//! The decision hierarchy is: Apple Silicon, NVIDIA + CUDA >= 12.0, AMD + ROCm,
-//! Vulkan fallback, CPU fallback.
+//! The decision hierarchy is: Apple Silicon, NVIDIA with a driver of the CUDA
+//! 12 family, AMD with ROCm, Vulkan when its loader is installed, CPU.
 //!
-//! The module is strictly local-first: no telemetry, no network calls. All
-//! probes are subprocesses (`nvidia-smi`, `rocm-smi`, `system_profiler`,
-//! `vulkaninfo`) or `/sys` reads.
+//! Under Linux and Windows nothing is probed here: the cards, their drivers
+//! and the Vulkan loader are those of the hardware probe of the language-model
+//! crate ([`apollia_llm::hardware::gpu_profile`]), read once per process and
+//! shared with the profile the model budget and the engine choice read, so
+//! dictation and the models never describe two different machines. macOS
+//! keeps its own `system_profiler` read. No telemetry, no network call.
 
+#[cfg(any(target_os = "linux", target_os = "windows", test))]
+use apollia_llm::hardware::{GpuCard, GpuProfile, GpuVendor};
 use serde::{Deserialize, Serialize};
 
 // Public types
@@ -38,11 +43,11 @@ pub enum Vendor {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum RunnerBackend {
-    /// NVIDIA CUDA (driver >= 12.0).
+    /// NVIDIA CUDA (a driver of the CUDA 12 family, 525 or later).
     Cuda,
-    /// AMD ROCm (Linux + Windows Radeon Pro / Instinct).
+    /// AMD ROCm (Linux with `/dev/kfd` and a known gfx target; Windows).
     Rocm,
-    /// Vulkan compute (cross-vendor fallback).
+    /// Vulkan compute (cross-vendor fallback, when the loader is installed).
     Vulkan,
     /// Apple Metal (macOS arm64).
     Metal,
@@ -131,116 +136,115 @@ pub fn detect_gpu() -> GpuInfo {
     }
 }
 
-/// Detect the GPU on Linux: NVIDIA via `nvidia-smi`, AMD via `rocm-smi`,
-/// then scan `/sys/class/drm` for other vendors.
-#[cfg(target_os = "linux")]
+/// Detect the GPU on Linux and Windows, from the hardware probe the whole
+/// process shares.
+///
+/// Blocking on the first call of the process, for up to a few seconds when a
+/// driver hangs; every later call reads the kept profile.
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 pub fn detect_gpu() -> GpuInfo {
-    if let Some(info) = probe_nvidia_linux() {
-        log_detected(&info);
-        return info;
-    }
-    if let Some(info) = probe_amd_rocm_linux() {
-        log_detected(&info);
-        return info;
-    }
-    if let Some(info) = probe_pci_drm() {
-        log_detected(&info);
-        return info;
-    }
-    let info = GpuInfo::cpu_fallback();
+    let platform = if cfg!(windows) {
+        Platform::Windows
+    } else {
+        Platform::Linux
+    };
+    let info = info_from_profile(&apollia_llm::hardware::gpu_profile(), platform);
     log_detected(&info);
     info
 }
 
-/// Detect the GPU on Windows: WMI `Win32_VideoController` + probes
-/// `nvidia-smi.exe`, HIP SDK, `vulkan-1.dll`.
-#[cfg(target_os = "windows")]
-pub fn detect_gpu() -> GpuInfo {
-    let mut controllers = wmi_list_video_controllers().unwrap_or_default();
-    if let Some(adapters) = registry_list_adapters() {
-        for ctrl in &mut controllers {
-            if let Some(bytes) = registry_memory_bytes(&ctrl.name, &ctrl.pnp_device_id, &adapters) {
-                ctrl.adapter_ram = bytes;
-            }
-        }
-    }
-
-    if let Some(ctrl) = controllers.iter().find(|c| c.name.contains("NVIDIA")) {
-        let info = build_video_controller_info(ctrl, Vendor::Nvidia, nvidia_backend_windows());
-        log_detected(&info);
-        return info;
-    }
-
-    if let Some(ctrl) = controllers
-        .iter()
-        .find(|c| c.name.contains("AMD") || c.name.contains("Radeon"))
-    {
-        let info = build_video_controller_info(ctrl, Vendor::Amd, amd_backend_windows(&ctrl.name));
-        log_detected(&info);
-        return info;
-    }
-
-    if let Some(ctrl) = controllers
-        .iter()
-        .find(|c| c.name.contains("Intel") && c.name.contains("Arc"))
-    {
-        let info = build_video_controller_info(ctrl, Vendor::Intel, intel_backend_windows());
-        log_detected(&info);
-        return info;
-    }
-
-    let info = GpuInfo::cpu_fallback();
-    log_detected(&info);
-    info
+/// The operating system a profile was read on: ROCm is decided differently
+/// under each.
+#[cfg(any(target_os = "linux", target_os = "windows", test))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Platform {
+    Linux,
+    Windows,
 }
 
-/// Select the recommended backend for an NVIDIA GPU on Windows.
-#[cfg(target_os = "windows")]
-fn nvidia_backend_windows() -> RunnerBackend {
-    let cuda_version = probe_cuda_version_windows().unwrap_or((0, 0));
-    if cuda_version.0 >= 12 {
-        RunnerBackend::Cuda
-    } else if vulkan_loader_present_windows() {
-        RunnerBackend::Vulkan
-    } else {
-        RunnerBackend::Cpu
-    }
-}
+/// The lowest driver major of the CUDA 12 family, the runner's CUDA build.
+#[cfg(any(target_os = "linux", target_os = "windows", test))]
+const CUDA_12_MIN_DRIVER: u32 = 525;
 
-/// Select the recommended backend for an AMD GPU on Windows.
-#[cfg(target_os = "windows")]
-fn amd_backend_windows(name: &str) -> RunnerBackend {
-    if hip_sdk_present_windows() && rocm_supports_card(name) {
-        RunnerBackend::Rocm
-    } else if vulkan_loader_present_windows() {
-        RunnerBackend::Vulkan
-    } else {
-        RunnerBackend::Cpu
-    }
-}
-
-/// Select the recommended backend for an Intel Arc GPU on Windows.
-#[cfg(target_os = "windows")]
-fn intel_backend_windows() -> RunnerBackend {
-    if vulkan_loader_present_windows() {
-        RunnerBackend::Vulkan
-    } else {
-        RunnerBackend::Cpu
-    }
-}
-
-/// Build a [`GpuInfo`] from a WMI controller and the chosen backend.
-#[cfg(target_os = "windows")]
-fn build_video_controller_info(
-    ctrl: &VideoController,
-    vendor: Vendor,
-    backend: RunnerBackend,
-) -> GpuInfo {
+/// The card the runner runs on, and the backend recommended for it.
+///
+/// The best card is NVIDIA before AMD before Intel before any other, then the
+/// one with the most memory. A machine without a card falls back to the
+/// processor.
+#[cfg(any(target_os = "linux", target_os = "windows", test))]
+fn info_from_profile(profile: &GpuProfile, platform: Platform) -> GpuInfo {
+    let rank = |vendor: GpuVendor| match vendor {
+        GpuVendor::Nvidia => 0,
+        GpuVendor::Amd => 1,
+        GpuVendor::Intel => 2,
+        GpuVendor::Other => 3,
+    };
+    let best = profile.cards.iter().min_by(|a, b| {
+        rank(a.vendor).cmp(&rank(b.vendor)).then_with(|| {
+            b.vram_gb
+                .unwrap_or(0.0)
+                .total_cmp(&a.vram_gb.unwrap_or(0.0))
+        })
+    });
+    let Some(card) = best else {
+        return GpuInfo::cpu_fallback();
+    };
+    let vendor = match card.vendor {
+        GpuVendor::Nvidia => Vendor::Nvidia,
+        GpuVendor::Amd => Vendor::Amd,
+        GpuVendor::Intel => Vendor::Intel,
+        GpuVendor::Other => Vendor::Unknown,
+    };
     GpuInfo {
         vendor,
-        model: ctrl.name.clone(),
-        memory_total_mb: ctrl.adapter_ram_mb(),
-        recommended_backend: backend,
+        model: card.name.clone(),
+        memory_total_mb: card.vram_gb.map_or(0, |gb| {
+            (gb * 1024.0).round().clamp(0.0, f64::from(u32::MAX)) as u32
+        }),
+        recommended_backend: backend_for(card, profile.vulkan_loader, platform),
+    }
+}
+
+/// The backend recommended for `card`.
+///
+/// NVIDIA takes CUDA from a driver of the CUDA 12 family on, Vulkan below.
+/// AMD under Linux takes ROCm when the kernel names its gfx target and
+/// `/dev/kfd` opens; under Windows the build carries its HIP runtime and no
+/// sourced table names the gfx target of a card, so ROCm is compatible, to be
+/// confirmed, and recommended. Every other card, and a card ROCm or CUDA do
+/// not reach, takes Vulkan when its loader is installed, the processor
+/// otherwise.
+#[cfg(any(target_os = "linux", target_os = "windows", test))]
+fn backend_for(card: &GpuCard, vulkan_loader: bool, platform: Platform) -> RunnerBackend {
+    let vulkan_or_cpu = if vulkan_loader {
+        RunnerBackend::Vulkan
+    } else {
+        RunnerBackend::Cpu
+    };
+    match card.vendor {
+        GpuVendor::Nvidia => {
+            if card
+                .driver_major
+                .is_some_and(|major| major >= CUDA_12_MIN_DRIVER)
+            {
+                RunnerBackend::Cuda
+            } else {
+                tracing::warn!(
+                    driver = card.driver_version.as_deref().unwrap_or("unknown"),
+                    detail = "falling back to Vulkan if available",
+                    "gpu.cuda.driver.outdated",
+                );
+                vulkan_or_cpu
+            }
+        }
+        GpuVendor::Amd => match platform {
+            Platform::Windows => RunnerBackend::Rocm,
+            Platform::Linux if card.gfx_target.is_some() && card.kfd_accessible == Some(true) => {
+                RunnerBackend::Rocm
+            }
+            Platform::Linux => vulkan_or_cpu,
+        },
+        GpuVendor::Intel | GpuVendor::Other => vulkan_or_cpu,
     }
 }
 
@@ -409,351 +413,6 @@ fn query_system_profiler_unified_memory_mb() -> Option<u32> {
     Some(n * 1024)
 }
 
-// ─────────────────────────────────────────────
-// Sondes Linux
-// ─────────────────────────────────────────────
-
-/// Parsed representation of a `nvidia-smi --query-gpu=name,memory.total,driver_version` line.
-// Only the Linux probe parses `nvidia-smi` output; Windows detects GPUs through
-// WMI. Keeping `windows` in this gate declared both items with no consumer
-// there, which is a warning on that target.
-#[cfg(any(target_os = "linux", test))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct NvidiaSmiLine {
-    model: String,
-    memory_total_mb: u32,
-    driver_version: String,
-}
-
-/// Parses one `--format=csv,noheader,nounits` line in the format
-/// `"GeForce RTX 4070, 12288, 550.78"`.
-// Only the Linux probe parses `nvidia-smi` output; Windows detects GPUs through
-// WMI. Keeping `windows` in this gate declared both items with no consumer
-// there, which is a warning on that target.
-#[cfg(any(target_os = "linux", test))]
-fn parse_nvidia_smi_line(line: &str) -> Option<NvidiaSmiLine> {
-    let mut parts = line.split(',').map(str::trim);
-    let model = parts.next()?.to_string();
-    let memory_total_mb: u32 = parts.next()?.parse().ok()?;
-    let driver_version = parts.next()?.to_string();
-    if model.is_empty() {
-        return None;
-    }
-    Some(NvidiaSmiLine {
-        model,
-        memory_total_mb,
-        driver_version,
-    })
-}
-
-#[cfg(target_os = "linux")]
-fn probe_nvidia_linux() -> Option<GpuInfo> {
-    let out = std::process::Command::new("nvidia-smi")
-        .args([
-            "--query-gpu=name,memory.total,driver_version",
-            "--format=csv,noheader,nounits",
-        ])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let stdout = String::from_utf8(out.stdout).ok()?;
-    let first_line = stdout.lines().next()?;
-    let parsed = parse_nvidia_smi_line(first_line)?;
-
-    let cuda_version = probe_cuda_version_linux().unwrap_or((0, 0));
-    let backend = if cuda_version.0 >= 12 {
-        RunnerBackend::Cuda
-    } else {
-        tracing::warn!(
-            driver = %parsed.driver_version,
-            cuda_major = cuda_version.0,
-            cuda_minor = cuda_version.1,
-            detail = "falling back to Vulkan if available", "gpu.cuda.driver.outdated",
-        );
-        if vulkan_loader_present_linux() {
-            RunnerBackend::Vulkan
-        } else {
-            RunnerBackend::Cpu
-        }
-    };
-
-    Some(GpuInfo {
-        vendor: Vendor::Nvidia,
-        model: parsed.model,
-        memory_total_mb: parsed.memory_total_mb,
-        recommended_backend: backend,
-    })
-}
-
-#[cfg(target_os = "linux")]
-fn probe_cuda_version_linux() -> Option<(u32, u32)> {
-    let out = std::process::Command::new("nvidia-smi")
-        .arg("-q")
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let s = String::from_utf8(out.stdout).ok()?;
-    parse_cuda_version_from_smi_q(&s)
-}
-
-// Shared: both the Linux probe and the Windows one read the CUDA version out of
-// `nvidia-smi -q`.
-#[cfg(any(target_os = "linux", target_os = "windows", test))]
-fn parse_cuda_version_from_smi_q(s: &str) -> Option<(u32, u32)> {
-    let line = s.lines().find(|l| l.contains("CUDA Version"))?;
-    let v = line.split(':').nth(1)?.trim();
-    let mut parts = v.split('.');
-    let major: u32 = parts.next()?.parse().ok()?;
-    let minor: u32 = parts.next()?.parse().ok()?;
-    Some((major, minor))
-}
-
-#[cfg(target_os = "linux")]
-fn probe_amd_rocm_linux() -> Option<GpuInfo> {
-    let out = std::process::Command::new("rocm-smi")
-        .args(["--showproductname", "--showmeminfo", "vram", "--json"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let json: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-    let card = json.as_object()?.values().next()?;
-    let model = card["Card series"].as_str()?.to_string();
-    let mem_bytes: u64 = card["VRAM Total Memory (B)"].as_str()?.parse().ok()?;
-    Some(GpuInfo {
-        vendor: Vendor::Amd,
-        model,
-        memory_total_mb: (mem_bytes / 1024 / 1024) as u32,
-        recommended_backend: RunnerBackend::Rocm,
-    })
-}
-
-#[cfg(target_os = "linux")]
-fn probe_pci_drm() -> Option<GpuInfo> {
-    use std::fs;
-
-    let entries = fs::read_dir("/sys/class/drm").ok()?;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let vendor_path = path.join("device/vendor");
-        let Ok(vendor_id) = fs::read_to_string(&vendor_path) else {
-            continue;
-        };
-        let vendor_id = vendor_id.trim();
-        let (vendor, fallback_backend) = match vendor_id {
-            // If we got here, no nvidia-smi: try Vulkan.
-            "0x10de" => (Vendor::Nvidia, RunnerBackend::Vulkan),
-            // No ROCm, Vulkan fallback.
-            "0x1002" => (Vendor::Amd, RunnerBackend::Vulkan),
-            "0x8086" => (Vendor::Intel, RunnerBackend::Vulkan),
-            _ => continue,
-        };
-        let model = read_pci_device_name(&path).unwrap_or_else(|| format!("{:?} GPU", vendor));
-        let backend = if vulkan_loader_present_linux() {
-            fallback_backend
-        } else {
-            RunnerBackend::Cpu
-        };
-        return Some(GpuInfo {
-            vendor,
-            model,
-            memory_total_mb: 0,
-            recommended_backend: backend,
-        });
-    }
-    None
-}
-
-#[cfg(target_os = "linux")]
-fn read_pci_device_name(card_path: &std::path::Path) -> Option<String> {
-    use std::fs;
-    let uevent = fs::read_to_string(card_path.join("device/uevent")).ok()?;
-    for line in uevent.lines() {
-        if let Some(rest) = line.strip_prefix("DRIVER=") {
-            return Some(rest.to_string());
-        }
-    }
-    None
-}
-
-#[cfg(target_os = "linux")]
-fn vulkan_loader_present_linux() -> bool {
-    std::process::Command::new("vulkaninfo")
-        .arg("--summary")
-        .output()
-        .map(|out| out.status.success())
-        .unwrap_or(false)
-}
-
-// ─────────────────────────────────────────────
-// Sondes Windows
-// ─────────────────────────────────────────────
-
-/// GPU controller as exposed by WMI `Win32_VideoController`.
-///
-/// `adapter_ram` starts as WMI's `AdapterRAM`, a 32-bit field that saturates
-/// at 4095 MiB: a 16 GB Radeon RX 6900 XT was logged `memory_mb=4095` and the
-/// model was sized, and partly computed on the processor, for a 4 GB card.
-/// [`detect_gpu`] replaces it with the 64-bit size of the registry when the
-/// adapter is found there.
-#[cfg(target_os = "windows")]
-#[derive(Debug, Clone, serde::Deserialize)]
-struct VideoController {
-    #[serde(rename = "Name")]
-    name: String,
-    #[serde(rename = "AdapterRAM", default)]
-    adapter_ram: u64,
-    #[serde(rename = "PNPDeviceID", default)]
-    pnp_device_id: String,
-}
-
-#[cfg(target_os = "windows")]
-impl VideoController {
-    fn adapter_ram_mb(&self) -> u32 {
-        u32::try_from(self.adapter_ram / 1024 / 1024).unwrap_or(u32::MAX)
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn wmi_list_video_controllers() -> Option<Vec<VideoController>> {
-    use wmi::{COMLibrary, WMIConnection};
-    let com_con = COMLibrary::new().ok()?;
-    let wmi_con = WMIConnection::new(com_con).ok()?;
-    let results: Vec<VideoController> = wmi_con
-        .raw_query("SELECT Name, AdapterRAM, PNPDeviceID FROM Win32_VideoController")
-        .ok()?;
-    Some(results)
-}
-
-/// A display adapter as its driver recorded it under the display class key
-/// of the registry.
-#[cfg(any(target_os = "windows", test))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct RegistryAdapter {
-    /// `DriverDesc`, the name WMI reports as `Name`.
-    driver_desc: String,
-    /// `MatchingDeviceId`, lowercase, a prefix of WMI's `PNPDeviceID`.
-    matching_device_id: String,
-    /// `HardwareInformation.qwMemorySize`, in bytes.
-    memory_bytes: u64,
-}
-
-/// Parses the `DriverDesc<tab>MatchingDeviceId<tab>bytes` lines of
-/// [`registry_list_adapters`]. A line without a positive size is skipped.
-#[cfg(any(target_os = "windows", test))]
-fn parse_registry_adapters(stdout: &str) -> Vec<RegistryAdapter> {
-    stdout
-        .lines()
-        .filter_map(|line| {
-            let mut fields = line.split('\t');
-            let driver_desc = fields.next()?.trim().to_string();
-            let matching_device_id = fields.next()?.trim().to_ascii_lowercase();
-            let memory_bytes: u64 = fields.next()?.trim().parse().ok()?;
-            (memory_bytes > 0).then_some(RegistryAdapter {
-                driver_desc,
-                matching_device_id,
-                memory_bytes,
-            })
-        })
-        .collect()
-}
-
-/// The registry size of the controller named `name` with the plug-and-play
-/// id `pnp_device_id`.
-///
-/// The device id decides first, the longest matching id winning, since two
-/// cards may share a name and a driver may write a name of its own. The name
-/// is the fallback, for a controller WMI listed without an id.
-#[cfg(any(target_os = "windows", test))]
-fn registry_memory_bytes(
-    name: &str,
-    pnp_device_id: &str,
-    adapters: &[RegistryAdapter],
-) -> Option<u64> {
-    let pnp = pnp_device_id.trim().to_ascii_lowercase();
-    let by_id = adapters
-        .iter()
-        .filter(|a| !a.matching_device_id.is_empty() && pnp.starts_with(&a.matching_device_id))
-        .max_by_key(|a| a.matching_device_id.len());
-    let name = name.trim();
-    by_id
-        .or_else(|| {
-            adapters
-                .iter()
-                .find(|a| !name.is_empty() && a.driver_desc.eq_ignore_ascii_case(name))
-        })
-        .map(|a| a.memory_bytes)
-}
-
-/// Every display adapter of the registry with its 64-bit memory size, read
-/// through PowerShell as the language-model crate already reads it, so no
-/// registry crate is added.
-#[cfg(target_os = "windows")]
-fn registry_list_adapters() -> Option<Vec<RegistryAdapter>> {
-    // A driver may store the size as an 8-byte binary rather than a QWORD;
-    // both are turned into a decimal count of bytes.
-    const SCRIPT: &str = concat!(
-        r"$k = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\",
-        r"{4d36e968-e325-11ce-bfc1-08002be10318}\*'; ",
-        "Get-ItemProperty $k -ErrorAction SilentlyContinue | ForEach-Object { ",
-        "$m = $_.'HardwareInformation.qwMemorySize'; ",
-        "if ($m -is [byte[]]) { $m = [BitConverter]::ToUInt64($m, 0) }; ",
-        "if ($m) { $_.DriverDesc + [char]9 + $_.MatchingDeviceId + [char]9 + $m } }",
-    );
-    let mut cmd = std::process::Command::new("powershell");
-    cmd.args(["-NoProfile", "-NonInteractive", "-Command", SCRIPT]);
-    apollia_core::subprocess_window::hide_console(&mut cmd);
-    let out = cmd.output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    Some(parse_registry_adapters(&String::from_utf8_lossy(
-        &out.stdout,
-    )))
-}
-
-#[cfg(target_os = "windows")]
-fn probe_cuda_version_windows() -> Option<(u32, u32)> {
-    // Runs on every boot, so without this the desktop app flashes a console
-    // window before its own window is even up.
-    let mut smi = std::process::Command::new("nvidia-smi.exe");
-    apollia_core::subprocess_window::hide_console(&mut smi);
-    let out = smi.arg("-q").output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let s = String::from_utf8(out.stdout).ok()?;
-    parse_cuda_version_from_smi_q(&s)
-}
-
-#[cfg(target_os = "windows")]
-fn vulkan_loader_present_windows() -> bool {
-    // `vulkan-1.dll` is shipped by the GPU driver on Windows.
-    let mut where_cmd = std::process::Command::new("where");
-    apollia_core::subprocess_window::hide_console(&mut where_cmd);
-    where_cmd
-        .arg("vulkan-1.dll")
-        .output()
-        .map(|out| !out.stdout.is_empty())
-        .unwrap_or(false)
-}
-
-#[cfg(target_os = "windows")]
-fn hip_sdk_present_windows() -> bool {
-    std::env::var("HIP_PATH").is_ok() || std::path::Path::new("C:/Program Files/AMD/ROCm").exists()
-}
-
-/// AMD ROCm Windows allowlist: officially limited to Radeon Pro and Instinct MI.
-#[cfg(any(target_os = "windows", test))]
-fn rocm_supports_card(name: &str) -> bool {
-    name.contains("Radeon Pro") || name.contains("Instinct")
-}
-
 // Tests
 
 #[cfg(test)]
@@ -918,55 +577,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_nvidia_smi_line_rtx_4070() {
-        // GIVEN a typical output of `nvidia-smi --query-gpu=...`
-        let line = "GeForce RTX 4070, 12288, 550.78";
-        // WHEN parsing
-        let parsed = parse_nvidia_smi_line(line).expect("parsing should succeed");
-        // THEN the 3 fields are extracted
-        assert_eq!(parsed.model, "GeForce RTX 4070");
-        assert_eq!(parsed.memory_total_mb, 12_288);
-        assert_eq!(parsed.driver_version, "550.78");
-    }
-
-    #[test]
-    fn parse_nvidia_smi_line_rejects_garbage() {
-        // GIVEN a malformed output (missing memory and version)
-        let line = "only-model";
-        // WHEN the line is parsed
-        // THEN None is returned
-        assert!(parse_nvidia_smi_line(line).is_none());
-    }
-
-    #[test]
-    fn parse_nvidia_smi_line_rejects_non_numeric_memory() {
-        // GIVEN an output with non-numeric memory
-        let line = "Some GPU, notanumber, 1.0";
-        // WHEN the line is parsed
-        // THEN None is returned (parse::<u32> fails)
-        assert!(parse_nvidia_smi_line(line).is_none());
-    }
-
-    #[test]
-    fn parse_cuda_version_from_smi_q_typical() {
-        // GIVEN an excerpt of `nvidia-smi -q`
-        let s = "Driver Version : 550.78\nCUDA Version : 12.4\nGPU 00000000:01:00.0";
-        // WHEN
-        let v = parse_cuda_version_from_smi_q(s);
-        // THEN
-        assert_eq!(v, Some((12, 4)));
-    }
-
-    #[test]
-    fn parse_cuda_version_from_smi_q_missing() {
-        // GIVEN a text without the CUDA Version line
-        let s = "Driver Version : 550.78\nGPU info...";
-        // WHEN the CUDA version is looked for
-        // THEN None
-        assert!(parse_cuda_version_from_smi_q(s).is_none());
-    }
-
-    #[test]
     fn runner_backend_binary_names() {
         // GIVEN each backend of the enum
         // WHEN its binary name is asked for
@@ -977,102 +587,7 @@ mod tests {
         assert_eq!(RunnerBackend::Metal.binary_name(), "apollia-runner-metal");
         assert_eq!(RunnerBackend::Cpu.binary_name(), "apollia-runner-cpu");
     }
-
-    #[test]
-    fn rocm_only_for_radeon_pro_or_instinct() {
-        // Static ROCm allowlist: Radeon Pro and Instinct only.
-        // GIVEN two professional AMD cards, one consumer AMD card and one NVIDIA card
-        // WHEN the ROCm allowlist is asked about each
-        // THEN only the professional cards are supported
-        assert!(rocm_supports_card("AMD Radeon Pro W7900"));
-        assert!(rocm_supports_card("AMD Instinct MI300"));
-        assert!(!rocm_supports_card("AMD Radeon RX 7800 XT"));
-        assert!(!rocm_supports_card("NVIDIA GeForce RTX 4070"));
-    }
-
-    /// Registry lines as the Windows probe prints them: a discrete Radeon of
-    /// 16 GB, an integrated Radeon with no size of its own, and the Microsoft
-    /// basic display adapter.
-    const REGISTRY_LINES: &str = "AMD Radeon RX 6900 XT\tpci\\ven_1002&dev_73bf\t17163091968\r\n\
-        AMD Radeon(TM) Graphics\tPCI\\VEN_1002&DEV_164E\t0\r\n\
-        Microsoft Basic Display Adapter\tpci\\cc_0300\t\r\n";
-
-    #[test]
-    fn test_parse_registry_adapters_keeps_the_adapters_with_a_size() {
-        // GIVEN the probe's output for three adapters, one with a size
-        // WHEN it is parsed
-        let adapters = parse_registry_adapters(REGISTRY_LINES);
-
-        // THEN only the sized adapter remains, its id lowercased
-        assert_eq!(
-            adapters,
-            vec![RegistryAdapter {
-                driver_desc: "AMD Radeon RX 6900 XT".to_string(),
-                matching_device_id: "pci\\ven_1002&dev_73bf".to_string(),
-                memory_bytes: 17_163_091_968,
-            }]
-        );
-    }
-
-    #[test]
-    fn test_registry_memory_bytes_matches_the_controller_by_device_id() {
-        // GIVEN the registry adapters and a controller whose WMI name differs
-        // from the driver's description but whose device id matches
-        let adapters = parse_registry_adapters(REGISTRY_LINES);
-        let pnp = "PCI\\VEN_1002&DEV_73BF&SUBSYS_0E3A1002&REV_C0\\6&1A2B3C4D&0&00000019";
-
-        // WHEN the controller's memory is looked up
-        let bytes = registry_memory_bytes("Radeon RX 6900 XT (vendor name)", pnp, &adapters);
-
-        // THEN the registry's 16 GB is returned, above WMI's 4095 MiB ceiling
-        assert_eq!(bytes, Some(17_163_091_968));
-    }
-
-    #[test]
-    fn test_registry_memory_bytes_falls_back_to_the_driver_description() {
-        // GIVEN a controller WMI listed with no device id
-        let adapters = parse_registry_adapters(REGISTRY_LINES);
-
-        // WHEN its memory is looked up by name
-        let bytes = registry_memory_bytes("amd radeon rx 6900 xt", "", &adapters);
-
-        // THEN the adapter of the same description answers
-        assert_eq!(bytes, Some(17_163_091_968));
-    }
-
-    #[test]
-    fn test_registry_memory_bytes_of_an_unknown_controller_is_none() {
-        // GIVEN a controller absent from the registry listing
-        let adapters = parse_registry_adapters(REGISTRY_LINES);
-
-        // WHEN its memory is looked up
-        let bytes = registry_memory_bytes(
-            "Intel(R) Arc(TM) A770",
-            "PCI\\VEN_8086&DEV_56A0\\4&1",
-            &adapters,
-        );
-
-        // THEN nothing is found, and WMI's AdapterRAM is kept
-        assert_eq!(bytes, None);
-    }
-
-    #[test]
-    fn test_registry_memory_bytes_prefers_the_longest_device_id() {
-        // GIVEN two entries whose ids both prefix the controller's, the
-        // longer naming its subsystem
-        let adapters = parse_registry_adapters(
-            "Generic\tpci\\ven_1002&dev_73bf\t4294967296\n\
-             Board\tpci\\ven_1002&dev_73bf&subsys_0e3a1002\t17163091968\n",
-        );
-
-        // WHEN the controller's memory is looked up
-        let bytes = registry_memory_bytes(
-            "AMD Radeon RX 6900 XT",
-            "PCI\\VEN_1002&DEV_73BF&SUBSYS_0E3A1002&REV_C0\\6&1",
-            &adapters,
-        );
-
-        // THEN the more specific entry answers
-        assert_eq!(bytes, Some(17_163_091_968));
-    }
 }
+
+#[cfg(test)]
+mod profile_tests;

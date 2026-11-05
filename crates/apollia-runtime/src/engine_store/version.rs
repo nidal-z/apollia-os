@@ -72,6 +72,11 @@ pub fn dist_info_version(site_packages: &Path, name: &str) -> Option<String> {
 pub async fn probe_banner(binary: &Path) -> Option<String> {
     let mut command = tokio::process::Command::new(binary);
     apollia_core::subprocess_window::hide_console_async(&mut command);
+    // An inherited `LLAMA_ARG_*` the build refuses would fail the banner and
+    // leave the engine without a version.
+    for name in apollia_llm::engine_env::inherited_engine_flags() {
+        command.env_remove(name);
+    }
     command
         .arg("--version")
         .stdin(std::process::Stdio::null())

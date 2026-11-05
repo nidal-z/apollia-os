@@ -143,6 +143,9 @@ fn list_devices_within(binary: &Path, limit: Duration) -> Result<Vec<GpuDevice>,
     let mut cmd = std::process::Command::new(binary);
     cmd.arg("--list-devices");
     apollia_core::subprocess_window::hide_console(&mut cmd);
+    // An inherited `LLAMA_ARG_*` the build refuses would make it exit in
+    // error, and the machine would read as having no device.
+    crate::engine_env::remove_engine_flags(&mut cmd);
     let out = output_within(&mut cmd, limit)?;
     if !out.status.success() {
         return Err(ListDevicesError::Exit {
@@ -380,6 +383,40 @@ printf 'Available devices:\n  Vulkan0: AMD Radeon RX 6900 XT (16368 MiB, 7313 Mi
                 Err(ListDevicesError::Exit { status: Some(127), ref stderr }) if stderr == "missing library"
             ));
             assert!(matches!(absent, Err(ListDevicesError::Launch(ref e)) if e.is_not_found()));
+        }
+
+        #[cfg(feature = "cloud")]
+        #[test]
+        fn an_inherited_engine_flag_does_not_reach_the_listing() {
+            // GIVEN an engine that refuses to run when any `LLAMA_ARG_*` is in
+            //       its environment, as a build does on an invalid one, and
+            //       an invalid one set in this process under the environment
+            //       lock
+            let dir = tempfile::tempdir().expect("tempdir");
+            let engine = fake_tool(
+                dir.path(),
+                "llama-server",
+                r#"if env | grep -q '^LLAMA_ARG_'; then echo 'invalid argument' >&2; exit 1; fi
+printf 'Available devices:\n  Vulkan0: AMD Radeon RX 6900 XT (16368 MiB, 7313 MiB free)\n'"#,
+            );
+
+            // WHEN its devices are listed while the variable is set
+            let mut listed = None;
+            crate::backends::test_env::with_env_var(
+                "LLAMA_ARG_N_GPU_LAYERS",
+                "not-a-number",
+                || {
+                    listed = Some(list_devices_within(&engine, ANSWER_LIMIT));
+                },
+            );
+
+            // THEN the variable did not reach it, and its card is listed
+            //      rather than the launch failing
+            let devices = listed
+                .expect("the listing ran")
+                .expect("the engine answers");
+            assert_eq!(devices.len(), 1);
+            assert_eq!(devices[0].name, "AMD Radeon RX 6900 XT");
         }
     }
 
