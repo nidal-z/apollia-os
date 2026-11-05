@@ -5492,6 +5492,8 @@
       "filter_placeholder": "Filtrer les modèles…",
       "filter_label": "Filtrer les modèles",
       "import": "Importer un fichier",
+      "import_language_data": "Importer une langue de lecture",
+      "import_language_data_title": "Importer une langue de lecture",
       "discover": "Découvrir des modèles",
       "params_billions": "{n} Md",
       "params_millions": "{n} M",
@@ -5560,7 +5562,8 @@
       "default_set": "{name} répond désormais par défaut.",
       "search_set": "{name} sert désormais à la recherche. Les sources et la mémoire sont réindexées.",
       "deleted": "{name} supprimé.",
-      "imported": "{name} importé."
+      "imported": "{name} importé.",
+      "language_data_unknown": "Ce fichier n'est pas une langue de lecture qu'Apollia connaît. Demandez le fichier de langue de votre version."
     },
     "search_dialog": {
       "title": "Utiliser {name} pour la recherche ?",
@@ -7089,6 +7092,7 @@
     "awaiting_ocr": "{count, plural, one {# page en attente de reconnaissance} other {# pages en attente de reconnaissance}}",
     "not_read": "{count, plural, one {# page non lue} other {# pages non lues}}",
     "open_ai": "Installer un modèle dans IA",
+    "import_language": "Importer la langue",
     "reading_note": "L'agent peut chercher dans ce dossier, pas en ouvrir les fichiers.",
     "grant_reading": "Lui permettre d'en ouvrir les fichiers",
     "pick_folder_title": "Choisir un dossier",

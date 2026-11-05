@@ -5470,6 +5470,10 @@
     },
     {
       "kind": "expect",
+      "testid": "agent-sheet-source-import-language"
+    },
+    {
+      "kind": "expect",
       "testid": "agent-sheet-source-not-read"
     },
     {
@@ -20889,6 +20893,10 @@
     {
       "kind": "expect",
       "testid": "ai-import-btn"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-import-language-data"
     },
     {
       "kind": "expect",

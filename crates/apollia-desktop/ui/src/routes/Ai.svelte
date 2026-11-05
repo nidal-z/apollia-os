@@ -50,6 +50,7 @@
   import type { ServersView } from "../components/ai/servers";
   import { servers } from "../components/ai/serversLive";
   import { unloadErrorKey } from "../components/ai/loadedModels";
+  import { importLanguageData, languageDataToast } from "../components/ai/languageDataImport";
   import { panelSelection } from "../components/ai/modelDetail";
   import {
     CATEGORY_FILTERS,
@@ -74,6 +75,7 @@
   let pins = $state<string[]>([]);
   let pinning = $state<string | null>(null);
   let importing = $state(false);
+  let importingLanguage = $state(false);
   let searchTarget = $state<InstalledModel | null>(null);
   let deleteTarget = $state<InstalledModel | null>(null);
   let working = $state(false);
@@ -331,6 +333,31 @@
     }
   }
 
+  async function importLanguage(): Promise<void> {
+    if (importingLanguage) return;
+    importingLanguage = true;
+    try {
+      const outcome = await importLanguageData({
+        pick: async (extensions) => {
+          const selected = await openFilePicker({
+            multiple: false,
+            filters: [{ name: get(t)("onboarding.ai_setup.load_language_data_filter"), extensions }],
+            title: get(t)("ai.installed.import_language_data_title"),
+            defaultPath: modelsDir ?? undefined,
+          });
+          if (!selected) return null;
+          return typeof selected === "string" ? selected : (selected as { path: string }).path;
+        },
+        importModelFile,
+      });
+      const toast = languageDataToast(outcome);
+      if (toast) addToast(get(t)(toast.key, { values: toast.values }), toast.tone);
+      else if (outcome.kind === "failed") reportError(outcome.error, { surface: "toast" });
+    } finally {
+      importingLanguage = false;
+    }
+  }
+
   function discover(): void {
     discovering = true;
   }
@@ -441,10 +468,12 @@
         {modelsDir}
         error={installedError}
         {importing}
+        {importingLanguage}
         openId={panelShown ? openId : null}
         {onselect}
         onopen={openPanel}
         onimport={importFile}
+        onimportlanguage={importLanguage}
         ondiscover={discover}
         onrevealfolder={revealFolder}
         onretry={loadInstalled}
