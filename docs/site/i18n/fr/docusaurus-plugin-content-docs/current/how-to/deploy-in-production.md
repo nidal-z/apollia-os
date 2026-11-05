@@ -224,6 +224,11 @@ Le traitement par lots continu et l'appel d'outils natif sont intégrés à ce
 moteur, si bien qu'un seul backend local sert déjà des requêtes concurrentes ;
 voir [Tirer le meilleur parti de l'inférence locale](/how-to/accelerate-local-inference).
 
+Le daemon lance le moteur sans aucune variable `LLAMA_ARG_*` de son propre
+environnement : une variable laissée dans le shell ou l'unité du service ne
+peut activer aucune option du moteur ; passez les options supplémentaires par
+`APOLLIA_LLAMA_EXTRA_ARGS`.
+
 ## Voir aussi
 
 - [Installer et exécuter le runtime](/how-to/install-and-run) pour le détail

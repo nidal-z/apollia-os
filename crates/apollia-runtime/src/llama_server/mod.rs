@@ -24,6 +24,7 @@ mod config;
 pub mod devices;
 mod draft;
 mod embeddings;
+mod engine_env;
 mod engine_facts;
 mod explicit;
 mod guard;
@@ -57,7 +58,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
+use tokio::process::Child;
 use tokio::sync::Mutex;
 
 use apollia_core::EventBusSender;
@@ -689,12 +690,7 @@ impl LlamaServerSupervisor {
 
     /// Launch `bin` with `args`, its output drained into tracing.
     fn spawn_child(&self, bin: &Path, args: &[String]) -> Result<Child, LlamaServerError> {
-        let mut server_cmd = Command::new(bin);
-        // Same reason as the runner: a console-subsystem child of a GUI parent
-        // gets its own terminal window on Windows, one per resident model, and
-        // the supervision loop below reopens it on every respawn.
-        apollia_core::subprocess_window::hide_console_async(&mut server_cmd);
-        let mut child = server_cmd
+        let mut child = engine_env::engine_command(bin)
             .args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

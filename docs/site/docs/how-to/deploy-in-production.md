@@ -209,6 +209,10 @@ Continuous batching and native tool calling are built into that engine, so a
 single local backend already serves concurrent requests; see
 [Get the most from local inference](/how-to/accelerate-local-inference).
 
+The daemon launches the engine without any `LLAMA_ARG_*` variable from its own
+environment, so a variable left in the shell or the service unit cannot switch
+an engine flag on; pass extra engine flags through `APOLLIA_LLAMA_EXTRA_ARGS`.
+
 ## Related
 
 - [Install and run the runtime](/how-to/install-and-run) for the build details.
