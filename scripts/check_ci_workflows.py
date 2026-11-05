@@ -222,6 +222,8 @@ SCRIPT_DISTRIBUTIONS = {"yaml": "PyYAML"}
 Measured on 2026-08-28 by walking the imports of `scripts/**.py` and
 `docs/site/scripts/**.py` against `sys.stdlib_module_names`: `yaml` is the
 only one, imported by `check_ci_workflows.py` and `check_release_artifacts.py`.
+Measured again on 2026-11-05: still the only one, and `check_download_sums.py`
+imports it too, to read the `env:` and matrix values of the workflows.
 
 The runner's own `python3` ships PyYAML, so a job that uses it never noticed.
 A job that calls `actions/setup-python` gets a clean interpreter and does not,
