@@ -216,6 +216,9 @@ OAuth client is entered has moved, into developer mode.
   v0.1 or of a cloud provider.
 - The certificate roots and their verifier take the distrust of the emSign
   intermediates, and the network dependencies take their security fixes.
+- A damaged or truncated `.xls` workbook in a source no longer brings the
+  indexing down: it is reported as a damaged file, and its reading no longer
+  allocates whatever its header claims.
 
 ### Upgrading from 0.3.0
 

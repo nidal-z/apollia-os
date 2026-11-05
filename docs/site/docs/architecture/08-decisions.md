@@ -652,12 +652,28 @@ damaged, is a typed error, never a crash. A CSV file that is not UTF-8 is read
 with its invalid bytes replaced, and the result says so: no encoding is
 guessed.
 
-The cost is named: `calamine` depends on `zip` 8 while the workspace carries
-`zip` 4 for the package archive and the batch export, so two major versions of
-`zip` enter every build, with five small crates under `calamine` (`atoi_simd`,
-`codepage`, `debug_unsafe`, `fast-float2`, `typed-path`) and `csv-core` under
-`csv`. `calamine` is pinned to 0.36.1, so that a new release, and the version of
-`zip` it brings, is a decision rather than an update.
+The cost is named: three major versions of `zip` enter every build. The
+workspace carries `zip` 4 for the package archive and the batch export;
+`office_oxide`, held at 0.1.11 by `pdf_oxide` 0.3.78 (see below), brings
+`zip` 8; and `calamine` 0.38 brings `zip` 9, with second majors of `nix` and
+`typed-path` under it. Small crates come with them, `atoi_simd`, `codepage` and
+`fast-float2` under `calamine` and `csv-core` under `csv`. `calamine` is pinned
+to 0.38.0, the release that bounds the reading of a malformed `.xls` (a panic
+and an allocation sized by the file header in its compound-file reader, fixed
+upstream); a new release, and the version of `zip` it brings, is a decision
+rather than an update. A panic left in that reader is still caught at its
+boundary and reported as a damaged file.
+
+`zip` 4 and 8 carry four advisories on `ZipArchive::extract` and
+`ZipStreamReader::extract` (RUSTSEC-2026-0367, 0368, 0369 and 0429: permission
+bits, links out of the destination, permissions applied through links, and an
+abort on a link entry with a huge declared size). They are accepted in
+`deny.toml` and in the `cargo audit` configuration because nothing in the tree
+calls either function: the engine store and the package reader walk an archive
+entry by entry with bounded sizes, the first reading a link by its bytes and
+refusing one that leaves the archive, the second refusing every link, and
+workbooks and office documents are read in memory. They lift when the
+workspace and `office_oxide` move to `zip` 9.
 
 The text of a PDF document is extracted in Rust by `pdf_oxide` (MIT or
 Apache-2.0), page by page, each page with its number. It is pure Rust, reads

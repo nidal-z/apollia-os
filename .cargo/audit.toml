@@ -7,17 +7,21 @@
 # The affected exploit paths (new_closure, the nth iterator adapter) are not on
 # any Apollia code path. Lift condition: the pyo3 0.29 migration.
 ignore = [
-    # zip 4 and 8 (the latter through calamine): extraction advisories on
-    # ZipArchive::extract and ZipStreamReader::extract (SUID and SGID bits,
-    # symbolic links out of the destination, permissions through links).
-    # Apollia never calls either: the engine store writes each entry itself,
-    # keeps only the permission bits and refuses a link that leaves the
-    # archive (engine_store/archive.rs, set_mode and make_symlink), and the
-    # other readers only read entries in memory. Lift condition: zip 9
-    # across the workspace, calamine 0.37 included.
+    # zip 4 (the workspace) and 8 (through office_oxide): extraction
+    # advisories on ZipArchive::extract and ZipStreamReader::extract (SUID
+    # and SGID bits, symbolic links out of the destination, permissions
+    # through links, an abort on a link entry with a huge declared size).
+    # Apollia never calls either: the engine store and the .apo reader walk
+    # the archive entry by entry with bounded sizes, the first reading a link
+    # by its bytes and refusing one that leaves the archive
+    # (engine_store/archive.rs), the second refusing every link
+    # (apo_archive/read.rs), and the other readers only read entries in
+    # memory. calamine is on zip 9, which carries none of them. Lift
+    # condition: zip 9 across the workspace and office_oxide.
     "RUSTSEC-2026-0367", # zip: SUID/SGID bits kept by extract
     "RUSTSEC-2026-0368", # zip: extract follows links out of the destination
     "RUSTSEC-2026-0369", # zip: extract applies permissions through links
+    "RUSTSEC-2026-0429", # zip: extract aborts on a link with a huge declared size
     "RUSTSEC-2026-0176", # pyo3: out-of-bounds read in nth / nth_back
     "RUSTSEC-2026-0177", # pyo3: missing Sync bound on new_closure
 ]

@@ -163,9 +163,11 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 rust_xlsxwriter = { version = "=0.92.0", default-features = false }
 # Reads workbooks (.xlsx, .xlsm, .xlsb, .xls, .ods) and CSV files
 # (apollia-sources). Readers only, pure Rust, no network, no system library.
-# calamine depends on zip 8, a second major of zip beside the one above. See
-# the `documents-and-sources` decision.
-calamine = { version = "=0.36.1", default-features = false }
+# calamine 0.38 depends on zip 9, a third major of zip beside the workspace's
+# zip 4 and the zip 8 that office_oxide (held by pdf_oxide 0.3.78) brings; 0.38
+# is the release that bounds the reading of a malformed .xls. See the
+# `documents-and-sources` decision.
+calamine = { version = "=0.38.0", default-features = false }
 csv = "1.4.0"
 # Extracts the text of a PDF page by page (apollia-sources). Pure Rust, no
 # network, no system library. Default features off: the colour-profile engine
@@ -194,9 +196,9 @@ tesseract-rs = "=0.4.0"
 # `documents-and-sources` decision.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
 # Reads the XML parts of Word and PowerPoint files (apollia-sources), whose zip
-# archive is opened with `zip` above. Already in the tree through calamine and
-# the desktop bundle; default features off, nothing enters the lock file. See
-# the `documents-and-sources` decision.
+# archive is opened with `zip` above. Already in the tree through office_oxide;
+# default features off, nothing enters the lock file. See the
+# `documents-and-sources` decision.
 quick-xml = { version = "0.41", default-features = false }
 
 # --- Random ---

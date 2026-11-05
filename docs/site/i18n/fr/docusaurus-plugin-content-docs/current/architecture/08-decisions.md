@@ -705,13 +705,31 @@ passe, ou endommagé, donne une erreur typée, jamais un plantage. Un fichier CS
 qui n'est pas en UTF-8 se lit avec ses octets invalides remplacés, et le
 résultat le signale : aucun encodage n'est deviné.
 
-Le coût est nommé : `calamine` dépend de `zip` 8 quand l'espace de travail porte
-`zip` 4 pour l'archive de paquet et l'export d'un lot ; deux versions majeures
-de `zip` entrent donc dans chaque compilation, avec cinq petites crates sous
-`calamine` (`atoi_simd`, `codepage`, `debug_unsafe`, `fast-float2`,
-`typed-path`) et `csv-core` sous `csv`. `calamine` est épinglé en 0.36.1 : une
-nouvelle version, et la version de `zip` qu'elle apporte, est une décision et
-non une mise à jour.
+Le coût est nommé : trois versions majeures de `zip` entrent dans chaque
+compilation. L'espace de travail porte `zip` 4 pour l'archive de paquet et
+l'export d'un lot ; `office_oxide`, tenu en 0.1.11 par `pdf_oxide` 0.3.78 (voir
+plus bas), apporte `zip` 8 ; et `calamine` 0.38 apporte `zip` 9, avec des
+secondes versions majeures de `nix` et de `typed-path` en dessous. De petites
+crates les accompagnent, `atoi_simd`, `codepage` et `fast-float2` sous
+`calamine`, et `csv-core` sous `csv`. `calamine` est épinglé en 0.38.0, la
+version qui borne la lecture d'un `.xls` malformé (une panique et une
+allocation dimensionnée par l'en-tête du fichier dans son lecteur de fichiers
+composés, corrigées en amont) ; une nouvelle version, et la version de `zip`
+qu'elle apporte, est une décision et non une mise à jour. Une panique restée
+dans ce lecteur est encore rattrapée à sa frontière et signalée comme un
+fichier endommagé.
+
+`zip` 4 et 8 portent quatre avis sur `ZipArchive::extract` et
+`ZipStreamReader::extract` (RUSTSEC-2026-0367, 0368, 0369 et 0429 : bits de
+permission, liens qui sortent de la destination, permissions appliquées à
+travers un lien, et un abandon du processus sur un lien à taille déclarée
+énorme). Ils sont acceptés dans `deny.toml` et dans la configuration de
+`cargo audit`, car rien dans l'arbre n'appelle l'une ou l'autre fonction : le
+magasin de moteurs et le lecteur de paquets parcourent une archive entrée par
+entrée, tailles bornées, le premier lisant un lien par ses octets et refusant
+celui qui sort de l'archive, le second refusant tout lien, et les classeurs et
+les documents bureautiques se lisent en mémoire. Ils tombent quand l'espace de
+travail et `office_oxide` passent à `zip` 9.
 
 Le texte d'un document PDF s'extrait en Rust par `pdf_oxide` (MIT ou
 Apache-2.0), page par page, chaque page avec son numéro. La bibliothèque est en

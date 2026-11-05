@@ -207,6 +207,69 @@ fn test_a_damaged_workbook_is_a_typed_error_never_a_panic() {
     }
 }
 
+/// The fixture with one little-endian `u32` of its compound-file header
+/// replaced.
+fn with_header_field(whole: &[u8], offset: usize, value: u32) -> Vec<u8> {
+    let mut bytes = whole.to_vec();
+    bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+    bytes
+}
+
+/// The fixture with one more 512-byte sector whose every entry names that
+/// sector itself, and a header whose DIFAT chain starts there: a chain that
+/// never reaches its end marker.
+fn with_looping_difat(whole: &[u8]) -> Vec<u8> {
+    let own_id = u32::try_from(whole.len() / 512 - 1).unwrap();
+    let mut bytes = with_header_field(whole, 68, own_id);
+    bytes = with_header_field(&bytes, 72, 1);
+    for _ in 0..128 {
+        bytes.extend_from_slice(&own_id.to_le_bytes());
+    }
+    bytes
+}
+
+#[test]
+fn test_a_malformed_or_truncated_xls_is_an_error_not_a_panic() {
+    // GIVEN a real .xls cut at several lengths, the same file with a DIFAT
+    // chain that loops on itself, and the same file whose header announces
+    // an absurd FAT length while its FAT itself is intact
+    let dir = tempfile::tempdir().unwrap();
+    let whole = std::fs::read(fixture("issues.xls")).unwrap();
+    let cases: Vec<(&str, Vec<u8>, bool)> = vec![
+        ("header-only.xls", whole[..512].to_vec(), false),
+        ("one-sector.xls", whole[..1024].to_vec(), false),
+        ("half.xls", whole[..whole.len() / 2].to_vec(), false),
+        ("looping-difat.xls", with_looping_difat(&whole), false),
+        (
+            "huge-fat.xls",
+            with_header_field(&whole, 44, u32::MAX),
+            true,
+        ),
+    ];
+    for (name, bytes, readable) in cases {
+        let path = dir.path().join(name);
+        std::fs::write(&path, bytes).unwrap();
+
+        // WHEN the workbook reader reads it
+        let read = read_workbook(&path);
+
+        // THEN it returns, never panics nor allocates what the header
+        // claims: a damaged file is a typed error naming it, and a file whose
+        // only fault is the announced FAT length is read from its real FAT
+        if readable {
+            let workbook = read.unwrap_or_else(|error| panic!("{name}: {error}"));
+            assert!(!workbook.sheets.is_empty(), "{name}");
+            continue;
+        }
+        let error = read.unwrap_err();
+        assert!(
+            matches!(error, ReadError::Corrupt { .. }),
+            "{name}: {error:?}"
+        );
+        assert!(error.to_string().contains(name), "{error}");
+    }
+}
+
 #[test]
 fn test_a_missing_file_and_a_foreign_extension_are_typed_errors() {
     // GIVEN a workbook path that does not exist, and a file that is no workbook
