@@ -140,7 +140,7 @@ impl LlamaServerSupervisor {
             args = %args.join(" "),
             "llama.server.embeddings.spawn"
         );
-        let bin = self.launch_binary()?;
+        let bin = self.next_launch_binary().await?;
         let mut child = self.spawn_child(&bin, &args)?;
         self.wait_until_healthy(&mut child, port).await?;
 

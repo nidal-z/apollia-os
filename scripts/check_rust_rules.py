@@ -371,6 +371,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # it lists, so one helper writes fake engines as shell scripts that list a
     # device or none, and the test reads what spawning each one answered.
     "crates/apollia-runtime/src/engine_store/compat/tests.rs": 1,
+    # The clock is the subject: a rating of the machine must come back within
+    # its deadline while installed builds hang, and keep their silence, so two
+    # stand-in listings sleep past that deadline and the tests observe that
+    # the rating does not wait for them, nor ask them again.
+    "crates/apollia-runtime/src/engine_store/compat/listings/tests.rs": 2,
     # The listener is the subject: the compatible server is a second TCP
     # listener, and "nothing listens", "the port is taken" and "the port
     # refuses after a stop" are only observable on a real port. One helper,

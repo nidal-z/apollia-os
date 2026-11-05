@@ -133,6 +133,9 @@ pub struct Resolution {
     /// True when a variant was named and the store no longer holds it: the
     /// automatic choice applies in its place.
     pub fell_back: bool,
+    /// True when the build taken is one the user named and the ratings of
+    /// this machine call incompatible: it is started as chosen, and said so.
+    pub incompatible: bool,
 }
 
 /// Resolve `choice` for `engine` against the store under `root`, `ratings`
@@ -161,6 +164,7 @@ pub fn resolve(
         return Resolution {
             resolved,
             fell_back: false,
+            incompatible: false,
         };
     }
     let verdict = |variant: Variant| {
@@ -182,7 +186,8 @@ pub fn resolve(
     });
     match installed {
         Some(package) => {
-            if verdict(package.variant) == Some(Verdict::Incompatible) {
+            let incompatible = verdict(package.variant) == Some(Verdict::Incompatible);
+            if incompatible {
                 tracing::event!(
                     tracing::Level::WARN,
                     engine = engine.as_str(),
@@ -195,6 +200,7 @@ pub fn resolve(
             Resolution {
                 resolved: Resolved::Stored(package),
                 fell_back: false,
+                incompatible,
             }
         }
         None => {
@@ -208,6 +214,7 @@ pub fn resolve(
             Resolution {
                 resolved: Resolved::Automatic,
                 fell_back: true,
+                incompatible: false,
             }
         }
     }

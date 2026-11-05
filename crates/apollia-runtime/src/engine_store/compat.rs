@@ -29,12 +29,14 @@
 //! incompatible whatever the rest says.
 
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
 
 use apollia_llm::hardware::{CardProbe, GpuCard, GpuProfile, GpuVendor};
 use serde::Serialize;
+
+pub(crate) use listings::RATING_DEADLINE;
+use listings::{Listings, Probes, LISTINGS};
 
 use crate::engine_store::{
     cached_manifest, compare_tags, current_platform, find_binary, installed_packages, Engine,
@@ -445,10 +447,22 @@ pub(crate) fn installed_gpu_builds(installed: &[InstalledPackage]) -> Vec<(Varia
 /// this platform and those installed, each installed GPU build asked whether
 /// it lists a device. The same ratings as the engine list.
 ///
-/// Blocking: probes the cards on first use, and runs each installed GPU
-/// build once per process.
+/// Blocking, for [`RATING_DEADLINE`] at most: the profile and every build
+/// are probed at once, a build that has not answered by then is taken as not
+/// asked, and without a profile in time nothing is rated. Call from
+/// `spawn_blocking`.
 #[must_use]
 pub fn machine_ratings(root: &Path) -> Vec<Rating> {
+    machine_ratings_with(root, listings::SYSTEM, &LISTINGS, RATING_DEADLINE)
+}
+
+/// [`machine_ratings`] through `probes`, its answers kept in `cache`.
+pub(crate) fn machine_ratings_with(
+    root: &Path,
+    probes: Probes,
+    cache: &Listings,
+    deadline: std::time::Duration,
+) -> Vec<Rating> {
     let platform = current_platform();
     let installed = installed_packages(root);
     let mut offered: Vec<Variant> = installed
@@ -463,60 +477,33 @@ pub fn machine_ratings(root: &Path) -> Vec<Rating> {
     if let Some(manifest) = manifest {
         offered.extend(offered_variants(&manifest, Engine::LlamaServer, &platform));
     }
-    let listings: HashMap<Variant, bool> = installed_gpu_builds(&installed)
-        .into_iter()
-        .filter_map(|(variant, binary)| Some((variant, sees_a_device(&binary)?)))
-        .collect();
-    let profile = apollia_llm::hardware::gpu_profile();
+    let facts = listings::facts_within(installed_gpu_builds(&installed), probes, cache, deadline);
+    let Some(profile) = facts.profile else {
+        return Vec::new();
+    };
     rate(&profile, &platform, &offered, &|v| {
-        listings.get(&v).copied()
+        facts.listings.get(&v).copied()
     })
 }
 
-/// Whether each installed build listed a device, by binary path.
-///
-/// Asking a build spawns it; the answer only changes when the build or the
-/// driver does, so it is kept for the process and dropped by
-/// [`forget_device_listings`], which the channel check calls. A cache of one
-/// probe result, like the hardware profile beside it.
-static LISTINGS: RwLock<BTreeMap<PathBuf, bool>> = RwLock::new(BTreeMap::new());
-
 /// Whether the build at `binary` lists a device with `--list-devices`, asked
-/// once per process. `None` when the build could not be run: a build that
-/// does not start is not a build that sees nothing.
+/// once per process: the answer only changes when the build or the driver
+/// does, and is dropped by [`forget_device_listings`], which the channel
+/// check calls. `None` when the build could not be run: a build that does not
+/// start is not a build that sees nothing.
 ///
 /// Blocking, up to the probe limit: call from `spawn_blocking`.
 #[must_use]
 pub fn sees_a_device(binary: &Path) -> Option<bool> {
-    if let Some(known) = LISTINGS.read().ok().and_then(|m| m.get(binary).copied()) {
-        return Some(known);
-    }
-    match apollia_llm::hardware::devices::list_devices(binary) {
-        Ok(devices) => {
-            let sees = !devices.is_empty();
-            if let Ok(mut m) = LISTINGS.write() {
-                m.insert(binary.to_path_buf(), sees);
-            }
-            Some(sees)
-        }
-        Err(error) => {
-            tracing::event!(
-                tracing::Level::WARN,
-                binary = %binary.display(),
-                error = %error,
-                "engine_store.list_devices.failed"
-            );
-            None
-        }
-    }
+    listings::kept_listing(&LISTINGS, binary)
 }
 
 /// Drop every kept device listing, so the next rating asks each build again.
 pub fn forget_device_listings() {
-    if let Ok(mut m) = LISTINGS.write() {
-        m.clear();
-    }
+    LISTINGS.forget();
 }
+
+mod listings;
 
 #[cfg(test)]
 pub(crate) mod machines;

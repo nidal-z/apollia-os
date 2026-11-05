@@ -10,15 +10,15 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
-use apollia_llm::hardware::bounded::PROBE_LIMIT;
 use apollia_llm::hardware::{CardProbe, GpuProfile, GpuVendor};
 use serde::Serialize;
 
 use crate::engine_store::compat::{self, Rating};
 use crate::engine_store::{Engine, InstalledPackage, Manifest, Variant};
 
-/// What the route waits, at most, for the hardware probes.
-pub(crate) const ROUTE_DEADLINE: Duration = PROBE_LIMIT.saturating_add(Duration::from_secs(1));
+/// What the route waits, at most, for the hardware probes: the deadline of a
+/// rating of the machine by the launcher.
+pub(crate) const ROUTE_DEADLINE: Duration = compat::RATING_DEADLINE;
 
 /// Where the route reads the hardware: the probe of the machine, or a fake.
 #[derive(Clone, Copy)]

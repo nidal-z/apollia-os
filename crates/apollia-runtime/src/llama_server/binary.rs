@@ -43,23 +43,57 @@ impl LaunchBinary {
     }
 }
 
+impl LaunchBinary {
+    /// The binary a launch starts now, the engine choice read from
+    /// `config_file` under `imposed`. Blocking: resolving the automatic
+    /// choice rates the machine.
+    fn resolve(
+        self,
+        config_file: Option<&Path>,
+        imposed: &PolicySettings,
+    ) -> Result<PathBuf, LlamaServerError> {
+        match self {
+            #[cfg(test)]
+            Self::Fixed(path) => Ok(path),
+            Self::FromSettings { store_root } => {
+                let choices = EngineChoices::read(config_file, imposed);
+                locate_for_launch(store_root.as_deref(), choices.gguf)
+            }
+        }
+    }
+}
+
 impl LlamaServerSupervisor {
     /// The binary the next launch starts, the engine choice of the settings
     /// read now. A variant chosen and since removed falls back to the
     /// automatic choice, which the engine store reports.
     ///
+    /// Resolved off the async workers: rating the machine for the automatic
+    /// choice runs the installed builds, and may block up to the rating
+    /// deadline.
+    ///
     /// # Errors
     ///
-    /// [`LlamaServerError::BinaryNotFound`] when no binary is in reach.
+    /// [`LlamaServerError::BinaryNotFound`] when no binary is in reach, or
+    /// when the resolution could not be run.
+    pub(super) async fn next_launch_binary(&self) -> Result<PathBuf, LlamaServerError> {
+        let (binary, config_file, imposed) = (
+            self.binary.clone(),
+            self.config_file.clone(),
+            self.imposed.clone(),
+        );
+        tokio::task::spawn_blocking(move || binary.resolve(config_file.as_deref(), &imposed))
+            .await
+            .map_err(|error| LlamaServerError::BinaryNotFound(error.to_string()))?
+    }
+
+    /// [`Self::next_launch_binary`], blocking, for the tests that resolve it
+    /// outside a runtime.
+    #[cfg(test)]
     pub(super) fn launch_binary(&self) -> Result<PathBuf, LlamaServerError> {
-        match &self.binary {
-            #[cfg(test)]
-            LaunchBinary::Fixed(path) => Ok(path.clone()),
-            LaunchBinary::FromSettings { store_root } => {
-                let choices = EngineChoices::read(self.config_file.as_deref(), &self.imposed);
-                locate_for_launch(store_root.as_deref(), choices.gguf)
-            }
-        }
+        self.binary
+            .clone()
+            .resolve(self.config_file.as_deref(), &self.imposed)
     }
 
     /// Start `bin` with `args` and wait until it answers on `port`.

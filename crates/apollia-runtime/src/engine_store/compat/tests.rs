@@ -478,16 +478,19 @@ fn a_fake_engine_that_lists_nothing_sees_no_device() {
     );
     let blind = write("blind", "echo 'Available devices:'");
 
-    // WHEN each is asked
+    // WHEN each is asked, under a limit that outlasts the seconds macOS may
+    //      hold the first launch of a freshly written executable
+    let answer = std::time::Duration::from_secs(60);
+    let (seen, blind_seen) = (
+        listings::listing_within(&sees, answer),
+        listings::listing_within(&blind, answer),
+    );
+
     // THEN the first sees a device, the second none, and the empty answer is
     //      what rates its variant `engine_sees_no_device`
-    assert_eq!(sees_a_device(&sees), Some(true));
-    assert_eq!(sees_a_device(&blind), Some(false));
-    let listed = |v: Variant| {
-        (v == Variant::Cuda13)
-            .then(|| sees_a_device(&blind))
-            .flatten()
-    };
+    assert_eq!(seen, Some(true));
+    assert_eq!(blind_seen, Some(false));
+    let listed = |v: Variant| (v == Variant::Cuda13).then_some(blind_seen).flatten();
     let ratings = rate(&nvidia((8, 9), "620.10"), "linux-x64", &X64, &listed);
     assert_eq!(
         of(&ratings, Variant::Cuda13),

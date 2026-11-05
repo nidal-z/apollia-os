@@ -10,7 +10,10 @@ use apollia_core::events::{subscribe_resilient, ResilientReceiver};
 /// an MLX model elsewhere is refused with its reason by the router. Both read
 /// `[llm.guardrails]` from `guardrails_file` at every launch, under the
 /// settings `org_policy` fixes.
-pub(in crate::supervisor) fn start_local_engines(
+///
+/// Locating the llama-server binary rates the machine, which runs the
+/// installed engine builds: it is done off the async workers.
+pub(in crate::supervisor) async fn start_local_engines(
     system_db_path: &std::path::Path,
     guardrails_file: std::path::PathBuf,
     event_sender: &EventBusSender,
@@ -19,14 +22,24 @@ pub(in crate::supervisor) fn start_local_engines(
     Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
     Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
 ) {
-    let llama = crate::llama_server::LlamaServerSupervisor::new(
-        crate::llama_server::LlamaServerConfig::default(),
-        Some(system_db_path.to_path_buf()),
-        Some(event_sender.clone()),
-        Some(guardrails_file.clone()),
+    let (system_db, events, file, imposed) = (
+        system_db_path.to_path_buf(),
+        event_sender.clone(),
+        guardrails_file.clone(),
         org_policy.imposed_settings(),
-    )
-    .ok();
+    );
+    let llama = tokio::task::spawn_blocking(move || {
+        crate::llama_server::LlamaServerSupervisor::new(
+            crate::llama_server::LlamaServerConfig::default(),
+            Some(system_db),
+            Some(events),
+            Some(file),
+            imposed,
+        )
+    })
+    .await
+    .ok()
+    .and_then(Result::ok);
     if let Some(supervisor) = &llama {
         Arc::clone(supervisor).spawn_supervision();
     }

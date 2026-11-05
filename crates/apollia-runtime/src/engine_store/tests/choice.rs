@@ -4,7 +4,7 @@
 use super::variants::Recorder;
 use super::*;
 use crate::engine_store::compat::machines::{amd_with_vulkan, nvidia_on};
-use crate::engine_store::compat::Rating;
+use crate::engine_store::compat::{Rating, Verdict};
 use crate::engine_store::selection::{
     chosen_variants, resolve, EngineChoices, Resolution, Resolved,
 };
@@ -115,6 +115,42 @@ fn test_without_the_recommended_build_the_best_compatible_one_is_taken_in_order(
 }
 
 #[test]
+fn test_the_rocm_build_comes_between_cuda_12_and_vulkan_in_the_automatic_order() {
+    // GIVEN ratings that call CUDA 12, ROCm, Vulkan and the processor build
+    // compatible and recommend none of them, and a store holding all four
+    let ratings: Vec<Rating> = [
+        Variant::Cuda12,
+        Variant::Rocm,
+        Variant::Vulkan,
+        Variant::Cpu,
+    ]
+    .into_iter()
+    .map(|variant| Rating {
+        variant,
+        verdict: Verdict::Compatible,
+        reason: None,
+    })
+    .collect();
+    let dir = holding(&[
+        Variant::Cpu,
+        Variant::Vulkan,
+        Variant::Rocm,
+        Variant::Cuda12,
+    ]);
+
+    // WHEN the automatic choice picks a build, then picks without CUDA 12,
+    // then without CUDA 12 and ROCm
+    let all = launched(dir.path(), ratings.clone());
+    let no_cuda = wanted_llama_variant(&ratings, &[Variant::Cpu, Variant::Vulkan, Variant::Rocm]);
+    let no_rocm = wanted_llama_variant(&ratings, &[Variant::Cpu, Variant::Vulkan]);
+
+    // THEN CUDA 12 is taken first, ROCm next, Vulkan after it
+    assert_eq!(all, Some(Variant::Cuda12));
+    assert_eq!(no_cuda, Some(Variant::Rocm));
+    assert_eq!(no_rocm, Some(Variant::Vulkan));
+}
+
+#[test]
 fn test_an_incompatible_build_is_never_taken_automatically_and_nothing_keeps_the_embedded_engine() {
     // GIVEN a Pascal card, a store holding only CUDA 13, which dropped its
     // architecture, and an empty store
@@ -171,6 +207,10 @@ fn test_an_incompatible_variant_chosen_explicitly_is_launched_and_reported() {
 
     // WHEN the settings name CUDA 13
     let resolution = tracing::subscriber::with_default(recorder.clone(), || {
+        // Another test may have met this event with no subscriber at the same
+        // moment, and left its callsite cached as of no interest: computed
+        // again, the cache counts the subscriber of this thread.
+        tracing::callsite::rebuild_interest_cache();
         resolve(
             Some(dir.path()),
             Engine::LlamaServer,
@@ -187,9 +227,11 @@ fn test_an_incompatible_variant_chosen_explicitly_is_launched_and_reported() {
         pascal,
     );
 
-    // THEN the CUDA 13 build is taken as chosen, and a structured event names
-    // it as incompatible
+    // THEN the CUDA 13 build is taken as chosen, the resolution says it is
+    // incompatible, and a structured event names it so
     assert_eq!(stored(&resolution), Some(Variant::Cuda13));
+    assert!(resolution.incompatible);
+    assert!(!resolution.fell_back);
     assert_eq!(chosen, [(Engine::LlamaServer, Variant::Cuda13)]);
     let events = recorder.events.lock().unwrap();
     let reported: Vec<&str> = events
