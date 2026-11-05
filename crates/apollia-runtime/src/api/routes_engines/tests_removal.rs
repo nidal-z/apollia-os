@@ -103,8 +103,7 @@ async fn test_the_chosen_build_goes_on_confirmation_only_and_an_older_tag_freely
     let newest = file(dir.path(), "b7000", Variant::Vulkan);
     let config = choosing(dir.path(), "vulkan");
     let uri = "/api/v1/engines/llama-server/b7000/vulkan";
-    let recorder = Recorder::default();
-    let _guard = tracing::dispatcher::set_default(&tracing::Dispatch::new(recorder.clone()));
+    let (recorder, _guard) = recording();
 
     // WHEN the newest is removed without confirmation, then with it, and the
     // older one is removed without confirmation
@@ -298,6 +297,30 @@ impl tracing::Subscriber for Recorder {
     fn exit(&self, _: &tracing::span::Id) {}
 }
 
+/// Two dispatchers that live as long as the process and record nothing.
+static ANCHORS: std::sync::OnceLock<[tracing::Dispatch; 2]> = std::sync::OnceLock::new();
+
+/// A recorder set as the subscriber of this thread until the guard drops.
+///
+/// While a single dispatcher is registered, `tracing-core` computes the
+/// interest of a callsite from the default subscriber of whichever thread
+/// meets it first or rebuilds the cache, and does so without the lock of
+/// the dispatcher list: a test running the route with no subscriber on
+/// another thread then caches `engine.removed` as of no interest, and this
+/// recorder never sees it. The anchors keep more than one dispatcher
+/// registered, so every computation of the interest takes that lock and
+/// counts every live dispatcher, this recorder included; the cache is then
+/// computed again under it.
+fn recording() -> (Recorder, tracing::subscriber::DefaultGuard) {
+    ANCHORS.get_or_init(|| {
+        [(), ()].map(|()| tracing::Dispatch::new(tracing::subscriber::NoSubscriber::default()))
+    });
+    let recorder = Recorder::default();
+    let guard = tracing::dispatcher::set_default(&tracing::Dispatch::new(recorder.clone()));
+    tracing::callsite::rebuild_interest_cache();
+    (recorder, guard)
+}
+
 /// The field `name` of the first `engine.removed` event `recorder` holds.
 fn removed_field(recorder: &Recorder, name: &str) -> Option<String> {
     let events = recorder.0.lock().unwrap();
@@ -316,10 +339,9 @@ fn removed_field(recorder: &Recorder, name: &str) -> Option<String> {
 async fn test_a_removal_is_logged_with_engine_tag_and_variant() {
     // GIVEN a CPU build out of service and a recorder of the events
     let dir = tempfile::tempdir().unwrap();
-    file(dir.path(), "b7000", Variant::Cpu);
+    let cpu = file(dir.path(), "b7000", Variant::Cpu);
     let config = choosing(dir.path(), "auto");
-    let recorder = Recorder::default();
-    let _guard = tracing::dispatcher::set_default(&tracing::Dispatch::new(recorder.clone()));
+    let (recorder, _guard) = recording();
 
     // WHEN it is removed
     let (status, _) = delete(
@@ -329,9 +351,10 @@ async fn test_a_removal_is_logged_with_engine_tag_and_variant() {
     )
     .await;
 
-    // THEN one `engine.removed` event names the engine, the tag and the
-    // variant, as structured fields
+    // THEN the build is gone, and one `engine.removed` event names the
+    // engine, the tag and the variant, as structured fields
     assert_eq!(status, StatusCode::NO_CONTENT);
+    assert!(!cpu.exists());
     let events = recorder.0.lock().unwrap();
     let removed: Vec<&EventFields> = events
         .iter()
@@ -395,8 +418,7 @@ async fn test_the_last_chosen_build_removed_on_confirmation_resets_the_choice_to
     let vulkan = file(dir.path(), "b7000", Variant::Vulkan);
     let config = choosing(dir.path(), "vulkan");
     let uri = "/api/v1/engines/llama-server/b7000/vulkan";
-    let recorder = Recorder::default();
-    let _guard = tracing::dispatcher::set_default(&tracing::Dispatch::new(recorder.clone()));
+    let (recorder, _guard) = recording();
 
     // WHEN it is removed without confirmation, then with it, and the next
     // launch reads the settings and resolves its engine
