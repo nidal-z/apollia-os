@@ -162,6 +162,9 @@ Actual structure :
 11. `msrv` (the 1.89 floor compiles), `cli-e2e` (offline track of the CLI
     suite), `docs-generated` (generated reference drift), `claims`
     (`scripts/check_claims.py`), `docs-build` (the documentation site)
+12. `ocr` : clippy and tests of `apollia-sources --features ocr`, the embedded
+    engine built from the verified sources and its ignored tests run against
+    the pinned French language data
 
 Non-blocking (`continue-on-error`) advisory jobs :
 

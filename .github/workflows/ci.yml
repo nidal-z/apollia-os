@@ -182,6 +182,55 @@ jobs:
       # Its one frontier is the python-tests job of weekly.yml, which installs
       # the editable SDK first.
 
+  # ── Text recognition : the `ocr` feature, embedded engine included ────────
+  # No other job passes `--features ocr`, so the engine module of
+  # apollia-sources was neither compiled nor linted between two releases. The
+  # Windows build of the same feature runs in weekly.yml.
+  ocr:
+    name: Text recognition (ocr feature)
+    needs: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
+        with:
+          toolchain: "1.95.0"
+          components: clippy
+      - name: Install build tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y cmake build-essential
+      # Caches ~/.cargo and target/ only. The engine's source directory under
+      # HOME stays out of every cache on purpose: the script below clears it,
+      # and a library restored after it would be linked without recompiling
+      # the verified sources.
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - name: Stage the verified Tesseract and Leptonica sources
+        run: bash packaging/fetch-tesseract-sources.sh
+      # The address and the digest are read from the registry the product
+      # pins, so this step cannot drift from what the application downloads.
+      - name: Download the pinned French language data
+        run: |
+          set -euo pipefail
+          read -r commit sum < <(python3 -I -c '
+          import sys, tomllib
+          with open(sys.argv[1], "rb") as f:
+              entry = next(e for e in tomllib.load(f)["ocr"] if e["language"] == "fra")
+          print(entry["commit"], entry["sha256"])
+          ' crates/apollia-llm/src/recommend/pinned_models.toml)
+          dir="$RUNNER_TEMP/tessdata"
+          mkdir -p "$dir"
+          curl --http1.1 -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+            -o "$dir/fra.traineddata" \
+            "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/${commit}/fra.traineddata"
+          echo "${sum}  ${dir}/fra.traineddata" | sha256sum -c -
+          echo "APOLLIA_TEST_TESSDATA=${dir}" >> "$GITHUB_ENV"
+      - name: cargo clippy (apollia-sources, ocr)
+        run: cargo clippy -p apollia-sources --features ocr --all-targets -- -D warnings
+      # Not under check_test_home_isolation.py --wrap: the engine build writes under HOME by construction.
+      - name: cargo test (apollia-sources, ocr, engine tests included)
+        run: cargo test -p apollia-sources --features ocr -- --include-ignored
+
   # ── MSRV : the 1.89 floor the manifests publish is compiled, never assumed ─
   msrv:
     name: MSRV 1.89
