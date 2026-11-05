@@ -7,7 +7,7 @@
 //! they are not done. A probe left running keeps its result for the next read.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 
 use apollia_llm::hardware::bounded::PROBE_LIMIT;
@@ -15,7 +15,7 @@ use apollia_llm::hardware::{CardProbe, GpuProfile, GpuVendor};
 use serde::Serialize;
 
 use crate::engine_store::compat::{self, Rating};
-use crate::engine_store::{self, Engine, InstalledPackage, Manifest, Variant};
+use crate::engine_store::{Engine, InstalledPackage, Manifest, Variant};
 
 /// What the route waits, at most, for the hardware probes.
 pub(crate) const ROUTE_DEADLINE: Duration = PROBE_LIMIT.saturating_add(Duration::from_secs(1));
@@ -143,34 +143,6 @@ pub(crate) struct HostFacts {
     pub(crate) listings: HashMap<Variant, bool>,
 }
 
-/// The newest installed build of each `llama-server` GPU variant, by binary.
-fn installed_gpu_builds(installed: &[InstalledPackage]) -> Vec<(Variant, PathBuf)> {
-    let name = format!("llama-server{}", std::env::consts::EXE_SUFFIX);
-    let mut newest: HashMap<Variant, &InstalledPackage> = HashMap::new();
-    for package in installed
-        .iter()
-        .filter(|p| p.engine == Engine::LlamaServer && p.variant != Variant::Cpu)
-    {
-        let newer = newest.get(&package.variant).is_none_or(|kept| {
-            engine_store::compare_tags(&package.tag, &kept.tag) == std::cmp::Ordering::Greater
-        });
-        if newer {
-            newest.insert(package.variant, package);
-        }
-    }
-    newest
-        .into_iter()
-        .filter_map(|(variant, p)| {
-            let binary = if p.path.is_file() {
-                p.path.clone()
-            } else {
-                engine_store::find_binary(&p.path, &name)?
-            };
-            Some((variant, binary))
-        })
-        .collect()
-}
-
 /// Probe the machine through `source`, `refresh` asking for a new profile,
 /// and wait for the answers until [`ROUTE_DEADLINE`] at most.
 pub(crate) async fn host_facts(
@@ -185,7 +157,7 @@ pub(crate) async fn host_facts(
         source.profile
     };
     let profile = tokio::task::spawn_blocking(read);
-    let listings: Vec<_> = installed_gpu_builds(installed)
+    let listings: Vec<_> = compat::installed_gpu_builds(installed)
         .into_iter()
         .map(|(variant, binary)| {
             let ask = source.sees_a_device;

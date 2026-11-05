@@ -147,10 +147,7 @@ pub fn spawn(data_dir: &Path, config_file: Option<PathBuf>, imposed: PolicySetti
             let settings = EngineStoreSettings::load(&root)?;
             let choices = EngineChoices::read(config_file.as_deref(), &imposed);
             let chosen = chosen_variants(&root, choices, || {
-                matches!(
-                    apollia_llm::hardware::detect().accelerator,
-                    apollia_llm::AcceleratorProfile::Cuda { .. }
-                )
+                crate::engine_store::compat::machine_ratings(&root)
             });
             Ok::<_, EngineStoreError>((settings, choices, chosen))
         })

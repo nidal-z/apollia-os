@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use apollia_core::config::EngineChoice;
 
 use super::LlamaServerError;
-use crate::engine_store::selection::{resolve, Resolved};
+use crate::engine_store::compat::Rating;
+use crate::engine_store::selection::{ratings_for_choice, resolve, Resolved};
 use crate::engine_store::Engine;
 
 /// Locate the bundled `llama-server` binary, falling back to `PATH` in dev.
@@ -39,10 +40,9 @@ fn locate_in(store_root: Option<&Path>, choice: EngineChoice) -> Result<PathBuf,
         &name,
         choice,
         || {
-            matches!(
-                apollia_llm::hardware::detect().accelerator,
-                apollia_llm::AcceleratorProfile::Cuda { .. }
-            )
+            store_root
+                .map(crate::engine_store::compat::machine_ratings)
+                .unwrap_or_default()
         },
     ) {
         return Ok(path);
@@ -117,16 +117,21 @@ pub(crate) fn in_service_binary(choice: EngineChoice) -> Option<PathBuf> {
 ///
 /// An explicit override wins: `APOLLIA_LLAMA_SERVER_BIN=/path/to/llama-server`.
 /// Then the engine store, as `choice` says: the newest verified build of the
-/// variant it names; nothing for the shipped engine; and for the automatic
-/// choice, the newest verified CUDA build on a machine where an NVIDIA card is
-/// detected. A named variant the store no longer holds falls back to the
-/// automatic choice. `None` leaves the place to the embedded engine.
+/// variant it names, started even when `ratings` rate it incompatible, with a
+/// warning; nothing for the shipped engine; and for the automatic choice, the
+/// installed build `ratings` recommend, otherwise the best compatible one. A
+/// named variant the store no longer holds falls back to the automatic
+/// choice. `None` leaves the place to the embedded engine.
+///
+/// `ratings`, those of this machine, is only asked for when the store holds a
+/// `llama-server` build and the choice is not the shipped engine, since
+/// rating the machine probes its cards.
 pub(super) fn env_or_store_binary(
     env_bin: Option<PathBuf>,
     store_root: Option<&std::path::Path>,
     name: &str,
     choice: EngineChoice,
-    nvidia_detected: impl FnOnce() -> bool,
+    ratings: impl FnOnce() -> Vec<Rating>,
 ) -> Option<PathBuf> {
     if let Some(path) = env_bin {
         if path.is_file() {
@@ -138,12 +143,15 @@ pub(super) fn env_or_store_binary(
             detail = "falling back to auto-detection", "llama.server.binary.env_invalid"
         );
     }
-    let path = match resolve(store_root, Engine::LlamaServer, choice).resolved {
+    let (_, ratings) = ratings_for_choice(store_root, choice, ratings);
+    let path = match resolve(store_root, Engine::LlamaServer, choice, &ratings).resolved {
         Resolved::Embedded => return None,
         Resolved::Stored(package) => crate::engine_store::find_binary(&package.path, name),
         Resolved::Automatic => None,
     }
-    .or_else(|| crate::engine_store::preferred_llama_server(store_root?, name, nvidia_detected))?;
+    .or_else(|| {
+        crate::engine_store::preferred_llama_server(store_root?, name, || ratings.clone())
+    })?;
     tracing::info!(path = %path.display(), "llama.server.binary.from_engine_store");
     Some(path)
 }

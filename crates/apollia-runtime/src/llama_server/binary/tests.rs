@@ -154,7 +154,7 @@ fn test_a_chosen_variant_since_removed_launches_the_automatic_choice_and_says_so
     // WHEN the Vulkan build is removed and the next launch resolves its binary
     std::fs::remove_dir_all(vulkan.parent().unwrap()).unwrap();
     let after = sup.launch_binary().ok();
-    let resolution = resolve(Some(&root), Engine::LlamaServer, EngineChoice::Vulkan);
+    let resolution = resolve(Some(&root), Engine::LlamaServer, EngineChoice::Vulkan, &[]);
 
     // THEN the launch before took the Vulkan build, the one after does not,
     //      and the store reports the fall back to the automatic choice

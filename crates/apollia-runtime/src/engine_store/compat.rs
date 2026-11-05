@@ -28,14 +28,18 @@
 //! After installation, a GPU build whose `--list-devices` lists nothing is
 //! incompatible whatever the rest says.
 
-use std::collections::BTreeMap;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use apollia_llm::hardware::{CardProbe, GpuCard, GpuProfile, GpuVendor};
 use serde::Serialize;
 
-use crate::engine_store::{Engine, Manifest, Variant};
+use crate::engine_store::{
+    cached_manifest, compare_tags, current_platform, find_binary, installed_packages, Engine,
+    EngineStoreSettings, InstalledPackage, Manifest, Variant,
+};
 
 /// Driver of the CUDA 13 family floor.
 const CUDA13_FLOOR: &str = "580";
@@ -64,15 +68,9 @@ const ROCM_WINDOWS_GFX: &[&str] = &[
     "gfx1152", "gfx1153", "gfx1200", "gfx1201",
 ];
 
-/// Order in which variants are preferred, the most capable first.
-const PREFERENCE: [Variant; 6] = [
-    Variant::Metal,
-    Variant::Cuda13,
-    Variant::Cuda12,
-    Variant::Rocm,
-    Variant::Vulkan,
-    Variant::Cpu,
-];
+/// Order in which variants are preferred, the most capable first: the order
+/// the automatic choice takes them in.
+const PREFERENCE: [Variant; 6] = crate::engine_store::AUTOMATIC_ORDER;
 
 /// How well a variant suits this machine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
@@ -413,6 +411,68 @@ fn vulkan_fit(profile: &GpuProfile) -> Fit {
     }
 }
 
+/// The newest installed build of each `llama-server` GPU variant, by binary.
+pub(crate) fn installed_gpu_builds(installed: &[InstalledPackage]) -> Vec<(Variant, PathBuf)> {
+    let name = format!("llama-server{}", std::env::consts::EXE_SUFFIX);
+    let mut newest: HashMap<Variant, &InstalledPackage> = HashMap::new();
+    for package in installed
+        .iter()
+        .filter(|p| p.engine == Engine::LlamaServer && p.variant != Variant::Cpu)
+    {
+        let newer = newest
+            .get(&package.variant)
+            .is_none_or(|kept| compare_tags(&package.tag, &kept.tag) == Ordering::Greater);
+        if newer {
+            newest.insert(package.variant, package);
+        }
+    }
+    newest
+        .into_iter()
+        .filter_map(|(variant, p)| {
+            let binary = if p.path.is_file() {
+                p.path.clone()
+            } else {
+                find_binary(&p.path, &name)?
+            };
+            Some((variant, binary))
+        })
+        .collect()
+}
+
+/// The ratings of this machine the launcher chooses by, the store being the
+/// one under `root`: the cards of the kept hardware profile, against the
+/// variants the last verified manifest of the followed channel offers for
+/// this platform and those installed, each installed GPU build asked whether
+/// it lists a device. The same ratings as the engine list.
+///
+/// Blocking: probes the cards on first use, and runs each installed GPU
+/// build once per process.
+#[must_use]
+pub fn machine_ratings(root: &Path) -> Vec<Rating> {
+    let platform = current_platform();
+    let installed = installed_packages(root);
+    let mut offered: Vec<Variant> = installed
+        .iter()
+        .filter(|p| p.engine == Engine::LlamaServer)
+        .map(|p| p.variant)
+        .collect();
+    let manifest = apollia_signing::distribution::distribution_public_key().and_then(|key| {
+        let channel = EngineStoreSettings::load(root).ok()?.channel;
+        cached_manifest(root, channel, key)
+    });
+    if let Some(manifest) = manifest {
+        offered.extend(offered_variants(&manifest, Engine::LlamaServer, &platform));
+    }
+    let listings: HashMap<Variant, bool> = installed_gpu_builds(&installed)
+        .into_iter()
+        .filter_map(|(variant, binary)| Some((variant, sees_a_device(&binary)?)))
+        .collect();
+    let profile = apollia_llm::hardware::gpu_profile();
+    rate(&profile, &platform, &offered, &|v| {
+        listings.get(&v).copied()
+    })
+}
+
 /// Whether each installed build listed a device, by binary path.
 ///
 /// Asking a build spawns it; the answer only changes when the build or the
@@ -458,5 +518,7 @@ pub fn forget_device_listings() {
     }
 }
 
+#[cfg(test)]
+pub(crate) mod machines;
 #[cfg(test)]
 mod tests;

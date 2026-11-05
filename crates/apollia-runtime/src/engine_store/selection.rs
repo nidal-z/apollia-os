@@ -11,7 +11,10 @@ use std::path::Path;
 
 use apollia_core::config::{resolve_setting, EngineChoice, PolicySettings};
 
-use crate::engine_store::installed::{newest_installed, InstalledPackage};
+use crate::engine_store::compat::{Rating, Verdict};
+use crate::engine_store::installed::{
+    installed_llama_variants, newest_installed, wanted_llama_variant, InstalledPackage,
+};
 use crate::engine_store::manifest::{Engine, Variant};
 
 /// The dotted key of the engine that serves GGUF models.
@@ -132,12 +135,22 @@ pub struct Resolution {
     pub fell_back: bool,
 }
 
-/// Resolve `choice` for `engine` against the store under `root`.
+/// Resolve `choice` for `engine` against the store under `root`, `ratings`
+/// being those of this machine for `llama-server`.
 ///
-/// A named variant the store does not hold falls back to the automatic
-/// choice, with a warning.
+/// A choice naming several variants (`cuda`) takes, among those installed,
+/// the recommended one, then a compatible one, then an incompatible one, each
+/// time in the order the choice names them. A variant named explicitly is
+/// taken even when it is rated incompatible, the choice of the user coming
+/// first, with a warning. A named variant the store does not hold falls back
+/// to the automatic choice, with a warning.
 #[must_use]
-pub fn resolve(root: Option<&Path>, engine: Engine, choice: EngineChoice) -> Resolution {
+pub fn resolve(
+    root: Option<&Path>,
+    engine: Engine,
+    choice: EngineChoice,
+    ratings: &[Rating],
+) -> Resolution {
     let variants = named_variants(choice);
     if variants.is_empty() {
         let resolved = if choice == EngineChoice::Embedded {
@@ -150,16 +163,40 @@ pub fn resolve(root: Option<&Path>, engine: Engine, choice: EngineChoice) -> Res
             fell_back: false,
         };
     }
+    let verdict = |variant: Variant| {
+        ratings
+            .iter()
+            .find(|r| r.variant == variant)
+            .map(|r| r.verdict)
+    };
+    let rank = |package: &InstalledPackage| match verdict(package.variant) {
+        Some(Verdict::Recommended) => 0,
+        Some(Verdict::Compatible) | None => 1,
+        Some(Verdict::Incompatible) => 2,
+    };
     let installed = root.and_then(|root| {
         variants
             .iter()
-            .find_map(|variant| newest_installed(root, engine, *variant))
+            .filter_map(|variant| newest_installed(root, engine, *variant))
+            .min_by_key(rank)
     });
     match installed {
-        Some(package) => Resolution {
-            resolved: Resolved::Stored(package),
-            fell_back: false,
-        },
+        Some(package) => {
+            if verdict(package.variant) == Some(Verdict::Incompatible) {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    engine = engine.as_str(),
+                    variant = package.variant.as_str(),
+                    tag = %package.tag,
+                    detail = "the chosen variant is rated incompatible with this machine, it is started as chosen",
+                    "engine_store.selection.incompatible_choice"
+                );
+            }
+            Resolution {
+                resolved: Resolved::Stored(package),
+                fell_back: false,
+            }
+        }
         None => {
             tracing::event!(
                 tracing::Level::WARN,
@@ -176,30 +213,48 @@ pub fn resolve(root: Option<&Path>, engine: Engine, choice: EngineChoice) -> Res
     }
 }
 
+/// The ratings of `llama-server` a choice of the GGUF engine is resolved by:
+/// asked for only when the store under `root` holds a `llama-server` build
+/// and the choice is not the shipped engine, empty otherwise.
+pub(crate) fn ratings_for_choice(
+    root: Option<&Path>,
+    choice: EngineChoice,
+    ratings: impl FnOnce() -> Vec<Rating>,
+) -> (Vec<Variant>, Vec<Rating>) {
+    let installed = match (root, choice) {
+        (Some(root), choice) if choice != EngineChoice::Embedded => installed_llama_variants(root),
+        _ => Vec::new(),
+    };
+    if installed.is_empty() {
+        return (installed, Vec::new());
+    }
+    let ratings = ratings();
+    (installed, ratings)
+}
+
 /// The store builds the settings put in service: the ones an automatic update
 /// keeps current. The shipped engines are not among them, since the store
 /// does not replace them.
 ///
-/// `nvidia_detected` is only asked for when the automatic choice of the GGUF
-/// engine has a CUDA build to take.
+/// `ratings`, those of this machine for `llama-server`, is only asked for
+/// when the store holds a `llama-server` build the GGUF choice may take.
 pub fn chosen_variants(
     root: &Path,
     choices: EngineChoices,
-    nvidia_detected: impl FnOnce() -> bool,
+    ratings: impl FnOnce() -> Vec<Rating>,
 ) -> Vec<(Engine, Variant)> {
     let mut chosen = Vec::new();
-    match resolve(Some(root), Engine::LlamaServer, choices.gguf).resolved {
+    let (installed, ratings) = ratings_for_choice(Some(root), choices.gguf, ratings);
+    match resolve(Some(root), Engine::LlamaServer, choices.gguf, &ratings).resolved {
         Resolved::Stored(package) => chosen.push((Engine::LlamaServer, package.variant)),
         Resolved::Automatic => {
-            if newest_installed(root, Engine::LlamaServer, Variant::Cuda12).is_some()
-                && nvidia_detected()
-            {
-                chosen.push((Engine::LlamaServer, Variant::Cuda12));
+            if let Some(variant) = wanted_llama_variant(&ratings, &installed) {
+                chosen.push((Engine::LlamaServer, variant));
             }
         }
         Resolved::Embedded => {}
     }
-    match resolve(Some(root), Engine::VllmMlx, choices.mlx).resolved {
+    match resolve(Some(root), Engine::VllmMlx, choices.mlx, &[]).resolved {
         Resolved::Stored(package) => chosen.push((Engine::VllmMlx, package.variant)),
         Resolved::Automatic => {
             if newest_installed(root, Engine::VllmMlx, Variant::Metal).is_some() {
@@ -273,13 +328,24 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
 
         // WHEN each kind of choice is resolved
-        let automatic = resolve(Some(dir.path()), Engine::LlamaServer, EngineChoice::Auto);
+        let automatic = resolve(
+            Some(dir.path()),
+            Engine::LlamaServer,
+            EngineChoice::Auto,
+            &[],
+        );
         let embedded = resolve(
             Some(dir.path()),
             Engine::LlamaServer,
             EngineChoice::Embedded,
+            &[],
         );
-        let removed = resolve(Some(dir.path()), Engine::LlamaServer, EngineChoice::Cuda);
+        let removed = resolve(
+            Some(dir.path()),
+            Engine::LlamaServer,
+            EngineChoice::Cuda,
+            &[],
+        );
 
         // THEN the first two are what they say, and the named variant falls
         // back to the automatic choice, flagged
@@ -332,7 +398,8 @@ mod tests {
         file(both.path(), Variant::Cuda13);
 
         // WHEN `cuda` and each named runtime are resolved
-        let resolve_in = |root: &Path, choice| resolve(Some(root), Engine::LlamaServer, choice);
+        let resolve_in =
+            |root: &Path, choice| resolve(Some(root), Engine::LlamaServer, choice, &[]);
         let alone = resolve_in(twelve.path(), EngineChoice::Cuda);
         let best = resolve_in(both.path(), EngineChoice::Cuda);
         let named = resolve_in(both.path(), EngineChoice::Cuda12);

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::engine_store::compat::{Rating, Verdict};
 use crate::engine_store::manifest::{compare_tags, is_safe_component, Engine, Variant};
 
 /// Name of the record written beside an installed package, once verified.
@@ -130,27 +131,66 @@ pub fn find_binary(dir: &Path, name: &str) -> Option<PathBuf> {
     walk(dir, name, 3)
 }
 
-/// The engine variant the launcher wants on this hardware, when the store
-/// holds one: CUDA 12 on a machine with an NVIDIA card, nothing otherwise.
+/// The `llama-server` variants the store holds, each once, in the order of
+/// [`Variant::ALL`].
 #[must_use]
-pub fn wanted_llama_variant(nvidia_detected: bool) -> Option<Variant> {
-    nvidia_detected.then_some(Variant::Cuda12)
+pub fn installed_llama_variants(root: &Path) -> Vec<Variant> {
+    let held = installed_packages(root);
+    Variant::ALL
+        .into_iter()
+        .filter(|v| {
+            held.iter()
+                .any(|p| p.engine == Engine::LlamaServer && p.variant == *v)
+        })
+        .collect()
 }
 
-/// The installed `llama-server` the launcher should take, or `None` to keep
+/// The `llama-server` variant the automatic choice takes among `installed`,
+/// by the `ratings` of this machine: the recommended one when it is
+/// installed, otherwise the best compatible one in the order of
+/// [`AUTOMATIC_ORDER`], otherwise none, which keeps the embedded engine. An
+/// incompatible build, or one the ratings do not cover, is never taken.
+#[must_use]
+pub fn wanted_llama_variant(ratings: &[Rating], installed: &[Variant]) -> Option<Variant> {
+    let verdict = |variant: Variant| {
+        ratings
+            .iter()
+            .find(|r| r.variant == variant)
+            .map(|r| r.verdict)
+    };
+    let held = |verdict_wanted: Verdict| {
+        AUTOMATIC_ORDER
+            .into_iter()
+            .find(|v| installed.contains(v) && verdict(*v) == Some(verdict_wanted))
+    };
+    held(Verdict::Recommended).or_else(|| held(Verdict::Compatible))
+}
+
+/// The order in which the automatic choice prefers the compatible builds.
+pub const AUTOMATIC_ORDER: [Variant; 6] = [
+    Variant::Metal,
+    Variant::Cuda13,
+    Variant::Cuda12,
+    Variant::Rocm,
+    Variant::Vulkan,
+    Variant::Cpu,
+];
+
+/// The installed `llama-server` the automatic choice takes, or `None` to keep
 /// the embedded one.
 ///
-/// `nvidia_detected` is only asked for when a CUDA package is installed, since
-/// detecting the card spawns `nvidia-smi`.
+/// `ratings` is only asked for when the store holds a `llama-server` build,
+/// since rating the machine probes its cards.
 pub fn preferred_llama_server(
     root: &Path,
     binary_name: &str,
-    nvidia_detected: impl FnOnce() -> bool,
+    ratings: impl FnOnce() -> Vec<Rating>,
 ) -> Option<PathBuf> {
-    let newest = newest_installed(root, Engine::LlamaServer, Variant::Cuda12)?;
-    let variant = wanted_llama_variant(nvidia_detected())?;
-    if variant != newest.variant {
+    let installed = installed_llama_variants(root);
+    if installed.is_empty() {
         return None;
     }
+    let variant = wanted_llama_variant(&ratings(), &installed)?;
+    let newest = newest_installed(root, Engine::LlamaServer, variant)?;
     find_binary(&newest.path, binary_name)
 }

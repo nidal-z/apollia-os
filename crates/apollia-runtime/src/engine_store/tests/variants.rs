@@ -8,8 +8,8 @@ use super::*;
 
 /// Records the fields of every event it sees, one map per event.
 #[derive(Clone, Default)]
-struct Recorder {
-    events: Arc<Mutex<Vec<HashMap<String, String>>>>,
+pub(super) struct Recorder {
+    pub(super) events: Arc<Mutex<Vec<HashMap<String, String>>>>,
 }
 
 struct Fields<'a>(&'a mut HashMap<String, String>);
@@ -98,7 +98,7 @@ fn test_a_build_an_earlier_version_filed_under_cuda_is_listed_as_cuda_12() {
     // WHEN the store is listed and the launcher looks for its CUDA build
     let listed = installed_packages(root);
     let newest = newest_installed(root, Engine::LlamaServer, Variant::Cuda12);
-    let taken = preferred_llama_server(root, "llama-server", || true);
+    let taken = preferred_llama_server(root, "llama-server", nvidia);
 
     // THEN the build is CUDA 12, where it was filed, and its binary is found
     assert_eq!(listed.len(), 1, "{listed:?}");

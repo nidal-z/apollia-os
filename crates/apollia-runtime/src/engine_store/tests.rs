@@ -18,8 +18,10 @@ use axum::http::{StatusCode, Uri};
 use axum::Router;
 
 use super::*;
+use crate::engine_store::compat::machines::{no_card, nvidia};
 
 mod auto_update;
+mod choice;
 mod install_job;
 mod variants;
 
@@ -687,7 +689,7 @@ fn test_newest_verified_cuda_build_is_preferred_on_an_nvidia_machine() {
     );
 
     // WHEN the launcher asks on a machine with an NVIDIA card
-    let chosen = preferred_llama_server(&s.root, "llama-server", || true).unwrap();
+    let chosen = preferred_llama_server(&s.root, "llama-server", nvidia).unwrap();
 
     // THEN it takes the b7000 build
     assert!(
@@ -710,7 +712,7 @@ fn test_cuda_build_is_ignored_without_an_nvidia_card() {
     );
 
     // WHEN the launcher asks on a machine without an NVIDIA card
-    let chosen = preferred_llama_server(&s.root, "llama-server", || false);
+    let chosen = preferred_llama_server(&s.root, "llama-server", no_card);
 
     // THEN the embedded engine keeps the place
     assert!(chosen.is_none());
@@ -729,7 +731,7 @@ fn test_unverified_directory_is_never_taken() {
     // WHEN the launcher asks
     let chosen = preferred_llama_server(&root, "llama-server", || {
         asked = true;
-        true
+        nvidia()
     });
 
     // THEN nothing is taken, and the card was not even probed
