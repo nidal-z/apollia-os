@@ -320,10 +320,12 @@ fn removed_field(recorder: &Recorder, name: &str) -> Option<String> {
 
 #[tokio::test]
 async fn test_a_removal_is_logged_with_engine_tag_and_variant() {
-    // GIVEN a CPU build out of service and a recorder of the events
+    // GIVEN a CPU build out of service, the settings keeping the embedded
+    // engine (the automatic choice would take this build, compatible with
+    // every machine, for the next launch), and a recorder of the events
     let dir = tempfile::tempdir().unwrap();
     let cpu = file(dir.path(), "b7000", Variant::Cpu);
-    let config = choosing(dir.path(), "auto");
+    let config = choosing(dir.path(), "embedded");
     let (recorder, _guard) = recording();
 
     // WHEN it is removed
