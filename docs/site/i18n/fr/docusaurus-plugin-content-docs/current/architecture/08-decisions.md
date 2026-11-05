@@ -875,7 +875,9 @@ Le coût est nommé : la chaîne C++ entre dans la compilation. Compiler le mote
 demande cmake, un compilateur C++ et les deux archives de sources, prend une à
 deux minutes (83 secondes sur macOS Apple Silicon, 133 secondes sur Linux x64
 sous émulation), et ajoute environ 2,5 Mo au binaire en ligne de commande sur
-macOS Apple Silicon et 4,4 Mo sur Linux x64. Le script de compilation de
+macOS Apple Silicon et 4,4 Mo sur Linux x64. Sous Windows x64, le binaire en
+ligne de commande livré, reconnaissance comprise, pèse 97,6 Mo (97 638 912
+octets) ; la part du moteur n'y a pas été mesurée à part. Le script de compilation de
 `tesseract-rs` garde les sources de Tesseract 5.5.2 et de Leptonica 1.87.0 avec
 les bibliothèques compilées dans un dossier du répertoire personnel plutôt que
 sous `target/`, et les télécharge depuis GitHub sans en contrôler l'empreinte

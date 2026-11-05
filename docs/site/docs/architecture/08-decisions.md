@@ -809,7 +809,9 @@ The cost is named: the C++ toolchain enters the build. Compiling the engine
 needs cmake, a C++ compiler and the two source archives, takes one to two
 minutes (83 seconds on macOS Apple Silicon, 133 seconds on Linux x64 under
 emulation), and adds about 2.5 MB to the command-line binary on macOS Apple
-Silicon and 4.4 MB on Linux x64. The build script of `tesseract-rs` keeps the
+Silicon and 4.4 MB on Linux x64. On Windows x64 the shipped command-line
+binary, recognition included, weighs 97.6 MB (97,638,912 bytes); the share of
+the engine in it has not been measured on its own. The build script of `tesseract-rs` keeps the
 sources of Tesseract 5.5.2 and Leptonica 1.87.0 with the compiled libraries in
 a folder of the home directory rather than under `target/`, and downloads them
 from GitHub without checking a digest when that folder does not hold them. They
