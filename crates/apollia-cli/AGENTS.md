@@ -147,7 +147,7 @@ removed, exit 2; Apollia is refused before the runtime is reached, exit 1.
 read by the runtime at startup, not served by it. No leaf writes into the
 system policy folder; IT deploys the prepared folder with its own tools.
 
-**`engine`** (`list`, `check`, `use`, `channel`) reads and sets the inference
+**`engine`** (`list`, `check`, `use`, `channel`, `install`, `import`, `remove`) reads and sets the inference
 engines of the machine the runtime serves on, through the runtime. `list`
 shows the cards, the engines installed and the one in service, the variants
 the channel offers with their verdict (`--all` adds those that do not run
@@ -155,8 +155,16 @@ here), and Node.js. `check` probes again and verifies the channel; a channel
 out of reach or a refused signature is exit 2. `use` writes `engines.gguf`
 through `PUT /api/v1/config`, refuses a variant not installed with exit 1 and
 warns about one rated incompatible. `channel` reads the followed channel, or
-follows `stable` or `preview`. Daemon off, each exits 2 with the hint of
-`output::emit_runtime_not_started`.
+follows `stable` or `preview`. `install` installs a variant of `llama-server`
+(the one rated recommended when none is named; one rated incompatible needs
+`--force`) or Node.js, and `import <dir>` the engines of a directory copied
+from a release; both follow the installation every 500 ms until it ends, exit
+3 on a failed download, exit 2 on a directory the runtime refuses, exit 5 on
+Ctrl-C after asking the runtime to cancel; `--detach` returns once the runtime
+accepted it. `remove <engine> <tag> <variant> --confirm` removes one installed
+build and says what `engines.gguf` comes down to; a build in service, the
+embedded engine or a build not installed is refused with exit 1. Daemon off,
+each exits 2 with the hint of `output::emit_runtime_not_started`.
 
 ---
 

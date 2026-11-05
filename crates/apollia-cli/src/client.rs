@@ -182,7 +182,7 @@ pub struct RawResponse {
 /// MCP tool names look like `mcp:server/tool`; the `/` would otherwise split the
 /// path and break `:tool` routing (the tool then reads as not-found). Encodes
 /// everything outside the RFC 3986 unreserved set.
-fn encode_path_segment(s: &str) -> String {
+pub(crate) fn encode_path_segment(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {

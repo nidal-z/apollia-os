@@ -15,13 +15,23 @@
 //!   loaded.
 //! - `channel [stable|preview]` reads the followed channel, or changes it
 //!   (`GET`, `PUT /api/v1/engines/settings`).
+//! - `install <engine> [<variant>]` installs a variant of `llama-server`, the
+//!   one rated recommended when none is named, or Node.js, then follows the
+//!   installation until it ends ([`install`]). `import <dir>` installs from a
+//!   directory copied from a release, followed the same way.
+//! - `remove <engine> <tag> <variant> --confirm` removes one installed build
+//!   and says what `engines.gguf` comes down to ([`remove`]).
 //!
 //! Daemon off, every leaf exits 2 with the one hint of
 //! [`crate::output::emit_runtime_not_started`].
 
+mod install;
+mod remove;
 mod render;
 #[cfg(test)]
 mod tests;
+#[cfg(all(test, unix))]
+mod tests_install;
 
 use std::path::PathBuf;
 
@@ -68,6 +78,51 @@ pub enum EngineCommand {
         /// The channel to follow; without it, the followed one is shown.
         channel: Option<ChannelArg>,
     },
+    /// Install a variant of llama-server (the recommended one when none is named) or Node.js.
+    Install {
+        /// The engine to install.
+        engine: InstallEngine,
+        /// The llama-server variant; without it, the one rated recommended for this machine.
+        #[arg(value_parser = PossibleValuesParser::new(install::VARIANTS))]
+        variant: Option<String>,
+        /// Return once the runtime accepted the installation; `engine list` follows it.
+        #[arg(long)]
+        detach: bool,
+        /// Install a variant rated incompatible with this machine.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Install the engines of a directory copied from a release: manifest, signature and archives.
+    Import {
+        /// The directory holding `engines.json`, `engines.json.minisig` and the archives.
+        dir: PathBuf,
+        /// Return once the runtime accepted the import; `engine list` follows it.
+        #[arg(long)]
+        detach: bool,
+    },
+    /// Remove one installed build, as `engine list` names it.
+    Remove {
+        /// The engine: `llama-server`, `vllm-mlx` or `nodejs`.
+        engine: String,
+        /// The upstream tag of the build.
+        tag: String,
+        /// The variant of the build.
+        variant: String,
+        /// Remove without asking, also the build `engines.gguf` chooses.
+        #[arg(long)]
+        confirm: bool,
+    },
+}
+
+/// An engine `engine install` installs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum InstallEngine {
+    /// The llama.cpp server, which serves GGUF models.
+    #[value(name = "llama-server")]
+    LlamaServer,
+    /// The Node.js runtime of the tool servers that run on it.
+    #[value(name = "nodejs")]
+    Nodejs,
 }
 
 /// A channel of the engine store.
@@ -96,6 +151,29 @@ pub async fn run(cmd: &EngineCommand, socket: Option<PathBuf>, json: bool) -> i3
         EngineCommand::Check => check(&client, json).await,
         EngineCommand::Use { choice } => use_choice(&client, choice, json).await,
         EngineCommand::Channel { channel } => self::channel(&client, *channel, json).await,
+        EngineCommand::Install {
+            engine,
+            variant,
+            detach,
+            force,
+        } => {
+            let wanted = install::Wanted {
+                engine: *engine,
+                variant: variant.as_deref(),
+                detach: *detach,
+                force: *force,
+            };
+            install::install(&client, wanted, json, install::interrupted()).await
+        }
+        EngineCommand::Import { dir, detach } => {
+            install::import(&client, dir, *detach, json, install::interrupted()).await
+        }
+        EngineCommand::Remove {
+            engine,
+            tag,
+            variant,
+            confirm,
+        } => remove::remove(&client, [engine, tag, variant], *confirm, json).await,
     }
 }
 
