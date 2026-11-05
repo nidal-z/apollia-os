@@ -9,6 +9,13 @@
 #
 # Never bypass with --no-verify. Fix the underlying issue.
 
+# `third_party/tesseract-rs/` is the published crate copied byte for byte, and
+# the one change it carries is reviewed as its own commit against that copy.
+# A hook that rewrites whitespace or line endings there would edit code this
+# tree did not write, and the comparison with the published crate would show
+# differences nobody made on purpose.
+exclude: '^third_party/tesseract-rs/'
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0

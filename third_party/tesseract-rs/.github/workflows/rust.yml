@@ -1,0 +1,177 @@
+name: Rust
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0  # Disable incremental compilation for CI
+
+permissions:
+  contents: read
+
+jobs:
+  # Run clippy and rustfmt checks
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        prefix-key: "v1-rust"
+        key: "lint"
+    
+    - name: Check formatting
+      run: cargo fmt -- --check
+    
+    - name: Run clippy
+      run: |
+        cargo clippy -- -D warnings
+        cargo clippy -p tesseract-rs-cli -- -D warnings
+      env:
+        RUSTC_WRAPPER: ""
+    
+    - name: Install cargo-audit
+      run: |
+        if ! command -v cargo-audit &> /dev/null; then
+          cargo install cargo-audit --locked
+        fi
+      env:
+        RUSTC_WRAPPER: ""
+    
+    - name: Run security audit
+      run: cargo audit || true  # Allow audit to fail for now due to transitive dependencies
+      
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Install dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
+        choco install visualstudio2022buildtools
+        choco install visualstudio2022-workload-vctools
+    
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+    
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install cmake
+    
+    # Skip sccache for now to avoid issues
+    # - name: Install sccache
+    #   run: cargo install sccache
+    
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        prefix-key: "v1-rust"
+        key: "build-${{ matrix.os }}"
+    
+    - name: Cache build artifacts
+      uses: actions/cache@v3
+      with:
+        path: |
+          ${{ runner.os == 'Windows' && 'C:\Users\runneradmin\AppData\Roaming\tesseract-rs' || '' }}
+          ${{ runner.os == 'macOS' && '~/Library/Application Support/tesseract-rs' || '' }}
+          ${{ runner.os == 'Linux' && '~/.tesseract-rs' || '' }}
+        key: ${{ runner.os }}-tesseract-artifacts-${{ hashFiles('build.rs', 'Cargo.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-tesseract-artifacts-
+    
+    - name: Setup MSVC environment (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: ilammy/msvc-dev-cmd@v1
+    
+    - name: Fix Windows linking (Rename Git's link.exe)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        # Rename Git's link.exe to avoid conflicts with MSVC
+        $gitLinkPath = "C:\Program Files\Git\usr\bin\link.exe"
+        if (Test-Path $gitLinkPath) {
+          Rename-Item $gitLinkPath -NewName "link_git.exe" -Force
+          echo "Renamed Git's link.exe to link_git.exe"
+        }
+      
+    - name: Build
+      run: |
+        cargo build --verbose
+        cargo build -p tesseract-rs-cli --verbose
+      env:
+        RUSTC_WRAPPER: ""
+      
+    - name: Run tests
+      run: cargo test --verbose
+      env:
+        RUST_LOG: debug
+        RUSTC_WRAPPER: ""
+    
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        prefix-key: "v1-rust"
+        key: "coverage"
+    
+    - name: Cache build artifacts
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.tesseract-rs
+        key: ${{ runner.os }}-tesseract-artifacts-coverage-${{ hashFiles('build.rs', 'Cargo.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-tesseract-artifacts-coverage-
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+    
+    - name: Install tarpaulin
+      run: |
+        if ! command -v cargo-tarpaulin &> /dev/null; then
+          cargo install cargo-tarpaulin --locked
+        fi
+    
+    - name: Generate coverage report
+      run: cargo tarpaulin --out xml --ignore-tests --timeout 300
+      env:
+        RUSTC_WRAPPER: ""
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./cobertura.xml
+        fail_ci_if_error: false
