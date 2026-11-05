@@ -13,6 +13,7 @@
 //! results are exported.
 
 use std::collections::BTreeMap;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use apollia_core::batch_source::{
@@ -110,11 +111,12 @@ impl BatchSource for FolderSource {
 
 impl FolderSource {
     fn item(&self, path: &Path) -> SourceItem {
-        let relative = path
-            .strip_prefix(&self.root)
-            .unwrap_or(path)
-            .display()
-            .to_string();
+        let relative = origin_of(
+            path.strip_prefix(&self.root)
+                .unwrap_or(path)
+                .components()
+                .map(|part| part.as_os_str()),
+        );
         let mut fields = BTreeMap::new();
         fields.insert(FILE_FIELD.to_string(), path.display().to_string());
         fields.insert(
@@ -126,6 +128,17 @@ impl FolderSource {
             fields,
         }
     }
+}
+
+/// The origin of a file: the parts of its path in the folder, joined by `/`
+/// on every system, so that a batch names the same file the same way on
+/// Windows as elsewhere.
+fn origin_of<'a>(parts: impl IntoIterator<Item = &'a OsStr>) -> String {
+    parts
+        .into_iter()
+        .map(OsStr::to_string_lossy)
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 fn collect(dir: &Path, depth: usize, recursive: bool, files: &mut Vec<PathBuf>) {
@@ -231,5 +244,40 @@ mod tests {
             .collect::<Result<_, _>>()
             .expect("read");
         assert_eq!(items[0].origin.as_str(), "Quotes/q.txt");
+    }
+
+    #[test]
+    fn test_a_file_two_folders_down_is_named_with_forward_slashes() {
+        // GIVEN a folder whose only file is two sub-folders down, its path
+        // built by the system, with the system's separator
+        let dir = tempfile::tempdir().expect("tempdir");
+        let nested = dir.path().join("Quotes").join("2026");
+        std::fs::create_dir_all(&nested).expect("mkdir");
+        std::fs::write(nested.join("q.txt"), "quote").expect("write");
+
+        // WHEN it is read with its sub-folders
+        let source = FolderSource::open(dir.path(), true);
+        let items: Vec<SourceItem> = source
+            .items()
+            .expect("items")
+            .items
+            .collect::<Result<_, _>>()
+            .expect("read");
+
+        // THEN its origin joins the parts of its path in the folder by `/`
+        assert_eq!(items[0].origin.as_str(), "Quotes/2026/q.txt");
+    }
+
+    #[test]
+    fn test_an_origin_is_joined_by_forward_slashes_whatever_the_system() {
+        // GIVEN the parts of a path in the folder, with no separator of any
+        // system among them
+        let parts = ["Quotes", "2026", "q.txt"].map(OsStr::new);
+
+        // WHEN the origin is formed from them
+        let origin = origin_of(parts);
+
+        // THEN it is joined by `/`, not by the separator of the system
+        assert_eq!(origin, "Quotes/2026/q.txt");
     }
 }
