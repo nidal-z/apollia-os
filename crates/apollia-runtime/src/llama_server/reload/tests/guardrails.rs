@@ -25,7 +25,7 @@ async fn test_a_refused_model_leaves_the_resident_one_and_the_key_is_read_at_eve
     let config = dir.path().join("apollia.toml");
     write_policy(&config, "level = \"ceiling\"\nceiling_gb = 0.001");
     let mut sup = supervisor_with_ceiling(1);
-    sup.bin_path = fake_engine(dir.path());
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir.path()));
     sup.config_file = Some(config.clone());
     let resident = live_instance(&sup, "/models/other.gguf", 9301).await;
     sup.instances.lock().await.push(resident);
@@ -76,7 +76,7 @@ async fn test_a_confirmed_load_goes_past_a_refusal() {
     let config = dir.path().join("apollia.toml");
     write_policy(&config, "level = \"ceiling\"\nceiling_gb = 0.001");
     let mut sup = supervisor_with_ceiling(1);
-    sup.bin_path = fake_engine(dir.path());
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir.path()));
     sup.config_file = Some(config);
     let model = model_file(dir.path());
 
@@ -99,7 +99,7 @@ async fn test_a_level_the_policy_fixes_holds_the_launch_whatever_the_file_says()
     let config = dir.path().join("apollia.toml");
     write_policy(&config, "level = \"disabled\"");
     let mut sup = supervisor_with_ceiling(1);
-    sup.bin_path = fake_engine(dir.path());
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir.path()));
     sup.config_file = Some(config);
     sup.imposed = apollia_core::config::PolicySettings::none()
         .impose(

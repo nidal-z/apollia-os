@@ -1,6 +1,6 @@
 //! Where the `llama-server` binary is found.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use apollia_core::config::EngineChoice;
 
@@ -20,13 +20,22 @@ use crate::engine_store::Engine;
 pub(super) fn locate_llama_server_binary(
     choice: EngineChoice,
 ) -> Result<PathBuf, LlamaServerError> {
+    locate_in(user_store_root().as_deref(), choice)
+}
+
+/// The engine store of the user's data directory, `None` when it has none.
+pub(super) fn user_store_root() -> Option<PathBuf> {
+    apollia_core::paths::data_dir().map(|d| crate::engine_store::store_root(&d))
+}
+
+/// [`locate_llama_server_binary`] against the engine store under `store_root`.
+fn locate_in(store_root: Option<&Path>, choice: EngineChoice) -> Result<PathBuf, LlamaServerError> {
     let ext = if cfg!(windows) { ".exe" } else { "" };
     let name = format!("llama-server{ext}");
 
-    let store_root = apollia_core::paths::data_dir().map(|d| crate::engine_store::store_root(&d));
     if let Some(path) = env_or_store_binary(
         std::env::var_os("APOLLIA_LLAMA_SERVER_BIN").map(PathBuf::from),
-        store_root.as_deref(),
+        store_root,
         &name,
         choice,
         || {
@@ -86,10 +95,14 @@ pub(super) fn locate_llama_server_binary(
     )))
 }
 
-/// The binary a launcher takes under `choice`. A build of the engine store is
-/// recorded as used now, which is what the automatic purge orders by.
-pub(super) fn locate_for_launch(choice: EngineChoice) -> Result<PathBuf, LlamaServerError> {
-    let path = locate_llama_server_binary(choice)?;
+/// The binary a launcher takes under `choice`, the engine store being the one
+/// under `store_root`. A build of the engine store is recorded as used now,
+/// which is what the automatic purge orders by.
+pub(super) fn locate_for_launch(
+    store_root: Option<&Path>,
+    choice: EngineChoice,
+) -> Result<PathBuf, LlamaServerError> {
+    let path = locate_in(store_root, choice)?;
     crate::engine_store::purge::mark_used(&path);
     Ok(path)
 }

@@ -187,7 +187,7 @@ async fn test_the_default_preset_applies_when_a_model_is_ensured() {
     .unwrap();
     drop(repo);
     let mut sup = supervisor_with_ceiling(1);
-    sup.bin_path = fake_engine(dir.path());
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir.path()));
     sup.system_db = Some(db);
 
     // WHEN the model is ensured
@@ -226,7 +226,7 @@ async fn test_changing_a_load_setting_relaunches_the_resident_model() {
         .unwrap();
     let (tx, mut rx) = tokio::sync::broadcast::channel(16);
     let mut sup = supervisor_with_ceiling(1);
-    sup.bin_path = fake_engine(dir.path());
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir.path()));
     sup.system_db = Some(db);
     sup.events = Some(tx);
     drop(
@@ -306,7 +306,7 @@ async fn test_an_unchanged_preset_keeps_the_resident_model() {
     drop(repo);
     let (tx, mut rx) = tokio::sync::broadcast::channel(16);
     let mut sup = supervisor_with_ceiling(1);
-    sup.bin_path = fake_engine(dir.path());
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir.path()));
     sup.system_db = Some(db);
     sup.events = Some(tx);
     drop(
@@ -357,7 +357,7 @@ async fn test_a_preset_fixing_the_slots_keeps_the_backend_window_and_the_process
     .unwrap();
     drop(repo);
     let mut sup = supervisor_with_ceiling(1);
-    sup.bin_path = fake_engine(dir.path());
+    sup.binary = crate::llama_server::binary::LaunchBinary::Fixed(fake_engine(dir.path()));
     sup.system_db = Some(db);
 
     // WHEN the model is requested twice with the preset untouched

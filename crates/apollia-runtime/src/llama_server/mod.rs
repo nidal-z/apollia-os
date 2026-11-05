@@ -19,6 +19,7 @@
 //! Whisper STT still lives in `apollia-runner`; only the LLM engine moves here.
 
 mod announce;
+mod binary;
 mod config;
 pub mod devices;
 mod draft;
@@ -47,7 +48,7 @@ pub use load_settings::{LoadSettings, LOAD_KEYS};
 pub use loaded::{LoadedModel, ModelKind, ModelLease, UnloadError};
 
 use std::net::TcpListener;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -63,7 +64,6 @@ use apollia_core::EventBusSender;
 use config::{build_args, display_opt, env_getter, resolve_env_overrides};
 #[cfg(test)]
 use locate::env_or_store_binary;
-use locate::locate_for_launch;
 
 /// Errors from spawning or supervising the embedded `llama-server`.
 #[derive(Debug, Error)]
@@ -220,7 +220,7 @@ const SUPERVISION_POLL: Duration = Duration::from_secs(2);
 /// Cloneable state lives behind `Arc`; the supervisor itself is held behind an
 /// `Arc` by the runtime so the supervision task can respawn a dead child.
 pub struct LlamaServerSupervisor {
-    bin_path: PathBuf,
+    binary: binary::LaunchBinary,
     /// Default context window (`-c`), for a backend that asks for none. Already
     /// resolved against `APOLLIA_LLAMA_N_CTX`.
     n_ctx: u32,
@@ -283,8 +283,7 @@ impl LlamaServerSupervisor {
         config_file: Option<PathBuf>,
         imposed: apollia_core::config::PolicySettings,
     ) -> Result<Arc<Self>, LlamaServerError> {
-        let choices = crate::engine_store::EngineChoices::read(config_file.as_deref(), &imposed);
-        let bin_path = locate_for_launch(choices.gguf)?;
+        let binary = binary::LaunchBinary::located(config_file.as_deref(), &imposed)?;
         // The reported window must be the one the server will actually launch
         // with, otherwise an `APOLLIA_LLAMA_N_CTX` override would leave the
         // router sizing compaction against a value no process ever used. The
@@ -297,7 +296,7 @@ impl LlamaServerSupervisor {
         // before any model is loaded.
         devices::sync_selection(config_file.as_deref(), &imposed);
         Ok(Arc::new(Self {
-            bin_path,
+            binary,
             n_ctx,
             n_ctx_pinned,
             max_loaded,
@@ -493,7 +492,7 @@ impl LlamaServerSupervisor {
     #[cfg(test)]
     pub(crate) fn for_tests() -> Self {
         Self {
-            bin_path: PathBuf::from("/nonexistent/llama-server"),
+            binary: binary::LaunchBinary::Fixed(PathBuf::from("/nonexistent/llama-server")),
             n_ctx: 32_768,
             n_ctx_pinned: false,
             max_loaded: Some(1),
@@ -526,7 +525,7 @@ impl LlamaServerSupervisor {
     #[cfg(test)]
     pub(crate) fn for_test() -> Arc<Self> {
         Arc::new(Self {
-            bin_path: std::path::PathBuf::from("/nonexistent/llama-server"),
+            binary: binary::LaunchBinary::Fixed(PathBuf::from("/nonexistent/llama-server")),
             n_ctx: 32_768,
             n_ctx_pinned: false,
             max_loaded: Some(1),
@@ -610,11 +609,11 @@ impl LlamaServerSupervisor {
         explicit: bool,
         footprint_gb: Option<f64>,
     ) -> Result<ModelLease, LlamaServerError> {
-        let port = pick_free_port()?;
+        let (bin_path, port) = (self.launch_binary()?, pick_free_port()?);
         let args = build_args(&config, port);
 
         tracing::info!(
-            binary = %self.bin_path.display(),
+            binary = %bin_path.display(),
             model = %config.model_path,
             mmproj = %display_opt(config.mmproj_path.as_ref()),
             port,
@@ -656,11 +655,11 @@ impl LlamaServerSupervisor {
             "args": args,
             // The binary that will actually run, so a record's provenance can
             // name it and its version instead of leaving both null.
-            "llama_server_path": self.bin_path.display().to_string(),
+            "llama_server_path": bin_path.display().to_string(),
         }));
 
         self.announce_loading(&config.model_path);
-        let child = match self.start_and_wait(&args, port).await {
+        let child = match self.start_and_wait(&bin_path, &args, port).await {
             Ok(child) => child,
             Err(error) => {
                 self.announce_failed(&config.model_path, &error);
@@ -682,22 +681,15 @@ impl LlamaServerSupervisor {
         Ok(lease)
     }
 
-    /// Start the binary with `args` and wait until it answers on `port`.
-    async fn start_and_wait(&self, args: &[String], port: u16) -> Result<Child, LlamaServerError> {
-        let mut child = self.spawn_child(args)?;
-        self.wait_until_healthy(&mut child, port).await?;
-        Ok(child)
-    }
-
     /// Sends every line a process launched from now on prints to `logs` as
     /// well as to tracing. Only the first call counts.
     pub fn send_lines_to(&self, logs: crate::compat_server::ServerLogsHandle) {
         let _ = self.line_sink.set(logs);
     }
 
-    /// Launch the binary with `args`, its output drained into tracing.
-    fn spawn_child(&self, args: &[String]) -> Result<Child, LlamaServerError> {
-        let mut server_cmd = Command::new(&self.bin_path);
+    /// Launch `bin` with `args`, its output drained into tracing.
+    fn spawn_child(&self, bin: &Path, args: &[String]) -> Result<Child, LlamaServerError> {
+        let mut server_cmd = Command::new(bin);
         // Same reason as the runner: a console-subsystem child of a GUI parent
         // gets its own terminal window on Windows, one per resident model, and
         // the supervision loop below reopens it on every respawn.
@@ -833,7 +825,7 @@ mod test_support {
     /// lifecycle, so the struct is assembled directly.
     pub(super) fn supervisor_with_ceiling(max_loaded: usize) -> LlamaServerSupervisor {
         LlamaServerSupervisor {
-            bin_path: PathBuf::from("/nonexistent/llama-server"),
+            binary: super::binary::LaunchBinary::Fixed(PathBuf::from("/nonexistent/llama-server")),
             n_ctx: 32_768,
             n_ctx_pinned: false,
             max_loaded: Some(max_loaded),
@@ -909,7 +901,7 @@ mod test_support {
             models: &[&str],
         ) -> Arc<Self> {
             let mut sup = supervisor_with_ceiling(max_loaded);
-            sup.bin_path = bin;
+            sup.binary = super::binary::LaunchBinary::Fixed(bin);
             for (offset, model) in (0_u16..).zip(models) {
                 let instance = live_instance(&sup, model, 9001 + offset).await;
                 sup.instances.lock().await.push(instance);
@@ -925,7 +917,7 @@ mod test_support {
             dir: &std::path::Path,
         ) -> Arc<Self> {
             let mut sup = supervisor_with_ceiling(1);
-            sup.bin_path = bin;
+            sup.binary = super::binary::LaunchBinary::Fixed(bin);
             sup.system_db = Some(dir.join("system.db"));
             sup.config_file = Some(dir.join("apollia.toml"));
             Arc::new(sup)
@@ -939,7 +931,7 @@ mod test_support {
         ) -> Arc<Self> {
             let mut sup = supervisor_with_ceiling(1);
             sup.max_loaded = None;
-            sup.bin_path = bin;
+            sup.binary = super::binary::LaunchBinary::Fixed(bin);
             sup.system_db = Some(dir.join("system.db"));
             sup.config_file = Some(dir.join("apollia.toml"));
             Arc::new(sup)
