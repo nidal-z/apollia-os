@@ -21,8 +21,22 @@ et l'encapsulez dans votre système d'init, ce que fait ce guide.
 ## Compiler un binaire optimisé
 
 ```sh
-cargo build -p apollia-cli --release
+bash packaging/fetch-tesseract-sources.sh
+cargo build -p apollia-cli --release --features ocr
 ```
+
+La feature `ocr`, éteinte par défaut et active dans les archives livrées,
+compile le moteur Tesseract embarqué qui lit les pages scannées et les images
+des sources. Le script pose les sources de Leptonica et de Tesseract que cette
+compilation construit, vérifiées contre
+`packaging/tesseract-sources-checksums.txt`, pour qu'elle ne télécharge rien
+de non vérifié. Les deux étapes demandent `cmake`, un compilateur C et C++,
+`curl`, `shasum` ou `sha256sum`, et `unzip` ou `python3` ; sous Debian ou
+Ubuntu, `sudo apt-get install -y cmake build-essential curl unzip`. Une
+machine de compilation sans réseau pose `TESSERACT_SOURCES_DIR` sur un dossier
+qui contient `leptonica-1.87.0.zip` et `tesseract-5.5.2.zip`, vérifiés de la
+même façon. Sans `--features ocr`, le binaire se compile sans ces outils mais
+ne lit pas les pages scannées.
 
 Le résultat est `target/release/apollia-os`. Installez-le à l'endroit où
 votre service le trouvera :
@@ -58,7 +72,7 @@ WantedBy=multi-user.target
 ```
 
 ```sh
-sudo useradd --system --home /var/lib/apollia --shell /usr/sbin/nologin apollia
+sudo useradd --system --create-home --home /var/lib/apollia --shell /usr/sbin/nologin apollia
 sudo systemctl daemon-reload
 sudo systemctl enable --now apollia
 sudo systemctl status apollia
@@ -207,7 +221,8 @@ intégration côté hôte ; voir la
 
 ```sh
 git pull
-cargo build -p apollia-cli --release
+bash packaging/fetch-tesseract-sources.sh
+cargo build -p apollia-cli --release --features ocr
 sudo systemctl stop apollia
 sudo install -m 755 target/release/apollia-os /usr/local/bin/apollia-os
 sudo systemctl start apollia
@@ -252,7 +267,9 @@ optique de caractères, qui demande les données de langue du moteur Tesseract
 embarqué : un fichier `<langue>.traineddata` par langue. Le daemon récupère
 les fichiers épinglés la première fois qu'un passage laisse des pages en
 attente de ces données. Un serveur sans réseau prend les mêmes fichiers depuis
-un disque :
+un disque. Tout ceci demande un binaire compilé avec `--features ocr`, comme
+plus haut ; sans elle, le contrôle `recognition` de `doctor` affiche
+`not compiled, <n>/2 languages verified: this build does not read scanned pages`.
 
 | Fichier | Taille en octets | SHA-256 |
 |---|---|---|

@@ -32,12 +32,14 @@ The runtime rates every variant for the machine, `recommended`, `compatible`
 or `incompatible`, from the cards it detects and their driver, and recommends
 one at most:
 
-| Variant | Card | Driver for `recommended` | Driver for `compatible` |
+| Variant | Card | Driver to qualify fully | Driver to run |
 |---|---|---|---|
 | `cuda-13` | compute capability 7.5 or later | R615 or later | R580 or later |
 | `cuda-12` | any NVIDIA card, Maxwell, Pascal and Volta included | 570.26 or later under Linux, 551.61 or later under Windows | 525 under Linux, 527.41 under Windows, on a card with native code in the build |
 
-When both CUDA builds qualify, `cuda-13` is the one recommended. In detail:
+When both CUDA builds qualify fully, `cuda-13` is the one recommended. When no
+variant qualifies fully, the most capable one that runs is recommended anyway,
+with its caveat, the driver to update for one. In detail:
 
 - **Maxwell, Pascal and Volta cards run CUDA 12 only.** CUDA 13 dropped their
   architectures, and the runtime rates `cuda-13` incompatible on a card under
@@ -51,7 +53,10 @@ When both CUDA builds qualify, `cuda-13` is the one recommended. In detail:
   PTX and which needs the driver of the toolkit.
 - **CUDA 12 on the newest cards.** On a card of compute capability 10.0 or
   later that the build has no native code for (every such card under Windows,
-  all but 12.0 under Linux), `cuda-12` is at best compatible.
+  all but 12.0 under Linux), `cuda-12` runs but never qualifies fully. It is
+  recommended only when no other variant qualifies fully: a card of compute
+  capability 12.0 under Windows with driver 575 gets `cuda-12` recommended,
+  since `cuda-13` needs R580.
 
 When the machine has several NVIDIA cards, the CUDA builds are rated for the
 one with the highest compute capability, then the most memory.

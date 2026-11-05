@@ -33,13 +33,15 @@ Le runtime classe chaque variante pour la machine, `recommended`, `compatible`
 ou `incompatible`, d'après les cartes qu'il détecte et leur pilote, et en
 recommande une au plus :
 
-| Variante | Carte | Pilote pour `recommended` | Pilote pour `compatible` |
+| Variante | Carte | Pilote pour convenir pleinement | Pilote pour tourner |
 |---|---|---|---|
 | `cuda-13` | capacité de calcul 7.5 ou plus | R615 ou plus | R580 ou plus |
 | `cuda-12` | toute carte NVIDIA, Maxwell, Pascal et Volta comprises | 570.26 ou plus sous Linux, 551.61 ou plus sous Windows | 525 sous Linux, 527.41 sous Windows, sur une carte dont le build porte le code natif |
 
-Quand les deux builds CUDA conviennent, c'est `cuda-13` qui est recommandé. En
-détail :
+Quand les deux builds CUDA conviennent pleinement, c'est `cuda-13` qui est
+recommandé. Quand aucune variante ne convient pleinement, la plus capable qui
+tourne est recommandée quand même, avec sa réserve, le pilote à mettre à jour
+par exemple. En détail :
 
 - **Les cartes Maxwell, Pascal et Volta ne tournent qu'en CUDA 12.** CUDA 13 a
   retiré leurs architectures, et le runtime classe `cuda-13` incompatible sur
@@ -53,7 +55,10 @@ détail :
   le build sert par PTX et qui demande le pilote du toolkit.
 - **CUDA 12 sur les cartes les plus récentes.** Sur une carte de capacité de
   calcul 10.0 ou plus dont le build ne porte pas le code natif (toutes sous
-  Windows, toutes sauf 12.0 sous Linux), `cuda-12` est au mieux compatible.
+  Windows, toutes sauf 12.0 sous Linux), `cuda-12` tourne mais ne convient
+  jamais pleinement. Il n'est recommandé que si aucune autre variante ne
+  convient pleinement : une carte de capacité de calcul 12.0 sous Windows avec
+  le pilote 575 reçoit `cuda-12` recommandé, puisque `cuda-13` demande R580.
 
 Quand la machine a plusieurs cartes NVIDIA, les builds CUDA sont classés pour
 celle dont la capacité de calcul est la plus haute, puis la mémoire la plus

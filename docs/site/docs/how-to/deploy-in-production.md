@@ -20,8 +20,21 @@ which is what this guide does.
 ## Build an optimized binary
 
 ```sh
-cargo build -p apollia-cli --release
+bash packaging/fetch-tesseract-sources.sh
+cargo build -p apollia-cli --release --features ocr
 ```
+
+The `ocr` feature, off by default and on in the shipped archives, compiles the
+embedded Tesseract engine that reads scanned pages and pictures in sources.
+The script stages the Leptonica and Tesseract sources that build compiles,
+checked against `packaging/tesseract-sources-checksums.txt`, so it downloads
+nothing unverified. Both steps need `cmake`, a C and C++ compiler, `curl`,
+`shasum` or `sha256sum`, and `unzip` or `python3`; on Debian or Ubuntu,
+`sudo apt-get install -y cmake build-essential curl unzip`. A build machine
+without a network sets `TESSERACT_SOURCES_DIR` to a directory holding
+`leptonica-1.87.0.zip` and `tesseract-5.5.2.zip`, verified the same way.
+Without `--features ocr` the binary builds without those tools but does not
+read scanned pages.
 
 The result is `target/release/apollia-os`. Install it where your service will find
 it:
@@ -56,7 +69,7 @@ WantedBy=multi-user.target
 ```
 
 ```sh
-sudo useradd --system --home /var/lib/apollia --shell /usr/sbin/nologin apollia
+sudo useradd --system --create-home --home /var/lib/apollia --shell /usr/sbin/nologin apollia
 sudo systemctl daemon-reload
 sudo systemctl enable --now apollia
 sudo systemctl status apollia
@@ -193,7 +206,8 @@ the [HTTP API reference](/reference/api/apollia-os-runtime-api).
 
 ```sh
 git pull
-cargo build -p apollia-cli --release
+bash packaging/fetch-tesseract-sources.sh
+cargo build -p apollia-cli --release --features ocr
 sudo systemctl stop apollia
 sudo install -m 755 target/release/apollia-os /usr/local/bin/apollia-os
 sudo systemctl start apollia
@@ -235,7 +249,10 @@ A source reads the text of a scanned page or a picture by optical character
 recognition, which needs the language data of the embedded Tesseract engine:
 one `<language>.traineddata` file per language. The daemon fetches the pinned
 files the first time a pass leaves pages waiting for them. A server without a
-network takes the same files from a disk:
+network takes the same files from a disk. All of this needs a binary built
+with `--features ocr`, as above; without it, the `recognition` check of
+`doctor` reads `not compiled, <n>/2 languages verified: this build does not
+read scanned pages`.
 
 | File | Size in bytes | SHA-256 |
 |---|---|---|
