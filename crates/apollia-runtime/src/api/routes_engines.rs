@@ -18,6 +18,8 @@
 //! - `POST /api/v1/engines/installation` , start downloading one variant and answer at once
 //! - `POST /api/v1/engines/installation/import` , start importing a directory and answer at once
 //! - `DELETE /api/v1/engines/installation` , cancel the download or forget the outcome
+//! - `DELETE /api/v1/engines/{engine}/{tag}/{variant}` , remove one installed
+//!   build; the build in service and the embedded engine are refused
 //! - `GET  /api/v1/engines/nodejs`   , where Node.js stands: absent, downloading, ready, failed
 //! - `POST /api/v1/engines/nodejs`   , start installing Node.js unless it is there or on its way
 
@@ -25,7 +27,7 @@ use std::path::{Path, PathBuf};
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
@@ -215,18 +217,29 @@ async fn with_versions(mut entries: Vec<EngineEntry>) -> Vec<EngineEntry> {
 /// each `None` when none is in reach.
 fn engines_in_service(choices: EngineChoices) -> (Option<PathBuf>, Option<PathBuf>) {
     let llama = crate::llama_server::locate::in_service_binary(choices.gguf);
+    let store_root = apollia_core::paths::data_dir().map(|d| engine_store::store_root(&d));
+    (llama, mlx_in_service(store_root.as_deref(), choices))
+}
+
+/// [`engines_in_service`] against the engine store under `store_root`.
+fn engines_in_service_at(
+    store_root: &Path,
+    choices: EngineChoices,
+) -> (Option<PathBuf>, Option<PathBuf>) {
+    let llama = crate::llama_server::locate::in_service_binary_in(store_root, choices.gguf);
+    (llama, mlx_in_service(Some(store_root), choices))
+}
+
+/// The package directory of the MLX environment the runtime imports under
+/// `choices`, against the engine store under `store_root`.
+fn mlx_in_service(store_root: Option<&Path>, choices: EngineChoices) -> Option<PathBuf> {
     let exe_dir = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(Path::to_path_buf));
-    let store_root = apollia_core::paths::data_dir().map(|d| engine_store::store_root(&d));
-    let mlx = crate::mlx_engine::locate(
-        exe_dir.as_deref(),
-        store_root.as_deref(),
-        choices.mlx,
-        |var| std::env::var(var).ok(),
-    )
-    .and_then(|launch| launch.site_packages().map(Path::to_path_buf));
-    (llama, mlx)
+    crate::mlx_engine::locate(exe_dir.as_deref(), store_root, choices.mlx, |var| {
+        std::env::var(var).ok()
+    })
+    .and_then(|launch| launch.site_packages().map(Path::to_path_buf))
 }
 
 /// Mark, among `entries`, the builds the runtime starts: the `llama-server`
@@ -630,12 +643,19 @@ pub fn engines_router<B: ExecutionBackend + Clone + 'static>() -> Router<AppStat
             "/api/v1/engines/nodejs",
             get(node_runtime_state::<B>).post(ensure_node_runtime::<B>),
         )
+        .route(
+            "/api/v1/engines/:engine/:tag/:variant",
+            delete(removal::remove_engine::<B>),
+        )
 }
 
 mod hardware;
 pub mod installation;
+pub mod removal;
 
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_hardware;
+#[cfg(test)]
+mod tests_removal;

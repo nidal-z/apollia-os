@@ -268,6 +268,7 @@ use security::BearerToken;
         crate::api::routes_engines::installation::dismiss_engine_installation,
         crate::api::routes_engines::node_runtime_state,
         crate::api::routes_engines::ensure_node_runtime,
+        crate::api::routes_engines::removal::remove_engine,
         crate::api::routes_model_hub::embeddings::list_embedding_models,
         crate::api::routes_model_hub::embedding_test::test_embeddings_model,
         crate::api::routes_model_hub::embedding_default::get_embedding_default,

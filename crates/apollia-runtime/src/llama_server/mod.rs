@@ -129,6 +129,8 @@ struct Instance {
     /// Footprint the load guardrail estimated at launch, in gigabytes; `None`
     /// when it was not estimated.
     footprint_gb: Option<f64>,
+    /// The binary the process was started from, `None` when not recorded.
+    binary: Option<PathBuf>,
 }
 
 impl Instance {
@@ -156,6 +158,7 @@ impl Instance {
             in_flight: Arc::new(AtomicUsize::new(0)),
             explicit: false,
             footprint_gb: None,
+            binary: None,
         }
     }
 
@@ -672,6 +675,7 @@ impl LlamaServerSupervisor {
         let mut instance = Instance::new(config, load, port, child, self.next_tick());
         instance.explicit = explicit;
         instance.footprint_gb = footprint_gb;
+        instance.binary = Some(bin_path);
         let lease = ModelLease::new(
             instance.base_url(),
             instance.n_ctx,

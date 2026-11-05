@@ -222,6 +222,7 @@ from .engine_rating_reason_type_7_code import EngineRatingReasonType7Code
 from .engine_rating_reason_type_8 import EngineRatingReasonType8
 from .engine_rating_reason_type_8_code import EngineRatingReasonType8Code
 from .engine_refusal_code import EngineRefusalCode
+from .engine_removal_error_body import EngineRemovalErrorBody
 from .engine_settings_body import EngineSettingsBody
 from .engine_source import EngineSource
 from .engine_variant import EngineVariant
@@ -881,6 +882,7 @@ __all__ = (
     "EngineRatingReasonType8",
     "EngineRatingReasonType8Code",
     "EngineRefusalCode",
+    "EngineRemovalErrorBody",
     "EngineSettingsBody",
     "EngineSource",
     "EnginesResponse",

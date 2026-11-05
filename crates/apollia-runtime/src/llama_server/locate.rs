@@ -9,6 +9,11 @@ use crate::engine_store::compat::Rating;
 use crate::engine_store::selection::{ratings_for_choice, resolve, Resolved};
 use crate::engine_store::Engine;
 
+/// Serialises the tests that pose `APOLLIA_LLAMA_SERVER_BIN` with those that
+/// resolve a binary through it: the variable is global to the test process.
+#[cfg(test)]
+pub(crate) static BIN_OVERRIDE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// Locate the bundled `llama-server` binary, falling back to `PATH` in dev.
 ///
 /// Resolution order: the `APOLLIA_LLAMA_SERVER_BIN` override, then the engine
@@ -111,6 +116,11 @@ pub(super) fn locate_for_launch(
 /// when none is in reach: what the engine list marks as in service.
 pub(crate) fn in_service_binary(choice: EngineChoice) -> Option<PathBuf> {
     locate_llama_server_binary(choice).ok()
+}
+
+/// [`in_service_binary`] against the engine store under `store_root`.
+pub(crate) fn in_service_binary_in(store_root: &Path, choice: EngineChoice) -> Option<PathBuf> {
+    locate_in(Some(store_root), choice).ok()
 }
 
 /// The two sources that come before the embedded engine.

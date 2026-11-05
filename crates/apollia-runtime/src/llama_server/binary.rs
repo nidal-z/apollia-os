@@ -96,6 +96,22 @@ impl LlamaServerSupervisor {
             .resolve(self.config_file.as_deref(), &self.imposed)
     }
 
+    /// The binaries the processes running now were started from, the
+    /// embeddings instance among them: builds a removal must leave alone.
+    pub async fn running_binaries(&self) -> Vec<PathBuf> {
+        let mut binaries: Vec<PathBuf> = self
+            .instances
+            .lock()
+            .await
+            .iter()
+            .filter_map(|instance| instance.binary.clone())
+            .collect();
+        if let Some(resident) = self.embedding.lock().await.as_ref() {
+            binaries.extend(resident.instance.binary.clone());
+        }
+        binaries
+    }
+
     /// Start `bin` with `args` and wait until it answers on `port`.
     pub(super) async fn start_and_wait(
         &self,

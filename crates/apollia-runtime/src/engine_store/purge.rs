@@ -115,6 +115,18 @@ pub fn purge_variant(root: &Path, engine: Engine, variant: Variant) -> Vec<Insta
     removed
 }
 
+/// Delete the one build `package` names, as a purge deletes it: its record
+/// first, then its directory, then the tag directory once it is empty. What
+/// may be deleted is the caller's to decide; the purge never deletes the
+/// newest tag, the removal route refuses the build in service.
+///
+/// # Errors
+///
+/// The I/O error that kept the record or the directory from going.
+pub fn remove_build(package: &InstalledPackage) -> std::io::Result<()> {
+    delete(package)
+}
+
 /// Delete one package. Its record goes first, so a directory half deleted is
 /// no longer an engine; the tag directory goes too once it is empty.
 fn delete(package: &InstalledPackage) -> std::io::Result<()> {
