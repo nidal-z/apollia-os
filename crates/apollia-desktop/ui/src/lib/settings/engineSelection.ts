@@ -113,13 +113,25 @@ export interface EngineSelection {
 }
 
 /**
- * The choice in force for `chosen` among `options`. A variant no option
- * carries has been removed: the automatic choice applies, as it does in the
- * runtime, and the page warns.
+ * The builds `cuda` stands for, the one the runtime prefers first: the value
+ * an earlier release wrote for "the best CUDA build installed", which the
+ * runtime still accepts.
+ */
+const BEST_CUDA: readonly EngineVariant[] = ["cuda-13", "cuda-12"];
+
+/**
+ * The choice in force for `chosen` among `options`. `cuda` shows the CUDA
+ * build the runtime takes for it, and the setting keeps `cuda` until the
+ * person chooses again. A variant no option carries has been removed: the
+ * automatic choice applies, as it does in the runtime, and the page warns.
  */
 export function engineSelection(chosen: string, options: EngineOption[]): EngineSelection {
   if (chosen === "auto" || options.some((o) => o.value === chosen)) {
     return { value: chosen, fellBack: false };
+  }
+  if (chosen === "cuda") {
+    const best = BEST_CUDA.find((variant) => options.some((o) => o.value === variant));
+    if (best) return { value: best, fellBack: false };
   }
   return { value: "auto", fellBack: true };
 }

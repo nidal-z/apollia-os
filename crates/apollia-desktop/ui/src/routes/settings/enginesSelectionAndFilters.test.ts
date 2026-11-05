@@ -281,6 +281,44 @@ describe("Engines - one engine per format", () => {
     expect(engineSelection("auto", [])).toEqual({ value: "auto", fellBack: false });
   });
 
+  test("cuda, written by an earlier release, shows the CUDA build the runtime takes, and warns only without one", () => {
+    // GIVEN `engines.gguf = "cuda"`, on a machine holding CUDA 12 and CUDA 13,
+    //       then on one holding no CUDA build
+    engineSettings.set({ ...DEFAULT_ENGINE_SETTINGS, gguf: { value: "cuda", source: "user" } });
+    enginesStore.set(
+      loaded({
+        ...ENGINES,
+        engines: [
+          ...ENGINES.engines,
+          engine({ variant: "cuda-13", tag: "b7200", source: "downloaded", version: "7200 (beef000)" }),
+        ],
+      }),
+    );
+    const held = renderToString(Engines).body;
+    enginesStore.set(
+      loaded({ ...ENGINES, engines: ENGINES.engines.filter((e) => e.variant !== "cuda-12") }),
+    );
+
+    // WHEN System > Engines renders
+    const none = renderToString(Engines).body;
+
+    // THEN CUDA 13, the build the runtime prefers, is shown chosen, and nothing warns
+    expect(selectOf(held, "engine-format-gguf-select")).toMatch(/<option value="cuda-13" selected/);
+    expect(tagOf(held, "engine-format-gguf-fell-back")).toBeNull();
+    expect(held).not.toContain(fill(copy.selection_fell_back, { format: "GGUF" }));
+    // AND with CUDA 12 alone, CUDA 12 is the one shown
+    expect(engineSelection("cuda", engineOptions(ENGINES, "gguf"))).toEqual({
+      value: "cuda-12",
+      fellBack: false,
+    });
+    // AND without any CUDA build, Automatic applies and the warning stays
+    expect(selectOf(none, "engine-format-gguf-select")).toMatch(/<option value="auto" selected/);
+    expect(tagOf(none, "engine-format-gguf-fell-back")).not.toBeNull();
+    // AND the setting still holds `cuda`: nothing is written without a gesture
+    expect(get(engineSettings).gguf.value).toBe("cuda");
+    expect(ipc.invoke).not.toHaveBeenCalledWith("set_setting", expect.anything());
+  });
+
   test("a choice is written to [engines] through the settings command, and read back from it", async () => {
     // GIVEN a shell holding the three engine settings
     const held: Record<string, unknown> = {
