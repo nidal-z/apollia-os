@@ -140,9 +140,16 @@ def load_tables():
 # ── the scan ─────────────────────────────────────────────────────────────────
 
 
+# The published crate copied under `third_party/tesseract-rs/` keeps its own
+# tests as released: they are its authors', they are not built by this
+# workspace, and rewriting them to these rules would break the byte-for-byte
+# comparison with the release the copy is held to.
+VENDORED = ":(exclude)third_party/tesseract-rs/"
+
+
 def git_rs_files(root):
     out = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "-z", "--", "*.rs"],
+        ["git", "-C", str(root), "ls-files", "-z", "--", "*.rs", VENDORED],
         check=True,
         capture_output=True,
     ).stdout

@@ -46,9 +46,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 EM_DASH = chr(0x2014)
 
 # The em-dash rule applies to every inventoried file, except the files that
-# have to quote the character in order to forbid it.
+# have to quote the character in order to forbid it, and the published crate
+# copied under `third_party/tesseract-rs/`, whose prose is its authors' and is
+# kept identical to the release it was copied from.
 EM_DASH_EXEMPT = re.compile(
-    r"docs/agents/(FORBIDDEN|DOCS-WRITING)\.md$" r"|(^|/)AGENTS\.md$"
+    r"docs/agents/(FORBIDDEN|DOCS-WRITING)\.md$"
+    r"|(^|/)AGENTS\.md$"
+    r"|^third_party/tesseract-rs/"
 )
 
 # One text, valid for `re` and for PCRE2, so the proof published by a lot and

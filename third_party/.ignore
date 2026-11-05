@@ -1,0 +1,5 @@
+# cargo machete walks every Cargo.toml it finds and honours this file. The copy
+# below is a published crate kept byte for byte, so its manifest is its
+# authors' and is judged upstream, not here. ripgrep reads this file too: pass
+# --no-ignore to search the copy.
+tesseract-rs/

@@ -59,7 +59,12 @@ default-members = [
 # that would otherwise poison the workspace's Tokio (tokio gates `tokio::net`
 # behind `cfg(not(loom))`, breaking hyper-util/axum). Excluded and built on its
 # own, exactly like fuzz. See its README for the run command.
-exclude = ["fuzz", "crates/apollia-loom-models"]
+#
+# third_party/tesseract-rs is a copy of a published crate, used through the
+# [patch.crates-io] entry at the end of this file. A path dependency under the
+# workspace root would otherwise become a member, and the workspace gates would
+# lint and test code this tree did not write.
+exclude = ["fuzz", "crates/apollia-loom-models", "third_party/tesseract-rs"]
 
 # Shared workspace-level package metadata. Individual crates may opt into
 # these defaults via `<field>.workspace = true` in their own Cargo.toml.
@@ -379,3 +384,13 @@ strip = true
 [profile.dev]
 opt-level = 0
 debug = true
+
+# REASON: tesseract-rs 0.4.0 compiles Leptonica and Tesseract against the DLL C
+# runtime (/MD) even under +crt-static, which .cargo/config.toml sets for the
+# Windows MSVC targets, so a Windows build with the `ocr` feature fails to link.
+# The copy is the published crate with that one flag corrected in its build
+# script. Remove this entry and the copy once a published tesseract-rs follows
+# crt-static on Windows, and move the pin above to that release. See the
+# `tesseract-rs-copy` decision.
+[patch.crates-io]
+tesseract-rs = { path = "third_party/tesseract-rs" }

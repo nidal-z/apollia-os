@@ -1,0 +1,71 @@
+[package]
+name = "tesseract-rs"
+version = "0.4.0"
+edition = "2021"
+authors = ["Cafer Can Gündoğdu <cafercangundogdu@gmail.com>"]
+description = "Rust bindings for Tesseract OCR with optional built-in compilation"
+license = "MIT"
+repository = "https://github.com/cafercangundogdu/tesseract-rs"
+documentation = "https://docs.rs/tesseract-rs"
+readme = "README.md"
+keywords = [
+    "tesseract",
+    "ocr",
+    "bindings",
+    "computer-vision",
+    "text-recognition",
+]
+categories = ["external-ffi-bindings", "computer-vision", "text-processing"]
+build = "build.rs"
+links = "tesseract"
+rust-version = "1.88"
+exclude = ["tessdata/*", "third_party/*", "cli/*"]
+
+[dependencies]
+libc = "0.2.186"
+thiserror = "2.0.18"
+
+[dev-dependencies]
+image = "0.25.10"
+imageproc = "0.27.0"
+criterion = { version = "0.8.2", features = ["html_reports"] }
+
+[build-dependencies]
+cc = { version = "1.2.66", optional = true }
+glob = { version = "0.3.3", optional = true }
+cmake = { version = "0.1.58", optional = true }
+reqwest = { version = "0.13.4", features = ["blocking"], optional = true }
+zip = { version = "8.6.0", default-features = false, features = [
+    "deflate",
+], optional = true }
+pkg-config = { version = "0.3.33", optional = true }
+
+
+[features]
+default = ["build-tesseract"]
+build-tesseract = ["cc", "glob", "cmake", "reqwest", "zip"]
+# Link against a system-installed Tesseract (e.g. `brew install tesseract`)
+# instead of compiling the bundled sources. Implies `build-tesseract` so the
+# FFI layer (which is gated on it) is always compiled.
+use-system-tesseract = ["pkg-config", "build-tesseract"]
+embed-tessdata = ["build-tesseract"]
+
+[workspace]
+members = ["cli"]
+default-members = ["."]
+
+[package.metadata.docs.rs]
+features = ["docs-only"]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+name = "tesseract_rs"
+crate-type = ["lib"]
+
+[[bench]]
+name = "ocr_benchmark"
+harness = false
+
+[[example]]
+name = "embedded_example"
+required-features = ["embed-tessdata"]

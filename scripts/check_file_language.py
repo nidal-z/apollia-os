@@ -250,6 +250,9 @@ OUT_OF_SCOPE = (
     # Byte fixtures for the fuzz targets: their whole purpose is to carry text
     # no parser expects, accents included.
     "fuzz/seeds/",
+    # A published crate copied byte for byte: its text is its authors', and
+    # the accented lines the detector reads as French are Turkish test data.
+    "third_party/tesseract-rs/",
 )
 
 # Documents written in French on purpose. `NEVER mix` is not `NEVER French`,
