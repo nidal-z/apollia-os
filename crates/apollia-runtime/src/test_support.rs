@@ -1,5 +1,6 @@
 //! Deterministic primitives for the crate's async tests: waiting for a
-//! condition or an event, and reserving a loopback TCP port.
+//! condition or an event, reserving a loopback TCP port, and recording the
+//! `tracing` events of a thread.
 //!
 //! Timing-dependent tests must never sleep a fixed duration to "wait for
 //! propagation": under load the delay loses its race and the suite fails
@@ -165,4 +166,31 @@ pub(crate) fn reserve_port() -> ReservedPort {
         PORT_POOL_START,
         PORT_POOL_START + PORT_POOL_LEN
     );
+}
+
+/// Two dispatchers that live as long as the process and record nothing.
+static ANCHORS: OnceLock<[tracing::Dispatch; 2]> = OnceLock::new();
+
+/// Set `subscriber` as the subscriber of this thread until the guard drops,
+/// so that it sees every event the thread emits, whatever runs beside it.
+///
+/// While a single dispatcher is registered, `tracing-core` computes the
+/// interest of a callsite from the default subscriber of whichever thread
+/// meets it first or rebuilds the cache, and does so without the lock of the
+/// dispatcher list: a test emitting the same event with no subscriber on
+/// another thread then caches it as of no interest, and a local subscriber
+/// never sees it, a rebuild of the cache included. The anchors keep more than
+/// one dispatcher registered, so every computation of the interest takes that
+/// lock and counts every live dispatcher, this subscriber included; the cache
+/// is then computed again under it.
+pub(crate) fn recording<S>(subscriber: S) -> tracing::subscriber::DefaultGuard
+where
+    S: tracing::Subscriber + Send + Sync + 'static,
+{
+    ANCHORS.get_or_init(|| {
+        [(), ()].map(|()| tracing::Dispatch::new(tracing::subscriber::NoSubscriber::default()))
+    });
+    let guard = tracing::dispatcher::set_default(&tracing::Dispatch::new(subscriber));
+    tracing::callsite::rebuild_interest_cache();
+    guard
 }

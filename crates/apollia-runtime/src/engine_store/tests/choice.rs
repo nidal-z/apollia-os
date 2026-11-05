@@ -206,18 +206,15 @@ fn test_an_incompatible_variant_chosen_explicitly_is_launched_and_reported() {
     let recorder = Recorder::default();
 
     // WHEN the settings name CUDA 13
-    let resolution = tracing::subscriber::with_default(recorder.clone(), || {
-        // Another test may have met this event with no subscriber at the same
-        // moment, and left its callsite cached as of no interest: computed
-        // again, the cache counts the subscriber of this thread.
-        tracing::callsite::rebuild_interest_cache();
+    let resolution = {
+        let _guard = crate::test_support::recording(recorder.clone());
         resolve(
             Some(dir.path()),
             Engine::LlamaServer,
             EngineChoice::Cuda13,
             &pascal(),
         )
-    });
+    };
     let chosen = chosen_variants(
         dir.path(),
         EngineChoices {

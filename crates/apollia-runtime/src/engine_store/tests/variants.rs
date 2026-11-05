@@ -132,7 +132,10 @@ fn test_a_package_of_an_unknown_variant_or_engine_is_left_out_and_logged() {
     let recorder = Recorder::default();
 
     // WHEN it is parsed
-    let parsed = tracing::subscriber::with_default(recorder.clone(), || Manifest::parse(&bytes));
+    let parsed = {
+        let _guard = crate::test_support::recording(recorder.clone());
+        Manifest::parse(&bytes)
+    };
 
     // THEN it is accepted with the known package only, and each package left
     // out is named in a structured event

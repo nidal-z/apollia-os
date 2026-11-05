@@ -234,9 +234,10 @@ fn test_bare_access_is_removed_without_a_single_account() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let recorder = Recorder(Arc::clone(&events));
 
-    let resolved = tracing::subscriber::with_default(recorder, || {
+    let resolved = {
+        let _guard = crate::test_support::recording(recorder);
         resolve_bare_connector_access("mailer", access, &accounts)
-    });
+    };
 
     assert_eq!(resolved, vec!["conn:google:home@example.com/gmail.send"]);
     let events = events.lock().unwrap();

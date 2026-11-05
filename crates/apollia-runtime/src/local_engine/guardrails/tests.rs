@@ -241,12 +241,13 @@ fn test_a_confirmed_launch_goes_past_a_refusal_and_is_logged_as_bypassed() {
     let names = EventNames::default();
 
     // WHEN the same launch is asked unconfirmed, then confirmed
-    let (refused, confirmed) = tracing::subscriber::with_default(names.clone(), || {
+    let (refused, confirmed) = {
+        let _guard = crate::test_support::recording(names.clone());
         (
             enforce(&balanced, Some(&big), LoadConsent::Unconfirmed, "m"),
             enforce(&balanced, Some(&big), LoadConsent::Confirmed, "m"),
         )
-    });
+    };
 
     // THEN the first is refused, the second goes ahead, and only the second
     // publishes `llm.guardrail.bypassed`

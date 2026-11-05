@@ -146,9 +146,10 @@ fn test_the_launch_logs_the_count_and_names_removed_never_their_values() {
     let recorder = Recorder(Arc::clone(&seen));
 
     // WHEN a command for the engine is built
-    tracing::subscriber::with_default(recorder, || {
+    {
+        let _guard = crate::test_support::recording(recorder);
         let _command = engine_command(Path::new("/nonexistent/llama-server"));
-    });
+    }
 
     // THEN one event gives the count and the names, and no value is in it
     let seen = seen.lock().unwrap();
