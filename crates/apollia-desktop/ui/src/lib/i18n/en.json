@@ -6107,14 +6107,14 @@
       "signature_promise": "Its signature is verified before any download.",
       "folder_picker_title": "Folder of the engine to import",
       "proposal": {
-        "title": "Speed up with your NVIDIA card",
-        "body": "{card} detected. The accelerated engine uses it so your models answer markedly faster.",
-        "body_unnamed": "NVIDIA card detected. The accelerated engine uses it so your models answer markedly faster."
+        "title": "Speed up with the {engine} engine",
+        "body": "{card} detected. The {engine} engine uses it so your models answer markedly faster.",
+        "body_unnamed": "Graphics card detected. The {engine} engine uses it so your models answer markedly faster."
       },
       "update": {
         "title": "New engine version available",
-        "body": "NVIDIA accelerated engine, {latest}. You are using the {installed}.",
-        "body_latest": "NVIDIA accelerated engine, {latest}."
+        "body": "Accelerated engine {engine}, {latest}. You are using the {installed}.",
+        "body_latest": "Accelerated engine {engine}, {latest}."
       },
       "progress": {
         "install_title": "Installing the accelerated engine",
@@ -6143,7 +6143,7 @@
       },
       "installed": {
         "title": "Accelerated engine installed",
-        "body": "The next model load will use your NVIDIA card.",
+        "body": "The next model load will use your graphics card.",
         "update_title": "Accelerated engine updated",
         "update_body": "The next model load will use the new version.",
         "body_loaded": "The next model load will use it. Models already loaded keep the current engine: reload them to benefit.",

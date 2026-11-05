@@ -2462,7 +2462,6 @@
             "update_available": false
           }
         ],
-        "cuda_proposable": false,
         "verifiable": true,
         "dictation": null
       }
@@ -2735,7 +2734,6 @@
             "update_available": true
           }
         ],
-        "cuda_proposable": false,
         "verifiable": true,
         "dictation": null
       }
@@ -2846,7 +2844,6 @@
             "update_available": false
           }
         ],
-        "cuda_proposable": false,
         "verifiable": true,
         "dictation": null
       }
@@ -3143,7 +3140,6 @@
             "update_available": false
           }
         ],
-        "cuda_proposable": false,
         "verifiable": true,
         "dictation": null
       }
@@ -3285,8 +3281,6 @@
         "channel": "stable",
         "manifest_sequence": 7,
         "updates": [],
-        "cuda_proposable": false,
-        "nvidia_card": "NVIDIA GeForce RTX 4090",
         "verifiable": true,
         "dictation": null,
         "hardware": {
@@ -3789,8 +3783,6 @@
         "channel": "stable",
         "manifest_sequence": null,
         "updates": [],
-        "cuda_proposable": false,
-        "nvidia_card": null,
         "verifiable": true,
         "dictation": null,
         "hardware": {
@@ -3850,8 +3842,6 @@
         "channel": "stable",
         "manifest_sequence": 7,
         "updates": [],
-        "cuda_proposable": false,
-        "nvidia_card": null,
         "verifiable": true,
         "dictation": null,
         "hardware": null,

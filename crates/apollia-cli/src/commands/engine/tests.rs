@@ -38,8 +38,6 @@ fn linux_nvidia_body() -> Value {
         "channel": "stable",
         "manifest_sequence": 7,
         "updates": [],
-        "cuda_proposable": false,
-        "nvidia_card": "NVIDIA RTX A4000",
         "hardware": {"cards": [{"vendor": "nvidia", "name": "NVIDIA RTX A4000", "vram_gb": 16.0,
             "driver_version": "560.94", "compute_capability": "8.6", "gfx_target": null,
             "kfd_accessible": null, "timed_out": false}], "vulkan_loader": true, "rocm_runtime": false},

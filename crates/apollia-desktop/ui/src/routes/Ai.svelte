@@ -6,10 +6,10 @@
    * The column also lists the servers: choosing one, or adding one, replaces
    * the models of this computer by that server in the content. "Discover
    * models" opens the discovery window over the screen. A click on a model,
-   * loaded or installed, opens its panel in the detail sidebar. On a
-   * computer with an NVIDIA card, a card at the head of the content proposes
-   * the accelerated engine and its new versions; the list of the engines
-   * stays in Settings.
+   * loaded or installed, opens its panel in the detail sidebar. When the
+   * runtime recommends an engine build for the card of this computer, a card
+   * at the head of the content proposes it and its new versions; the list of
+   * the engines stays in Settings.
    */
   import { onDestroy, onMount, untrack } from "svelte";
   import { get } from "svelte/store";

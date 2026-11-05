@@ -29,8 +29,6 @@ class EnginesResponse:
         available (list[AvailablePackage]): The packages the verified manifest offers for this platform, installed
             or not. Empty until a manifest verified.
         channel (EngineChannel): An update channel.
-        cuda_proposable (bool): True when an NVIDIA card is detected and no CUDA engine is installed.
-            Derived from `hardware`.
         engines (list[EngineEntry]): Engines embedded in the bundle, then installed ones.
         ratings (list[EngineRating]): Per `llama-server` variant, whether it suits this machine and why.
             Empty until a manifest verified, or when the hardware is not known.
@@ -42,13 +40,10 @@ class EnginesResponse:
         dictation (DictationEngine | None | Unset):
         hardware (HardwareView | None | Unset):
         manifest_sequence (int | None | Unset): Sequence of the last verified manifest of that channel, if any.
-        nvidia_card (None | str | Unset): Name of the NVIDIA card detected, when there is one. Derived from
-            `hardware`.
     """
 
     available: list[AvailablePackage]
     channel: EngineChannel
-    cuda_proposable: bool
     engines: list[EngineEntry]
     ratings: list[EngineRating]
     updates: list[VariantUpdate]
@@ -56,7 +51,6 @@ class EnginesResponse:
     dictation: DictationEngine | None | Unset = UNSET
     hardware: HardwareView | None | Unset = UNSET
     manifest_sequence: int | None | Unset = UNSET
-    nvidia_card: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -69,8 +63,6 @@ class EnginesResponse:
             available.append(available_item)
 
         channel = self.channel.value
-
-        cuda_proposable = self.cuda_proposable
 
         engines = []
         for engines_item_data in self.engines:
@@ -111,19 +103,12 @@ class EnginesResponse:
         else:
             manifest_sequence = self.manifest_sequence
 
-        nvidia_card: None | str | Unset
-        if isinstance(self.nvidia_card, Unset):
-            nvidia_card = UNSET
-        else:
-            nvidia_card = self.nvidia_card
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
                 "available": available,
                 "channel": channel,
-                "cuda_proposable": cuda_proposable,
                 "engines": engines,
                 "ratings": ratings,
                 "updates": updates,
@@ -136,8 +121,6 @@ class EnginesResponse:
             field_dict["hardware"] = hardware
         if manifest_sequence is not UNSET:
             field_dict["manifest_sequence"] = manifest_sequence
-        if nvidia_card is not UNSET:
-            field_dict["nvidia_card"] = nvidia_card
 
         return field_dict
 
@@ -159,8 +142,6 @@ class EnginesResponse:
             available.append(available_item)
 
         channel = EngineChannel(d.pop("channel"))
-
-        cuda_proposable = d.pop("cuda_proposable")
 
         engines = []
         _engines = d.pop("engines")
@@ -228,19 +209,9 @@ class EnginesResponse:
 
         manifest_sequence = _parse_manifest_sequence(d.pop("manifest_sequence", UNSET))
 
-        def _parse_nvidia_card(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        nvidia_card = _parse_nvidia_card(d.pop("nvidia_card", UNSET))
-
         engines_response = cls(
             available=available,
             channel=channel,
-            cuda_proposable=cuda_proposable,
             engines=engines,
             ratings=ratings,
             updates=updates,
@@ -248,7 +219,6 @@ class EnginesResponse:
             dictation=dictation,
             hardware=hardware,
             manifest_sequence=manifest_sequence,
-            nvidia_card=nvidia_card,
         )
 
         engines_response.additional_properties = d

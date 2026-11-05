@@ -120,12 +120,10 @@ const ENGINES: EnginesResponse = {
       installed_released: null,
     },
   ],
-  cuda_proposable: false,
   verifiable: true,
   hardware: null,
   available: [],
   ratings: [],
-  nvidia_card: null,
   dictation: null,
 };
 

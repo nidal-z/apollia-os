@@ -108,12 +108,6 @@ impl Variant {
             .find(|v| v.as_str() == name || v.former_name() == Some(name))
     }
 
-    /// True for a CUDA build, whatever its runtime.
-    #[must_use]
-    pub const fn is_cuda(self) -> bool {
-        matches!(self, Variant::Cuda12 | Variant::Cuda13)
-    }
-
     /// Every variant, in a stable order.
     pub const ALL: [Variant; 6] = [
         Variant::Cuda12,

@@ -230,13 +230,3 @@ pub(crate) fn ratings(
         facts.listings.get(&v).copied()
     })
 }
-
-/// The name of the NVIDIA card the CUDA builds are rated for, when there is one.
-pub(crate) fn nvidia_card(profile: Option<&GpuProfile>) -> Option<String> {
-    profile?
-        .cards
-        .iter()
-        .filter(|c| c.vendor == GpuVendor::Nvidia)
-        .max_by(|a, b| a.compute_capability.cmp(&b.compute_capability))
-        .map(|c| c.name.clone())
-}

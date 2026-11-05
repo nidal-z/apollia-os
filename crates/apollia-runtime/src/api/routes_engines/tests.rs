@@ -142,8 +142,8 @@ async fn test_list_names_installed_engines_with_their_source() {
     .unwrap();
     let (status, body) = call(dir.path(), "GET", "/api/v1/engines", None).await;
 
-    // THEN the engine is there with its tag, variant, path and source, the
-    //      channel is stated, and CUDA is not proposed since it is installed
+    // THEN the engine is there with its tag, variant, path and source, in the
+    //      view as in the route, and the channel is stated
     assert_eq!(status, StatusCode::OK);
     let engine = &body["engines"]
         .as_array()
@@ -157,7 +157,10 @@ async fn test_list_names_installed_engines_with_their_source() {
     assert_eq!(engine["variant"], "cuda-12");
     assert!(engine["path"].as_str().unwrap().ends_with("cuda-12"));
     assert_eq!(body["channel"], "stable");
-    assert!(!view.cuda_proposable);
+    assert!(view
+        .engines
+        .iter()
+        .any(|e| e.tag.as_deref() == Some("b6000")));
     // AND the answer says whether this build can verify the channel, which is
     //     whether it carries the distribution key
     assert_eq!(
@@ -167,7 +170,7 @@ async fn test_list_names_installed_engines_with_their_source() {
 }
 
 #[test]
-fn test_cuda_is_proposable_only_with_a_card_and_without_the_engine() {
+fn test_the_card_is_named_in_the_hardware_and_nothing_names_it_without_one() {
     // GIVEN an empty store
     let dir = tempfile::tempdir().unwrap();
 
@@ -180,15 +183,16 @@ fn test_cuda_is_proposable_only_with_a_card_and_without_the_engine() {
     .unwrap();
     let without = engines_view(dir.path(), Vec::new(), &HostFacts::default()).unwrap();
 
-    // THEN CUDA is proposed only with the card
-    assert!(with_card.cuda_proposable);
-    assert!(!without.cuda_proposable);
+    // THEN the hardware names the card, and is absent without a probe; the
+    //      proposal itself is the interface's, read from the ratings
+    let named: Vec<&str> = with_card
+        .hardware
+        .as_ref()
+        .map(|h| h.cards.iter().map(|c| c.name.as_str()).collect())
+        .unwrap_or_default();
+    assert_eq!(named, ["NVIDIA GeForce RTX 4070"]);
+    assert!(without.hardware.is_none());
     assert!(with_card.updates.is_empty());
-    assert_eq!(
-        with_card.nvidia_card.as_deref(),
-        Some("NVIDIA GeForce RTX 4070")
-    );
-    assert_eq!(without.nvidia_card, None);
 }
 
 #[tokio::test]

@@ -87,9 +87,6 @@ fn test_the_list_carries_the_hardware_the_offered_packages_and_their_ratings() {
         json!({"variant": "cuda-13", "verdict": "incompatible",
                "reason": {"code": "not_built_for_platform"}})
     );
-    // AND the two fields kept for older readers derive from the profile
-    assert_eq!(body["nvidia_card"], "NVIDIA GeForce RTX 4090");
-    assert_eq!(body["cuda_proposable"], false);
 }
 
 #[test]

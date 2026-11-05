@@ -8,6 +8,7 @@
 
 import type {
   EngineAvailablePackage,
+  EngineEntry,
   EngineRating,
   EngineRatingReason,
   EngineVariant,
@@ -104,6 +105,26 @@ export function shownVariants(rows: VariantRow[], showIncompatible: boolean): Va
 /** How many rows the fold hides. */
 export function incompatibleCount(rows: VariantRow[]): number {
   return rows.filter((row) => row.verdict === "incompatible").length;
+}
+
+/** Display name of a variant: a backend name, or the processor. */
+export function variantLabel(variant: EngineEntry["variant"], cpuLabel: string): string | null {
+  switch (variant) {
+    case "metal":
+      return "Metal";
+    case "cuda-12":
+      return "CUDA 12";
+    case "cuda-13":
+      return "CUDA 13";
+    case "rocm":
+      return "ROCm";
+    case "vulkan":
+      return "Vulkan";
+    case "cpu":
+      return cpuLabel;
+    case null:
+      return null;
+  }
 }
 
 /** The verdict of `variant`, or `null` when the runtime did not rate it. */

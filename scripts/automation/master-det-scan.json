@@ -19785,7 +19785,6 @@
             "update_available": false
           }
         ],
-        "cuda_proposable": false,
         "verifiable": true,
         "dictation": null
       }
@@ -20070,7 +20069,6 @@
             "update_available": true
           }
         ],
-        "cuda_proposable": false,
         "verifiable": true,
         "dictation": null
       }
@@ -20183,7 +20181,6 @@
             "update_available": false
           }
         ],
-        "cuda_proposable": false,
         "verifiable": true,
         "dictation": null
       }
@@ -20494,7 +20491,6 @@
             "update_available": false
           }
         ],
-        "cuda_proposable": false,
         "verifiable": true,
         "dictation": null
       }
@@ -20640,8 +20636,6 @@
         "channel": "stable",
         "manifest_sequence": 7,
         "updates": [],
-        "cuda_proposable": false,
-        "nvidia_card": "NVIDIA GeForce RTX 4090",
         "verifiable": true,
         "dictation": null,
         "hardware": {
@@ -21163,8 +21157,6 @@
         "channel": "stable",
         "manifest_sequence": null,
         "updates": [],
-        "cuda_proposable": false,
-        "nvidia_card": null,
         "verifiable": true,
         "dictation": null,
         "hardware": {
@@ -21225,8 +21217,6 @@
         "channel": "stable",
         "manifest_sequence": 7,
         "updates": [],
-        "cuda_proposable": false,
-        "nvidia_card": null,
         "verifiable": true,
         "dictation": null,
         "hardware": null,
@@ -24168,6 +24158,177 @@
       "kind": "waitGone",
       "testid": "ai-server-form",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-accelerated-engine-card (the variant the runtime recommends)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "patch": {
+        "updates": [],
+        "hardware": {
+          "cards": [
+            {
+              "vendor": "amd",
+              "name": "AMD Radeon RX 7900 XTX",
+              "vram_gb": 24,
+              "driver_version": null,
+              "compute_capability": null,
+              "gfx_target": "gfx1100",
+              "kfd_accessible": true,
+              "timed_out": false
+            }
+          ],
+          "vulkan_loader": true,
+          "rocm_runtime": true
+        },
+        "available": [
+          {
+            "engine": "llama-server",
+            "tag": "b12064",
+            "variant": "rocm",
+            "size": 640000000,
+            "released": "2026-10-30",
+            "installed": false
+          }
+        ],
+        "ratings": [
+          {
+            "variant": "rocm",
+            "verdict": "recommended",
+            "reason": null
+          },
+          {
+            "variant": "vulkan",
+            "verdict": "compatible",
+            "reason": null
+          },
+          {
+            "variant": "cpu",
+            "verdict": "compatible",
+            "reason": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-engine-card",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-engine-title",
+      "contains": "ROCm"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-engine-body",
+      "contains": "AMD Radeon RX 7900 XTX"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-engine-start"
+    },
+    {
+      "kind": "screenshot",
+      "label": "17a-accelerated-engine-proposes-rocm"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "patch": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "tag": null,
+            "variant": "metal",
+            "path": "/Applications/Apollia.app/Contents/MacOS/llama-server",
+            "source": "embedded",
+            "version": null,
+            "in_service": true
+          }
+        ],
+        "updates": [],
+        "hardware": {
+          "cards": [],
+          "vulkan_loader": false,
+          "rocm_runtime": false
+        },
+        "available": [],
+        "ratings": [
+          {
+            "variant": "metal",
+            "verdict": "recommended",
+            "reason": null
+          },
+          {
+            "variant": "cpu",
+            "verdict": "compatible",
+            "reason": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-engine-card",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-accelerated-engine-nothing-when-the-shipped-build-is-recommended"
+    },
+    {
+      "kind": "clearStubs"
     },
     {
       "kind": "screenshot",

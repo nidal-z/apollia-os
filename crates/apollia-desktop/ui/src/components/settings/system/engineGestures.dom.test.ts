@@ -39,8 +39,6 @@ function engines(cudaInService = false): EnginesResponse {
     channel: "stable",
     manifest_sequence: 7,
     updates: [],
-    cuda_proposable: false,
-    nvidia_card: "NVIDIA GeForce RTX 4090",
     dictation: null,
     hardware: {
       cards: [{ vendor: "nvidia", name: "NVIDIA GeForce RTX 4090", vram_gb: 24, driver_version: "570.86", compute_capability: "8.9", gfx_target: null, kfd_accessible: null, timed_out: false }],

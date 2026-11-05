@@ -132,8 +132,6 @@ const NVIDIA: EnginesResponse = {
   channel: "stable",
   manifest_sequence: 12,
   updates: [],
-  cuda_proposable: false,
-  nvidia_card: "NVIDIA GeForce RTX 4090",
   dictation: null,
   verifiable: true,
   hardware: { cards: [card({})], vulkan_loader: true, rocm_runtime: false },
@@ -150,7 +148,6 @@ const NVIDIA: EnginesResponse = {
 const AMD: EnginesResponse = {
   ...NVIDIA,
   engines: [EMBEDDED],
-  nvidia_card: null,
   hardware: {
     cards: [
       card({
@@ -170,7 +167,6 @@ const AMD: EnginesResponse = {
 const NO_CARD: EnginesResponse = {
   ...NVIDIA,
   engines: [EMBEDDED],
-  nvidia_card: null,
   hardware: { cards: [], vulkan_loader: false, rocm_runtime: false },
 };
 

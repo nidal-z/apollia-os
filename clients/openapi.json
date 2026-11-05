@@ -24659,7 +24659,6 @@
           "engines",
           "channel",
           "updates",
-          "cuda_proposable",
           "available",
           "ratings",
           "verifiable"
@@ -24675,10 +24674,6 @@
           "channel": {
             "$ref": "#/components/schemas/EngineChannel",
             "description": "The followed channel."
-          },
-          "cuda_proposable": {
-            "type": "boolean",
-            "description": "True when an NVIDIA card is detected and no CUDA engine is installed.\nDerived from `hardware`."
           },
           "dictation": {
             "oneOf": [
@@ -24717,13 +24712,6 @@
             "format": "int64",
             "description": "Sequence of the last verified manifest of that channel, if any.",
             "minimum": 0
-          },
-          "nvidia_card": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Name of the NVIDIA card detected, when there is one. Derived from\n`hardware`."
           },
           "ratings": {
             "type": "array",
