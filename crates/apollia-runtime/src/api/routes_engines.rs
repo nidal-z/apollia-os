@@ -113,7 +113,9 @@ pub struct EnginesResponse {
 pub struct EngineSettingsBody {
     /// The followed channel.
     pub channel: Channel,
-    /// Base address manifests and archives are fetched from.
+    /// The mirror manifests and archives are fetched from, the only one read
+    /// when set. Empty when none is set: the registry of Apollia is read
+    /// first, then its GitHub mirror.
     pub base_url: String,
 }
 
@@ -452,7 +454,7 @@ pub async fn get_engine_settings<B: ExecutionBackend + Clone>(
         EngineStoreSettings::load(&engine_store::store_root(&state.data_dir)).map_err(store_err)?;
     Ok(Json(EngineSettingsBody {
         channel: s.channel,
-        base_url: s.base_url,
+        base_url: s.base_url.unwrap_or_default(),
     }))
 }
 
@@ -474,7 +476,7 @@ pub async fn set_engine_settings<B: ExecutionBackend + Clone>(
     let previous = EngineStoreSettings::load(&root).map_err(store_err)?;
     let settings = EngineStoreSettings {
         channel: body.channel,
-        base_url: body.base_url.trim().to_owned(),
+        base_url: engine_store::mirror_of(&body.base_url),
     };
     settings.save(&root).map_err(store_err)?;
     if settings.channel != previous.channel {
@@ -482,7 +484,7 @@ pub async fn set_engine_settings<B: ExecutionBackend + Clone>(
     }
     Ok(Json(EngineSettingsBody {
         channel: settings.channel,
-        base_url: settings.base_url,
+        base_url: settings.base_url.unwrap_or_default(),
     }))
 }
 

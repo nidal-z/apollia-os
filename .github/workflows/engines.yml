@@ -22,11 +22,17 @@
 #      into the application, so a secret that drifted from that key stops
 #      here and not on every installed machine;
 #   5. publishes to the registry (Scaleway Object Storage, served as
-#      https://registry.apollia.fr): the archives, then the manifest, then its
-#      signature, then a cache purge of the last two;
+#      https://registry.apollia.fr) under `engines-<channel>/`: the archives,
+#      then `engines.json`, then `engines.json.minisig`, then a cache purge of
+#      the last two;
 #   6. publishes the same files to the GitHub release `engines-<channel>`,
 #      the fallback mirror, even when the purge of step 5 failed; the run is
 #      then marked failed at the end.
+#
+# Both places hold one layout, the one the application reads:
+# `<base>/engines-<channel>/engines.json`, its signature and the archives
+# beside it. The application reads the registry first and GitHub when the
+# registry does not answer; the signature, not the address, is what it trusts.
 #
 # Two keys, never mixed. APOLLIA_DIST_SIGNING_KEY signs what the application
 # downloads after install (this manifest, the model registry index).
@@ -61,8 +67,9 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # The only address the application is given. The bucket's own address is
-  # never published, so a policy can replace this one with a mirror.
+  # The first address the application reads, before the GitHub mirror. The
+  # bucket's own address is never published, and a mirror set by the user or
+  # a policy replaces both.
   REGISTRY_URL: https://registry.apollia.fr
   S3_ENDPOINT: https://s3.fr-par.scw.cloud
 
@@ -224,7 +231,7 @@ jobs:
           BUCKET: ${{ vars.SCW_REGISTRY_BUCKET }}
           PIPELINE_ID: ${{ vars.SCW_EDGE_PIPELINE_ID }}
         run: |
-          prefix="engines/${CHANNEL}"
+          prefix="engines-${CHANNEL}"
           put() {
             aws s3 cp "$1" "s3://${BUCKET}/${prefix}/$2" \
               --endpoint-url "$S3_ENDPOINT" --acl public-read \
@@ -234,14 +241,14 @@ jobs:
           for archive in "$OUT"/*.zip; do
             put "$archive" "$(basename "$archive")" application/zip
           done
-          put "$OUT/engines.json" manifest.json application/json
-          put "$OUT/engines.json.minisig" manifest.json.minisig text/plain
+          put "$OUT/engines.json" engines.json application/json
+          put "$OUT/engines.json.minisig" engines.json.minisig text/plain
           if ! python3 - <<'PY'
           import json, os, sys, urllib.request
-          base = f"{os.environ['REGISTRY_URL']}/engines/{os.environ['CHANNEL']}"
+          base = f"{os.environ['REGISTRY_URL']}/engines-{os.environ['CHANNEL']}"
           body = json.dumps({
               "pipeline_id": os.environ["PIPELINE_ID"],
-              "assets": [f"{base}/manifest.json", f"{base}/manifest.json.minisig"],
+              "assets": [f"{base}/engines.json", f"{base}/engines.json.minisig"],
           }).encode()
           request = urllib.request.Request(
               "https://api.scaleway.com/edge-services/v1beta1/purge-requests",
@@ -264,9 +271,9 @@ jobs:
             echo "PURGE_FAILED=1" >> "$GITHUB_ENV"
           fi
 
-      # The mirror the application reads when it is given the GitHub address
-      # as its base: `<base>/engines-<channel>/engines.json`, the archives
-      # beside it. A pre-release that is never the latest one: the updater of
+      # The mirror the application reads when the registry does not answer,
+      # under the same layout: `<base>/engines-<channel>/engines.json`, the
+      # archives beside it. A pre-release that is never the latest one: the updater of
       # the application asks `releases/latest`, and this release must not
       # answer in its place.
       - name: Publish to the GitHub mirror
@@ -285,9 +292,10 @@ jobs:
           gh release upload "$release" --repo "$REPO" --clobber "$OUT/engines.json.minisig"
           echo "the ${CHANNEL} engine channel now offers llama.cpp ${LLAMA_TAG}"
 
-      # A purge that fails does not hold back the mirror, which is what the
-      # application reads by default: the files are published either way, and
-      # the run is marked failed so the stale registry cache is seen.
+      # A purge that fails does not hold back the mirror, which the
+      # application reads when the registry does not answer: the files are
+      # published either way, and the run is marked failed so the stale
+      # registry cache is seen.
       - name: Fail the run when the cache was not purged
         if: env.PURGE_FAILED == '1'
         run: |

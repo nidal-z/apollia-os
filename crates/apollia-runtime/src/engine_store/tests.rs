@@ -21,6 +21,7 @@ use super::*;
 use crate::engine_store::compat::machines::{no_card, nvidia};
 
 mod auto_update;
+mod bases;
 mod choice;
 mod install_job;
 mod variants;
@@ -50,6 +51,8 @@ fn store(dir: &Path, platform: &str) -> EngineStore {
 struct Fake {
     files: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     hits: Arc<Mutex<Vec<String>>>,
+    /// A status every request is answered with, in place of the files.
+    refuse_with: Arc<Mutex<Option<StatusCode>>>,
     /// A path whose answer never comes, once requested.
     stalled: Arc<Mutex<Option<String>>>,
 }
@@ -91,20 +94,28 @@ async fn serve(State(fake): State<Fake>, uri: Uri) -> (StatusCode, Vec<u8>) {
     if stalled.as_deref() == Some(uri.path()) {
         std::future::pending::<()>().await;
     }
+    if let Some(status) = *fake.refuse_with.lock().unwrap() {
+        return (status, Vec::new());
+    }
     match fake.files.lock().unwrap().get(uri.path()) {
         Some(bytes) => (StatusCode::OK, bytes.clone()),
         None => (StatusCode::NOT_FOUND, Vec::new()),
     }
 }
 
-async fn start(fake: &Fake) -> EngineStoreSettings {
+/// Serve `fake` on a port of its own and return its base address.
+async fn start_base(fake: &Fake) -> String {
     let app = Router::new().fallback(serve).with_state(fake.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    format!("http://{addr}")
+}
+
+async fn start(fake: &Fake) -> EngineStoreSettings {
     EngineStoreSettings {
         channel: Channel::Stable,
-        base_url: format!("http://{addr}"),
+        base_url: Some(start_base(fake).await),
     }
 }
 
@@ -360,13 +371,13 @@ fn test_settings_default_to_stable_and_round_trip() {
     let first = EngineStoreSettings::load(&root).unwrap();
     let changed = EngineStoreSettings {
         channel: Channel::Preview,
-        base_url: "https://mirror.example.org/apollia".to_owned(),
+        base_url: Some("https://mirror.example.org/apollia".to_owned()),
     };
     changed.save(&root).unwrap();
 
-    // THEN the default is stable, and the change persists
+    // THEN the default is stable with no mirror, and the change persists
     assert_eq!(first.channel, Channel::Stable);
-    assert_eq!(first.base_url, DEFAULT_BASE_URL);
+    assert_eq!(first.base_url, None);
     assert_eq!(EngineStoreSettings::load(&root).unwrap(), changed);
 }
 
@@ -376,7 +387,7 @@ fn test_settings_refuse_a_non_http_mirror() {
     let dir = tempfile::tempdir().unwrap();
     let bad = EngineStoreSettings {
         channel: Channel::Stable,
-        base_url: "file:///etc".to_owned(),
+        base_url: Some("file:///etc".to_owned()),
     };
 
     // WHEN it is saved

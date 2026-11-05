@@ -16,7 +16,9 @@ class EngineSettingsBody:
     """Body of the settings routes.
 
     Attributes:
-        base_url (str): Base address manifests and archives are fetched from.
+        base_url (str): The mirror manifests and archives are fetched from, the only one read
+            when set. Empty when none is set: the registry of Apollia is read
+            first, then its GitHub mirror.
         channel (EngineChannel): An update channel.
     """
 

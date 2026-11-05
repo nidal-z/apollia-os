@@ -14,7 +14,7 @@ use crate::engine_store::installed::{
     newest_installed, package_dir, InstalledPackage, Source, RECORD_FILE,
 };
 use crate::engine_store::manifest::{
-    archive_kind, compare_tags, verify_manifest, Engine, Manifest, Package, Variant,
+    archive_kind, compare_tags, verify_manifest, Channel, Engine, Manifest, Package, Variant,
     MANIFEST_MAX_BYTES,
 };
 use crate::engine_store::settings::{
@@ -86,12 +86,12 @@ fn io(path: &Path) -> impl FnOnce(std::io::Error) -> EngineStoreError {
     move |source| EngineStoreError::Io { path, source }
 }
 
-fn manifest_url(settings: &EngineStoreSettings) -> Result<reqwest::Url, EngineStoreError> {
-    let base = check_base_url(&settings.base_url)?;
+fn manifest_url(base: &str, channel: Channel) -> Result<reqwest::Url, EngineStoreError> {
+    let base = check_base_url(base)?;
     let text = format!(
         "{}/engines-{}/{MANIFEST_FILE}",
         base.as_str().trim_end_matches('/'),
-        settings.channel.as_str()
+        channel.as_str()
     );
     reqwest::Url::parse(&text).map_err(|_| EngineStoreError::InvalidUrl { url: text })
 }
@@ -144,35 +144,92 @@ async fn get_small(
 /// Fetch the manifest of the followed channel and its signature, verify the
 /// signature against the compiled key, refuse a rollback, and keep it.
 ///
+/// The bases of the settings are read in order
+/// ([`EngineStoreSettings::bases`]): a base that cannot be reached or answers
+/// an error status for either file hands over to the next one. A manifest
+/// that was received and refused (signature, format, channel, rollback) ends
+/// the fetch with that refusal: the next base is not asked. The address
+/// returned is that of the manifest accepted, which archives are relative to.
+///
 /// # Errors
 ///
-/// Any network, signature, format, channel or rollback failure. No archive is
+/// Any network, signature, format, channel or rollback failure; when every
+/// base failed to answer, the failure of the last one. No archive is
 /// requested here.
 pub async fn refresh_manifest(
     store: &EngineStore,
     settings: &EngineStoreSettings,
 ) -> Result<(Manifest, reqwest::Url), EngineStoreError> {
-    let url = manifest_url(settings)?;
+    refresh_manifest_from(store, settings.channel, &settings.bases()).await
+}
+
+/// [`refresh_manifest`] over an explicit list of bases.
+pub(crate) async fn refresh_manifest_from(
+    store: &EngineStore,
+    channel: Channel,
+    bases: &[String],
+) -> Result<(Manifest, reqwest::Url), EngineStoreError> {
+    let mut unanswered = None;
+    for base in bases {
+        let url = manifest_url(base, channel)?;
+        let (bytes, signature) = match fetch_signed(&url).await {
+            Ok(files) => files,
+            Err(
+                error @ (EngineStoreError::Transport { .. } | EngineStoreError::HttpStatus { .. }),
+            ) => {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    base = %base,
+                    channel = channel.as_str(),
+                    error = %error,
+                    "engine_store.manifest.base_unanswered"
+                );
+                unanswered = Some(error);
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+        let manifest = verify_manifest(&bytes, &signature, &store.trusted_key, channel)
+            .and_then(|m| accept_sequence(&store.root, &m).map(|()| m))
+            .map_err(|error| {
+                tracing::event!(
+                    tracing::Level::ERROR,
+                    base = %base,
+                    channel = channel.as_str(),
+                    error = %error,
+                    "engine_store.manifest.refused"
+                );
+                error
+            })?;
+        cache_manifest(&store.root, channel, &bytes, &signature)?;
+        tracing::event!(
+            tracing::Level::INFO,
+            base = %base,
+            channel = channel.as_str(),
+            sequence = manifest.sequence,
+            packages = manifest.packages.len(),
+            "engine_store.manifest.verified"
+        );
+        return Ok((manifest, url));
+    }
+    Err(unanswered.unwrap_or_else(|| EngineStoreError::InvalidUrl { url: String::new() }))
+}
+
+/// The manifest at `url` and the signature beside it, as received, nothing
+/// verified yet.
+async fn fetch_signed(url: &reqwest::Url) -> Result<(Vec<u8>, String), EngineStoreError> {
     let sig_url = url
         .join(SIGNATURE_FILE)
         .map_err(|_| EngineStoreError::InvalidUrl {
             url: url.to_string(),
         })?;
-    let client = client(&url)?;
-    let bytes = get_small(&client, &url).await?;
+    let client = client(url)?;
+    let bytes = get_small(&client, url).await?;
     let signature_bytes = get_small(&client, &sig_url).await?;
-    let signature = String::from_utf8_lossy(&signature_bytes).into_owned();
-    let manifest = verify_manifest(&bytes, &signature, &store.trusted_key, settings.channel)?;
-    accept_sequence(&store.root, &manifest)?;
-    cache_manifest(&store.root, settings.channel, &bytes, &signature)?;
-    tracing::event!(
-        tracing::Level::INFO,
-        channel = settings.channel.as_str(),
-        sequence = manifest.sequence,
-        packages = manifest.packages.len(),
-        "engine_store.manifest.verified"
-    );
-    Ok((manifest, url))
+    Ok((
+        bytes,
+        String::from_utf8_lossy(&signature_bytes).into_owned(),
+    ))
 }
 
 /// Download the newest `engine` `variant` package of the followed channel for
@@ -213,7 +270,26 @@ pub async fn install_package_with_progress(
     variant: Variant,
     progress: impl Fn(u64, u64),
 ) -> Result<InstalledPackage, EngineStoreError> {
-    let (manifest, manifest_url) = refresh_manifest(store, settings).await?;
+    install_from(
+        store,
+        settings.channel,
+        &settings.bases(),
+        (engine, variant),
+        progress,
+    )
+    .await
+}
+
+/// [`install_package_with_progress`] over an explicit list of bases. The
+/// archive is read from the base whose manifest was accepted.
+pub(crate) async fn install_from(
+    store: &EngineStore,
+    channel: Channel,
+    bases: &[String],
+    (engine, variant): (Engine, Variant),
+    progress: impl Fn(u64, u64),
+) -> Result<InstalledPackage, EngineStoreError> {
+    let (manifest, manifest_url) = refresh_manifest_from(store, channel, bases).await?;
     let package = manifest
         .newest(engine, variant, &store.platform)
         .ok_or_else(|| EngineStoreError::PackageNotFound {

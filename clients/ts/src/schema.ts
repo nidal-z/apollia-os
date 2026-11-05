@@ -8483,7 +8483,11 @@ export interface components {
         };
         /** @description Body of the settings routes. */
         EngineSettingsBody: {
-            /** @description Base address manifests and archives are fetched from. */
+            /**
+             * @description The mirror manifests and archives are fetched from, the only one read
+             *     when set. Empty when none is set: the registry of Apollia is read
+             *     first, then its GitHub mirror.
+             */
             base_url: string;
             /** @description The followed channel. */
             channel: components["schemas"]["EngineChannel"];
