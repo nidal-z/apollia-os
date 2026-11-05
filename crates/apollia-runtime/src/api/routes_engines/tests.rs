@@ -40,7 +40,30 @@ async fn call(
     )
 }
 
-fn fixture(name: &str) -> Vec<u8> {
+/// Facts of a machine with one NVIDIA card named `name`.
+pub(super) fn nvidia_facts(name: &str) -> HostFacts {
+    let card = apollia_llm::hardware::GpuCard {
+        vendor: apollia_llm::hardware::GpuVendor::Nvidia,
+        name: name.to_owned(),
+        vram_gb: Some(12.0),
+        driver_version: Some("620.10".to_owned()),
+        driver_major: Some(620),
+        compute_capability: Some((8, 9)),
+        gfx_target: None,
+        kfd_accessible: None,
+        probe: apollia_llm::hardware::CardProbe::Complete,
+    };
+    HostFacts {
+        profile: Some(apollia_llm::hardware::GpuProfile {
+            cards: vec![card],
+            vulkan_loader: false,
+            rocm_runtime: false,
+        }),
+        listings: Default::default(),
+    }
+}
+
+pub(super) fn fixture(name: &str) -> Vec<u8> {
     std::fs::read(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/engine_store")
@@ -114,7 +137,7 @@ async fn test_list_names_installed_engines_with_their_source() {
     let view = engines_view(
         dir.path(),
         Vec::new(),
-        Some("NVIDIA GeForce RTX 4070".to_owned()),
+        &nvidia_facts("NVIDIA GeForce RTX 4070"),
     )
     .unwrap();
     let (status, body) = call(dir.path(), "GET", "/api/v1/engines", None).await;
@@ -152,10 +175,10 @@ fn test_cuda_is_proposable_only_with_a_card_and_without_the_engine() {
     let with_card = engines_view(
         dir.path(),
         Vec::new(),
-        Some("NVIDIA GeForce RTX 4070".to_owned()),
+        &nvidia_facts("NVIDIA GeForce RTX 4070"),
     )
     .unwrap();
-    let without = engines_view(dir.path(), Vec::new(), None).unwrap();
+    let without = engines_view(dir.path(), Vec::new(), &HostFacts::default()).unwrap();
 
     // THEN CUDA is proposed only with the card
     assert!(with_card.cuda_proposable);

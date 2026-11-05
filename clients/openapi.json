@@ -21130,6 +21130,48 @@
           }
         }
       },
+      "AvailablePackage": {
+        "type": "object",
+        "description": "One package the channel offers for this platform.",
+        "required": [
+          "engine",
+          "tag",
+          "variant",
+          "size",
+          "installed"
+        ],
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "Engine."
+          },
+          "installed": {
+            "type": "boolean",
+            "description": "Whether this exact build is installed here."
+          },
+          "released": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Day the build was published, when the manifest states it."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Archive size in bytes.",
+            "minimum": 0
+          },
+          "tag": {
+            "type": "string",
+            "description": "Upstream tag."
+          },
+          "variant": {
+            "$ref": "#/components/schemas/EngineVariant",
+            "description": "Variant."
+          }
+        }
+      },
       "BatchAccess": {
         "type": "object",
         "description": "One sensitive access of the agent a batch runs.",
@@ -24238,6 +24280,195 @@
           "nodejs"
         ]
       },
+      "EngineRating": {
+        "type": "object",
+        "description": "The verdict on one variant.",
+        "required": [
+          "variant",
+          "verdict"
+        ],
+        "properties": {
+          "reason": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EngineRatingReason",
+                "description": "Why it is not recommended, or the caveat of a recommendation no build\nfully qualified for, when a code says it."
+              }
+            ]
+          },
+          "variant": {
+            "$ref": "#/components/schemas/EngineVariant",
+            "description": "Variant rated."
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/EngineVerdict",
+            "description": "How well it suits this machine."
+          }
+        }
+      },
+      "EngineRatingReason": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The NVIDIA driver is older than the build needs.",
+            "required": [
+              "have",
+              "need",
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "driver_too_old"
+                ]
+              },
+              "have": {
+                "type": "string",
+                "description": "The driver of the machine, as `nvidia-smi` prints it."
+              },
+              "need": {
+                "type": "string",
+                "description": "The driver the build needs."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "CUDA 13 dropped the architecture of the card (Maxwell, Pascal, Volta).",
+            "required": [
+              "cc",
+              "code"
+            ],
+            "properties": {
+              "cc": {
+                "type": "string",
+                "description": "The compute capability of the card, `6.1`."
+              },
+              "code": {
+                "type": "string",
+                "enum": [
+                  "arch_dropped_in_cuda13"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The gfx target of the card is not in the list of the build.",
+            "required": [
+              "gfx",
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "gfx_not_in_build"
+                ]
+              },
+              "gfx": {
+                "type": "string",
+                "description": "The gfx target, `gfx906`."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "No Vulkan loader is installed.",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "no_vulkan_loader"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An NVIDIA card is there, but no driver answers for it.",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "no_nvidia_driver"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The channel offers no build of this variant for the platform.",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "not_built_for_platform"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "No card of the kind this build drives.",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "no_gpu"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The installed build lists no device with `--list-devices`.",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "engine_sees_no_device"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The host has no ROCm runtime (`libamdhip64`), which the Linux ROCm\nbuild loads from the machine.",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "no_rocm_runtime"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Why a variant is not recommended, as a code the interface translates."
+      },
       "EngineRefusalCode": {
         "type": "string",
         "description": "Why the store refused, as a stable word an interface can branch on. The\nsentence of the error says the same to a reader.",
@@ -24294,6 +24525,15 @@
           "metal"
         ]
       },
+      "EngineVerdict": {
+        "type": "string",
+        "description": "How well a variant suits this machine.",
+        "enum": [
+          "recommended",
+          "compatible",
+          "incompatible"
+        ]
+      },
       "EnginesResponse": {
         "type": "object",
         "description": "Body of `GET /api/v1/engines`.",
@@ -24302,16 +24542,25 @@
           "channel",
           "updates",
           "cuda_proposable",
+          "available",
+          "ratings",
           "verifiable"
         ],
         "properties": {
+          "available": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailablePackage"
+            },
+            "description": "The packages the verified manifest offers for this platform, installed\nor not. Empty until a manifest verified."
+          },
           "channel": {
             "$ref": "#/components/schemas/EngineChannel",
             "description": "The followed channel."
           },
           "cuda_proposable": {
             "type": "boolean",
-            "description": "True when an NVIDIA card is detected and no CUDA engine is installed."
+            "description": "True when an NVIDIA card is detected and no CUDA engine is installed.\nDerived from `hardware`."
           },
           "dictation": {
             "oneOf": [
@@ -24331,6 +24580,17 @@
             },
             "description": "Engines embedded in the bundle, then installed ones."
           },
+          "hardware": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HardwareView",
+                "description": "The cards of the machine; `null` when the probe did not answer in time."
+              }
+            ]
+          },
           "manifest_sequence": {
             "type": [
               "integer",
@@ -24345,7 +24605,14 @@
               "string",
               "null"
             ],
-            "description": "Name of the NVIDIA card detected, when there is one."
+            "description": "Name of the NVIDIA card detected, when there is one. Derived from\n`hardware`."
+          },
+          "ratings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EngineRating"
+            },
+            "description": "Per `llama-server` variant, whether it suits this machine and why.\nEmpty until a manifest verified, or when the hardware is not known."
           },
           "updates": {
             "type": "array",
@@ -24742,6 +25009,16 @@
           }
         }
       },
+      "GpuCardVendor": {
+        "type": "string",
+        "description": "The maker of a card.",
+        "enum": [
+          "nvidia",
+          "amd",
+          "intel",
+          "other"
+        ]
+      },
       "GrantConnectionBody": {
         "type": "object",
         "description": "Body of `POST /api/v1/connections/{id}/grants`.",
@@ -24852,6 +25129,65 @@
           "refused"
         ]
       },
+      "HardwareCard": {
+        "type": "object",
+        "description": "One graphics card of the machine.",
+        "required": [
+          "vendor",
+          "name",
+          "timed_out"
+        ],
+        "properties": {
+          "compute_capability": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The NVIDIA compute capability, `8.9`."
+          },
+          "driver_version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The NVIDIA driver version, `580.65.06`."
+          },
+          "gfx_target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The gfx target of an AMD card, `gfx1100`."
+          },
+          "kfd_accessible": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether `/dev/kfd` opens. AMD under Linux only."
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "timed_out": {
+            "type": "boolean",
+            "description": "True when the driver did not answer within the probe limit."
+          },
+          "vendor": {
+            "$ref": "#/components/schemas/GpuCardVendor",
+            "description": "Its maker."
+          },
+          "vram_gb": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Its dedicated memory in GiB, when known."
+          }
+        }
+      },
       "HardwareResponse": {
         "type": "object",
         "required": [
@@ -24899,6 +25235,32 @@
           "total_ram_gb": {
             "type": "number",
             "format": "double"
+          }
+        }
+      },
+      "HardwareView": {
+        "type": "object",
+        "description": "The cards of the machine and what is installed around them.",
+        "required": [
+          "cards",
+          "vulkan_loader",
+          "rocm_runtime"
+        ],
+        "properties": {
+          "cards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HardwareCard"
+            },
+            "description": "Every card, NVIDIA ones first."
+          },
+          "rocm_runtime": {
+            "type": "boolean",
+            "description": "Whether the host's ROCm runtime is installed. Linux only."
+          },
+          "vulkan_loader": {
+            "type": "boolean",
+            "description": "Whether a Vulkan loader is installed."
           }
         }
       },

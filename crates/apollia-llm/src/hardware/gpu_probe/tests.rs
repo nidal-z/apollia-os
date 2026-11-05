@@ -7,6 +7,7 @@ fn fake_sources(root: &std::path::Path) -> ProbeSources {
         sysfs_root: Some(root.to_path_buf()),
         windows_adapters: false,
         vulkan: VulkanSource::Linux(root.to_path_buf()),
+        ld_library_path: None,
         limit: PROBE_LIMIT,
     }
 }
@@ -98,4 +99,31 @@ fn a_hung_nvidia_smi_gives_the_profile_within_six_seconds() {
     assert_eq!(profile.cards[0].probe, CardProbe::TimedOut);
     assert_eq!(profile.cards[1].vendor, GpuVendor::Amd);
     assert_eq!(profile.cards[1].probe, CardProbe::Complete);
+}
+
+#[test]
+fn the_profile_reports_the_rocm_runtime_beside_an_amd_card() {
+    // GIVEN a fake machine with a gfx1100 card whose `/dev/kfd` opens, first
+    //       without, then with `libamdhip64.so.6` under `/opt/rocm/lib`
+    let root = tempfile::tempdir().expect("tempdir");
+    amd_card(root.path(), 0);
+    let node = root.path().join("sys/class/kfd/kfd/topology/nodes/1");
+    std::fs::create_dir_all(&node).expect("kfd dir");
+    std::fs::write(node.join("properties"), "gfx_target_version 110000\n").expect("props");
+    std::fs::create_dir_all(root.path().join("dev")).expect("dev");
+    std::fs::write(root.path().join("dev/kfd"), "").expect("kfd");
+    let sources = fake_sources(root.path());
+
+    // WHEN the profile is probed before and after the library is laid down
+    let before = probe_with(&sources);
+    std::fs::create_dir_all(root.path().join("opt/rocm/lib")).expect("rocm dir");
+    std::fs::write(root.path().join("opt/rocm/lib/libamdhip64.so.6"), "").expect("hip");
+    let after = probe_with(&sources);
+
+    // THEN the card is the same, ROCm runnable, and only the second profile
+    //      has the runtime
+    assert_eq!(before.cards[0].gfx_target.as_deref(), Some("gfx1100"));
+    assert_eq!(before.cards[0].kfd_accessible, Some(true));
+    assert!(!before.rocm_runtime);
+    assert!(after.rocm_runtime);
 }

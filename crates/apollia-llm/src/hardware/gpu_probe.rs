@@ -12,9 +12,11 @@
 
 mod linux;
 mod nvidia;
+mod rocm;
 mod vulkan;
 mod windows;
 
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::RwLock;
 use std::time::Duration;
@@ -111,6 +113,11 @@ pub struct GpuProfile {
     /// Whether a Vulkan loader is installed. Says nothing of the driver behind
     /// it: only the engine's own device listing proves that.
     pub vulkan_loader: bool,
+    /// Whether the ROCm runtime (`libamdhip64`) is in a directory the dynamic
+    /// loader searches. Linux only: the Linux ROCm build of the engine does
+    /// not carry it, the Windows one does.
+    #[serde(default)]
+    pub rocm_runtime: bool,
 }
 
 /// Where the Vulkan loader is looked for.
@@ -136,6 +143,9 @@ pub(crate) struct ProbeSources {
     pub windows_adapters: bool,
     /// Where the Vulkan loader is looked for.
     pub vulkan: VulkanSource,
+    /// The value of `LD_LIBRARY_PATH` the ROCm runtime is also looked for in,
+    /// its entries taken under `sysfs_root`.
+    pub ld_library_path: Option<OsString>,
     /// The limit of each external probe.
     pub limit: Duration,
 }
@@ -158,6 +168,7 @@ impl ProbeSources {
             sysfs_root,
             windows_adapters: cfg!(windows),
             vulkan,
+            ld_library_path: std::env::var_os("LD_LIBRARY_PATH"),
             limit: PROBE_LIMIT,
         }
     }
@@ -185,9 +196,14 @@ pub(crate) fn probe_with(sources: &ProbeSources) -> GpuProfile {
         VulkanSource::Linux(root) => vulkan::linux_loader(root),
         VulkanSource::Windows(system_root) => vulkan::windows_loader(system_root),
     };
+    let rocm_runtime = sources
+        .sysfs_root
+        .as_deref()
+        .is_some_and(|root| rocm::linux_runtime(root, sources.ld_library_path.as_deref()));
     GpuProfile {
         cards,
         vulkan_loader,
+        rocm_runtime,
     }
 }
 

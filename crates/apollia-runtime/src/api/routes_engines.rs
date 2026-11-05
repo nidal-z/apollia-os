@@ -3,10 +3,12 @@
 //!
 //! - `GET  /api/v1/engines`          , engines embedded and installed with the
 //!   version each states and the ones in service, the dictation engine,
-//!   channel, updates
+//!   channel, updates, the cards of the machine, the packages the channel
+//!   offers for the platform and the rating of each `llama-server` variant
 //! - `GET  /api/v1/engines/settings` , the followed channel and the mirror address
 //! - `PUT  /api/v1/engines/settings` , change them; a new channel is checked at once
-//! - `POST /api/v1/engines/check`    , fetch and verify the channel manifest
+//! - `POST /api/v1/engines/check`    , probe the cards again, then fetch and
+//!   verify the channel manifest
 //!
 //! A check that finds an update, and a change of channel, start the automatic
 //! update of the chosen engines when `[engines] auto_update` is on.
@@ -30,11 +32,13 @@ use serde::{Deserialize, Serialize};
 use crate::api::routes_llm::servers::{api_err, ApiError};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
+use crate::engine_store::compat::Rating;
 use crate::engine_store::{
     self, cached_manifest, installed_packages, node::NodeState, version, Channel, Engine,
     EngineChoices, EngineStore, EngineStoreError, EngineStoreSettings, Source, Variant,
     VariantUpdate,
 };
+use hardware::{AvailablePackage, HardwareSource, HardwareView, HostFacts};
 
 /// One engine on this machine.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -81,9 +85,19 @@ pub struct EnginesResponse {
     /// build than the installed one exists. Empty until a manifest verified.
     pub updates: Vec<VariantUpdate>,
     /// True when an NVIDIA card is detected and no CUDA engine is installed.
+    /// Derived from `hardware`.
     pub cuda_proposable: bool,
-    /// Name of the NVIDIA card detected, when there is one.
+    /// Name of the NVIDIA card detected, when there is one. Derived from
+    /// `hardware`.
     pub nvidia_card: Option<String>,
+    /// The cards of the machine; `null` when the probe did not answer in time.
+    pub hardware: Option<HardwareView>,
+    /// The packages the verified manifest offers for this platform, installed
+    /// or not. Empty until a manifest verified.
+    pub available: Vec<AvailablePackage>,
+    /// Per `llama-server` variant, whether it suits this machine and why.
+    /// Empty until a manifest verified, or when the hardware is not known.
+    pub ratings: Vec<Rating>,
     /// The dictation engine, when a runner is in reach.
     pub dictation: Option<DictationEngine>,
     /// Whether this build carries the distribution key the channel is
@@ -303,11 +317,29 @@ fn embedded_engines() -> Vec<EngineEntry> {
     out
 }
 
-/// What the list route answers, without the hardware probe.
+/// What the list route answers, from the hardware `facts` already probed.
 fn engines_view(
     data_dir: &Path,
     embedded: Vec<EngineEntry>,
-    nvidia_card: Option<String>,
+    facts: &HostFacts,
+) -> Result<EnginesResponse, EngineStoreError> {
+    let key = apollia_signing::distribution::distribution_public_key();
+    engines_view_with(
+        data_dir,
+        embedded,
+        facts,
+        key,
+        &engine_store::current_platform(),
+    )
+}
+
+/// [`engines_view`] under a given distribution key and platform.
+fn engines_view_with(
+    data_dir: &Path,
+    embedded: Vec<EngineEntry>,
+    facts: &HostFacts,
+    key: Option<&str>,
+    platform: &str,
 ) -> Result<EnginesResponse, EngineStoreError> {
     let root = engine_store::store_root(data_dir);
     let settings = EngineStoreSettings::load(&root)?;
@@ -315,13 +347,17 @@ fn engines_view(
     let has_cuda = installed
         .iter()
         .any(|p| p.engine == Engine::LlamaServer && p.variant.is_cuda());
-    let key = apollia_signing::distribution::distribution_public_key();
     let manifest = key.and_then(|key| cached_manifest(&root, settings.channel, key));
-    let platform = engine_store::current_platform();
     let updates = manifest
         .as_ref()
-        .map(|m| engine_store::updates(&root, m, &platform))
+        .map(|m| engine_store::updates(&root, m, platform))
         .unwrap_or_default();
+    let available = manifest
+        .as_ref()
+        .map(|m| hardware::available(m, platform, &installed))
+        .unwrap_or_default();
+    let ratings = hardware::ratings(facts, manifest.as_ref(), platform);
+    let nvidia_card = hardware::nvidia_card(facts.profile.as_ref());
     let mut engines = embedded;
     engines.extend(installed.into_iter().map(entry));
     Ok(EnginesResponse {
@@ -331,6 +367,9 @@ fn engines_view(
         updates,
         cuda_proposable: nvidia_card.is_some() && !has_cuda,
         nvidia_card,
+        hardware: facts.profile.as_ref().map(HardwareView::from),
+        available,
+        ratings,
         dictation: None,
         verifiable: key.is_some(),
     })
@@ -348,16 +387,19 @@ fn engines_view(
 pub async fn list_engines<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<EnginesResponse>, ApiError> {
+    list_engines_with(state, hardware::SYSTEM).await
+}
+
+/// The list route, its hardware read from `source`.
+async fn list_engines_with<B: ExecutionBackend + Clone>(
+    state: AppState<B>,
+    source: HardwareSource,
+) -> Result<Json<EnginesResponse>, ApiError> {
     let data_dir = state.data_dir.clone();
-    let nvidia =
-        tokio::task::spawn_blocking(|| match apollia_llm::hardware::detect().accelerator {
-            apollia_llm::AcceleratorProfile::Cuda { device_name, .. } => Some(device_name),
-            _ => None,
-        })
-        .await
-        .unwrap_or(None);
+    let installed = installed_packages(&engine_store::store_root(&data_dir));
+    let facts = hardware::host_facts(source, false, &installed).await;
     let embedded = embedded_engines();
-    let mut view = engines_view(&data_dir, embedded, nvidia).map_err(store_err)?;
+    let mut view = engines_view(&data_dir, embedded, &facts).map_err(store_err)?;
     view.engines = with_versions(view.engines).await;
     let config_file = state.config_path.clone();
     let imposed = state.inference_governance.imposed_settings();
@@ -445,6 +487,19 @@ pub async fn set_engine_settings<B: ExecutionBackend + Clone>(
 pub async fn check_engines<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<EngineCheckResponse>, ApiError> {
+    check_engines_with(state, hardware::SYSTEM).await
+}
+
+/// The check route, its hardware probed again through `source` before the
+/// channel is fetched, so a driver installed since is seen even when the
+/// channel cannot be reached.
+async fn check_engines_with<B: ExecutionBackend + Clone>(
+    state: AppState<B>,
+    source: HardwareSource,
+) -> Result<Json<EngineCheckResponse>, ApiError> {
+    engine_store::compat::forget_device_listings();
+    let installed = installed_packages(&engine_store::store_root(&state.data_dir));
+    hardware::host_facts(source, true, &installed).await;
     let store = open_store(&state.data_dir)?;
     let settings = EngineStoreSettings::load(&store.root).map_err(store_err)?;
     let (manifest, _) = engine_store::refresh_manifest(&store, &settings)
@@ -577,7 +632,10 @@ pub fn engines_router<B: ExecutionBackend + Clone + 'static>() -> Router<AppStat
         )
 }
 
+mod hardware;
 pub mod installation;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_hardware;
