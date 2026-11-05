@@ -6,33 +6,13 @@
 //! that on, nor any other flag the runtime did not choose: the supervisor
 //! passes everything as flags, and `APOLLIA_LLAMA_EXTRA_ARGS` is the explicit
 //! way for an operator to add one. Every `LLAMA_ARG_*` is therefore removed
-//! from the child's environment, the rest is inherited.
+//! from the child's environment, the rest is inherited. The selection is
+//! [`apollia_llm::engine_env`], which the short launches of the engine
+//! (`--list-devices`, `--version`) go through as well.
 
-use std::ffi::OsString;
 use std::path::Path;
 
 use tokio::process::Command;
-
-/// The prefix llama.cpp reads its flags from.
-const ENGINE_FLAG_PREFIX: &str = "LLAMA_ARG_";
-
-/// The inherited variables that would set an engine flag, sorted by name.
-/// Windows reads a variable whatever the case of its name, so the prefix is
-/// matched without case there.
-fn engine_flag_names(names: impl Iterator<Item = OsString>) -> Vec<OsString> {
-    let mut found: Vec<OsString> = names
-        .filter(|name| {
-            let name = name.to_string_lossy();
-            if cfg!(windows) {
-                name.to_ascii_uppercase().starts_with(ENGINE_FLAG_PREFIX)
-            } else {
-                name.starts_with(ENGINE_FLAG_PREFIX)
-            }
-        })
-        .collect();
-    found.sort();
-    found
-}
 
 /// A command for `bin` whose child inherits the environment of this process
 /// minus every `LLAMA_ARG_*` variable, and opens no console window. The launch
@@ -44,7 +24,7 @@ pub(super) fn engine_command(bin: &Path) -> Command {
     // on Windows, one per resident model, and the supervision loop reopens it
     // on every respawn.
     apollia_core::subprocess_window::hide_console_async(&mut command);
-    let removed = engine_flag_names(std::env::vars_os().map(|(name, _)| name));
+    let removed = apollia_llm::engine_env::inherited_engine_flags();
     for name in &removed {
         command.env_remove(name);
     }

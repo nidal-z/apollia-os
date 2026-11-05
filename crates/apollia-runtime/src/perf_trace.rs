@@ -698,6 +698,7 @@ fn build_provenance(
     let server_version = server_path.as_deref().and_then(|p| {
         let mut banner = std::process::Command::new(p);
         apollia_core::subprocess_window::hide_console(&mut banner);
+        apollia_llm::engine_env::remove_engine_flags(&mut banner);
         let out = banner.arg("--version").output().ok()?;
         if !out.status.success() {
             return None;

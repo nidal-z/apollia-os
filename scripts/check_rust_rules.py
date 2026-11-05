@@ -410,6 +410,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # process can show. The site is the shebang of the fake engine, one helper
     # shared by the supervisor and embedder tests.
     "crates/apollia-runtime/src/llama_server/embeddings/tests.rs": 1,
+    # The process is the subject: an inherited `LLAMA_ARG_*` must not reach
+    # the engine whose `--version` banner is read, which only a launched
+    # process can show. The site is the shebang of that fake engine.
+    "crates/apollia-runtime/src/llama_server/engine_env/tests.rs": 1,
     # The process is the subject: changing a load setting of a resident model
     # has to stop its child and launch another, which only a launched process
     # can show. The site is the shell script of the fake engine, one helper

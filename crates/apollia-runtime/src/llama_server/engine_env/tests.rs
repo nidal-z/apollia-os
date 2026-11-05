@@ -10,8 +10,9 @@ use tracing::field::{Field, Visit};
 use tracing::span::{Attributes, Id, Record};
 use tracing::{Event, Metadata, Subscriber};
 
-use super::{engine_command, engine_flag_names};
+use super::engine_command;
 use crate::llama_server::test_support::supervisor_with_ceiling;
+use apollia_llm::engine_env::engine_flag_names;
 
 /// Serialises the tests that write the environment of this process.
 static LOCK: Mutex<()> = Mutex::new(());
@@ -193,4 +194,40 @@ fn test_only_names_with_the_engine_prefix_are_selected() {
             OsString::from("LLAMA_ARG_PORT")
         ]
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_an_inherited_engine_flag_does_not_reach_the_version_banner() {
+    // GIVEN an engine that refuses to run when any LLAMA_ARG_* is in its
+    //       environment, as a build does on an invalid one, and two such
+    //       variables in the test process, posed under the environment lock
+    let _lock = LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _posed = Posed::new();
+    let dir = tempfile::tempdir().unwrap();
+    let engine = dir.path().join("llama-server");
+    std::fs::write(
+        &engine,
+        "#!/bin/sh\n\
+         if env | grep -q '^LLAMA_ARG_'; then echo 'invalid argument' >&2; exit 1; fi\n\
+         echo 'version: 12064 (abcdef0)'\n",
+    )
+    .unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    // WHEN its banner is read
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let version = runtime.block_on(crate::engine_store::version::probe_banner(&engine));
+
+    // THEN the variables did not reach it, and its version is read rather
+    //      than the banner coming back empty
+    assert_eq!(version.as_deref(), Some("12064 (abcdef0)"));
 }
