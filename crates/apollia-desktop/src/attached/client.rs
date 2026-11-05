@@ -290,6 +290,32 @@ impl AttachedClient {
         }
     }
 
+    /// `DELETE path`, for a caller that reads the body of a refusal as well as
+    /// of a success: the HTTP status and the JSON body, `null` when the answer
+    /// has none or none that parses. Only a request that got no answer is an
+    /// error.
+    pub(crate) async fn delete_answer(
+        &self,
+        path: &str,
+    ) -> Result<(u16, serde_json::Value), AttachedError> {
+        let response = self
+            .http
+            .delete(self.url(path))
+            .bearer_auth(&self.token)
+            .timeout(REQUEST_TIMEOUT)
+            .send()
+            .await
+            .map_err(AttachedError::Unreachable)?;
+        let status = response.status().as_u16();
+        let body = apollia_core::net::read_capped_bytes(response, MAX_BODY_BYTES)
+            .await
+            .map_err(AttachedError::Body)?;
+        Ok((
+            status,
+            serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null),
+        ))
+    }
+
     /// Uploads a WAV to `POST /api/v1/stt/transcribe` under `source`, the tag
     /// the history shows; the answer is the row the runtime kept.
     pub(crate) async fn transcribe<T: DeserializeOwned>(

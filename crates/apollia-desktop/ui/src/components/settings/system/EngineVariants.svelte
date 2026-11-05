@@ -4,14 +4,21 @@
    * the followed channel offers for this platform, installed or not, each with
    * the verdict of the runtime on this machine and its reason. The variants
    * that cannot run here are folded behind one button. Before the channel was
-   * ever read the list says so and offers the check.
+   * ever read the list says so and offers the check. A variant not installed
+   * is installed from its row, and its progress shows there; an incompatible
+   * one asks first, with the reason. Engines copied in a folder are imported
+   * from the foot of the list.
    */
   import { t } from "svelte-i18n";
-  import { Layers, RefreshCw } from "lucide-svelte";
+  import { Download, FolderInput, Layers, RefreshCw } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import SettingsSection from "../SettingsSection.svelte";
+  import EngineInstallStatus from "./EngineInstallStatus.svelte";
   import { variantLabel } from "./EngineList.svelte";
+  import { installationOn, isRunning } from "$lib/settings/engineManagement";
+  import { engineManagement } from "$lib/settings/engineManagementLive";
   import type { EngineVerdict, EnginesResponse } from "$lib/ipc/system";
   import {
     VERDICT_KEYS,
@@ -53,6 +60,17 @@
     if (!row.reason) return null;
     const sentence = reasonSentence(row.reason, row.verdict);
     return $t(sentence.key, { values: sentence.values });
+  }
+
+  const busy = $derived($engineManagement.busy || isRunning($engineManagement.installation));
+  const pending = $derived($engineManagement.pendingInstall);
+  const importing = $derived(installationOn($engineManagement, { kind: "import" }));
+
+  function pendingBody(row: VariantRow): string {
+    const why = reason(row);
+    return why
+      ? $t("settings.engines.install_confirm.body", { values: { reason: why } })
+      : $t("settings.engines.install_confirm.body_no_reason");
   }
 </script>
 
@@ -121,6 +139,29 @@
               {reason(row)}
             </p>
           {/if}
+          {#if !row.installed}
+            {@const running = installationOn($engineManagement, { kind: "variant", variant: row.variant })}
+            {#if running}
+              <EngineInstallStatus
+                installation={running}
+                data-testid="engine-variant-install-progress-{row.variant}"
+              />
+            {/if}
+            <div>
+              <Button
+                variant={row.verdict === "recommended" ? "default" : "outline"}
+                size="sm"
+                disabled={busy}
+                title={busy ? $t("settings.engines.install_busy") : undefined}
+                aria-label={$t("settings.engines.install_label", { values: { name: name(row) } })}
+                onclick={() => void engineManagement.install(row)}
+                data-testid="engine-variant-install-{row.variant}"
+              >
+                {#snippet icon()}<Download size={13} />{/snippet}
+                {$t("settings.engines.install")}
+              </Button>
+            </div>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -140,4 +181,38 @@
       </div>
     {/if}
   {/if}
+
+  <div class="flex flex-col gap-2 border-t border-border/50 py-3" data-testid="engine-import">
+    <div class="flex flex-wrap items-center gap-3">
+      <p class="min-w-0 flex-1 text-caption text-muted-foreground">
+        {$t("settings.engines.import_hint")}
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={busy}
+        title={busy ? $t("settings.engines.install_busy") : undefined}
+        onclick={() => void engineManagement.importFromFolder()}
+        data-testid="engine-import-folder"
+      >
+        {#snippet icon()}<FolderInput size={13} />{/snippet}
+        {$t("settings.engines.import_folder")}
+      </Button>
+    </div>
+    {#if importing}
+      <EngineInstallStatus installation={importing} data-testid="engine-import-folder-progress" />
+    {/if}
+  </div>
 </SettingsSection>
+
+<ConfirmDialog
+  open={pending !== null}
+  onclose={() => engineManagement.cancelInstall()}
+  onconfirm={() => void engineManagement.confirmInstall()}
+  title={pending
+    ? $t("settings.engines.install_confirm.title", { values: { name: name(pending) } })
+    : ""}
+  message={pending ? pendingBody(pending) : ""}
+  confirmLabel={$t("settings.engines.install_confirm.confirm")}
+  data-testid="engine-variant-install-dialog"
+/>

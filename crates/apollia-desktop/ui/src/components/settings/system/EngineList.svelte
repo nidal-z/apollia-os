@@ -38,6 +38,8 @@
   /** What a row of the engine list says: which engine, built for what, at which version. */
   export interface EngineRow {
     id: string;
+    /** The wire name of the engine; `null` for the dictation engine. */
+    engine: EngineEntry["engine"] | null;
     /** What the engine is for. */
     type: EngineType;
     /** False when this machine has not the hardware the build is made for. */
@@ -131,6 +133,7 @@
     if (!response) return [];
     const rows: EngineRow[] = response.engines.map((e, i) => ({
       id: `${e.engine}-${e.variant ?? "any"}-${e.tag ?? e.source}-${i}`,
+      engine: e.engine,
       type: ENGINE_TYPES[e.engine],
       compatible: engineCompatible(e, response),
       name: ENGINE_NAMES[e.engine],
@@ -147,6 +150,7 @@
     if (response.dictation) {
       rows.push({
         id: "whisper",
+        engine: null,
         type: "dictation",
         compatible: true,
         name: "whisper.cpp",
@@ -161,6 +165,15 @@
       });
     }
     return rows;
+  }
+
+  /** The build a row names, when the engine store installed it and can remove it. */
+  export function removableBuild(
+    row: EngineRow,
+  ): { engine: string; tag: string; variant: string } | null {
+    if (row.source !== "downloaded" && row.source !== "imported") return null;
+    if (row.engine === null || row.tag === null || row.variant === null) return null;
+    return { engine: row.engine, tag: row.tag, variant: row.variant };
   }
 
   /** Display name of a variant: a backend name, or the processor. */
@@ -221,7 +234,7 @@
    * the header of System > Hardware.
    */
   import { t } from "svelte-i18n";
-  import { Cpu, Activity, RefreshCw, Search } from "lucide-svelte";
+  import { Cpu, Activity, RefreshCw, Search, Trash2 } from "lucide-svelte";
   import { Input } from "$lib/components/ui/input";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -236,6 +249,8 @@
   import { ErrorBanner } from "$lib/components/operator";
   import SettingsSection from "../SettingsSection.svelte";
   import EngineVariants from "./EngineVariants.svelte";
+  import EngineRemoveDialog from "./EngineRemoveDialog.svelte";
+  import { engineManagement } from "$lib/settings/engineManagementLive";
 
   interface Props {
     response: EnginesResponse | null;
@@ -284,6 +299,15 @@
   function label(row: EngineRow): string {
     const variant = variantLabel(row.variant, $t("settings.engines.variant_cpu"));
     return variant ? `${row.name} · ${variant}` : row.name;
+  }
+
+  /** The name of the build a removal is about, as its row writes it. */
+  function buildName(build: { engine: string; tag: string; variant: string }): string {
+    const row = rows.find((r) => {
+      const own = removableBuild(r);
+      return own?.engine === build.engine && own.tag === build.tag && own.variant === build.variant;
+    });
+    return row ? label(row) : build.engine;
   }
 </script>
 
@@ -408,6 +432,7 @@
     {/if}
     <ul class="divide-y divide-border/50">
       {#each shown as row (row.id)}
+        {@const build = removableBuild(row)}
         <li class="flex items-start gap-3 py-3" data-testid="engine-row">
           <Activity size={15} strokeWidth={1.75} class="mt-0.5 shrink-0 text-muted-foreground" />
           <div class="min-w-0 flex-1">
@@ -459,11 +484,29 @@
               {/if}
             {/if}
           </div>
+          {#if build}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={row.inService}
+              title={row.inService ? $t("settings.engines.remove.in_service_hint") : undefined}
+              aria-label={$t("settings.engines.remove.label", {
+                values: { name: label(row), tag: build.tag },
+              })}
+              onclick={() => engineManagement.askRemove(build)}
+              data-testid="engine-variant-remove-{build.engine}-{build.tag}-{build.variant}"
+            >
+              {#snippet icon()}<Trash2 size={13} />{/snippet}
+              {$t("settings.engines.remove.confirm")}
+            </Button>
+          {/if}
         </li>
       {/each}
     </ul>
   {/if}
 </SettingsSection>
+
+<EngineRemoveDialog nameOf={buildName} />
 
 {#if response}
   <EngineVariants {response} {os} {checking} {oncheck} />

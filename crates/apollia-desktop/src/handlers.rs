@@ -164,6 +164,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::engine_installation::start_engine_installation,
         commands::engine_installation::import_engine_folder,
         commands::engine_installation::dismiss_engine_installation,
+        commands::engine_installation::remove_engine_variant,
         commands::config::system::get_resource_usage,
         commands::config::system::get_python_interpreter,
         commands::config::system::set_python_interpreter,

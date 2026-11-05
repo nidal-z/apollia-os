@@ -398,12 +398,57 @@ pub(crate) async fn http_post_json_refusable(
     http_request_refusable(port, "POST", path, Some(body)).await
 }
 
+/// `DELETE path` on the internal REST API, for a caller that reads the body
+/// of a refusal as well as of a success: the HTTP status and the JSON body,
+/// `null` when the answer has none or none that parses. Only a request that
+/// got no answer is an error.
+pub(crate) async fn http_delete_answer(
+    port: u16,
+    path: &str,
+) -> Result<(u16, serde_json::Value), String> {
+    let (status, bytes) = http_exchange(port, "DELETE", path, None)
+        .await
+        .map_err(|failure| failure.message)?;
+    let body = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    Ok((status.as_u16(), body))
+}
+
 async fn http_request_refusable(
     port: u16,
     method: &str,
     path: &str,
     body: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value, HttpFailure> {
+    let (status, resp_bytes) = http_exchange(port, method, path, body).await?;
+    let body_str = String::from_utf8_lossy(&resp_bytes);
+
+    if !status.is_success() {
+        let error_msg = serde_json::from_str::<serde_json::Value>(&body_str)
+            .ok()
+            .and_then(|j| j.get("error").and_then(|e| e.as_str()).map(String::from))
+            .unwrap_or_else(|| format!("API error ({}): {}", status.as_u16(), body_str));
+        return Err(HttpFailure {
+            status: Some(status.as_u16()),
+            message: error_msg,
+        });
+    }
+
+    // A route that answers `204 No Content` has nothing to parse.
+    if resp_bytes.is_empty() {
+        return Ok(serde_json::Value::Null);
+    }
+    serde_json::from_str(&body_str)
+        .map_err(|e| HttpFailure::unanswered(format!("invalid JSON response: {e}")))
+}
+
+/// One request to the internal REST API: the status and the bytes of the
+/// answer, whatever the status.
+async fn http_exchange(
+    port: u16,
+    method: &str,
+    path: &str,
+    body: Option<&serde_json::Value>,
+) -> Result<(hyper::StatusCode, Bytes), HttpFailure> {
     let stream = TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
         .map_err(|e| HttpFailure::unanswered(format!("failed to connect to runtime API: {e}")))?;
@@ -457,25 +502,7 @@ async fn http_request_refusable(
         .await
         .map_err(|e| HttpFailure::unanswered(format!("failed to read response body: {e}")))?
         .to_bytes();
-    let body_str = String::from_utf8_lossy(&resp_bytes);
-
-    if !status.is_success() {
-        let error_msg = serde_json::from_str::<serde_json::Value>(&body_str)
-            .ok()
-            .and_then(|j| j.get("error").and_then(|e| e.as_str()).map(String::from))
-            .unwrap_or_else(|| format!("API error ({}): {}", status.as_u16(), body_str));
-        return Err(HttpFailure {
-            status: Some(status.as_u16()),
-            message: error_msg,
-        });
-    }
-
-    // A route that answers `204 No Content` has nothing to parse.
-    if resp_bytes.is_empty() {
-        return Ok(serde_json::Value::Null);
-    }
-    serde_json::from_str(&body_str)
-        .map_err(|e| HttpFailure::unanswered(format!("invalid JSON response: {e}")))
+    Ok((status, resp_bytes))
 }
 
 #[cfg(test)]
