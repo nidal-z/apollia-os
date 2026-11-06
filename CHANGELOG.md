@@ -11,7 +11,9 @@ Changes since `0.3.0`. Connections are rebuilt from the screen to the engine:
 one page shows every connection with its true state, one window adds any of
 them, and a connection is checked, repaired, paused or removed in one gesture
 from its card. Google Workspace works as in 0.3.0; only the place where its
-OAuth client is entered has moved, into developer mode.
+OAuth client is entered has moved, into developer mode. The engine now
+follows the graphics card of the machine, and a source reads scanned pages
+and pictures on every system.
 
 ### Highlights
 
@@ -31,6 +33,15 @@ OAuth client is entered has moved, into developer mode.
 - **Microsoft asks for less.** Apollia asks for your own OneDrive files only,
   reads only the folders and files you choose, and guides a work account whose
   organisation requires an administrator's approval.
+- **The engine that suits the card.** The runtime probes the cards and their
+  driver and rates every `llama-server` variant of the channel (`cuda-12`,
+  `cuda-13`, `rocm`, `vulkan`, `cpu`); the AI screen, **Engines** and
+  `apollia-os engine` offer the recommended one, and a choice applies the
+  next time a model is loaded.
+- **Scanned pages and pictures are read.** A scanned PDF page and a `.png`,
+  `.jpg` or `.tiff` file are found by the search like any other text, with
+  the recognition engine carried by the command-line binary and the desktop
+  application on macOS, Linux and Windows.
 
 ### Added
 
