@@ -5,7 +5,7 @@ All notable changes to Apollia OS are documented in this file.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
 This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
-## [0.3.1] - 2026-10-31
+## [0.3.1] - 2026-11-06
 
 Changes since `0.3.0`. Connections are rebuilt from the screen to the engine:
 one page shows every connection with its true state, one window adds any of
